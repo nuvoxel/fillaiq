@@ -32,7 +32,7 @@ export default function LoginPage() {
       if (result.error) {
         setError(result.error.message ?? "Sign in failed");
       } else {
-        router.push("/");
+        router.push("/dashboard");
         router.refresh();
       }
     } catch (e) {
@@ -50,7 +50,7 @@ export default function LoginPage() {
       if (result.error) {
         setError(result.error.message ?? "Sign up failed");
       } else {
-        router.push("/");
+        router.push("/dashboard");
         router.refresh();
       }
     } catch (e) {
@@ -170,6 +170,35 @@ export default function LoginPage() {
               ) : (
                 "Create Account"
               )}
+            </Button>
+          </Box>
+
+          <Divider sx={{ my: 3 }}>or</Divider>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              size="large"
+              disabled={loading}
+              onClick={() => {
+                setLoading(true);
+                authClient.signIn.social({ provider: "microsoft-entra-id", callbackURL: "/dashboard" });
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Continue with Microsoft
+            </Button>
+            <Button
+              variant="outlined"
+              size="large"
+              disabled={loading}
+              onClick={() => {
+                setLoading(true);
+                authClient.signIn.social({ provider: "github", callbackURL: "/dashboard" });
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Continue with GitHub
             </Button>
           </Box>
         </CardContent>

@@ -39,7 +39,7 @@ export function Header({
   async function handleLogout() {
     setAnchorEl(null);
     await authClient.signOut();
-    router.push("/login");
+    router.push("/");
     router.refresh();
   }
 
@@ -47,7 +47,17 @@ export function Header({
     <AppBar position="sticky" color="default" elevation={1}>
       <Toolbar variant="dense" sx={{ justifyContent: "space-between" }}>
         {/* Logo */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <Box
+          component={Link}
+          href="/dashboard"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            textDecoration: "none",
+            color: "inherit",
+          }}
+        >
           <Box
             sx={{
               width: 32,

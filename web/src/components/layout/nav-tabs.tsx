@@ -14,7 +14,7 @@ import SendIcon from "@mui/icons-material/Send";
 import SettingsIcon from "@mui/icons-material/Settings";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: <DashboardIcon fontSize="small" /> },
+  { href: "/dashboard", label: "Dashboard", icon: <DashboardIcon fontSize="small" /> },
   { href: "/audit", label: "Audit Log", icon: <HistoryIcon fontSize="small" /> },
   { href: "/spools", label: "Spools", icon: <CircleOutlinedIcon fontSize="small" /> },
   { href: "/catalog", label: "Catalog", icon: <MenuBookIcon fontSize="small" /> },
@@ -26,7 +26,7 @@ const navItems = [
 function resolveTab(pathname: string): number {
   for (let i = navItems.length - 1; i >= 0; i--) {
     const { href } = navItems[i];
-    if (href === "/" ? pathname === "/" : pathname.startsWith(href)) return i;
+    if (href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href)) return i;
   }
   return 0;
 }
