@@ -90,7 +90,6 @@ void initLed() {
 }
 
 void updateLed() {
-    // Show green if any channel has a spool present
     bool anySpool = false;
     for (uint8_t ch = 0; ch < activeChannels; ch++) {
         if (scales.isConnected(ch) && scales.getWeight(ch) > SPOOL_PRESENT_THRESHOLD) {
@@ -98,11 +97,10 @@ void updateLed() {
             break;
         }
     }
-
     if (anySpool) {
-        led.setPixelColor(0, 0, 30, 0);  // Green
+        led.setPixelColor(0, 0, 30, 0);
     } else {
-        led.setPixelColor(0, 0, 0, 0);   // Off
+        led.setPixelColor(0, 0, 0, 0);
     }
     led.show();
 }
@@ -239,7 +237,7 @@ void handleSerialCommands() {
             SlotDisplay* disp = getDisplay(calChannel);
             if (disp) disp->showCalResult(newCal, verify, knownWeight);
         }
-        delay(1500);  // Show result on display briefly
+        delay(1500);
 
         calStartNextChannel();
         return;
@@ -364,8 +362,8 @@ void setup() {
     Serial.println("Loading calibration...");
     loadCalibration();
 
-    // Initialize TFT displays
-    Serial.println("Initializing displays...");
+    // Initialize OLED display
+    Serial.println("Initializing display...");
     initDisplays();
 
     // Initialize NFC readers
@@ -389,7 +387,7 @@ void loop() {
     // so tag data is available before display rendering
     pollNfc();
 
-    // Update LED and displays
+    // Update LED and display
     if (now - lastLedUpdate >= UI_REFRESH_INTERVAL_MS) {
         lastLedUpdate = now;
         updateLed();

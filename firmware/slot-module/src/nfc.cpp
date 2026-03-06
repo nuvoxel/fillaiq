@@ -16,28 +16,29 @@ static Adafruit_PN532 readers[] = {
 // Shared packet buffer (global in Adafruit_PN532.cpp)
 extern byte pn532_packetbuffer[];
 
+// Cached Bambu keys for incremental MIFARE reading (derived once per tag)
+static BambuKeys cachedKeys[NFC_NUM_READERS];
+
 // Toggle a reader's RF field on/off via RFConfiguration command
-// CfgItem 0x01: bit 0 = auto RFCA, bit 1 = RF on
 static void setRfField(Adafruit_PN532 &reader, bool on) {
-    pn532_packetbuffer[0] = 0x32;  // PN532_COMMAND_RFCONFIGURATION
-    pn532_packetbuffer[1] = 0x01;  // CfgItem: RF Field
+    pn532_packetbuffer[0] = 0x32;
+    pn532_packetbuffer[1] = 0x01;
     pn532_packetbuffer[2] = on ? 0x01 : 0x00;
     reader.sendCommandCheckAck(pn532_packetbuffer, 3, 50);
 }
 
 // Set 106kbps Type A analog settings for maximum read range
-// CfgItem 0x0D: CIU register configuration
 static void setMaxRxGain(Adafruit_PN532 &reader) {
-    pn532_packetbuffer[0]  = 0x32;  // RFConfiguration
-    pn532_packetbuffer[1]  = 0x0D;  // CfgItem: 106kbps Type A
-    pn532_packetbuffer[2]  = 0x79;  // CIU_RFCfg: RxGain=48dB (max, default 0x59=38dB)
-    pn532_packetbuffer[3]  = 0xFF;  // CIU_GsNOn: max N-driver (TX power)
-    pn532_packetbuffer[4]  = 0x3F;  // CIU_CWGsP: max P-driver
-    pn532_packetbuffer[5]  = 0x11;  // CIU_ModGsP: default modulation
-    pn532_packetbuffer[6]  = 0x41;  // CIU_Demod (RF on): default
-    pn532_packetbuffer[7]  = 0x85;  // CIU_RxThreshold: default
-    pn532_packetbuffer[8]  = 0x61;  // CIU_Demod (RF off): default
-    pn532_packetbuffer[9]  = 0x6F;  // CIU_GsNOff: default
+    pn532_packetbuffer[0]  = 0x32;
+    pn532_packetbuffer[1]  = 0x0D;
+    pn532_packetbuffer[2]  = 0x79;
+    pn532_packetbuffer[3]  = 0xFF;
+    pn532_packetbuffer[4]  = 0x3F;
+    pn532_packetbuffer[5]  = 0x11;
+    pn532_packetbuffer[6]  = 0x41;
+    pn532_packetbuffer[7]  = 0x85;
+    pn532_packetbuffer[8]  = 0x61;
+    pn532_packetbuffer[9]  = 0x6F;
     reader.sendCommandCheckAck(pn532_packetbuffer, 10, 100);
 }
 
@@ -49,6 +50,8 @@ void NfcReader::begin() {
     for (uint8_t i = 0; i < NFC_NUM_READERS; i++) {
         _tags[i].clear();
         _connected[i] = false;
+        _nextSector[i] = 0xFF;
+        _nextPage[i] = 0xFF;
 
         readers[i].begin();
 
@@ -62,12 +65,109 @@ void NfcReader::begin() {
                 (i == 0) ? NFC_CS_PIN_0 : NFC_CS_PIN_1);
 
             readers[i].SAMConfig();
-            readers[i].setPassiveActivationRetries(0xFF);  // Max retries
-            setMaxRxGain(readers[i]);  // 48dB receiver gain (max)
+            readers[i].setPassiveActivationRetries(0xFF);
+            setMaxRxGain(readers[i]);
             _connected[i] = true;
         } else {
             Serial.printf("  NFC %d: not detected (CS=GPIO%d)\n",
                 i, (i == 0) ? NFC_CS_PIN_0 : NFC_CS_PIN_1);
+        }
+    }
+}
+
+// ==================== Incremental Read Helpers ====================
+
+void NfcReader::_startRead(uint8_t bay) {
+    _tagData[bay].clear();
+    memcpy(_tagData[bay].uid, _tags[bay].uid, _tags[bay].uid_len);
+    _tagData[bay].uid_len = _tags[bay].uid_len;
+
+    if (_tags[bay].uid_len == 4) {
+        _tagData[bay].type = TAG_MIFARE_CLASSIC;
+        // Derive keys once, cache for incremental reads
+        bambuDeriveKeys(_tags[bay].uid, cachedKeys[bay]);
+        _nextSector[bay] = 0;
+        Serial.printf("Bay %d: new MIFARE Classic tag %s — reading...\n",
+            bay, getUidString(bay).c_str());
+    } else if (_tags[bay].uid_len == 7) {
+        _tagData[bay].type = TAG_NTAG;
+        _nextPage[bay] = 0;
+        Serial.printf("Bay %d: new NTAG tag %s — reading...\n",
+            bay, getUidString(bay).c_str());
+    }
+}
+
+void NfcReader::_continueRead(uint8_t bay) {
+    if (_tagData[bay].type == TAG_MIFARE_CLASSIC && _nextSector[bay] < TagData::NUM_SECTORS) {
+        // Read SECTORS_PER_POLL sectors this cycle
+        uint8_t count = SECTORS_PER_POLL;
+        if (_nextSector[bay] + count > TagData::NUM_SECTORS) {
+            count = TagData::NUM_SECTORS - _nextSector[bay];
+        }
+        readMifareClassicSectors(readers[bay], _tags[bay].uid, _tags[bay].uid_len,
+                                  cachedKeys[bay], _nextSector[bay], count, _tagData[bay]);
+        _nextSector[bay] += count;
+
+        // Check if done
+        if (_nextSector[bay] >= TagData::NUM_SECTORS) {
+            _nextSector[bay] = 0xFF;  // Done
+            _finishRead(bay);
+        }
+    } else if (_tagData[bay].type == TAG_NTAG && _nextPage[bay] < TagData::MAX_PAGES) {
+        // Read PAGES_PER_POLL pages this cycle
+        uint8_t end = _nextPage[bay] + PAGES_PER_POLL;
+        if (end > TagData::MAX_PAGES) end = TagData::MAX_PAGES;
+
+        for (uint8_t page = _nextPage[bay]; page < end; page++) {
+            uint8_t buf[4];
+            if (readers[bay].ntag2xx_ReadPage(page, buf)) {
+                memcpy(_tagData[bay].page_data[page], buf, 4);
+                _tagData[bay].pages_read = page + 1;
+            } else {
+                break;  // End of readable pages
+            }
+        }
+
+        // Done if we hit end or a read failed
+        if (_tagData[bay].pages_read < _nextPage[bay] + PAGES_PER_POLL ||
+            _nextPage[bay] + PAGES_PER_POLL >= TagData::MAX_PAGES) {
+            _nextPage[bay] = 0xFF;  // Done
+            _tagData[bay].valid = (_tagData[bay].pages_read > 0);
+            _finishRead(bay);
+        } else {
+            _nextPage[bay] += PAGES_PER_POLL;
+        }
+    }
+}
+
+void NfcReader::_finishRead(uint8_t bay) {
+    Serial.printf("Bay %d: %s tag %s (%d %s read)\n",
+        bay, tagTypeName(_tagData[bay].type), getUidString(bay).c_str(),
+        _tagData[bay].type == TAG_MIFARE_CLASSIC ? _tagData[bay].sectors_read : _tagData[bay].pages_read,
+        _tagData[bay].type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
+
+    // TODO: POST _tagData[bay] to web service, receive FilamentInfo back
+    // For now: try Bambu parsing locally as fallback
+    _filament[bay].clear();
+    if (_tagData[bay].type == TAG_MIFARE_CLASSIC && _tagData[bay].sectors_read >= 2) {
+        if (parseBambuFromRaw(_tagData[bay], _filament[bay]) &&
+            _filament[bay].material[0] != '\0' && _filament[bay].spool_net_weight > 0) {
+            Serial.printf("Bay %d: Bambu tag parsed OK\n", bay);
+            bambuPrintInfo(_filament[bay]);
+
+            SpoolInfo si;
+            si.brand = "BAMBU";
+            si.name = _filament[bay].name;
+            si.material = _filament[bay].material;
+            si.diameter = _filament[bay].filament_diameter;
+            si.fullWeight = _filament[bay].spool_net_weight;
+            si.color_r = _filament[bay].color_r;
+            si.color_g = _filament[bay].color_g;
+            si.color_b = _filament[bay].color_b;
+            setDisplaySpoolInfo(bay, si);
+        } else {
+            _filament[bay].clear();
+            Serial.printf("Bay %d: tag data captured (not Bambu)\n", bay);
         }
     }
 }
@@ -109,42 +209,14 @@ void NfcReader::poll() {
         _tags[bay].present = true;
 
         if (is_new) {
-            Serial.printf("Bay %d: tag %s\n", bay, getUidString(bay).c_str());
+            // New tag — start incremental read
+            _startRead(bay);
+        }
 
-            // 4-byte UID = MIFARE Classic → try reading as Bambu tag
-            // Retry once if first attempt fails (tag may not be stable yet)
-            if (uid_len == 4) {
-                Serial.printf("Bay %d: reading Bambu tag...\n", bay);
-                bool success = readBambuTag(bay, _filament[bay]);
-                if (!success) {
-                    // Re-select tag and retry
-                    uint8_t retryUid[7]; uint8_t retryLen;
-                    if (readers[bay].readPassiveTargetID(
-                            PN532_MIFARE_ISO14443A, retryUid, &retryLen, 200)) {
-                        success = readBambuTag(bay, _filament[bay]);
-                    }
-                }
-                if (success) {
-                    Serial.printf("Bay %d: Bambu tag OK\n", bay);
-                    bambuPrintInfo(_filament[bay]);
-
-                    // Push filament data to display
-                    SpoolInfo si;
-                    si.brand = "BAMBU";
-                    si.name = _filament[bay].name;
-                    si.material = _filament[bay].material;
-                    si.diameter = _filament[bay].filament_diameter;
-                    si.fullWeight = _filament[bay].spool_net_weight;
-                    si.color = lv_color_make(
-                        _filament[bay].color_r,
-                        _filament[bay].color_g,
-                        _filament[bay].color_b);
-                    setDisplaySpoolInfo(bay, si);
-                } else {
-                    Serial.printf("Bay %d: Bambu tag read failed\n", bay);
-                    _filament[bay].clear();
-                }
-            }
+        // Continue incremental read if in progress
+        bool reading = (_nextSector[bay] != 0xFF || _nextPage[bay] != 0xFF);
+        if (reading) {
+            _continueRead(bay);
         }
     } else {
         // Check for tag removal (timeout)
@@ -152,9 +224,9 @@ void NfcReader::poll() {
             now - _tags[bay].last_seen >= NFC_TIMEOUT_MS) {
             _tags[bay].present = false;
             _filament[bay].clear();
-            // Don't reset display here — keep showing last known info
-            // while spool is still on the scale. Display resets its own
-            // SpoolInfo when weight drops below threshold.
+            _tagData[bay].clear();
+            _nextSector[bay] = 0xFF;
+            _nextPage[bay] = 0xFF;
             Serial.printf("Bay %d: tag removed\n", bay);
         }
     }
@@ -202,17 +274,26 @@ void NfcReader::printStatus() {
             if (_tags[i].present) {
                 Serial.printf("  Last seen: %lums ago\n",
                     millis() - _tags[i].last_seen);
+                bool reading = (_nextSector[i] != 0xFF || _nextPage[i] != 0xFF);
+                if (reading) {
+                    Serial.printf("  Reading: sector %d\n", _nextSector[i]);
+                }
             }
         }
     }
 }
 
-// ==================== Bambu Tag Reading ====================
+// ==================== Tag Data Access ====================
 
-bool NfcReader::readBambuTag(uint8_t bay, FilamentInfo &info) {
-    if (bay >= NFC_NUM_READERS || !_connected[bay]) return false;
-    if (_tags[bay].uid_len != 4) return false;
-    return bambuReadTag(readers[bay], _tags[bay].uid, _tags[bay].uid_len, info);
+const TagData& NfcReader::getTagData(uint8_t bay) {
+    static TagData empty;
+    if (bay >= NFC_NUM_READERS) return empty;
+    return _tagData[bay];
+}
+
+bool NfcReader::hasTagData(uint8_t bay) {
+    if (bay >= NFC_NUM_READERS) return false;
+    return _tagData[bay].valid;
 }
 
 const FilamentInfo& NfcReader::getFilamentInfo(uint8_t bay) {

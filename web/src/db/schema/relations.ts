@@ -13,7 +13,11 @@ import { catalogSubmissions } from "./submissions";
 import {
   users,
   spools,
-  printers,
+  machines,
+  machineToolHeads,
+  machineWorkSurfaces,
+  machineMaterialSlots,
+  machineAccessories,
   userPrintProfiles,
   equipment,
   labelTemplates,
@@ -43,6 +47,7 @@ import {
   dryingSessions,
   environmentalReadings,
 } from "./events";
+import { scanStations, scanEvents, inventoryItems } from "./scan-stations";
 import { auditLogs } from "./audit";
 
 // ── Central Catalog Relations ───────────────────────────────────────────────
@@ -151,12 +156,15 @@ export const usersRelations = relations(users, ({ many }) => ({
   apikeys: many(apikeys),
   members: many(members),
   spools: many(spools),
-  printers: many(printers),
+  machines: many(machines),
   printProfiles: many(userPrintProfiles),
   equipment: many(equipment),
   labelTemplates: many(labelTemplates),
   preferences: many(userPreferences),
   racks: many(racks),
+  scanStations: many(scanStations),
+  scanEvents: many(scanEvents),
+  inventoryItems: many(inventoryItems),
   submissions: many(catalogSubmissions, { relationName: "submitter" }),
   reviews: many(catalogSubmissions, { relationName: "reviewer" }),
   auditLogs: many(auditLogs),
@@ -185,14 +193,62 @@ export const spoolsRelations = relations(spools, ({ one, many }) => ({
   dryingSessions: many(dryingSessions),
 }));
 
-export const printersRelations = relations(printers, ({ one, many }) => ({
+export const machinesRelations = relations(machines, ({ one, many }) => ({
   user: one(users, {
-    fields: [printers.userId],
+    fields: [machines.userId],
     references: [users.id],
   }),
+  toolHeads: many(machineToolHeads),
+  workSurfaces: many(machineWorkSurfaces),
+  materialSlots: many(machineMaterialSlots),
+  accessories: many(machineAccessories),
   printProfiles: many(userPrintProfiles),
   usageSessions: many(usageSessions),
 }));
+
+export const machineToolHeadsRelations = relations(
+  machineToolHeads,
+  ({ one }) => ({
+    machine: one(machines, {
+      fields: [machineToolHeads.machineId],
+      references: [machines.id],
+    }),
+  })
+);
+
+export const machineWorkSurfacesRelations = relations(
+  machineWorkSurfaces,
+  ({ one }) => ({
+    machine: one(machines, {
+      fields: [machineWorkSurfaces.machineId],
+      references: [machines.id],
+    }),
+  })
+);
+
+export const machineMaterialSlotsRelations = relations(
+  machineMaterialSlots,
+  ({ one }) => ({
+    machine: one(machines, {
+      fields: [machineMaterialSlots.machineId],
+      references: [machines.id],
+    }),
+    spool: one(spools, {
+      fields: [machineMaterialSlots.spoolId],
+      references: [spools.id],
+    }),
+  })
+);
+
+export const machineAccessoriesRelations = relations(
+  machineAccessories,
+  ({ one }) => ({
+    machine: one(machines, {
+      fields: [machineAccessories.machineId],
+      references: [machines.id],
+    }),
+  })
+);
 
 export const userPrintProfilesRelations = relations(
   userPrintProfiles,
@@ -209,9 +265,9 @@ export const userPrintProfilesRelations = relations(
       fields: [userPrintProfiles.filamentId],
       references: [filaments.id],
     }),
-    printer: one(printers, {
-      fields: [userPrintProfiles.printerId],
-      references: [printers.id],
+    machine: one(machines, {
+      fields: [userPrintProfiles.machineId],
+      references: [machines.id],
     }),
   })
 );
@@ -394,9 +450,9 @@ export const usageSessionsRelations = relations(usageSessions, ({ one }) => ({
     fields: [usageSessions.spoolId],
     references: [spools.id],
   }),
-  printer: one(printers, {
-    fields: [usageSessions.printerId],
-    references: [printers.id],
+  machine: one(machines, {
+    fields: [usageSessions.machineId],
+    references: [machines.id],
   }),
   removedFromSlot: one(slots, {
     fields: [usageSessions.removedFromSlotId],
@@ -430,6 +486,48 @@ export const environmentalReadingsRelations = relations(
     shelf: one(shelves, {
       fields: [environmentalReadings.shelfId],
       references: [shelves.id],
+    }),
+  })
+);
+
+// ── Scan Station Relations ────────────────────────────────────────────────
+
+export const scanStationsRelations = relations(
+  scanStations,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [scanStations.userId],
+      references: [users.id],
+    }),
+    scanEvents: many(scanEvents),
+  })
+);
+
+export const scanEventsRelations = relations(scanEvents, ({ one }) => ({
+  station: one(scanStations, {
+    fields: [scanEvents.stationId],
+    references: [scanStations.id],
+  }),
+  user: one(users, {
+    fields: [scanEvents.userId],
+    references: [users.id],
+  }),
+  identifiedSpool: one(spools, {
+    fields: [scanEvents.identifiedSpoolId],
+    references: [spools.id],
+  }),
+}));
+
+export const inventoryItemsRelations = relations(
+  inventoryItems,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [inventoryItems.userId],
+      references: [users.id],
+    }),
+    lastScanEvent: one(scanEvents, {
+      fields: [inventoryItems.lastScanEventId],
+      references: [scanEvents.id],
     }),
   })
 );

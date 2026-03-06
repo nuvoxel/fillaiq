@@ -6,7 +6,11 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   users,
   spools,
-  printers,
+  machines,
+  machineToolHeads,
+  machineWorkSurfaces,
+  machineMaterialSlots,
+  machineAccessories,
   userPrintProfiles,
   equipment,
   labelTemplates,
@@ -23,8 +27,16 @@ import {
   updateUserSchema,
   insertSpoolSchema,
   updateSpoolSchema,
-  insertPrinterSchema,
-  updatePrinterSchema,
+  insertMachineSchema,
+  updateMachineSchema,
+  insertMachineToolHeadSchema,
+  updateMachineToolHeadSchema,
+  insertMachineWorkSurfaceSchema,
+  updateMachineWorkSurfaceSchema,
+  insertMachineMaterialSlotSchema,
+  updateMachineMaterialSlotSchema,
+  insertMachineAccessorySchema,
+  updateMachineAccessorySchema,
   insertUserPrintProfileSchema,
   updateUserPrintProfileSchema,
   insertEquipmentSchema,
@@ -40,7 +52,11 @@ import { auditActorType } from "./audit-helpers";
 
 type User = InferSelectModel<typeof users>;
 type Spool = InferSelectModel<typeof spools>;
-type Printer = InferSelectModel<typeof printers>;
+type Machine = InferSelectModel<typeof machines>;
+type MachineToolHead = InferSelectModel<typeof machineToolHeads>;
+type MachineWorkSurface = InferSelectModel<typeof machineWorkSurfaces>;
+type MachineMaterialSlot = InferSelectModel<typeof machineMaterialSlots>;
+type MachineAccessory = InferSelectModel<typeof machineAccessories>;
 type UserPrintProfile = InferSelectModel<typeof userPrintProfiles>;
 type Equipment = InferSelectModel<typeof equipment>;
 type LabelTemplate = InferSelectModel<typeof labelTemplates>;
@@ -215,70 +231,87 @@ export async function getSpoolWithRelations(id: string) {
   }
 }
 
-// ── Printers ────────────────────────────────────────────────────────────────
+// ── Machines ────────────────────────────────────────────────────────────────
 
-const printersCrud = createCrudActions<Printer>({
-  table: printers,
-  insertSchema: insertPrinterSchema,
-  updateSchema: updatePrinterSchema,
+const machinesCrud = createCrudActions<Machine>({
+  table: machines,
+  insertSchema: insertMachineSchema,
+  updateSchema: updateMachineSchema,
 });
 
-export async function createPrinter(input: unknown) {
+export async function createMachine(input: unknown) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   const data =
     typeof input === "object" && input !== null ? input : {};
-  const result = await printersCrud.create({ ...data, userId: guard.data.userId });
+  const result = await machinesCrud.create({ ...data, userId: guard.data.userId });
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "printer", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "machine", resourceId: result.data.id });
   }
   return result;
 }
-export async function getPrinterById(id: string) {
+export async function getMachineById(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const result = await printersCrud.getById(id);
+  const result = await machinesCrud.getById(id);
   if (result.error !== null) return result;
   const ownership = assertOwnership(guard.data, result.data.userId);
   if (ownership) return ownership;
   return result;
 }
-export async function listPrinters(params?: PaginationParams) {
+export async function listMachines(params?: PaginationParams) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  return printersCrud.list(params);
+  return machinesCrud.list(params);
 }
-export async function updatePrinter(id: string, input: unknown) {
+export async function updateMachine(id: string, input: unknown) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const existing = await printersCrud.getById(id);
+  const existing = await machinesCrud.getById(id);
   if (existing.error !== null) return existing;
   const ownership = assertOwnership(guard.data, existing.data.userId);
   if (ownership) return ownership;
-  const result = await printersCrud.update(id, input);
+  const result = await machinesCrud.update(id, input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "printer", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "machine", resourceId: result.data.id });
   }
   return result;
 }
-export async function removePrinter(id: string) {
+export async function removeMachine(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const existing = await printersCrud.getById(id);
+  const existing = await machinesCrud.getById(id);
   if (existing.error !== null) return existing;
   const ownership = assertOwnership(guard.data, existing.data.userId);
   if (ownership) return ownership;
-  const result = await printersCrud.remove(id);
+  const result = await machinesCrud.remove(id);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "printer", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "machine", resourceId: result.data.id });
   }
   return result;
 }
 
-export async function listPrintersByUser(
+export async function getMachineWithRelations(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const row = await db.query.machines.findFirst({
+      where: eq(machines.id, id),
+      with: { toolHeads: true, workSurfaces: true, materialSlots: true, accessories: true },
+    });
+    if (!row) return err("Not found");
+    const ownership = assertOwnership(guard.data, row.userId);
+    if (ownership) return ownership;
+    return ok(row);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+export async function listMachinesByUser(
   userId: string,
   params?: PaginationParams
-): Promise<ActionResult<Printer[]>> {
+): Promise<ActionResult<Machine[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   const ownership = assertOwnership(guard.data, userId);
@@ -286,8 +319,180 @@ export async function listPrintersByUser(
   try {
     const q = db
       .select()
-      .from(printers)
-      .where(eq(printers.userId, userId))
+      .from(machines)
+      .where(eq(machines.userId, userId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Machine Tool Heads ──────────────────────────────────────────────────────
+
+const toolHeadsCrud = createCrudActions<MachineToolHead>({
+  table: machineToolHeads,
+  insertSchema: insertMachineToolHeadSchema,
+  updateSchema: updateMachineToolHeadSchema,
+});
+
+export async function createMachineToolHead(input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return toolHeadsCrud.create(input);
+}
+export async function updateMachineToolHead(id: string, input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return toolHeadsCrud.update(id, input);
+}
+export async function removeMachineToolHead(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return toolHeadsCrud.remove(id);
+}
+export async function listToolHeadsByMachine(
+  machineId: string,
+  params?: PaginationParams
+): Promise<ActionResult<MachineToolHead[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(machineToolHeads)
+      .where(eq(machineToolHeads.machineId, machineId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Machine Work Surfaces ───────────────────────────────────────────────────
+
+const workSurfacesCrud = createCrudActions<MachineWorkSurface>({
+  table: machineWorkSurfaces,
+  insertSchema: insertMachineWorkSurfaceSchema,
+  updateSchema: updateMachineWorkSurfaceSchema,
+});
+
+export async function createMachineWorkSurface(input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return workSurfacesCrud.create(input);
+}
+export async function updateMachineWorkSurface(id: string, input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return workSurfacesCrud.update(id, input);
+}
+export async function removeMachineWorkSurface(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return workSurfacesCrud.remove(id);
+}
+export async function listWorkSurfacesByMachine(
+  machineId: string,
+  params?: PaginationParams
+): Promise<ActionResult<MachineWorkSurface[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(machineWorkSurfaces)
+      .where(eq(machineWorkSurfaces.machineId, machineId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Machine Material Slots ──────────────────────────────────────────────────
+
+const materialSlotsCrud = createCrudActions<MachineMaterialSlot>({
+  table: machineMaterialSlots,
+  insertSchema: insertMachineMaterialSlotSchema,
+  updateSchema: updateMachineMaterialSlotSchema,
+});
+
+export async function createMachineMaterialSlot(input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return materialSlotsCrud.create(input);
+}
+export async function updateMachineMaterialSlot(id: string, input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return materialSlotsCrud.update(id, input);
+}
+export async function removeMachineMaterialSlot(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return materialSlotsCrud.remove(id);
+}
+export async function listMaterialSlotsByMachine(
+  machineId: string,
+  params?: PaginationParams
+): Promise<ActionResult<MachineMaterialSlot[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(machineMaterialSlots)
+      .where(eq(machineMaterialSlots.machineId, machineId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Machine Accessories ─────────────────────────────────────────────────────
+
+const accessoriesCrud = createCrudActions<MachineAccessory>({
+  table: machineAccessories,
+  insertSchema: insertMachineAccessorySchema,
+  updateSchema: updateMachineAccessorySchema,
+});
+
+export async function createMachineAccessory(input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return accessoriesCrud.create(input);
+}
+export async function updateMachineAccessory(id: string, input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return accessoriesCrud.update(id, input);
+}
+export async function removeMachineAccessory(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  return accessoriesCrud.remove(id);
+}
+export async function listAccessoriesByMachine(
+  machineId: string,
+  params?: PaginationParams
+): Promise<ActionResult<MachineAccessory[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(machineAccessories)
+      .where(eq(machineAccessories.machineId, machineId))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
     if (params?.offset) q.offset(params.offset);

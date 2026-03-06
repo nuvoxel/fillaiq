@@ -1,13 +1,12 @@
 #pragma once
 
 #include <Arduino.h>
-#include <lvgl.h>
+#include <U8g2lib.h>
 #include "config.h"
 
 // ============================================================
-// Filla IQ — Dual TFT Display Driver (LVGL)
-// ST7789V3 240x280, shared SPI bus, manual CS toggling
-// LVGL handles dirty-region rendering, one lv_disp_t per display
+// Filla IQ — Single SSD1322 256x64 OLED Display Driver (U8g2)
+// One display shows both bays side-by-side (128px each)
 // ============================================================
 
 struct SpoolInfo {
@@ -16,15 +15,19 @@ struct SpoolInfo {
     String material;      // e.g. "PLA"
     float  diameter;      // mm (1.75 or 2.85)
     float  fullWeight;    // grams of filament when full
-    lv_color_t color;     // filament color
+    uint8_t color_r;      // filament color (stored for web reporting)
+    uint8_t color_g;
+    uint8_t color_b;
 
     SpoolInfo() : brand(""), name(""), material(""), diameter(1.75f),
-                  fullWeight(SPOOL_FULL_WEIGHT_G), color(lv_color_make(0, 255, 0)) {}
+                  fullWeight(SPOOL_FULL_WEIGHT_G),
+                  color_r(0), color_g(255), color_b(0) {}
 };
 
+// Per-bay state (logical slot on the shared display)
 class SlotDisplay {
 public:
-    void begin(uint8_t cs_pin, uint8_t channel, lv_disp_t* disp);
+    void begin(uint8_t channel);
     void setSpoolInfo(const SpoolInfo& info);
     void update(float weight, float stableWeight, bool isStable, bool spoolPresent);
 
@@ -35,46 +38,25 @@ public:
     void showCalDone();
     void exitCalMode();
 
+    // Draw this bay's content at the given X offset (called by renderDisplay)
+    void draw(int16_t xOff);
+
 private:
-    lv_disp_t* _lv_disp;
-    uint8_t _cs_pin;
     uint8_t _channel;
     SpoolInfo _spool;
     bool _calMode;
     bool _lastPresent;
+    float _lastWeight;
+    int   _lastPercent;
 
-    // --- Spool screen widgets ---
-    lv_obj_t* _scr_spool;
-    lv_obj_t* _lbl_brand;
-    lv_obj_t* _lbl_name;
-    lv_obj_t* _obj_spool_outer;
-    lv_obj_t* _obj_spool_ring;
-    lv_obj_t* _obj_spool_inner;
-    lv_obj_t* _obj_spool_hub;
-    lv_obj_t* _lbl_material;
-    lv_obj_t* _bar_fill;
-    lv_obj_t* _lbl_percent;
-    lv_obj_t* _lbl_weight;
+    enum Screen { SCR_EMPTY, SCR_SPOOL, SCR_CAL };
+    Screen _currentScreen;
 
-    // --- Empty screen widgets ---
-    lv_obj_t* _scr_empty;
-    lv_obj_t* _obj_ghost_outer;
-    lv_obj_t* _obj_ghost_hub;
-    lv_obj_t* _lbl_empty_ch;
-    lv_obj_t* _lbl_empty_msg;
+    // Cal state text
+    String _calLine1;
+    String _calLine2;
+    String _calTitle;
 
-    // --- Cal screen widgets ---
-    lv_obj_t* _scr_cal;
-    lv_obj_t* _lbl_cal_title;
-    lv_obj_t* _lbl_cal_ch;
-    lv_obj_t* _lbl_cal_line1;
-    lv_obj_t* _lbl_cal_line2;
-
-    void buildUI();
-    void buildSpoolScreen();
-    void buildEmptyScreen();
-    void buildCalScreen();
-    void updateSpoolColors();
 };
 
 // Global interface (same API as before — main.cpp unchanged)

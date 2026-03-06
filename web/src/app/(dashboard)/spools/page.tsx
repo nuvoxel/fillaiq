@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -106,6 +107,7 @@ const columns: GridColDef[] = [
 ];
 
 export default function SpoolsPage() {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [spools, setSpools] = useState<Spool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,11 +179,13 @@ export default function SpoolsPage() {
           pageSizeOptions={[10, 25, 50]}
           disableRowSelectionOnClick
           autoHeight
+          onRowClick={(params) => router.push(`/spools/${params.id}`)}
           sx={{
             border: 1,
             borderColor: "divider",
             borderRadius: 3,
             "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
+            "& .MuiDataGrid-row": { cursor: "pointer" },
           }}
         />
       )}

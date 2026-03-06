@@ -10,3 +10,6 @@
 
 # Claude Code
 .claude/
+
+# External tools (cloned repos)
+tools/

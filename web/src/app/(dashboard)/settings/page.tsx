@@ -23,6 +23,8 @@ import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/layout/page-header";
 import { getUserProfile, listApiKeys, getUserPreferences } from "@/lib/actions/dashboard";
 import { SettingsPreferences } from "./preferences";
+import { PrintProfilesCard } from "@/components/settings/print-profiles-card";
+import { LabelTemplatesCard } from "@/components/settings/label-templates-card";
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -127,6 +129,12 @@ export default async function SettingsPage() {
           userId={user?.id ?? null}
           initialPrefs={prefs}
         />
+
+        {/* Print Profiles */}
+        <PrintProfilesCard />
+
+        {/* Label Templates */}
+        <LabelTemplatesCard />
 
         {/* API Keys */}
         <Card>

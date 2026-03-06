@@ -13,7 +13,11 @@ import { catalogSubmissions } from "@/db/schema/submissions";
 import {
   users,
   spools,
-  printers,
+  machines,
+  machineToolHeads,
+  machineWorkSurfaces,
+  machineMaterialSlots,
+  machineAccessories,
   userPrintProfiles,
   equipment,
   labelTemplates,
@@ -78,11 +82,23 @@ export const updateUserSchema = createUpdateSchema(users).omit(serverManaged);
 export const insertSpoolSchema = createInsertSchema(spools).omit(serverManaged);
 export const updateSpoolSchema = createUpdateSchema(spools).omit(serverManaged);
 
-export const insertPrinterSchema = createInsertSchema(printers).omit(serverManaged);
-export const updatePrinterSchema = createUpdateSchema(printers).omit(serverManaged);
+export const insertMachineSchema = createInsertSchema(machines).omit(serverManaged);
+export const updateMachineSchema = createUpdateSchema(machines).omit(serverManaged);
 
 export const insertUserPrintProfileSchema = createInsertSchema(userPrintProfiles).omit(serverManaged);
 export const updateUserPrintProfileSchema = createUpdateSchema(userPrintProfiles).omit(serverManaged);
+
+export const insertMachineToolHeadSchema = createInsertSchema(machineToolHeads).omit(serverManaged);
+export const updateMachineToolHeadSchema = createUpdateSchema(machineToolHeads).omit(serverManaged);
+
+export const insertMachineWorkSurfaceSchema = createInsertSchema(machineWorkSurfaces).omit(serverManaged);
+export const updateMachineWorkSurfaceSchema = createUpdateSchema(machineWorkSurfaces).omit(serverManaged);
+
+export const insertMachineMaterialSlotSchema = createInsertSchema(machineMaterialSlots).omit(serverManaged);
+export const updateMachineMaterialSlotSchema = createUpdateSchema(machineMaterialSlots).omit(serverManaged);
+
+export const insertMachineAccessorySchema = createInsertSchema(machineAccessories).omit(serverManaged);
+export const updateMachineAccessorySchema = createUpdateSchema(machineAccessories).omit(serverManaged);
 
 export const insertEquipmentSchema = createInsertSchema(equipment).omit(serverManaged);
 export const updateEquipmentSchema = createUpdateSchema(equipment).omit(serverManaged);

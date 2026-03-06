@@ -15,6 +15,14 @@ import {
   nfcTagFormatEnum,
   equipmentTypeEnum,
   labelFormatEnum,
+  nozzleMaterialEnum,
+  nozzleTypeEnum,
+  wearLevelEnum,
+  accessoryTypeEnum,
+  workSurfaceTypeEnum,
+  machineTypeEnum,
+  changerTypeEnum,
+  toolCategoryEnum,
 } from "./enums";
 import { variants, filaments } from "./central-catalog";
 
@@ -104,27 +112,134 @@ export const spools = pgTable("spools", {
     .notNull(),
 });
 
-// ── Printers ────────────────────────────────────────────────────────────────
+// ── Machines ────────────────────────────────────────────────────────────────
 
-export const printers = pgTable("printers", {
+export const machines = pgTable("machines", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
     .references(() => users.id)
     .notNull(),
   name: varchar("name", { length: 255 }).notNull(),
+  machineType: machineTypeEnum("machine_type").default("fdm").notNull(),
   manufacturer: varchar("manufacturer", { length: 255 }),
   model: varchar("model", { length: 255 }),
   firmwareVersion: varchar("firmware_version", { length: 50 }),
   serialNumber: varchar("serial_number", { length: 255 }),
-  hasAms: boolean("has_ams").default(false),
-  amsSlotCount: integer("ams_slot_count"),
-  amsModel: varchar("ams_model", { length: 50 }),
+  hasFilamentChanger: boolean("has_filament_changer").default(false),
+  filamentChangerSlotCount: integer("filament_changer_slot_count"),
+  filamentChangerModel: varchar("filament_changer_model", { length: 50 }),
   nozzleDiameterMm: real("nozzle_diameter_mm"),
   buildVolumeX: integer("build_volume_x"),
   buildVolumeY: integer("build_volume_y"),
   buildVolumeZ: integer("build_volume_z"),
   ipAddress: varchar("ip_address", { length: 45 }),
   mqttTopic: varchar("mqtt_topic", { length: 255 }),
+  toolHeadType: varchar("tool_head_type", { length: 50 }),
+  nozzleSwapSystem: varchar("nozzle_swap_system", { length: 50 }),
+  filamentChangerUnitCount: integer("filament_changer_unit_count"),
+  enclosureType: varchar("enclosure_type", { length: 50 }),
+  // CNC-specific
+  spindleMaxRpm: integer("spindle_max_rpm"),
+  spindlePowerW: integer("spindle_power_w"),
+  // Laser-specific
+  laserPowerW: real("laser_power_w"),
+  laserWavelengthNm: integer("laser_wavelength_nm"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Machine Tool Heads ────────────────────────────────────────────────────
+
+export const machineToolHeads = pgTable("machine_tool_heads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  machineId: uuid("machine_id")
+    .references(() => machines.id)
+    .notNull(),
+  toolCategory: toolCategoryEnum("tool_category").notNull(),
+  name: varchar("name", { length: 255 }),
+  // Nozzle fields
+  diameterMm: real("diameter_mm"),
+  nozzleMaterial: nozzleMaterialEnum("nozzle_material"),
+  nozzleType: nozzleTypeEnum("nozzle_type"),
+  isInstalled: boolean("is_installed").default(false).notNull(),
+  wearLevel: wearLevelEnum("wear_level").default("new").notNull(),
+  installCount: integer("install_count").default(0).notNull(),
+  lastInstalledAt: timestamp("last_installed_at", { withTimezone: true }),
+  // Spindle/bit fields
+  bitDiameterMm: real("bit_diameter_mm"),
+  bitType: varchar("bit_type", { length: 50 }),
+  fluteCount: integer("flute_count"),
+  bitMaterial: varchar("bit_material", { length: 50 }),
+  // Laser fields
+  laserPowerW: real("laser_power_w"),
+  laserWavelengthNm: integer("laser_wavelength_nm"),
+  focalLengthMm: real("focal_length_mm"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Machine Work Surfaces ────────────────────────────────────────────────
+
+export const machineWorkSurfaces = pgTable("machine_work_surfaces", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  machineId: uuid("machine_id")
+    .references(() => machines.id)
+    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: workSurfaceTypeEnum("type").notNull(),
+  isInstalled: boolean("is_installed").default(false).notNull(),
+  surfaceCondition: wearLevelEnum("surface_condition").default("new").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Machine Material Slots ──────────────────────────────────────────────
+
+export const machineMaterialSlots = pgTable("machine_material_slots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  machineId: uuid("machine_id")
+    .references(() => machines.id)
+    .notNull(),
+  changerType: changerTypeEnum("changer_type").notNull(),
+  unitNumber: integer("unit_number").notNull(),
+  slotPosition: integer("slot_position").notNull(),
+  spoolId: uuid("spool_id").references(() => spools.id),
+  loadedAt: timestamp("loaded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Machine Accessories ──────────────────────────────────────────────────
+
+export const machineAccessories = pgTable("machine_accessories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  machineId: uuid("machine_id")
+    .references(() => machines.id)
+    .notNull(),
+  type: accessoryTypeEnum("type").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  manufacturer: varchar("manufacturer", { length: 255 }),
+  model: varchar("model", { length: 255 }),
+  isActive: boolean("is_active").default(true).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -143,7 +258,7 @@ export const userPrintProfiles = pgTable("user_print_profiles", {
     .notNull(),
   variantId: uuid("variant_id").references(() => variants.id),
   filamentId: uuid("filament_id").references(() => filaments.id),
-  printerId: uuid("printer_id").references(() => printers.id),
+  machineId: uuid("machine_id").references(() => machines.id),
   name: varchar("name", { length: 255 }),
   // Temps
   nozzleTemp: integer("nozzle_temp"),

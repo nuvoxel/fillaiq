@@ -102,11 +102,17 @@ export const nfcTagFormatEnum = pgEnum("nfc_tag_format", [
   "unknown",
 ]);
 
-export const bedTempTypeEnum = pgEnum("bed_temp_type", [
+export const workSurfaceTypeEnum = pgEnum("work_surface_type", [
   "cool_plate",
   "textured_pei",
   "engineering_plate",
   "high_temp_plate",
+  "wasteboard",
+  "aluminum_bed",
+  "vacuum_table",
+  "honeycomb_bed",
+  "knife_blade_bed",
+  "material_pass_through",
 ]);
 
 export const labelFormatEnum = pgEnum("label_format", [
@@ -136,4 +142,63 @@ export const auditActionEnum = pgEnum("audit_action", [
   "review",
   "login",
   "logout",
+]);
+
+// ── Machine enums ───────────────────────────────────────────────────────────
+
+export const machineTypeEnum = pgEnum("machine_type", [
+  "fdm",
+  "cnc",
+  "laser",
+  "resin",
+  "multi",
+]);
+
+export const changerTypeEnum = pgEnum("changer_type", [
+  "ams",
+  "ams_lite",
+  "mmu",
+  "manual",
+]);
+
+export const toolCategoryEnum = pgEnum("tool_category", [
+  "nozzle",
+  "spindle_bit",
+  "laser_module",
+]);
+
+export const nozzleMaterialEnum = pgEnum("nozzle_material", [
+  "brass",
+  "hardened_steel",
+  "stainless_steel",
+  "copper_alloy",
+  "ruby",
+]);
+
+export const nozzleTypeEnum = pgEnum("nozzle_type", [
+  "standard",
+  "high_flow",
+  "chc",
+  "revo",
+]);
+
+export const wearLevelEnum = pgEnum("wear_level", [
+  "new",
+  "good",
+  "worn",
+  "replace",
+]);
+
+export const accessoryTypeEnum = pgEnum("accessory_type", [
+  "smoke_extractor",
+  "enclosure",
+  "camera",
+  "light",
+  "exhaust_fan",
+  "filament_buffer",
+  "purge_tray",
+  "dust_collector",
+  "air_assist",
+  "rotary_module",
+  "other",
 ]);

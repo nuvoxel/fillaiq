@@ -9,7 +9,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { weightEventTypeEnum } from "./enums";
-import { spools, printers, equipment } from "./user-library";
+import { spools, machines, equipment } from "./user-library";
 import { slots, shelves } from "./hardware";
 
 // ── Weight Events ───────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ export const usageSessions = pgTable("usage_sessions", {
     .references(() => spools.id)
     .notNull(),
   userId: uuid("user_id"),
-  printerId: uuid("printer_id").references(() => printers.id),
+  machineId: uuid("machine_id").references(() => machines.id),
   removedFromSlotId: uuid("removed_from_slot_id").references(() => slots.id),
   returnedToSlotId: uuid("returned_to_slot_id").references(() => slots.id),
   weightBeforeG: real("weight_before_g"),

@@ -18,7 +18,7 @@ import {
   fillTypeEnum,
   multiColorDirectionEnum,
   spoolMaterialTypeEnum,
-  bedTempTypeEnum,
+  workSurfaceTypeEnum,
   nfcTagFormatEnum,
   materialClassEnum,
 } from "./enums";
@@ -144,7 +144,7 @@ export const filaments = pgTable("filaments", {
   nozzleTempMax: integer("nozzle_temp_max"),
   bedTempMin: integer("bed_temp_min"),
   bedTempMax: integer("bed_temp_max"),
-  bedTempType: bedTempTypeEnum("bed_temp_type"),
+  bedTempType: workSurfaceTypeEnum("bed_temp_type"),
   chamberTempMin: integer("chamber_temp_min"),
   chamberTempMax: integer("chamber_temp_max"),
   chamberTemp: integer("chamber_temp"),

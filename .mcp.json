@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "fusion360": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "/Users/mdeluca/fillaiq/tools/ClaudeFusion360MCP/mcp-server/fusion360_mcp_server.py"
+      ],
+      "env": {}
+    }
+  }
+}

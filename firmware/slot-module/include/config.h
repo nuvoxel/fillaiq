@@ -2,7 +2,7 @@
 
 // ============================================================
 // Filla IQ — Single Slot Breadboard Prototype Configuration
-// ESP32-S3-DevKitC-1 + PN53x + HX711 + ST7789V3 TFT + WS2812B
+// ESP32-S3-DevKitC-1 + PN53x + HX711 + SSD1322 OLED + WS2812B
 // ============================================================
 
 // --- Slot Identity ---
@@ -24,20 +24,17 @@
 
 // HX711 Load Cell Amplifiers (independent SCK+DT per channel)
 #define HX711_NUM_CHANNELS  2
-#define HX711_SCK_PIN_0     6    // CH0 clock
-#define HX711_DT_PIN_0      5    // CH0 data
+#define HX711_SCK_PIN_0     17   // CH0 clock
+#define HX711_DT_PIN_0      18   // CH0 data
 #define HX711_SCK_PIN_1     4    // CH1 clock
 #define HX711_DT_PIN_1      3    // CH1 data
 
-// ST7789V3 TFT Displays (SPI — shared bus, one per slot)
-// TFT_eSPI handles MOSI/SCLK/DC/RST. CS is manual (TFT_CS=-1 in platformio.ini)
-#define TFT_CS_PIN_0    14   // Display 0 CS
-#define TFT_CS_PIN_1    15   // Display 1 CS
-#define TFT_NUM_DISPLAYS 2
-#define TFT_DC_PIN      8    // Data/Command (shared)
-#define TFT_RST_PIN     9    // Reset (shared)
-#define TFT_DISPLAY_WIDTH  240
-#define TFT_DISPLAY_HEIGHT 280
+// SSD1322 OLED Display (SPI — single display showing both bays)
+#define OLED_CS_PIN     14   // Chip Select
+#define OLED_DC_PIN     8    // Data/Command
+#define OLED_RST_PIN    -1   // No reset pin (tie RES to VCC)
+#define OLED_WIDTH      256
+#define OLED_HEIGHT     64
 
 // WS2812B RGB LED (on-board)
 // Try GPIO48 first (v1.0 boards), fall back to GPIO38 (v1.1 boards)

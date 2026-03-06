@@ -40,16 +40,30 @@ public:
 
     void printStatus();
 
-    // Filament data (populated when tag is read)
-    bool readBambuTag(uint8_t bay, FilamentInfo &info);
+    // Raw tag data (for web service)
+    const TagData& getTagData(uint8_t bay);
+    bool hasTagData(uint8_t bay);
+
+    // Filament data (populated from local parsing or web service)
     const FilamentInfo& getFilamentInfo(uint8_t bay);
     bool hasFilamentInfo(uint8_t bay);
 
 private:
+    void _startRead(uint8_t bay);
+    void _continueRead(uint8_t bay);
+    void _finishRead(uint8_t bay);
+
+    TagData  _tagData[NFC_NUM_READERS];
     FilamentInfo _filament[NFC_NUM_READERS];
     TagState _tags[NFC_NUM_READERS];
     bool     _connected[NFC_NUM_READERS];
     uint8_t  _poll_idx;         // Which reader to poll next
+
+    // Incremental read state (2 sectors per poll cycle to avoid blocking)
+    static const uint8_t SECTORS_PER_POLL = 2;
+    static const uint8_t PAGES_PER_POLL = 30;
+    uint8_t  _nextSector[NFC_NUM_READERS];  // 0xFF = not reading
+    uint8_t  _nextPage[NFC_NUM_READERS];    // 0xFF = not reading
 };
 
 extern NfcReader nfcReader;

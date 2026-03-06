@@ -31,7 +31,7 @@ const resourceTypes = [
   "submission",
   "user",
   "spool",
-  "printer",
+  "machine",
   "print_profile",
   "equipment",
   "label_template",
