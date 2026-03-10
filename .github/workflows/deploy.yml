@@ -41,14 +41,6 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Run DB migrations
-        run: |
-          cd web
-          npm ci
-          npx drizzle-kit migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
       - name: Deploy to Container Apps
         run: |
           az containerapp update \
