@@ -15,6 +15,10 @@ export const auth = betterAuth({
     usePlural: true,
     schema,
   }),
+  trustedOrigins: [
+    "https://fillaiq.com",
+    "https://www.fillaiq.com",
+  ],
   advanced: {
     database: {
       generateId: "uuid",
