@@ -20,8 +20,7 @@ export const scanStations = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id")
-      .references(() => users.id)
-      .notNull(),
+      .references(() => users.id),
     name: varchar("name", { length: 255 }).notNull(),
     hardwareId: varchar("hardware_id", { length: 50 }).notNull(),
     firmwareVersion: varchar("firmware_version", { length: 50 }),
@@ -33,6 +32,10 @@ export const scanStations = pgTable(
     hasColorSensor: boolean("has_color_sensor").default(false),
     hasTofSensor: boolean("has_tof_sensor").default(false),
     hasCamera: boolean("has_camera").default(false),
+    // Pairing
+    deviceToken: varchar("device_token", { length: 128 }),
+    pairingCode: varchar("pairing_code", { length: 10 }),
+    pairingExpiresAt: timestamp("pairing_expires_at", { withTimezone: true }),
     // Status
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     isOnline: boolean("is_online").default(false),

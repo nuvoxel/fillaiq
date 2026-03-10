@@ -1,22 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { scanStations, scanEvents } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, isNotNull } from "drizzle-orm";
 import { getApiKeyAuth } from "@/lib/actions/auth";
 
 /**
  * POST /api/v1/scan
  *
  * Receives sensor data from a scan station (ESP32) and creates a scan event.
- * Authenticates via X-API-Key header.
+ * Authenticates via X-Device-Token header (from pairing) or X-API-Key.
  *
  * Returns identification result (or scanId for polling).
  */
 export async function POST(request: NextRequest) {
-  // Auth
-  const auth = await getApiKeyAuth();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Try device token auth first
+  const deviceToken = request.headers.get("x-device-token");
+  let station: typeof scanStations.$inferSelect | undefined;
+  let userId: string | null = null;
+
+  if (deviceToken) {
+    const [found] = await db
+      .select()
+      .from(scanStations)
+      .where(
+        and(
+          eq(scanStations.deviceToken, deviceToken),
+          isNotNull(scanStations.userId)
+        )
+      );
+    if (!found) {
+      return NextResponse.json(
+        { error: "Invalid token or device not paired" },
+        { status: 401 }
+      );
+    }
+    station = found;
+    userId = found.userId;
+  } else {
+    // Fallback to API key auth
+    const auth = await getApiKeyAuth();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    userId = auth.userId;
   }
 
   let body: any;
@@ -34,22 +60,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Find or register scan station
-  let [station] = await db
-    .select()
-    .from(scanStations)
-    .where(eq(scanStations.hardwareId, hardwareId));
-
+  // Find station if not already found via token
   if (!station) {
-    // Auto-register new station
-    [station] = await db
-      .insert(scanStations)
-      .values({
-        userId: auth.userId,
-        name: `Scan Station ${hardwareId}`,
-        hardwareId,
-      })
-      .returning();
+    const [found] = await db
+      .select()
+      .from(scanStations)
+      .where(eq(scanStations.hardwareId, hardwareId));
+    station = found;
+
+    if (!station) {
+      // Auto-register (legacy API key flow)
+      [station] = await db
+        .insert(scanStations)
+        .values({
+          userId,
+          name: `Scan Station ${hardwareId}`,
+          hardwareId,
+        })
+        .returning();
+    }
   }
 
   // Update station last seen
@@ -69,7 +98,7 @@ export async function POST(request: NextRequest) {
     .insert(scanEvents)
     .values({
       stationId: station.id,
-      userId: auth.userId,
+      userId,
       // Weight
       weightG: body.weight?.grams ?? null,
       weightStable: body.weight?.stable ?? null,

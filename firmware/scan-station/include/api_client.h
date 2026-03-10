@@ -52,11 +52,18 @@ public:
     ApiStatus postScan(const ScanResult& scan, const TagData* tagData, ScanResponse& response);
     ApiStatus pollResult(const char* scanId, ScanResponse& response);
 
+    // Device pairing
+    ApiStatus requestPairingCode(char* codeOut, size_t codeLen);
+    ApiStatus pollPairingStatus(bool& paired);
+    bool isPaired() const { return _deviceToken[0] != '\0' && _paired; }
+    const char* getPairingCode() const { return _pairingCode; }
+
     // Config (stored in NVS)
     void setApiUrl(const char* url);
     void setApiKey(const char* key);
     void setStationId(const char* id);
 
+    bool hasApiUrl() const { return _apiUrl[0] != '\0'; }
     void printStatus();
 
 private:
@@ -65,7 +72,10 @@ private:
     char _apiUrl[256];
     char _apiKey[128];
     char _stationId[32];
+    char _deviceToken[128];
+    char _pairingCode[12];
     bool _wifiConfigured;
+    bool _paired;
 
     void loadConfig();
     void saveConfig();

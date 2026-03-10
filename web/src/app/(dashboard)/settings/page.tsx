@@ -25,6 +25,8 @@ import { getUserProfile, listApiKeys, getUserPreferences } from "@/lib/actions/d
 import { SettingsPreferences } from "./preferences";
 import { PrintProfilesCard } from "@/components/settings/print-profiles-card";
 import { LabelTemplatesCard } from "@/components/settings/label-templates-card";
+import { PairedDevicesCard } from "@/components/settings/paired-devices-card";
+import { OrganizationCard } from "@/components/settings/organization-card";
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -124,6 +126,9 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Organization */}
+        <OrganizationCard />
+
         {/* Preferences */}
         <SettingsPreferences
           userId={user?.id ?? null}
@@ -200,6 +205,9 @@ export default async function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Paired Devices */}
+        <PairedDevicesCard />
 
         {/* Danger Zone */}
         <Card sx={{ borderColor: "error.main" }}>

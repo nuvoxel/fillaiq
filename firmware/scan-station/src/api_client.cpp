@@ -15,9 +15,17 @@ void ApiClient::begin() {
     memset(_apiUrl, 0, sizeof(_apiUrl));
     memset(_apiKey, 0, sizeof(_apiKey));
     memset(_stationId, 0, sizeof(_stationId));
+    memset(_deviceToken, 0, sizeof(_deviceToken));
+    memset(_pairingCode, 0, sizeof(_pairingCode));
     _wifiConfigured = false;
+    _paired = false;
 
     loadConfig();
+
+    // If we have a device token, we may already be paired
+    if (_deviceToken[0] != '\0') {
+        _paired = true;  // Assume paired if we have a saved token
+    }
 
     if (_ssid[0] != '\0') {
         _wifiConfigured = true;
@@ -105,7 +113,9 @@ ApiStatus ApiClient::postScan(const ScanResult& scan, const TagData* tagData,
     HTTPClient http;
     http.begin(url);
     http.addHeader("Content-Type", "application/json");
-    if (_apiKey[0] != '\0') {
+    if (_deviceToken[0] != '\0') {
+        http.addHeader("X-Device-Token", _deviceToken);
+    } else if (_apiKey[0] != '\0') {
         http.addHeader("X-API-Key", _apiKey);
     }
     http.setTimeout(API_TIMEOUT_MS);
@@ -143,7 +153,9 @@ ApiStatus ApiClient::pollResult(const char* scanId, ScanResponse& response) {
 
     HTTPClient http;
     http.begin(url);
-    if (_apiKey[0] != '\0') {
+    if (_deviceToken[0] != '\0') {
+        http.addHeader("X-Device-Token", _deviceToken);
+    } else if (_apiKey[0] != '\0') {
         http.addHeader("X-API-Key", _apiKey);
     }
     http.setTimeout(API_TIMEOUT_MS);
@@ -309,6 +321,112 @@ bool ApiClient::parseResponse(const String& json, ScanResponse& response) {
     return true;
 }
 
+// ==================== Device Pairing ====================
+
+ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
+    if (!isWiFiConnected()) return API_NO_WIFI;
+    if (_apiUrl[0] == '\0') return API_CONNECT_FAILED;
+
+    String url = String(_apiUrl) + "/api/v1/devices/pair";
+
+    JsonDocument doc;
+    doc["hardwareId"] = _stationId;
+
+    String payload;
+    serializeJson(doc, payload);
+
+    HTTPClient http;
+    http.begin(url);
+    http.addHeader("Content-Type", "application/json");
+    http.setTimeout(API_TIMEOUT_MS);
+
+    int httpCode = http.POST(payload);
+
+    if (httpCode <= 0) {
+        http.end();
+        return API_CONNECT_FAILED;
+    }
+
+    if (httpCode != 200) {
+        Serial.printf("[Pair] HTTP %d\n", httpCode);
+        http.end();
+        return API_HTTP_ERROR;
+    }
+
+    String body = http.getString();
+    http.end();
+
+    JsonDocument resp;
+    if (deserializeJson(resp, body)) return API_PARSE_ERROR;
+
+    bool alreadyPaired = resp["paired"] | false;
+    if (alreadyPaired) {
+        // Already paired to a user — we're good
+        _paired = true;
+        saveConfig();
+        Serial.println("[Pair] Already paired");
+        return API_OK;
+    }
+
+    const char* code = resp["pairingCode"];
+    const char* token = resp["deviceToken"];
+
+    if (code && token) {
+        strncpy(_pairingCode, code, sizeof(_pairingCode) - 1);
+        strncpy(_deviceToken, token, sizeof(_deviceToken) - 1);
+        strncpy(codeOut, code, codeLen - 1);
+        codeOut[codeLen - 1] = '\0';
+        _paired = false;
+        saveConfig();
+        Serial.printf("[Pair] Code: %s\n", code);
+        return API_OK;
+    }
+
+    return API_PARSE_ERROR;
+}
+
+ApiStatus ApiClient::pollPairingStatus(bool& paired) {
+    paired = false;
+    if (!isWiFiConnected()) return API_NO_WIFI;
+    if (_apiUrl[0] == '\0') return API_CONNECT_FAILED;
+    if (_deviceToken[0] == '\0') return API_CONNECT_FAILED;
+
+    String url = String(_apiUrl) + "/api/v1/devices/pair?token=" + String(_deviceToken);
+
+    HTTPClient http;
+    http.begin(url);
+    http.setTimeout(API_TIMEOUT_MS);
+
+    int httpCode = http.GET();
+
+    if (httpCode <= 0) {
+        http.end();
+        return API_CONNECT_FAILED;
+    }
+
+    String body = http.getString();
+    http.end();
+
+    if (httpCode != 200) return API_HTTP_ERROR;
+
+    JsonDocument resp;
+    if (deserializeJson(resp, body)) return API_PARSE_ERROR;
+
+    paired = resp["paired"] | false;
+    bool expired = resp["expired"] | false;
+
+    if (paired) {
+        _paired = true;
+        memset(_pairingCode, 0, sizeof(_pairingCode));
+        saveConfig();
+        Serial.println("[Pair] Device paired!");
+    } else if (expired) {
+        Serial.println("[Pair] Code expired");
+    }
+
+    return API_OK;
+}
+
 // ==================== Config Persistence ====================
 
 void ApiClient::loadConfig() {
@@ -318,6 +436,8 @@ void ApiClient::loadConfig() {
     prefs.getString("apiurl", _apiUrl, sizeof(_apiUrl));
     prefs.getString("apikey", _apiKey, sizeof(_apiKey));
     prefs.getString("station", _stationId, sizeof(_stationId));
+    prefs.getString("devtoken", _deviceToken, sizeof(_deviceToken));
+    _paired = prefs.getBool("paired", false);
     prefs.end();
 }
 
@@ -328,6 +448,8 @@ void ApiClient::saveConfig() {
     prefs.putString("apiurl", _apiUrl);
     prefs.putString("apikey", _apiKey);
     prefs.putString("station", _stationId);
+    prefs.putString("devtoken", _deviceToken);
+    prefs.putBool("paired", _paired);
     prefs.end();
 }
 

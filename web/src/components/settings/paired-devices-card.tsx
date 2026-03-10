@@ -1,0 +1,141 @@
+"use client";
+
+import { useState, useEffect, useTransition } from "react";
+import Card from "@mui/material/Card";
+import CardHeader from "@mui/material/CardHeader";
+import CardContent from "@mui/material/CardContent";
+import Divider from "@mui/material/Divider";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import DeleteIcon from "@mui/icons-material/Delete";
+import DevicesIcon from "@mui/icons-material/Devices";
+import { listMyStations, revokeDevice } from "@/lib/actions/scan";
+
+type Station = {
+  id: string;
+  name: string;
+  hardwareId: string;
+  ipAddress: string | null;
+  isOnline: boolean | null;
+  lastSeenAt: string | null;
+  createdAt: string;
+};
+
+export function PairedDevicesCard() {
+  const [stations, setStations] = useState<Station[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
+
+  const fetchStations = async () => {
+    const result = await listMyStations();
+    if (result.data) setStations(result.data as unknown as Station[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchStations();
+  }, []);
+
+  const handleRevoke = (id: string, name: string) => {
+    if (!confirm(`Revoke access for "${name}"? The device will need to be re-paired.`)) return;
+    startTransition(async () => {
+      const result = await revokeDevice(id);
+      if (!result.error) {
+        fetchStations();
+      }
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Paired Devices"
+        titleTypographyProps={{ fontWeight: 600 }}
+      />
+      <Divider />
+      <CardContent sx={{ p: 0 }}>
+        {loading ? (
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <Typography variant="body2" color="text.secondary">Loading...</Typography>
+          </Box>
+        ) : stations.length === 0 ? (
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <DevicesIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
+            <Typography variant="body2" color="text.secondary">
+              No scan stations paired. Power on a scan station and enter the pairing code
+              on the Scan Station page.
+            </Typography>
+          </Box>
+        ) : (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Hardware ID</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>IP Address</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Last Seen</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Paired</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stations.map((station) => (
+                  <TableRow key={station.id}>
+                    <TableCell>{station.name}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontFamily="monospace" color="text.secondary">
+                        {station.hardwareId}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontFamily="monospace" color="text.secondary">
+                        {station.ipAddress ?? "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={station.isOnline ? "Online" : "Offline"}
+                        size="small"
+                        color={station.isOnline ? "success" : "default"}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {station.lastSeenAt
+                        ? new Date(station.lastSeenAt).toLocaleString()
+                        : "Never"}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(station.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRevoke(station.id, station.name)}
+                        disabled={isPending}
+                        title="Revoke device access"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

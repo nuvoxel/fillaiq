@@ -1,0 +1,503 @@
+"use server";
+
+import { db } from "@/db";
+import { eq, desc, and, or, ilike, gt, isNull } from "drizzle-orm";
+import { scanStations, scanEvents } from "@/db/schema/scan-stations";
+import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
+import { userItems } from "@/db/schema/user-library";
+import { zones, racks, shelves, bays, slots } from "@/db/schema/storage";
+import { requireAuth } from "./auth";
+import { ok, err, type ActionResult } from "./utils";
+
+// ── Device Pairing ───────────────────────────────────────────────────────────
+
+export async function claimDevice(pairingCode: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const code = pairingCode.toUpperCase().trim();
+  if (!code || code.length < 4) {
+    return err("Invalid pairing code");
+  }
+
+  // Find unpaired station with valid code
+  const [station] = await db
+    .select()
+    .from(scanStations)
+    .where(
+      and(
+        eq(scanStations.pairingCode, code),
+        isNull(scanStations.userId),
+        gt(scanStations.pairingExpiresAt, new Date())
+      )
+    );
+
+  if (!station) {
+    return err("Invalid or expired pairing code");
+  }
+
+  // Claim the device
+  await db
+    .update(scanStations)
+    .set({
+      userId: guard.data.userId,
+      pairingCode: null,
+      pairingExpiresAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(scanStations.id, station.id));
+
+  return ok({
+    id: station.id,
+    name: station.name,
+    hardwareId: station.hardwareId,
+  });
+}
+
+// ── Scan Stations ─────────────────────────────────────────────────────────────
+
+export async function listMyStations() {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const rows = await db
+    .select({
+      id: scanStations.id,
+      name: scanStations.name,
+      hardwareId: scanStations.hardwareId,
+      firmwareVersion: scanStations.firmwareVersion,
+      ipAddress: scanStations.ipAddress,
+      isOnline: scanStations.isOnline,
+      lastSeenAt: scanStations.lastSeenAt,
+      hasTurntable: scanStations.hasTurntable,
+      hasColorSensor: scanStations.hasColorSensor,
+      hasTofSensor: scanStations.hasTofSensor,
+      hasCamera: scanStations.hasCamera,
+      createdAt: scanStations.createdAt,
+    })
+    .from(scanStations)
+    .where(eq(scanStations.userId, guard.data.userId))
+    .orderBy(desc(scanStations.lastSeenAt));
+
+  return ok(rows);
+}
+
+export async function revokeDevice(stationId: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  // Verify ownership
+  const [station] = await db
+    .select()
+    .from(scanStations)
+    .where(
+      and(
+        eq(scanStations.id, stationId),
+        eq(scanStations.userId, guard.data.userId)
+      )
+    );
+
+  if (!station) return err("Station not found");
+
+  // Clear the device token and unlink from user
+  await db
+    .update(scanStations)
+    .set({
+      userId: null,
+      deviceToken: null,
+      pairingCode: null,
+      pairingExpiresAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(scanStations.id, stationId));
+
+  return ok({ revoked: true });
+}
+
+export async function getStationById(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [row] = await db
+    .select()
+    .from(scanStations)
+    .where(
+      and(eq(scanStations.id, id), eq(scanStations.userId, guard.data.userId))
+    );
+
+  if (!row) return err("Station not found");
+  return ok(row);
+}
+
+// ── Station Polling ───────────────────────────────────────────────────────────
+
+/**
+ * Get the latest unprocessed scan event from a station.
+ * "Unprocessed" = userConfirmed is null (phone hasn't acted on it yet).
+ * Optionally pass `afterId` to only get scans newer than a known event.
+ */
+export async function pollStationScan(stationId: string, afterId?: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  // Verify station ownership
+  const [station] = await db
+    .select()
+    .from(scanStations)
+    .where(
+      and(
+        eq(scanStations.id, stationId),
+        eq(scanStations.userId, guard.data.userId)
+      )
+    );
+  if (!station) return err("Station not found");
+
+  // Build query: latest unconfirmed scan from this station
+  const conditions = [
+    eq(scanEvents.stationId, stationId),
+    isNull(scanEvents.userConfirmed),
+  ];
+
+  // If afterId provided, get the timestamp of that event and only return newer
+  if (afterId) {
+    const [afterEvent] = await db
+      .select({ createdAt: scanEvents.createdAt })
+      .from(scanEvents)
+      .where(eq(scanEvents.id, afterId));
+    if (afterEvent) {
+      conditions.push(gt(scanEvents.createdAt, afterEvent.createdAt));
+    }
+  }
+
+  const [latest] = await db
+    .select()
+    .from(scanEvents)
+    .where(and(...conditions))
+    .orderBy(desc(scanEvents.createdAt))
+    .limit(1);
+
+  if (!latest) return ok(null);
+
+  // Try to auto-identify from NFC data
+  let autoProduct: { product: any; brand: any } | null = null;
+  if (latest.nfcPresent && latest.nfcUid) {
+    autoProduct = await tryIdentifyByNfc(latest);
+  }
+
+  return ok({
+    scanEvent: latest,
+    station: {
+      id: station.id,
+      name: station.name,
+      isOnline: station.isOnline,
+    },
+    autoIdentified: autoProduct,
+  });
+}
+
+/**
+ * Try to identify a product from NFC parsed data.
+ */
+async function tryIdentifyByNfc(
+  scan: typeof scanEvents.$inferSelect
+): Promise<{ product: any; brand: any } | null> {
+  const parsed = scan.nfcParsedData as Record<string, any> | null;
+  if (!parsed) return null;
+
+  // Try Bambu material ID match
+  if (parsed.materialId || parsed.variantId) {
+    const [match] = await db
+      .select({ product: products, brand: brands })
+      .from(nfcTagPatterns)
+      .innerJoin(products, eq(nfcTagPatterns.productId, products.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .where(
+        or(
+          parsed.materialId
+            ? eq(nfcTagPatterns.bambuMaterialId, parsed.materialId)
+            : undefined,
+          parsed.variantId
+            ? eq(nfcTagPatterns.bambuVariantId, parsed.variantId)
+            : undefined
+        )
+      )
+      .limit(1);
+    if (match) return match;
+  }
+
+  return null;
+}
+
+// ── Recent Scans ──────────────────────────────────────────────────────────────
+
+export async function listMyRecentScans(limit = 20) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const rows = await db
+    .select()
+    .from(scanEvents)
+    .where(eq(scanEvents.userId, guard.data.userId))
+    .orderBy(desc(scanEvents.createdAt))
+    .limit(limit);
+
+  return ok(rows);
+}
+
+export async function getScanEvent(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [row] = await db
+    .select()
+    .from(scanEvents)
+    .where(
+      and(eq(scanEvents.id, id), eq(scanEvents.userId, guard.data.userId))
+    );
+
+  if (!row) return err("Scan event not found");
+  return ok(row);
+}
+
+// ── Product Lookup ────────────────────────────────────────────────────────────
+
+export async function lookupProductByBarcode(barcode: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  // Check SKU mappings first
+  const [skuMatch] = await db
+    .select({
+      product: products,
+      brand: brands,
+    })
+    .from(skuMappings)
+    .innerJoin(products, eq(skuMappings.productId, products.id))
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .where(
+      or(
+        eq(skuMappings.barcode, barcode),
+        eq(skuMappings.gtin, barcode),
+        eq(skuMappings.sku, barcode)
+      )
+    );
+
+  if (skuMatch) {
+    return ok({ match: "sku_mapping" as const, ...skuMatch });
+  }
+
+  // Check product-level barcodes
+  const [productMatch] = await db
+    .select({
+      product: products,
+      brand: brands,
+    })
+    .from(products)
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .where(
+      or(
+        eq(products.packageBarcode, barcode),
+        eq(products.gtin, barcode)
+      )
+    );
+
+  if (productMatch) {
+    return ok({ match: "product" as const, ...productMatch });
+  }
+
+  return ok(null);
+}
+
+export async function searchProducts(query: string, limit = 10) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const rows = await db
+    .select({
+      product: products,
+      brand: brands,
+    })
+    .from(products)
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .where(
+      or(
+        ilike(products.name, `%${query}%`),
+        ilike(products.colorName, `%${query}%`)
+      )
+    )
+    .orderBy(products.name)
+    .limit(limit);
+
+  return ok(rows);
+}
+
+// ── Intake (create user item from scan) ───────────────────────────────────────
+
+export async function createIntakeItem(input: {
+  productId?: string;
+  scanEventId?: string;
+  slotId?: string;
+  barcodeValue?: string;
+  barcodeFormat?: string;
+  nfcUid?: string;
+  nfcTagFormat?: string;
+  initialWeightG?: number;
+  // Station sensor measurements
+  measuredColorHex?: string;
+  measuredColorLabL?: number;
+  measuredColorLabA?: number;
+  measuredColorLabB?: number;
+  measuredSpectralData?: any;
+  measuredHeightMm?: number;
+  notes?: string;
+}) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  try {
+    const [item] = await db
+      .insert(userItems)
+      .values({
+        userId: guard.data.userId,
+        productId: input.productId ?? null,
+        intakeScanEventId: input.scanEventId ?? null,
+        currentSlotId: input.slotId ?? null,
+        barcodeValue: input.barcodeValue ?? null,
+        barcodeFormat: input.barcodeFormat ?? null,
+        nfcUid: input.nfcUid ?? null,
+        nfcTagFormat: input.nfcTagFormat as any ?? null,
+        initialWeightG: input.initialWeightG ?? null,
+        currentWeightG: input.initialWeightG ?? null,
+        // Station sensor data
+        measuredColorHex: input.measuredColorHex ?? null,
+        measuredColorLabL: input.measuredColorLabL ?? null,
+        measuredColorLabA: input.measuredColorLabA ?? null,
+        measuredColorLabB: input.measuredColorLabB ?? null,
+        measuredSpectralData: input.measuredSpectralData ?? null,
+        measuredHeightMm: input.measuredHeightMm ?? null,
+        notes: input.notes ?? null,
+        status: "active",
+      })
+      .returning();
+
+    // If scan event exists, link it and mark as user-confirmed
+    if (input.scanEventId) {
+      await db
+        .update(scanEvents)
+        .set({
+          identifiedUserItemId: item.id,
+          identified: true,
+          identifiedType: "user_item",
+          identifiedProductId: input.productId ?? null,
+          userConfirmed: true,
+          // Also store barcode if phone scanned one
+          barcodeValue: input.barcodeValue ?? undefined,
+          barcodeFormat: input.barcodeFormat ?? undefined,
+        })
+        .where(eq(scanEvents.id, input.scanEventId));
+    }
+
+    return ok(item);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Storage Location Tree ─────────────────────────────────────────────────────
+
+export async function getStorageTree() {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const zoneRows = await db
+    .select()
+    .from(zones)
+    .where(eq(zones.userId, guard.data.userId))
+    .orderBy(zones.name);
+
+  const tree = await Promise.all(
+    zoneRows.map(async (zone) => {
+      const rackRows = await db
+        .select()
+        .from(racks)
+        .where(eq(racks.zoneId, zone.id))
+        .orderBy(racks.position);
+
+      const racksWithShelves = await Promise.all(
+        rackRows.map(async (rack) => {
+          const shelfRows = await db
+            .select()
+            .from(shelves)
+            .where(eq(shelves.rackId, rack.id))
+            .orderBy(shelves.position);
+
+          const shelvesWithBays = await Promise.all(
+            shelfRows.map(async (shelf) => {
+              const bayRows = await db
+                .select()
+                .from(bays)
+                .where(eq(bays.shelfId, shelf.id))
+                .orderBy(bays.position);
+
+              const baysWithSlots = await Promise.all(
+                bayRows.map(async (bay) => {
+                  const slotRows = await db
+                    .select()
+                    .from(slots)
+                    .where(eq(slots.bayId, bay.id))
+                    .orderBy(slots.position);
+
+                  return { ...bay, slots: slotRows };
+                })
+              );
+
+              return { ...shelf, bays: baysWithSlots };
+            })
+          );
+
+          return { ...rack, shelves: shelvesWithBays };
+        })
+      );
+
+      return { ...zone, racks: racksWithShelves };
+    })
+  );
+
+  return ok(tree);
+}
+
+// ── Available Slots (flat list for quick picker) ──────────────────────────────
+
+export async function getAvailableSlots() {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const rows = await db
+    .select({
+      slot: slots,
+      bay: bays,
+      shelf: shelves,
+      rack: racks,
+      zone: zones,
+    })
+    .from(slots)
+    .innerJoin(bays, eq(slots.bayId, bays.id))
+    .innerJoin(shelves, eq(bays.shelfId, shelves.id))
+    .innerJoin(racks, eq(shelves.rackId, racks.id))
+    .innerJoin(zones, eq(racks.zoneId, zones.id))
+    .where(eq(zones.userId, guard.data.userId))
+    .orderBy(zones.name, racks.position, shelves.position, bays.position, slots.position);
+
+  return ok(
+    rows.map((r) => ({
+      id: r.slot.id,
+      address: r.slot.address ?? `${r.zone.name}-${r.rack.name}-S${r.shelf.position}-B${r.bay.position}-${r.slot.position}`,
+      label: r.slot.label,
+      zoneName: r.zone.name,
+      rackName: r.rack.name,
+      shelfPosition: r.shelf.position,
+      bayPosition: r.bay.position,
+      slotPosition: r.slot.position,
+    }))
+  );
+}

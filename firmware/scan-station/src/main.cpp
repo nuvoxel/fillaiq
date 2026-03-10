@@ -33,6 +33,12 @@ static Preferences prefs;
 
 // Forward declarations
 void startProvisioning();
+void startPairing();
+
+// Pairing state
+bool pairingActive = false;
+unsigned long lastPairingPoll = 0;
+#define PAIRING_POLL_INTERVAL_MS  5000
 
 // ── Scan State Machine ────────────────────────────────────────────────────────
 
@@ -110,7 +116,12 @@ void checkProvisioning() {
     if (apiClient.connectWiFi()) {
         wifiEverConnected = true;
         display.showMessage("WiFi Connected!", WiFi.localIP().toString().c_str());
-        delay(2000);
+        delay(1000);
+
+        // Start pairing if API URL configured and not yet paired
+        if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
+            startPairing();
+        }
     } else {
         display.showMessage("WiFi Failed", "Restarting setup...");
         delay(2000);
@@ -133,6 +144,37 @@ void startProvisioning() {
     display.showQrCode(qrData, apName);
 
     Serial.printf("[Setup] AP: %s  Pass: %s\n", apName, PROV_AP_PASSWORD);
+}
+
+void startPairing() {
+    char code[12] = {0};
+    display.showMessage("Pairing...", "Contacting server");
+
+    ApiStatus status = apiClient.requestPairingCode(code, sizeof(code));
+
+    if (status == API_OK && apiClient.isPaired()) {
+        // Already paired
+        display.showMessage("Paired!", "Ready to scan");
+        delay(2000);
+        return;
+    }
+
+    if (status == API_OK && code[0] != '\0') {
+        // Show pairing code on display
+        pairingActive = true;
+        lastPairingPoll = millis();
+
+        // Build a message with the code
+        char line2[48];
+        snprintf(line2, sizeof(line2), "Code: %s", code);
+        display.showMessage("Pair Device", line2);
+
+        Serial.printf("[Pair] Enter code on web app: %s\n", code);
+    } else {
+        Serial.printf("[Pair] Failed to get pairing code: %d\n", status);
+        display.showMessage("Pair Failed", "Check API URL");
+        delay(3000);
+    }
 }
 
 // ── Scan State Machine Logic ──────────────────────────────────────────────────
@@ -338,8 +380,13 @@ void updateDisplayAndLed() {
         color = &colorData;
     }
 
+    // Build status icon flags
+    uint8_t icons = 0;
+    if (apiClient.isWiFiConnected()) icons |= ICON_WIFI;
+    if (apiClient.isPaired())        icons |= ICON_PAIRED;
+
     // Update display
-    display.update(scanState, w, stable, uid, filament, dist, color);
+    display.update(scanState, w, stable, uid, filament, dist, color, icons);
 
     // LED backlight based on state
     switch (scanState) {
@@ -546,7 +593,13 @@ void setup() {
     // Try WiFi if configured
     if (apiClient.connectWiFi()) {
         wifiEverConnected = true;
-        display.showMessage("Filla IQ", WiFi.localIP().toString().c_str());
+        display.showMessage("WiFi Connected", WiFi.localIP().toString().c_str());
+        delay(1000);
+
+        // Check if we need to pair with the backend
+        if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
+            startPairing();
+        }
     } else {
         // Start WiFi AP + captive portal provisioning
         startProvisioning();
@@ -583,11 +636,27 @@ void loop() {
     // Captive portal provisioning check
     checkProvisioning();
 
-    // Scan state machine
-    updateScanState();
+    // Device pairing poll
+    if (pairingActive && now - lastPairingPoll >= PAIRING_POLL_INTERVAL_MS) {
+        lastPairingPoll = now;
+        bool paired = false;
+        ApiStatus pairStatus = apiClient.pollPairingStatus(paired);
+        if (paired) {
+            pairingActive = false;
+            display.showMessage("Paired!", "Ready to scan");
+            delay(2000);
+        } else if (pairStatus != API_OK) {
+            Serial.printf("[Pair] Poll error: %d\n", pairStatus);
+        }
+    }
 
-    // Display + LED (throttled, skip while in setup mode — QR code is showing)
-    if (!provisioner.isActive() && now - lastDisplayUpdate >= 100) {
+    // Scan state machine (skip while pairing)
+    if (!pairingActive) {
+        updateScanState();
+    }
+
+    // Display + LED (throttled, skip while in setup mode or pairing — screen is showing code)
+    if (!provisioner.isActive() && !pairingActive && now - lastDisplayUpdate >= 100) {
         lastDisplayUpdate = now;
         updateDisplayAndLed();
     }

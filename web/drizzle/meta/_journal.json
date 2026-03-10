@@ -8,6 +8,13 @@
       "when": 1773165814550,
       "tag": "0000_combined_schema_update",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773186810858,
+      "tag": "0001_powerful_vampiro",
+      "breakpoints": true
     }
   ]
 }

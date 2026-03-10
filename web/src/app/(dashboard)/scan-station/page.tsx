@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -15,7 +17,13 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
+import Alert from "@mui/material/Alert";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
 import { PageHeader } from "@/components/layout/page-header";
+import { listMyStations, listMyRecentScans, claimDevice } from "@/lib/actions/scan";
 
 type ScanEvent = {
   id: string;
@@ -49,12 +57,20 @@ export default function ScanStationPage() {
   const [stations, setStations] = useState<ScanStation[]>([]);
   const [recentScans, setRecentScans] = useState<ScanEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pairOpen, setPairOpen] = useState(false);
+  const [pairingCode, setPairingCode] = useState("");
+  const [pairError, setPairError] = useState("");
+  const [pairing, setPairing] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      // TODO: Replace with actual server actions
-      setLoading(false);
-    } catch {
+      const [stationsRes, scansRes] = await Promise.all([
+        listMyStations(),
+        listMyRecentScans(20),
+      ]);
+      if (stationsRes.data) setStations(stationsRes.data as unknown as ScanStation[]);
+      if (scansRes.data) setRecentScans(scansRes.data as unknown as ScanEvent[]);
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -63,12 +79,65 @@ export default function ScanStationPage() {
     fetchData();
   }, [fetchData]);
 
+  const handlePair = async () => {
+    setPairError("");
+    setPairing(true);
+    try {
+      const result = await claimDevice(pairingCode);
+      if (result.error) {
+        setPairError(result.error);
+      } else {
+        setPairOpen(false);
+        setPairingCode("");
+        fetchData();
+      }
+    } finally {
+      setPairing(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
-        title="Scan Station"
-        description="Place objects on the scan station to identify and catalog them."
+        title="Scan Stations"
+        description="Manage your scan stations and view recent scans."
+        action={
+          <Button variant="contained" onClick={() => setPairOpen(true)}>
+            Pair Device
+          </Button>
+        }
       />
+
+      {/* Pair Device Dialog */}
+      <Dialog open={pairOpen} onClose={() => setPairOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Pair Scan Station</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Enter the pairing code shown on your scan station&apos;s display.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Pairing Code"
+            placeholder="e.g. X3F7K2"
+            value={pairingCode}
+            onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
+            inputProps={{ maxLength: 6, style: { letterSpacing: "0.3em", fontWeight: 600, fontSize: "1.2em", textAlign: "center" } }}
+            error={!!pairError}
+            helperText={pairError || "6-character code from the scan station screen"}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPairOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handlePair}
+            disabled={pairingCode.length < 4 || pairing}
+          >
+            {pairing ? "Pairing..." : "Pair"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Station Status Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -77,25 +146,9 @@ export default function ScanStationPage() {
             <Card>
               <CardContent>
                 <Typography variant="body1" color="text.secondary" align="center">
-                  No scan stations registered yet. Power on your scan station and
-                  configure it with your API key to get started.
+                  No scan stations paired yet. Power on your scan station, connect it
+                  to WiFi, then click &quot;Pair Device&quot; and enter the code shown on the display.
                 </Typography>
-                <Box sx={{ mt: 2, textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Serial commands on scan station:
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    component="code"
-                    sx={{ fontFamily: "monospace", display: "block", mt: 1 }}
-                  >
-                    wifi &lt;ssid&gt; &lt;password&gt;
-                    <br />
-                    apiurl https://your-app.com
-                    <br />
-                    apikey &lt;your-api-key&gt;
-                  </Typography>
-                </Box>
               </CardContent>
             </Card>
           </Grid>
