@@ -9,29 +9,31 @@ static VL53L1X tof;
 void DistanceSensor::begin() {
     _connected = false;
 
-    // Hold VL53L1X in reset via XSHUT while other 0x29 devices init
-    pinMode(VL53L1X_XSHUT_PIN, OUTPUT);
-    digitalWrite(VL53L1X_XSHUT_PIN, LOW);
-    delay(10);
-
-    // Release XSHUT — VL53L1X boots at default 0x29
-    digitalWrite(VL53L1X_XSHUT_PIN, HIGH);
-    delay(10);
-
-    // Reprogram to non-conflicting address
     tof.setBus(&Wire);
+    tof.setTimeout(500);
     tof.setAddress(VL53L1X_DEFAULT_ADDR);
 
+    delay(50);  // Give sensor time to boot
+
     if (tof.init()) {
-        tof.setAddress(VL53L1X_ADDR);  // Move to 0x52
         tof.setDistanceMode(VL53L1X::Long);
         tof.setMeasurementTimingBudget(TOF_TIMING_BUDGET_MS * 1000);  // us
         tof.startContinuous(100);  // 100ms between readings
         _connected = true;
-        Serial.printf("  TOF: VL53L1X at 0x%02X (reprogrammed from 0x%02X, XSHUT=GPIO%d)\n",
-            VL53L1X_ADDR, VL53L1X_DEFAULT_ADDR, VL53L1X_XSHUT_PIN);
+        Serial.printf("  TOF: VL53L1X at 0x%02X\n", VL53L1X_DEFAULT_ADDR);
     } else {
-        Serial.printf("  TOF: VL53L1X not detected (XSHUT=GPIO%d)\n", VL53L1X_XSHUT_PIN);
+        // Debug: read model ID register to see what's at 0x29
+        Wire.beginTransmission(VL53L1X_DEFAULT_ADDR);
+        Wire.write(0x01);  // Model ID MSB register (0x010F)
+        Wire.write(0x0F);
+        Wire.endTransmission(false);
+        Wire.requestFrom((uint8_t)VL53L1X_DEFAULT_ADDR, (uint8_t)1);
+        if (Wire.available()) {
+            uint8_t id = Wire.read();
+            Serial.printf("  TOF: init failed, device at 0x29 ID=0x%02X\n", id);
+        } else {
+            Serial.println("  TOF: VL53L1X not detected (no response at 0x29)");
+        }
     }
 }
 

@@ -1,0 +1,253 @@
+#include "provision.h"
+#include <WiFi.h>
+#include <DNSServer.h>
+#include <WebServer.h>
+
+Provisioner provisioner;
+
+static DNSServer* dnsServer = nullptr;
+static WebServer* webServer = nullptr;
+
+// ── Provisioner Implementation ────────────────────────────────────────────────
+
+void Provisioner::begin(const char* apName) {
+    memset(_ssid, 0, sizeof(_ssid));
+    memset(_password, 0, sizeof(_password));
+    memset(_apiUrl, 0, sizeof(_apiUrl));
+    memset(_apiKey, 0, sizeof(_apiKey));
+    _newCreds = false;
+    strncpy(_apSsid, apName, sizeof(_apSsid) - 1);
+
+    // Disconnect STA if connected
+    WiFi.disconnect(true);
+    delay(100);
+
+    // Start AP
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(_apSsid, PROV_AP_PASSWORD, PROV_AP_CHANNEL, 0, 4);
+    delay(200);
+
+    IPAddress apIp = WiFi.softAPIP();
+    Serial.printf("[Prov] AP started: %s (pass: %s)\n", _apSsid, PROV_AP_PASSWORD);
+    Serial.printf("[Prov] Portal: http://%s\n", apIp.toString().c_str());
+
+    // DNS server — redirect all queries to AP IP (captive portal detection)
+    dnsServer = new DNSServer();
+    dnsServer->start(53, "*", apIp);
+
+    // Web server
+    webServer = new WebServer(PROV_PORTAL_PORT);
+    webServer->on("/", HTTP_GET, [this]() { handleRoot(); });
+    webServer->on("/scan", HTTP_GET, [this]() { handleScan(); });
+    webServer->on("/save", HTTP_POST, [this]() { handleSave(); });
+    // Captive portal detection endpoints
+    webServer->on("/generate_204", HTTP_GET, [this]() { handleCaptive(); });
+    webServer->on("/hotspot-detect.html", HTTP_GET, [this]() { handleCaptive(); });
+    webServer->on("/connecttest.txt", HTTP_GET, [this]() { handleCaptive(); });
+    webServer->on("/ncsi.txt", HTTP_GET, [this]() { handleCaptive(); });
+    webServer->on("/fwlink", HTTP_GET, [this]() { handleCaptive(); });
+    webServer->onNotFound([this]() { handleCaptive(); });
+    webServer->begin();
+
+    _active = true;
+}
+
+void Provisioner::stop() {
+    if (!_active) return;
+
+    if (webServer) {
+        webServer->stop();
+        delete webServer;
+        webServer = nullptr;
+    }
+    if (dnsServer) {
+        dnsServer->stop();
+        delete dnsServer;
+        dnsServer = nullptr;
+    }
+
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    _active = false;
+    Serial.println("[Prov] Captive portal stopped");
+}
+
+void Provisioner::loop() {
+    if (!_active) return;
+    if (dnsServer) dnsServer->processNextRequest();
+    if (webServer) webServer->handleClient();
+}
+
+bool Provisioner::isActive() { return _active; }
+bool Provisioner::hasNewCredentials() { return _newCreds; }
+
+void Provisioner::getCredentials(char* ssid, char* pass, char* apiUrl, char* apiKey,
+                                  size_t ssidLen, size_t passLen, size_t urlLen, size_t keyLen) {
+    strncpy(ssid, _ssid, ssidLen - 1);
+    strncpy(pass, _password, passLen - 1);
+    strncpy(apiUrl, _apiUrl, urlLen - 1);
+    strncpy(apiKey, _apiKey, keyLen - 1);
+}
+
+void Provisioner::clearNewCredentials() { _newCreds = false; }
+
+// ── HTTP Handlers ─────────────────────────────────────────────────────────────
+
+void Provisioner::handleRoot() {
+    webServer->send(200, "text/html", buildPortalHtml());
+}
+
+void Provisioner::handleCaptive() {
+    webServer->sendHeader("Location", "http://192.168.4.1/", true);
+    webServer->send(302, "text/plain", "");
+}
+
+void Provisioner::handleScan() {
+    webServer->send(200, "application/json", scanNetworksJson());
+}
+
+void Provisioner::handleSave() {
+    if (webServer->hasArg("ssid")) {
+        strncpy(_ssid, webServer->arg("ssid").c_str(), sizeof(_ssid) - 1);
+    }
+    if (webServer->hasArg("pass")) {
+        strncpy(_password, webServer->arg("pass").c_str(), sizeof(_password) - 1);
+    }
+    if (webServer->hasArg("apiurl")) {
+        strncpy(_apiUrl, webServer->arg("apiurl").c_str(), sizeof(_apiUrl) - 1);
+    }
+    if (webServer->hasArg("apikey")) {
+        strncpy(_apiKey, webServer->arg("apikey").c_str(), sizeof(_apiKey) - 1);
+    }
+
+    if (_ssid[0] != '\0') {
+        _newCreds = true;
+        Serial.printf("[Prov] Credentials received: SSID=%s\n", _ssid);
+        webServer->send(200, "text/html",
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<style>body{font-family:system-ui;max-width:400px;margin:40px auto;padding:0 20px;"
+            "background:#111;color:#eee;text-align:center}"
+            "h2{color:#4ade80}</style></head><body>"
+            "<h2>Saved!</h2><p>Station is connecting to WiFi...</p>"
+            "<p>You can close this page and reconnect to your network.</p>"
+            "</body></html>");
+    } else {
+        webServer->send(400, "text/html", "<html><body>Missing SSID</body></html>");
+    }
+}
+
+// ── WiFi Network Scan ─────────────────────────────────────────────────────────
+
+String Provisioner::scanNetworksJson() {
+    int n = WiFi.scanNetworks(false, false, false, 300);
+    String json = "[";
+    for (int i = 0; i < n; i++) {
+        if (i > 0) json += ",";
+        json += "{\"ssid\":\"";
+        // Escape quotes in SSID
+        String ssid = WiFi.SSID(i);
+        ssid.replace("\"", "\\\"");
+        json += ssid;
+        json += "\",\"rssi\":";
+        json += WiFi.RSSI(i);
+        json += ",\"enc\":";
+        json += (WiFi.encryptionType(i) != WIFI_AUTH_OPEN) ? "true" : "false";
+        json += "}";
+    }
+    json += "]";
+    WiFi.scanDelete();
+    return json;
+}
+
+// ── Captive Portal HTML ───────────────────────────────────────────────────────
+
+String Provisioner::buildPortalHtml() {
+    return R"rawliteral(<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Filla IQ Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#111;color:#eee;
+  max-width:420px;margin:0 auto;padding:20px}
+h1{font-size:1.4em;text-align:center;margin-bottom:4px;color:#fff}
+.sub{text-align:center;color:#888;font-size:.85em;margin-bottom:24px}
+label{display:block;font-size:.85em;color:#aaa;margin:12px 0 4px}
+input,select{width:100%;padding:12px;border:1px solid #333;border-radius:8px;
+  background:#1a1a1a;color:#eee;font-size:1em}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+button{width:100%;padding:14px;border:none;border-radius:8px;font-size:1em;
+  font-weight:600;cursor:pointer;margin-top:8px}
+.btn-scan{background:#333;color:#eee;margin-top:16px}
+.btn-save{background:#4ade80;color:#111;margin-top:20px}
+.btn-save:disabled{background:#333;color:#666}
+.status{text-align:center;color:#888;font-size:.85em;margin-top:8px;min-height:20px}
+.net-list{max-height:200px;overflow-y:auto;margin-top:8px}
+.net{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;
+  border:1px solid #333;border-radius:8px;margin-bottom:6px;cursor:pointer;
+  background:#1a1a1a;transition:background .15s}
+.net:active{background:#333}
+.net-name{font-weight:500}
+.net-rssi{font-size:.8em;color:#888}
+.lock::after{content:" 🔒";font-size:.7em}
+hr{border:none;border-top:1px solid #222;margin:20px 0}
+.section{font-size:.9em;color:#666;text-transform:uppercase;letter-spacing:.05em;margin:20px 0 8px}
+</style>
+</head><body>
+<h1>Filla IQ</h1>
+<p class="sub">Scan Station Setup</p>
+
+<button class="btn-scan" onclick="scanNetworks()">Scan for WiFi Networks</button>
+<div class="status" id="scanStatus"></div>
+<div class="net-list" id="netList"></div>
+
+<form id="setupForm" action="/save" method="POST">
+<label for="ssid">WiFi Network</label>
+<input type="text" id="ssid" name="ssid" placeholder="Select from scan or type manually" required>
+
+<label for="pass">WiFi Password</label>
+<input type="password" id="pass" name="pass" placeholder="Password">
+
+<hr>
+<div class="section">Server (optional)</div>
+
+<label for="apiurl">API URL</label>
+<input type="url" id="apiurl" name="apiurl" placeholder="https://your-server.com">
+
+<label for="apikey">API Key</label>
+<input type="text" id="apikey" name="apikey" placeholder="Station API key">
+
+<button type="submit" class="btn-save">Save & Connect</button>
+</form>
+
+<script>
+function scanNetworks(){
+  var s=document.getElementById('scanStatus');
+  s.textContent='Scanning...';
+  fetch('/scan').then(r=>r.json()).then(function(nets){
+    s.textContent=nets.length+' networks found';
+    var list=document.getElementById('netList');
+    list.innerHTML='';
+    nets.sort(function(a,b){return b.rssi-a.rssi});
+    nets.forEach(function(n){
+      var d=document.createElement('div');
+      d.className='net';
+      var sig=n.rssi>-50?'▰▰▰▰':n.rssi>-65?'▰▰▰▱':n.rssi>-80?'▰▰▱▱':'▰▱▱▱';
+      d.innerHTML='<span class="net-name'+(n.enc?' lock':'')+'">'
+        +n.ssid+'</span><span class="net-rssi">'+sig+' '+n.rssi+'</span>';
+      d.onclick=function(){
+        document.getElementById('ssid').value=n.ssid;
+        document.getElementById('pass').focus();
+      };
+      list.appendChild(d);
+    });
+  }).catch(function(){s.textContent='Scan failed';});
+}
+// Auto-scan on load
+scanNetworks();
+</script>
+</body></html>)rawliteral";
+}

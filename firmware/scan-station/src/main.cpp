@@ -1,294 +1,377 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <WiFi.h>
+#include <Preferences.h>
 
 #include "scan_config.h"
 #include "sensors.h"
+#include "filament_data.h"
 #include "weight.h"
 #include "nfc.h"
-#include "turntable.h"
-#include "backlight.h"
-#include "color.h"
-#include "distance.h"
 #include "api_client.h"
+#include "backlight.h"
+#include "display.h"
+#include "provision.h"
+#include "bambu_tag.h"
+#include "distance.h"
+#include "color.h"
 
 // ============================================================
-// Filla IQ — Scan Station Main
-// State machine: detect object → read sensors → post → display result
+// Filla IQ — Scan Station Firmware
+//
+// Architecture:
+//   Core 0: Main loop — state machine, display, LED, serial, WiFi, API
+//   Core 1: Weight task — continuous HX711 reading
+//
+// Sensors: HX711 (weight), PN532 (NFC), VL53L1X (TOF), AS7341 (color)
+// Connectivity: WiFi + BLE provisioning
+// API: POST /api/v1/scan with all sensor data
 // ============================================================
 
-// --- State ---
-static ScanState state = SCAN_IDLE;
-static ScanResult currentScan;
-static ScanResponse lastResponse;
-static unsigned long stateEnteredAt = 0;
-static unsigned long lastApiPoll = 0;
+static Preferences prefs;
 
-// --- Forward declarations ---
-void handleSerial();
-void transitionTo(ScanState newState);
-void runStateMachine();
+// Forward declarations
+void startProvisioning();
 
-// ==================== Setup ====================
+// ── Scan State Machine ────────────────────────────────────────────────────────
 
-void setup() {
-    Serial.begin(SERIAL_BAUD);
-    delay(1000);
-    Serial.println("\n========================================");
-    Serial.println("  Filla IQ — Scan Station v0.1");
-    Serial.println("========================================\n");
+ScanState scanState = SCAN_IDLE;
+ScanResult currentScan;
+ScanResponse lastResponse;
+unsigned long stateEnteredAt = 0;
+unsigned long lastApiPost = 0;
+unsigned long lastApiPoll = 0;
+bool objectWasPresent = false;
 
-    // Init SPI bus (shared with PN532)
-    SPI.begin(NFC_SCK_PIN, NFC_MISO_PIN, NFC_MOSI_PIN);
-
-    // Init I2C bus (AS7341, VL53L1X, future sensors)
-    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-
-    // Hold VL53L1X in reset so TCS34725 can init at 0x29 first
-    pinMode(VL53L1X_XSHUT_PIN, OUTPUT);
-    digitalWrite(VL53L1X_XSHUT_PIN, LOW);
-
-    // Init subsystems
-    Serial.println("Initializing subsystems...");
-
-    backlight.begin();
-    backlight.idle();
-
-    scale.begin();
-    scale.startTask(1, 2);  // Weight reading on Core 1
-
-    initNfc();
-
-    // Color sensor first (TCS34725 needs 0x29 before VL53L1X is released)
-    colorSensor.begin();
-
-    // TOF distance (releases XSHUT, reprograms VL53L1X to 0x52)
-    distanceSensor.begin();
-
-    turntable.begin();
-
-    apiClient.begin();
-    apiClient.connectWiFi();
-
-    Serial.println("\nScan station ready. Place an object on the platform.\n");
-    Serial.println("Commands: tare, cal, status, wifi <ssid> <pass>,");
-    Serial.println("          apiurl <url>, apikey <key>, home, rotate <deg>\n");
-
-    state = SCAN_IDLE;
+void enterState(ScanState newState) {
+    if (newState == scanState) return;
+    Serial.printf("[State] %s -> %s\n", scanStateName(scanState), scanStateName(newState));
+    scanState = newState;
     stateEnteredAt = millis();
 }
 
-// ==================== Loop ====================
+// ── Calibration State ─────────────────────────────────────────────────────────
 
-void loop() {
-    // NFC polling (non-blocking, one read per call)
-    pollNfc();
+enum CalState { CAL_NONE, CAL_WAIT_EMPTY, CAL_WAIT_WEIGHT };
+CalState calState = CAL_NONE;
 
-    // LED animations
-    backlight.update();
-
-    // Turntable non-blocking stepping
-    turntable.stepIfNeeded();
-
-    // State machine
-    runStateMachine();
-
-    // Serial commands
-    handleSerial();
+void saveCalibration(float factor) {
+    prefs.begin("cal", false);
+    prefs.putFloat("ch0", factor);
+    prefs.end();
+    Serial.printf("Calibration saved: %.4f\n", factor);
 }
 
-// ==================== State Machine ====================
-
-void transitionTo(ScanState newState) {
-    Serial.printf("[State] %s -> %s\n", scanStateName(state), scanStateName(newState));
-    state = newState;
-    stateEnteredAt = millis();
+float loadCalibration() {
+    prefs.begin("cal", true);
+    float f = prefs.getFloat("ch0", 0);
+    prefs.end();
+    return f;
 }
 
-void runStateMachine() {
+// ── WiFi Management ───────────────────────────────────────────────────────────
+
+unsigned long lastWifiAttempt = 0;
+bool wifiEverConnected = false;
+
+void tryWifiConnect() {
+    if (apiClient.isWiFiConnected()) return;
     unsigned long now = millis();
-    unsigned long elapsed = now - stateEnteredAt;
+    if (wifiEverConnected && now - lastWifiAttempt < WIFI_RETRY_INTERVAL_MS) return;
+    lastWifiAttempt = now;
 
-    switch (state) {
-        case SCAN_IDLE: {
-            // Watch for object placement
-            if (scale.isStable() && scale.getStableWeight() > OBJECT_PRESENT_THRESHOLD) {
-                currentScan.clear_data();
-                lastResponse.clear();
-                transitionTo(SCAN_DETECTED);
-                backlight.scanning();
-            }
-            break;
-        }
-
-        case SCAN_DETECTED: {
-            // Wait for weight to stabilize, then start sensor reads
-            if (elapsed > SCAN_DEBOUNCE_MS && scale.isStable()) {
-                transitionTo(SCAN_READING);
-            }
-            // Object removed before stabilizing?
-            if (scale.getWeight() < OBJECT_REMOVED_THRESHOLD) {
-                transitionTo(SCAN_IDLE);
-                backlight.idle();
-            }
-            break;
-        }
-
-        case SCAN_READING: {
-            // Gather all sensor data
-            // Weight
-            currentScan.weight.grams = scale.getStableWeight();
-            currentScan.weight.stable = scale.isStable();
-            currentScan.weight.valid = true;
-
-            // NFC (already being polled in background)
-            if (nfcScanner.isTagPresent()) {
-                currentScan.nfcPresent = true;
-                uint8_t uid[NFC_UID_MAX_LEN];
-                uint8_t uidLen;
-                nfcScanner.getUid(uid, &uidLen);
-                currentScan.nfcUidLen = uidLen;
-                // Format UID string
-                String uidStr = nfcScanner.getUidString();
-                strncpy(currentScan.nfcUid, uidStr.c_str(), sizeof(currentScan.nfcUid) - 1);
-                // Tag type
-                if (nfcScanner.hasTagData()) {
-                    currentScan.nfcTagType = nfcScanner.getTagData().type;
-                }
-            }
-
-            // Turntable angle
-            currentScan.turntable.angleDeg = turntable.getAngle();
-            currentScan.turntable.homed = turntable.isHomed();
-
-            // Color sensor (auto-detected type)
-            colorSensor.read(currentScan.color);
-
-            // TOF height
-            distanceSensor.read(currentScan.height);
-
-            currentScan.timestamp = now;
-
-            // Wait for NFC read to complete (if tag present)
-            bool nfcDone = !nfcScanner.isTagPresent() || nfcScanner.hasTagData();
-            bool timeoutReached = elapsed > SCAN_STABILIZE_MS;
-
-            if (nfcDone && timeoutReached) {
-                // Print summary
-                Serial.println("\n--- Scan Complete ---");
-                Serial.printf("  Weight: %.1fg %s\n",
-                    currentScan.weight.grams,
-                    currentScan.weight.stable ? "[stable]" : "");
-                if (currentScan.nfcPresent) {
-                    Serial.printf("  NFC: %s (type=%d)\n",
-                        currentScan.nfcUid, currentScan.nfcTagType);
-                    if (nfcScanner.hasFilamentInfo()) {
-                        const FilamentInfo& fi = nfcScanner.getFilamentInfo();
-                        Serial.printf("  Bambu: %s %s (%s)\n", fi.brand, fi.name, fi.material);
-                    }
-                } else {
-                    Serial.println("  NFC: no tag");
-                }
-
-                // Post to server
-                if (apiClient.isWiFiConnected()) {
-                    transitionTo(SCAN_POSTING);
-                } else {
-                    // No WiFi — show local result only
-                    Serial.println("  (No WiFi — local data only)");
-                    if (nfcScanner.hasFilamentInfo()) {
-                        transitionTo(SCAN_IDENTIFIED);
-                        backlight.success();
-                    } else {
-                        transitionTo(SCAN_NEEDS_INPUT);
-                        backlight.needsInput();
-                    }
-                }
-            }
-            break;
-        }
-
-        case SCAN_ROTATING: {
-            // Future: rotate turntable during scan for multi-angle reads
-            if (!turntable.isMoving()) {
-                transitionTo(SCAN_POSTING);
-            }
-            break;
-        }
-
-        case SCAN_POSTING: {
-            backlight.spin(0, 100, 255);
-
-            const TagData* td = nfcScanner.hasTagData() ? &nfcScanner.getTagData() : nullptr;
-            ApiStatus result = apiClient.postScan(currentScan, td, lastResponse);
-
-            if (result == API_OK) {
-                Serial.printf("  Server: scanId=%s\n", lastResponse.scanId);
-                if (lastResponse.identified) {
-                    Serial.printf("  Identified: %s (%s, %.0f%%)\n",
-                        lastResponse.itemName, lastResponse.itemType,
-                        lastResponse.confidence * 100);
-                    transitionTo(SCAN_IDENTIFIED);
-                    backlight.success();
-                } else if (lastResponse.needsCamera) {
-                    Serial.println("  Server needs camera input");
-                    transitionTo(SCAN_NEEDS_INPUT);
-                    backlight.needsInput();
-                } else {
-                    transitionTo(SCAN_AWAITING_RESULT);
-                }
-            } else {
-                Serial.printf("  API error: %d\n", result);
-                backlight.error();
-                // Fall back to local result
-                if (nfcScanner.hasFilamentInfo()) {
-                    transitionTo(SCAN_IDENTIFIED);
-                    backlight.success();
-                } else {
-                    transitionTo(SCAN_NEEDS_INPUT);
-                    backlight.needsInput();
-                }
-            }
-            break;
-        }
-
-        case SCAN_AWAITING_RESULT: {
-            // Poll server periodically
-            if (now - lastApiPoll > API_POLL_INTERVAL_MS) {
-                lastApiPoll = now;
-                ApiStatus result = apiClient.pollResult(lastResponse.scanId, lastResponse);
-                if (result == API_OK && lastResponse.identified) {
-                    Serial.printf("  Identified: %s\n", lastResponse.itemName);
-                    transitionTo(SCAN_IDENTIFIED);
-                    backlight.success();
-                } else if (result == API_OK && lastResponse.needsCamera) {
-                    transitionTo(SCAN_NEEDS_INPUT);
-                    backlight.needsInput();
-                }
-            }
-            // Timeout after 30s
-            if (elapsed > 30000) {
-                Serial.println("  Identification timeout");
-                transitionTo(SCAN_NEEDS_INPUT);
-                backlight.needsInput();
-            }
-            break;
-        }
-
-        case SCAN_IDENTIFIED:
-        case SCAN_NEEDS_INPUT: {
-            // Stay in this state until object is removed
-            if (scale.getWeight() < OBJECT_REMOVED_THRESHOLD) {
-                Serial.println("\nObject removed.\n");
-                transitionTo(SCAN_IDLE);
-                backlight.idle();
-            }
-            break;
-        }
+    if (apiClient.connectWiFi()) {
+        wifiEverConnected = true;
     }
 }
 
-// ==================== Serial Command Handler ====================
+// ── Captive Portal Provisioning Check ─────────────────────────────────────────
+
+void checkProvisioning() {
+    if (!provisioner.hasNewCredentials()) return;
+
+    char ssid[64] = {0}, pass[64] = {0}, url[256] = {0}, key[128] = {0};
+    provisioner.getCredentials(ssid, pass, url, key,
+                                sizeof(ssid), sizeof(pass), sizeof(url), sizeof(key));
+    provisioner.clearNewCredentials();
+
+    Serial.printf("[Provision] Applying: SSID=%s\n", ssid);
+
+    // Stop AP and captive portal before switching to STA
+    provisioner.stop();
+    display.showMessage("Connecting...", ssid);
+
+    apiClient.setCredentials(ssid, pass);
+    if (url[0]) apiClient.setApiUrl(url);
+    if (key[0]) apiClient.setApiKey(key);
+
+    // Try connecting
+    if (apiClient.connectWiFi()) {
+        wifiEverConnected = true;
+        display.showMessage("WiFi Connected!", WiFi.localIP().toString().c_str());
+        delay(2000);
+    } else {
+        display.showMessage("WiFi Failed", "Restarting setup...");
+        delay(2000);
+        startProvisioning();
+    }
+}
+
+void startProvisioning() {
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char apName[32];
+    snprintf(apName, sizeof(apName), "%s%02X%02X%02X",
+             BLE_DEVICE_NAME_PREFIX, mac[3], mac[4], mac[5]);
+    provisioner.begin(apName);
+
+    // Build WiFi QR code string: WIFI:T:WPA;S:<ssid>;P:<password>;;
+    char qrData[128];
+    snprintf(qrData, sizeof(qrData), "WIFI:T:WPA;S:%s;P:%s;;",
+             apName, PROV_AP_PASSWORD);
+    display.showQrCode(qrData, apName);
+
+    Serial.printf("[Setup] AP: %s  Pass: %s\n", apName, PROV_AP_PASSWORD);
+}
+
+// ── Scan State Machine Logic ──────────────────────────────────────────────────
+
+void updateScanState() {
+    float w = scale.getWeight();
+    bool weightPresent = w > OBJECT_PRESENT_THRESHOLD;
+    bool weightRemoved = w < OBJECT_REMOVED_THRESHOLD;
+    unsigned long now = millis();
+    unsigned long elapsed = now - stateEnteredAt;
+
+    switch (scanState) {
+
+    case SCAN_IDLE:
+        if (weightPresent) {
+            currentScan.clear_data();
+            currentScan.timestamp = now;
+            enterState(SCAN_DETECTED);
+        }
+        break;
+
+    case SCAN_DETECTED:
+        // Wait for weight to stabilize before reading other sensors
+        if (weightRemoved) {
+            enterState(SCAN_IDLE);
+            break;
+        }
+        if (elapsed >= SCAN_STABILIZE_MS || scale.isStable()) {
+            enterState(SCAN_READING);
+        }
+        break;
+
+    case SCAN_READING: {
+        // Gather all sensor data
+        if (weightRemoved) {
+            enterState(SCAN_IDLE);
+            break;
+        }
+
+        // Weight
+        currentScan.weight.grams = scale.isStable() ? scale.getStableWeight() : scale.getWeight();
+        currentScan.weight.stable = scale.isStable();
+        currentScan.weight.valid = true;
+
+        // NFC
+        currentScan.nfcPresent = nfcScanner.isTagPresent();
+        if (currentScan.nfcPresent) {
+            String uid = nfcScanner.getUidString();
+            strncpy(currentScan.nfcUid, uid.c_str(), sizeof(currentScan.nfcUid) - 1);
+            uint8_t uidBuf[7];
+            uint8_t uidLen;
+            nfcScanner.getUid(uidBuf, &uidLen);
+            currentScan.nfcUidLen = uidLen;
+            currentScan.nfcTagType = nfcScanner.getTagData().type;
+        }
+
+        // Wait until weight is stable and NFC read is complete (or timeout)
+        bool nfcDone = !nfcScanner.isTagPresent() || nfcScanner.hasTagData();
+        bool ready = scale.isStable() && (nfcDone || elapsed > 5000);
+
+        if (ready) {
+            enterState(SCAN_POSTING);
+        }
+        break;
+    }
+
+    case SCAN_POSTING: {
+        if (weightRemoved) {
+            enterState(SCAN_IDLE);
+            break;
+        }
+
+        if (!apiClient.isWiFiConnected()) {
+            // No WiFi — show local data only
+            if (nfcScanner.hasFilamentInfo()) {
+                const FilamentInfo& fi = nfcScanner.getFilamentInfo();
+                display.update(SCAN_IDENTIFIED, currentScan.weight.grams, true,
+                              currentScan.nfcUid, &fi, nullptr, nullptr);
+                backlight.color(fi.color_r, fi.color_g, fi.color_b);
+            } else {
+                display.update(SCAN_NEEDS_INPUT, currentScan.weight.grams, true,
+                              currentScan.nfcUid, nullptr, nullptr, nullptr);
+                backlight.needsInput();
+            }
+            enterState(SCAN_NEEDS_INPUT);
+            break;
+        }
+
+        if (now - lastApiPost < API_POST_DEBOUNCE_MS) break;
+        lastApiPost = now;
+
+        const TagData* tagPtr = nfcScanner.hasTagData() ? &nfcScanner.getTagData() : nullptr;
+        ApiStatus status = apiClient.postScan(currentScan, tagPtr, lastResponse);
+
+        if (status == API_OK) {
+            Serial.printf("[API] Scan posted: id=%s identified=%d\n",
+                         lastResponse.scanId, lastResponse.identified);
+
+            if (lastResponse.identified) {
+                enterState(SCAN_IDENTIFIED);
+            } else if (lastResponse.needsCamera) {
+                enterState(SCAN_NEEDS_INPUT);
+            } else {
+                enterState(SCAN_AWAITING_RESULT);
+            }
+        } else {
+            Serial.printf("[API] Post failed: %d\n", status);
+            // Fall back to local display
+            enterState(SCAN_NEEDS_INPUT);
+        }
+        break;
+    }
+
+    case SCAN_AWAITING_RESULT: {
+        if (weightRemoved) {
+            enterState(SCAN_IDLE);
+            break;
+        }
+
+        if (now - lastApiPoll >= API_POLL_INTERVAL_MS && lastResponse.scanId[0]) {
+            lastApiPoll = now;
+            ScanResponse pollResp;
+            ApiStatus status = apiClient.pollResult(lastResponse.scanId, pollResp);
+            if (status == API_OK) {
+                if (pollResp.identified) {
+                    lastResponse = pollResp;
+                    enterState(SCAN_IDENTIFIED);
+                } else if (pollResp.needsCamera) {
+                    enterState(SCAN_NEEDS_INPUT);
+                }
+            }
+        }
+
+        // Timeout after 30s
+        if (elapsed > 30000) {
+            enterState(SCAN_NEEDS_INPUT);
+        }
+        break;
+    }
+
+    case SCAN_IDENTIFIED:
+        if (weightRemoved) {
+            enterState(SCAN_IDLE);
+        }
+        break;
+
+    case SCAN_NEEDS_INPUT:
+        if (weightRemoved) {
+            enterState(SCAN_IDLE);
+        }
+        break;
+
+    default:
+        enterState(SCAN_IDLE);
+        break;
+    }
+}
+
+// ── Display + LED Update ──────────────────────────────────────────────────────
+
+void updateDisplayAndLed() {
+    float w = scale.isStable() ? scale.getStableWeight() : scale.getWeight();
+    bool stable = scale.isStable();
+
+    // Cache NFC data — persist after tag removal until spool is lifted
+    static char uidBuf[32];
+    static bool hasUid = false;
+    static FilamentInfo cachedFilament;
+    static bool hasFilament = false;
+
+    // Update cache when tag is present
+    if (nfcScanner.isTagPresent()) {
+        String uidStr = nfcScanner.getUidString();
+        strncpy(uidBuf, uidStr.c_str(), sizeof(uidBuf) - 1);
+        uidBuf[sizeof(uidBuf) - 1] = '\0';
+        hasUid = true;
+    }
+    if (nfcScanner.hasFilamentInfo()) {
+        cachedFilament = nfcScanner.getFilamentInfo();
+        hasFilament = true;
+    }
+
+    // Clear cache when spool is removed (weight drops)
+    if (scanState == SCAN_IDLE) {
+        hasUid = false;
+        hasFilament = false;
+    }
+
+    const char* uid = hasUid ? uidBuf : nullptr;
+    const FilamentInfo* filament = hasFilament ? &cachedFilament : nullptr;
+
+    // TOF distance
+    static DistanceData distData;
+    const DistanceData* dist = nullptr;
+    if (distanceSensor.isConnected() && distanceSensor.read(distData)) {
+        dist = &distData;
+    }
+
+    // Color sensor
+    static ColorData colorData;
+    const ColorData* color = nullptr;
+    if (colorSensor.isConnected() && colorSensor.read(colorData)) {
+        color = &colorData;
+    }
+
+    // Update display
+    display.update(scanState, w, stable, uid, filament, dist, color);
+
+    // LED backlight based on state
+    switch (scanState) {
+    case SCAN_IDLE:
+        backlight.idle();
+        break;
+    case SCAN_DETECTED:
+    case SCAN_READING:
+        backlight.scanning();
+        break;
+    case SCAN_POSTING:
+    case SCAN_AWAITING_RESULT:
+        backlight.spin(0, 150, 255);
+        break;
+    case SCAN_IDENTIFIED:
+        if (filament) {
+            backlight.color(filament->color_r, filament->color_g, filament->color_b);
+        } else {
+            backlight.success();
+        }
+        break;
+    case SCAN_NEEDS_INPUT:
+        backlight.needsInput();
+        break;
+    default:
+        break;
+    }
+
+    backlight.update();
+}
+
+// ── Serial Commands ───────────────────────────────────────────────────────────
 
 void handleSerial() {
     if (!Serial.available()) return;
@@ -297,40 +380,66 @@ void handleSerial() {
     line.trim();
     if (line.length() == 0) return;
 
+    // Calibration state machine
+    if (calState == CAL_WAIT_EMPTY) {
+        if (line == "ready") {
+            Serial.println("Taring...");
+            scale.pauseTask();
+            delay(500);
+            scale.tare();
+            Serial.println("Place known weight and type weight in grams:");
+            calState = CAL_WAIT_WEIGHT;
+        } else if (line == "abort") {
+            calState = CAL_NONE;
+            scale.resumeTask();
+            Serial.println("Calibration aborted.");
+        }
+        return;
+    }
+    if (calState == CAL_WAIT_WEIGHT) {
+        float knownWeight = line.toFloat();
+        if (knownWeight <= 0) {
+            Serial.println("Invalid. Type weight in grams or 'abort':");
+            return;
+        }
+        double raw = scale.getValueForCalibration(20);
+        float factor = (float)(raw / knownWeight);
+        Serial.printf("Raw: %.0f  Factor: %.4f\n", raw, factor);
+        scale.setScale(factor);
+        saveCalibration(factor);
+        calState = CAL_NONE;
+        scale.resumeTask();
+        Serial.println("Calibration complete.");
+        return;
+    }
+
+    // Normal commands
     if (line == "tare") {
-        Serial.println("Taring...");
+        scale.pauseTask();
+        delay(200);
         scale.tare();
-        Serial.println("Done.");
+        scale.resumeTask();
+        Serial.println("Tared.");
     }
-    else if (line == "status") {
-        Serial.println("\n========================================");
-        Serial.printf("State: %s\n\n", scanStateName(state));
-        scale.printStatus();
-        nfcScanner.printStatus();
-        colorSensor.printStatus();
-        distanceSensor.printStatus();
-        turntable.printStatus();
-        backlight.printStatus();
-        apiClient.printStatus();
-        Serial.println("========================================\n");
+    else if (line == "cal") {
+        Serial.println("Remove all weight, then type 'ready':");
+        calState = CAL_WAIT_EMPTY;
     }
-    else if (line == "home") {
-        Serial.println("Homing turntable...");
-        turntable.home();
-    }
-    else if (line.startsWith("rotate ")) {
-        float deg = line.substring(7).toFloat();
-        Serial.printf("Rotating %.1f degrees...\n", deg);
-        turntable.rotateDegrees(deg);
-        Serial.printf("Angle: %.1f\n", turntable.getAngle());
+    else if (line == "calreset") {
+        prefs.begin("cal", false);
+        prefs.clear();
+        prefs.end();
+        scale.setScale(WEIGHT_CALIBRATION);
+        Serial.println("Calibration reset to default.");
     }
     else if (line.startsWith("wifi ")) {
+        // wifi <ssid> <password>
         int spaceIdx = line.indexOf(' ', 5);
-        if (spaceIdx > 0) {
+        if (spaceIdx > 5) {
             String ssid = line.substring(5, spaceIdx);
             String pass = line.substring(spaceIdx + 1);
             apiClient.setCredentials(ssid.c_str(), pass.c_str());
-            Serial.printf("WiFi credentials saved. Connecting to %s...\n", ssid.c_str());
+            Serial.printf("WiFi set: %s\n", ssid.c_str());
             apiClient.connectWiFi();
         } else {
             Serial.println("Usage: wifi <ssid> <password>");
@@ -342,25 +451,162 @@ void handleSerial() {
     }
     else if (line.startsWith("apikey ")) {
         apiClient.setApiKey(line.substring(7).c_str());
-        Serial.println("API key saved.");
+        Serial.println("API key set.");
     }
-    else if (line == "scan") {
-        // Force a scan even if weight is low (for testing)
-        Serial.println("Forcing scan...");
-        currentScan.clear_data();
-        transitionTo(SCAN_READING);
-        backlight.scanning();
+    else if (line == "provision") {
+        if (!provisioner.isActive()) {
+            startProvisioning();
+        } else {
+            Serial.println("Already in setup mode.");
+        }
     }
-    else if (line == "led off") { backlight.off(); }
-    else if (line == "led white") { backlight.white(); }
-    else if (line == "led rainbow") { backlight.rainbow(); }
-    else if (line == "led green") { backlight.success(); }
-    else if (line == "led red") { backlight.error(); }
-    else if (line == "led yellow") { backlight.needsInput(); }
+    else if (line == "status" || line == "s") {
+        Serial.println("\n========================================");
+        Serial.printf("Scan state: %s\n", scanStateName(scanState));
+        scale.printStatus();
+        nfcScanner.printStatus();
+        apiClient.printStatus();
+        Serial.printf("Setup AP: %s\n", provisioner.isActive() ? "active" : "off");
+        Serial.println("========================================\n");
+    }
+    else if (line == "nfc") {
+        nfcScanner.printStatus();
+    }
+    else if (line == "i2c") {
+        Serial.print("I2C scan:");
+        for (uint8_t addr = 1; addr < 127; addr++) {
+            Wire.beginTransmission(addr);
+            if (Wire.endTransmission() == 0) {
+                Serial.printf(" 0x%02X", addr);
+            }
+        }
+        Serial.println();
+    }
     else {
-        Serial.printf("Unknown command: %s\n", line.c_str());
-        Serial.println("Commands: tare, status, home, rotate <deg>, scan,");
-        Serial.println("          wifi <ssid> <pass>, apiurl <url>, apikey <key>,");
-        Serial.println("          led off|white|rainbow|green|red|yellow");
+        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c");
     }
+}
+
+// ============================================================
+// Setup
+// ============================================================
+
+void setup() {
+    Serial.begin(SERIAL_BAUD);
+    delay(1000);
+    Serial.println("\n========================================");
+    Serial.println("  Filla IQ — Scan Station v2");
+    Serial.println("========================================\n");
+
+    // I2C bus (TOF + Color)
+    Wire.begin(I2C_SDA, I2C_SCL);
+    Wire.setTimeOut(500);
+
+    // I2C scan (skip 0x3C SSD1306 — U8g2 handles it)
+    Serial.print("  I2C:");
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        uint8_t err = Wire.endTransmission();
+        if (err == 0) Serial.printf(" 0x%02X", addr);
+        if (err == 4) Serial.printf(" 0x%02X?", addr);  // unknown error
+    }
+    Serial.println();
+
+    // Init subsystems
+    backlight.begin();
+    backlight.color(0, 0, 255);  // Blue = booting
+
+    display.begin();
+    display.showMessage("Filla IQ", "Booting...");
+
+    // NFC reader
+    initNfc();
+
+    // TOF distance sensor
+    distanceSensor.begin();
+
+    // Color sensor (auto-detect)
+    colorSensor.begin();
+
+    // Weight
+    scale.begin();
+    float savedCal = loadCalibration();
+    if (savedCal != 0) {
+        scale.setScale(savedCal);
+        Serial.printf("  Calibration: %.4f (from NVS)\n", savedCal);
+    }
+    if (scale.isConnected()) {
+        scale.tare();
+        scale.startTask(0, 2);  // Core 0 (loop runs on Core 1)
+    }
+
+    // API client (loads WiFi creds from NVS)
+    apiClient.begin();
+
+    // Try WiFi if configured
+    if (apiClient.connectWiFi()) {
+        wifiEverConnected = true;
+        display.showMessage("Filla IQ", WiFi.localIP().toString().c_str());
+    } else {
+        // Start WiFi AP + captive portal provisioning
+        startProvisioning();
+    }
+
+    backlight.idle();
+    enterState(SCAN_IDLE);
+
+    Serial.println("\nReady. Type 'status' for info.\n");
+}
+
+// ============================================================
+// Main Loop (Core 0)
+// ============================================================
+
+static unsigned long lastDisplayUpdate = 0;
+static unsigned long lastNfcPollTime = 0;
+static unsigned long lastSerialStatus = 0;
+
+void loop() {
+    unsigned long now = millis();
+
+    // NFC polling (main loop, not a separate task)
+    pollNfc();
+
+    // Captive portal processing (must run frequently when AP is active)
+    provisioner.loop();
+
+    // WiFi management (only when not in setup mode)
+    if (!provisioner.isActive()) {
+        tryWifiConnect();
+    }
+
+    // Captive portal provisioning check
+    checkProvisioning();
+
+    // Scan state machine
+    updateScanState();
+
+    // Display + LED (throttled, skip while in setup mode — QR code is showing)
+    if (!provisioner.isActive() && now - lastDisplayUpdate >= 100) {
+        lastDisplayUpdate = now;
+        updateDisplayAndLed();
+    }
+
+    // Periodic serial status (every 2s)
+    if (now - lastSerialStatus >= 2000) {
+        lastSerialStatus = now;
+        float w = scale.isStable() ? scale.getStableWeight() : scale.getWeight();
+        Serial.printf("W:%.1fg%s", w, scale.isStable() ? " STABLE" : "");
+        if (nfcScanner.isTagPresent()) {
+            String uid = nfcScanner.getUidString();
+            Serial.printf(" NFC:%s", uid.c_str());
+            if (nfcScanner.hasFilamentInfo()) {
+                Serial.printf(" [%s]", nfcScanner.getFilamentInfo().name);
+            }
+        }
+        Serial.println();
+    }
+
+    // Serial commands
+    handleSerial();
 }

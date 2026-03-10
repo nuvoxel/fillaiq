@@ -138,7 +138,8 @@ void readMifareClassicSectors(Adafruit_PN532 &reader, const uint8_t *uid, uint8_
     if (end > TagData::NUM_SECTORS) end = TagData::NUM_SECTORS;
 
     for (uint8_t s = startSector; s < end; s++) {
-        out.sector_ok[s] = false;
+        // Skip sectors already successfully read
+        if (out.sector_ok[s]) continue;
 
         // Try Bambu key first, then default key
         bool authed = trySectorAuth(reader, uid, uidLen, s, bambuKeys.keyA[s]);
