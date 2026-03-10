@@ -33,10 +33,9 @@ const statusColors: Record<string, "warning" | "success" | "error" | "default"> 
 };
 
 const typeColors: Record<string, "primary" | "secondary" | "info" | "default"> = {
-  new_filament: "primary",
-  new_variant: "secondary",
+  new_product: "primary",
   correction: "info",
-  equivalence: "default",
+  alias: "default",
 };
 
 const columns: GridColDef[] = [

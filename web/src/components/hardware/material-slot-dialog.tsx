@@ -21,7 +21,7 @@ type MaterialSlot = {
   changerType: string;
   unitNumber: number;
   slotPosition: number;
-  spoolId: string | null;
+  userItemId: string | null;
   [key: string]: unknown;
 };
 
@@ -37,7 +37,7 @@ export function MaterialSlotDialog({ open, onClose, onSaved, machineId, existing
   const [changerType, setChangerType] = useState("ams");
   const [unitNumber, setUnitNumber] = useState("1");
   const [slotPosition, setSlotPosition] = useState("1");
-  const [spoolId, setSpoolId] = useState("");
+  const [userItemId, setUserItemId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -47,12 +47,12 @@ export function MaterialSlotDialog({ open, onClose, onSaved, machineId, existing
       setChangerType(existing.changerType);
       setUnitNumber(String(existing.unitNumber));
       setSlotPosition(String(existing.slotPosition));
-      setSpoolId(existing.spoolId ?? "");
+      setUserItemId(existing.userItemId ?? "");
     } else {
       setChangerType("ams");
       setUnitNumber("1");
       setSlotPosition("1");
-      setSpoolId("");
+      setUserItemId("");
     }
     setError(null);
   }, [open, existing]);
@@ -65,7 +65,7 @@ export function MaterialSlotDialog({ open, onClose, onSaved, machineId, existing
       changerType,
       unitNumber: Number(unitNumber),
       slotPosition: Number(slotPosition),
-      spoolId: spoolId || null,
+      userItemId: userItemId || null,
     };
     const result = existing
       ? await updateMachineMaterialSlot(existing.id, payload)
@@ -94,7 +94,7 @@ export function MaterialSlotDialog({ open, onClose, onSaved, machineId, existing
             <TextField label="Unit Number" value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} type="number" required size="small" fullWidth />
             <TextField label="Slot Position" value={slotPosition} onChange={(e) => setSlotPosition(e.target.value)} type="number" required size="small" fullWidth />
           </Stack>
-          <TextField label="Spool ID (optional)" value={spoolId} onChange={(e) => setSpoolId(e.target.value)} size="small" />
+          <TextField label="User Item ID (optional)" value={userItemId} onChange={(e) => setUserItemId(e.target.value)} size="small" />
         </Stack>
       </DialogContent>
       <DialogActions>

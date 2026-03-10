@@ -16,7 +16,7 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PageHeader } from "@/components/layout/page-header";
 import { listBrands } from "@/lib/actions/central-catalog";
 import { listMaterials } from "@/lib/actions/central-catalog";
-import { listFilaments } from "@/lib/actions/central-catalog";
+import { listProducts } from "@/lib/actions/central-catalog";
 
 const validationColors: Record<string, "default" | "info" | "success" | "error"> = {
   draft: "default",
@@ -104,7 +104,7 @@ const materialColumns: GridColDef[] = [
   },
 ];
 
-const filamentColumns: GridColDef[] = [
+const productColumns: GridColDef[] = [
   {
     field: "colorHex",
     headerName: "",
@@ -159,7 +159,7 @@ export default function CatalogPage() {
   const [search, setSearch] = useState("");
   const [brands, setBrands] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
-  const [filaments, setFilaments] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -171,8 +171,8 @@ export default function CatalogPage() {
       const r = await listMaterials({ search: search || undefined });
       if (r.data) setMaterials(r.data);
     } else {
-      const r = await listFilaments({ search: search || undefined });
-      if (r.data) setFilaments(r.data);
+      const r = await listProducts({ search: search || undefined });
+      if (r.data) setProducts(r.data);
     }
     setLoading(false);
   }, [tab, search]);
@@ -181,14 +181,14 @@ export default function CatalogPage() {
     load();
   }, [load]);
 
-  const rows = tab === 0 ? brands : tab === 1 ? materials : filaments;
-  const cols = tab === 0 ? brandColumns : tab === 1 ? materialColumns : filamentColumns;
+  const rows = tab === 0 ? brands : tab === 1 ? materials : products;
+  const cols = tab === 0 ? brandColumns : tab === 1 ? materialColumns : productColumns;
 
   return (
     <div>
       <PageHeader
         title="Catalog"
-        description="Browse the central filament catalog."
+        description="Browse the central product catalog."
       />
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
@@ -201,14 +201,14 @@ export default function CatalogPage() {
         >
           <Tab label="Brands" />
           <Tab label="Materials" />
-          <Tab label="Filaments" />
+          <Tab label="Products" />
         </Tabs>
       </Box>
 
       <Box sx={{ mb: 2 }}>
         <TextField
           size="small"
-          placeholder={`Search ${["brands", "materials", "filaments"][tab]}...`}
+          placeholder={`Search ${["brands", "materials", "products"][tab]}...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{

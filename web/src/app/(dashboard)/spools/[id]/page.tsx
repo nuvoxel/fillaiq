@@ -13,13 +13,13 @@ import Typography from "@mui/material/Typography";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { PageHeader } from "@/components/layout/page-header";
 import { WeightChart } from "@/components/spools/weight-chart";
-import { SpoolEventsTabs } from "@/components/spools/spool-events-tabs";
-import { getSpoolWithRelations } from "@/lib/actions/user-library";
+import { UserItemEventsTabs } from "@/components/spools/spool-events-tabs";
+import { getUserItemWithRelations } from "@/lib/actions/user-library";
 import {
-  listWeightEventsBySpoolId,
-  listUsageSessionsBySpoolId,
-  listDryingSessionsBySpoolId,
-  listSpoolMovementsBySpoolId,
+  listWeightEventsByUserItemId,
+  listUsageSessionsByUserItemId,
+  listDryingSessionsByUserItemId,
+  listItemMovementsByUserItemId,
 } from "@/lib/actions/events";
 
 const statusColors: Record<string, "success" | "warning" | "default"> = {
@@ -35,20 +35,20 @@ export default async function SpoolDetailPage({
 }) {
   const { id } = await params;
 
-  const [spoolResult, eventsResult, usageResult, dryingResult, movementsResult] =
+  const [userItemResult, eventsResult, usageResult, dryingResult, movementsResult] =
     await Promise.allSettled([
-      getSpoolWithRelations(id),
-      listWeightEventsBySpoolId(id),
-      listUsageSessionsBySpoolId(id),
-      listDryingSessionsBySpoolId(id),
-      listSpoolMovementsBySpoolId(id),
+      getUserItemWithRelations(id),
+      listWeightEventsByUserItemId(id),
+      listUsageSessionsByUserItemId(id),
+      listDryingSessionsByUserItemId(id),
+      listItemMovementsByUserItemId(id),
     ]);
 
-  const spool =
-    spoolResult.status === "fulfilled" && spoolResult.value.data
-      ? spoolResult.value.data
+  const userItem =
+    userItemResult.status === "fulfilled" && userItemResult.value.data
+      ? userItemResult.value.data
       : null;
-  if (!spool) notFound();
+  if (!userItem) notFound();
 
   const weightEvents =
     eventsResult.status === "fulfilled" && eventsResult.value.data
@@ -67,8 +67,8 @@ export default async function SpoolDetailPage({
       ? movementsResult.value.data
       : [];
 
-  const pct = spool.percentRemaining ?? 0;
-  const filament = spool.filament as
+  const pct = userItem.percentRemaining ?? 0;
+  const product = userItem.product as
     | {
         name?: string;
         colorHex?: string;
@@ -104,23 +104,23 @@ export default async function SpoolDetailPage({
               <Grid container spacing={2}>
                 <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" color="text.secondary">
-                    Filament
+                    Product
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
-                    {filament?.colorHex && (
+                    {product?.colorHex && (
                       <Box
                         sx={{
                           width: 16,
                           height: 16,
                           borderRadius: "50%",
-                          bgcolor: filament.colorHex,
+                          bgcolor: product.colorHex,
                           border: 1,
                           borderColor: "divider",
                         }}
                       />
                     )}
                     <Typography variant="body2" fontWeight={500}>
-                      {filament?.name ?? "Unknown"}
+                      {product?.name ?? "Unknown"}
                     </Typography>
                   </Box>
                 </Grid>
@@ -129,7 +129,7 @@ export default async function SpoolDetailPage({
                     Color
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
-                    {filament?.colorName ?? "—"}
+                    {product?.colorName ?? "—"}
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
@@ -138,9 +138,9 @@ export default async function SpoolDetailPage({
                   </Typography>
                   <Box sx={{ mt: 0.5 }}>
                     <Chip
-                      label={spool.status}
+                      label={userItem.status}
                       size="small"
-                      color={statusColors[spool.status] ?? "default"}
+                      color={statusColors[userItem.status] ?? "default"}
                     />
                   </Box>
                 </Grid>
@@ -149,7 +149,7 @@ export default async function SpoolDetailPage({
                     NFC UID
                   </Typography>
                   <Typography variant="body2" fontFamily="monospace">
-                    {spool.nfcUid ?? "—"}
+                    {userItem.nfcUid ?? "—"}
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
@@ -157,7 +157,7 @@ export default async function SpoolDetailPage({
                     NFC Format
                   </Typography>
                   <Typography variant="body2">
-                    {spool.nfcTagFormat ?? "—"}
+                    {userItem.nfcTagFormat ?? "—"}
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
@@ -165,8 +165,8 @@ export default async function SpoolDetailPage({
                     Purchased
                   </Typography>
                   <Typography variant="body2">
-                    {spool.purchasedAt
-                      ? new Date(spool.purchasedAt).toLocaleDateString()
+                    {userItem.purchasedAt
+                      ? new Date(userItem.purchasedAt).toLocaleDateString()
                       : "—"}
                   </Typography>
                 </Grid>
@@ -175,8 +175,8 @@ export default async function SpoolDetailPage({
                     Opened
                   </Typography>
                   <Typography variant="body2">
-                    {spool.openedAt
-                      ? new Date(spool.openedAt).toLocaleDateString()
+                    {userItem.openedAt
+                      ? new Date(userItem.openedAt).toLocaleDateString()
                       : "—"}
                   </Typography>
                 </Grid>
@@ -185,15 +185,15 @@ export default async function SpoolDetailPage({
                     Lot Number
                   </Typography>
                   <Typography variant="body2">
-                    {spool.lotNumber ?? "—"}
+                    {userItem.lotNumber ?? "—"}
                   </Typography>
                 </Grid>
-                {spool.notes && (
+                {userItem.notes && (
                   <Grid size={{ xs: 12 }}>
                     <Typography variant="caption" color="text.secondary">
                       Notes
                     </Typography>
-                    <Typography variant="body2">{spool.notes}</Typography>
+                    <Typography variant="body2">{userItem.notes}</Typography>
                   </Grid>
                 )}
               </Grid>
@@ -251,8 +251,8 @@ export default async function SpoolDetailPage({
                     Current Weight
                   </Typography>
                   <Typography variant="h6" fontWeight={600}>
-                    {spool.currentWeightG != null
-                      ? `${Math.round(spool.currentWeightG)}g`
+                    {userItem.currentWeightG != null
+                      ? `${Math.round(userItem.currentWeightG)}g`
                       : "—"}
                   </Typography>
                 </Box>
@@ -261,8 +261,8 @@ export default async function SpoolDetailPage({
                     Net Filament
                   </Typography>
                   <Typography variant="body1" fontWeight={500}>
-                    {spool.netFilamentWeightG != null
-                      ? `${Math.round(spool.netFilamentWeightG)}g`
+                    {userItem.netFilamentWeightG != null
+                      ? `${Math.round(userItem.netFilamentWeightG)}g`
                       : "—"}
                   </Typography>
                 </Box>
@@ -271,8 +271,8 @@ export default async function SpoolDetailPage({
                     Spool Weight
                   </Typography>
                   <Typography variant="body1" fontWeight={500}>
-                    {spool.spoolWeightG != null
-                      ? `${Math.round(spool.spoolWeightG)}g`
+                    {userItem.spoolWeightG != null
+                      ? `${Math.round(userItem.spoolWeightG)}g`
                       : "—"}
                   </Typography>
                 </Box>
@@ -281,8 +281,8 @@ export default async function SpoolDetailPage({
                     Cost
                   </Typography>
                   <Typography variant="body1" fontWeight={500}>
-                    {spool.purchasePrice != null
-                      ? `$${spool.purchasePrice.toFixed(2)} ${spool.purchaseCurrency ?? ""}`
+                    {userItem.purchasePrice != null
+                      ? `$${userItem.purchasePrice.toFixed(2)} ${userItem.purchaseCurrency ?? ""}`
                       : "—"}
                   </Typography>
                 </Box>
@@ -291,7 +291,7 @@ export default async function SpoolDetailPage({
                     Location
                   </Typography>
                   <Typography variant="body2">
-                    {spool.storageLocation ?? (spool.currentSlotId ? `Slot ${spool.currentSlotId.slice(0, 8)}` : "Not assigned")}
+                    {userItem.storageLocation ?? (userItem.currentSlotId ? `Slot ${userItem.currentSlotId.slice(0, 8)}` : "Not assigned")}
                   </Typography>
                 </Box>
               </Stack>
@@ -306,7 +306,7 @@ export default async function SpoolDetailPage({
 
         {/* Event Tabs */}
         <Grid size={{ xs: 12 }}>
-          <SpoolEventsTabs
+          <UserItemEventsTabs
             usageSessions={usageSessions as any}
             dryingSessions={dryingSessions as any}
             movements={movements as any}

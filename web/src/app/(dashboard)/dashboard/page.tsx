@@ -11,10 +11,10 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import { PageHeader } from "@/components/layout/page-header";
 import { listAuditLogsFiltered } from "@/lib/actions/audit";
 import { AuditFeed } from "@/components/audit/audit-feed";
-import { listSpools } from "@/lib/actions/user-library";
-import { listRacks } from "@/lib/actions/hardware";
+import { listUserItems } from "@/lib/actions/user-library";
+import { listZones } from "@/lib/actions/hardware";
 import { listPendingSubmissions } from "@/lib/actions/submissions";
-import { getSpoolWeightsByMaterial } from "@/lib/actions/dashboard";
+import { getUserItemWeightsByMaterial } from "@/lib/actions/dashboard";
 
 const statCards = [
   {
@@ -30,7 +30,7 @@ const statCards = [
     bg: "#F0FDF4",
   },
   {
-    label: "Racks Online",
+    label: "Zones Online",
     icon: <MemoryIcon />,
     color: "#2563EB",
     bg: "#EFF6FF",
@@ -44,22 +44,22 @@ const statCards = [
 ];
 
 export default async function DashboardPage() {
-  const [spoolsResult, racksResult, pendingResult, auditResult, chartResult] =
+  const [userItemsResult, zonesResult, pendingResult, auditResult, chartResult] =
     await Promise.allSettled([
-      listSpools(),
-      listRacks(),
+      listUserItems(),
+      listZones(),
       listPendingSubmissions(),
       listAuditLogsFiltered({ limit: 5 }),
-      getSpoolWeightsByMaterial(),
+      getUserItemWeightsByMaterial(),
     ]);
 
-  const spools =
-    spoolsResult.status === "fulfilled" && spoolsResult.value.data
-      ? spoolsResult.value.data
+  const userItems =
+    userItemsResult.status === "fulfilled" && userItemsResult.value.data
+      ? userItemsResult.value.data
       : [];
-  const racks =
-    racksResult.status === "fulfilled" && racksResult.value.data
-      ? racksResult.value.data
+  const zones =
+    zonesResult.status === "fulfilled" && zonesResult.value.data
+      ? zonesResult.value.data
       : [];
   const pending =
     pendingResult.status === "fulfilled" && pendingResult.value.data
@@ -75,9 +75,9 @@ export default async function DashboardPage() {
       ? chartResult.value.data
       : [];
 
-  const activeSpools = spools.filter((s) => s.status === "active");
+  const activeUserItems = userItems.filter((s) => s.status === "active");
 
-  const counts = [spools.length, activeSpools.length, racks.length, pending.length];
+  const counts = [userItems.length, activeUserItems.length, zones.length, pending.length];
 
   const chartLabels = materialWeights.map((m) => m.material);
   const chartData = materialWeights.map((m) => Math.round(m.totalWeightG));
@@ -129,7 +129,7 @@ export default async function DashboardPage() {
       </Grid>
 
       <Grid container spacing={3}>
-        {/* Spool Weight Chart */}
+        {/* Weight Chart */}
         <Grid size={{ xs: 12, md: 7 }}>
           <Card>
             <CardContent>
@@ -157,7 +157,7 @@ export default async function DashboardPage() {
                   }}
                 >
                   <Typography color="text.secondary">
-                    No spool data yet. Add spools to see weight breakdown.
+                    No data yet. Add spools to see weight breakdown.
                   </Typography>
                 </Box>
               )}

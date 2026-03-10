@@ -2,17 +2,16 @@ import { createInsertSchema, createUpdateSchema } from "drizzle-zod";
 import {
   brands,
   materials,
-  filaments,
-  variants,
+  products,
+  filamentProfiles,
   skuMappings,
   nfcTagPatterns,
-  equivalenceGroups,
-  filamentEquivalences,
+  productAliases,
 } from "@/db/schema/central-catalog";
 import { catalogSubmissions } from "@/db/schema/submissions";
 import {
   users,
-  spools,
+  userItems,
   machines,
   machineToolHeads,
   machineWorkSurfaces,
@@ -24,16 +23,17 @@ import {
   userPreferences,
 } from "@/db/schema/user-library";
 import {
+  zones,
   racks,
-  bridges,
   shelves,
   bays,
   slots,
+  bayModules,
   slotStatus,
-} from "@/db/schema/hardware";
+} from "@/db/schema/storage";
 import {
   weightEvents,
-  spoolMovements,
+  itemMovements,
   usageSessions,
   dryingSessions,
   environmentalReadings,
@@ -51,11 +51,11 @@ export const updateBrandSchema = createUpdateSchema(brands).omit(serverManaged);
 export const insertMaterialSchema = createInsertSchema(materials).omit(serverManaged);
 export const updateMaterialSchema = createUpdateSchema(materials).omit(serverManaged);
 
-export const insertFilamentSchema = createInsertSchema(filaments).omit(serverManaged);
-export const updateFilamentSchema = createUpdateSchema(filaments).omit(serverManaged);
+export const insertProductSchema = createInsertSchema(products).omit(serverManaged);
+export const updateProductSchema = createUpdateSchema(products).omit(serverManaged);
 
-export const insertVariantSchema = createInsertSchema(variants).omit(serverManaged);
-export const updateVariantSchema = createUpdateSchema(variants).omit(serverManaged);
+export const insertFilamentProfileSchema = createInsertSchema(filamentProfiles).omit(serverManaged);
+export const updateFilamentProfileSchema = createUpdateSchema(filamentProfiles).omit(serverManaged);
 
 export const insertSkuMappingSchema = createInsertSchema(skuMappings).omit(serverManaged);
 export const updateSkuMappingSchema = createUpdateSchema(skuMappings).omit(serverManaged);
@@ -63,11 +63,8 @@ export const updateSkuMappingSchema = createUpdateSchema(skuMappings).omit(serve
 export const insertNfcTagPatternSchema = createInsertSchema(nfcTagPatterns).omit(serverManaged);
 export const updateNfcTagPatternSchema = createUpdateSchema(nfcTagPatterns).omit(serverManaged);
 
-export const insertEquivalenceGroupSchema = createInsertSchema(equivalenceGroups).omit(serverManaged);
-export const updateEquivalenceGroupSchema = createUpdateSchema(equivalenceGroups).omit(serverManaged);
-
-export const insertFilamentEquivalenceSchema = createInsertSchema(filamentEquivalences).omit(serverManaged);
-export const updateFilamentEquivalenceSchema = createUpdateSchema(filamentEquivalences).omit(serverManaged);
+export const insertProductAliasSchema = createInsertSchema(productAliases).omit(serverManaged);
+export const updateProductAliasSchema = createUpdateSchema(productAliases).omit(serverManaged);
 
 // ── Submissions ─────────────────────────────────────────────────────────────
 
@@ -79,8 +76,8 @@ export const updateCatalogSubmissionSchema = createUpdateSchema(catalogSubmissio
 export const insertUserSchema = createInsertSchema(users).omit(serverManaged);
 export const updateUserSchema = createUpdateSchema(users).omit(serverManaged);
 
-export const insertSpoolSchema = createInsertSchema(spools).omit(serverManaged);
-export const updateSpoolSchema = createUpdateSchema(spools).omit(serverManaged);
+export const insertUserItemSchema = createInsertSchema(userItems).omit(serverManaged);
+export const updateUserItemSchema = createUpdateSchema(userItems).omit(serverManaged);
 
 export const insertMachineSchema = createInsertSchema(machines).omit(serverManaged);
 export const updateMachineSchema = createUpdateSchema(machines).omit(serverManaged);
@@ -109,13 +106,13 @@ export const updateLabelTemplateSchema = createUpdateSchema(labelTemplates).omit
 export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit(serverManaged);
 export const updateUserPreferencesSchema = createUpdateSchema(userPreferences).omit(serverManaged);
 
-// ── Hardware ────────────────────────────────────────────────────────────────
+// ── Storage ────────────────────────────────────────────────────────────────
+
+export const insertZoneSchema = createInsertSchema(zones).omit(serverManaged);
+export const updateZoneSchema = createUpdateSchema(zones).omit(serverManaged);
 
 export const insertRackSchema = createInsertSchema(racks).omit(serverManaged);
 export const updateRackSchema = createUpdateSchema(racks).omit(serverManaged);
-
-export const insertBridgeSchema = createInsertSchema(bridges).omit(serverManaged);
-export const updateBridgeSchema = createUpdateSchema(bridges).omit(serverManaged);
 
 export const insertShelfSchema = createInsertSchema(shelves).omit(serverManaged);
 export const updateShelfSchema = createUpdateSchema(shelves).omit(serverManaged);
@@ -126,12 +123,15 @@ export const updateBaySchema = createUpdateSchema(bays).omit(serverManaged);
 export const insertSlotSchema = createInsertSchema(slots).omit(serverManaged);
 export const updateSlotSchema = createUpdateSchema(slots).omit(serverManaged);
 
+export const insertBayModuleSchema = createInsertSchema(bayModules).omit(serverManaged);
+export const updateBayModuleSchema = createUpdateSchema(bayModules).omit(serverManaged);
+
 export const insertSlotStatusSchema = createInsertSchema(slotStatus).omit(serverManaged);
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
 export const insertWeightEventSchema = createInsertSchema(weightEvents).omit(serverManagedNoUpdate);
-export const insertSpoolMovementSchema = createInsertSchema(spoolMovements).omit(serverManagedNoUpdate);
+export const insertItemMovementSchema = createInsertSchema(itemMovements).omit(serverManagedNoUpdate);
 export const insertEnvironmentalReadingSchema = createInsertSchema(environmentalReadings).omit(serverManagedNoUpdate);
 
 export const insertUsageSessionSchema = createInsertSchema(usageSessions).omit(serverManagedNoUpdate);

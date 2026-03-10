@@ -6,12 +6,11 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   brands,
   materials,
-  filaments,
-  variants,
+  products,
+  filamentProfiles,
   skuMappings,
   nfcTagPatterns,
-  equivalenceGroups,
-  filamentEquivalences,
+  productAliases,
 } from "@/db/schema/central-catalog";
 import {
   createCrudActions,
@@ -25,18 +24,16 @@ import {
   updateBrandSchema,
   insertMaterialSchema,
   updateMaterialSchema,
-  insertFilamentSchema,
-  updateFilamentSchema,
-  insertVariantSchema,
-  updateVariantSchema,
+  insertProductSchema,
+  updateProductSchema,
+  insertFilamentProfileSchema,
+  updateFilamentProfileSchema,
   insertSkuMappingSchema,
   updateSkuMappingSchema,
   insertNfcTagPatternSchema,
   updateNfcTagPatternSchema,
-  insertEquivalenceGroupSchema,
-  updateEquivalenceGroupSchema,
-  insertFilamentEquivalenceSchema,
-  updateFilamentEquivalenceSchema,
+  insertProductAliasSchema,
+  updateProductAliasSchema,
 } from "./schemas";
 import { requireAdmin } from "./auth";
 import { emitAuditEvent } from "./audit";
@@ -46,12 +43,11 @@ import { auditActorType } from "./audit-helpers";
 
 type Brand = InferSelectModel<typeof brands>;
 type Material = InferSelectModel<typeof materials>;
-type Filament = InferSelectModel<typeof filaments>;
-type Variant = InferSelectModel<typeof variants>;
+type Product = InferSelectModel<typeof products>;
+type FilamentProfile = InferSelectModel<typeof filamentProfiles>;
 type SkuMapping = InferSelectModel<typeof skuMappings>;
 type NfcTagPattern = InferSelectModel<typeof nfcTagPatterns>;
-type EquivalenceGroup = InferSelectModel<typeof equivalenceGroups>;
-type FilamentEquivalence = InferSelectModel<typeof filamentEquivalences>;
+type ProductAlias = InferSelectModel<typeof productAliases>;
 
 // ── Brands ──────────────────────────────────────────────────────────────────
 
@@ -189,43 +185,43 @@ export async function removeMaterial(id: string) {
   return result;
 }
 
-// ── Filaments ───────────────────────────────────────────────────────────────
+// ── Products ────────────────────────────────────────────────────────────────
 
-const filamentsCrud = createCrudActions<Filament>({
-  table: filaments,
-  insertSchema: insertFilamentSchema,
-  updateSchema: updateFilamentSchema,
+const productsCrud = createCrudActions<Product>({
+  table: products,
+  insertSchema: insertProductSchema,
+  updateSchema: updateProductSchema,
 });
 
-export async function createFilament(input: unknown) {
+export async function createProduct(input: unknown) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await filamentsCrud.create(input);
+  const result = await productsCrud.create(input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "filament", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "product", resourceId: result.data.id });
   }
   return result;
 }
-export async function getFilamentById(id: string) {
-  return filamentsCrud.getById(id);
+export async function getProductById(id: string) {
+  return productsCrud.getById(id);
 }
-export async function listFilaments(
+export async function listProducts(
   params?: PaginationParams & {
     brandId?: string;
     materialId?: string;
     search?: string;
   }
-): Promise<ActionResult<Filament[]>> {
+): Promise<ActionResult<Product[]>> {
   try {
     const conditions: SQL[] = [];
-    if (params?.brandId) conditions.push(eq(filaments.brandId, params.brandId));
+    if (params?.brandId) conditions.push(eq(products.brandId, params.brandId));
     if (params?.materialId)
-      conditions.push(eq(filaments.materialId, params.materialId));
+      conditions.push(eq(products.materialId, params.materialId));
     if (params?.search)
-      conditions.push(ilike(filaments.name, `%${params.search}%`));
+      conditions.push(ilike(products.name, `%${params.search}%`));
     const q = db
       .select()
-      .from(filaments)
+      .from(products)
       .where(conditions.length ? and(...conditions) : undefined)
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
@@ -235,30 +231,30 @@ export async function listFilaments(
     return err((e as Error).message);
   }
 }
-export async function updateFilament(id: string, input: unknown) {
+export async function updateProduct(id: string, input: unknown) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await filamentsCrud.update(id, input);
+  const result = await productsCrud.update(id, input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "filament", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "product", resourceId: result.data.id });
   }
   return result;
 }
-export async function removeFilament(id: string) {
+export async function removeProduct(id: string) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await filamentsCrud.remove(id);
+  const result = await productsCrud.remove(id);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "filament", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "product", resourceId: result.data.id });
   }
   return result;
 }
 
-export async function getFilamentWithRelations(id: string) {
+export async function getProductWithRelations(id: string) {
   try {
-    const row = await db.query.filaments.findFirst({
-      where: eq(filaments.id, id),
-      with: { brand: true, material: true, variants: true },
+    const row = await db.query.products.findFirst({
+      where: eq(products.id, id),
+      with: { brand: true, material: true, filamentProfile: true, skuMappings: true, nfcTagPatterns: true },
     });
     if (!row) return err("Not found");
     return ok(row);
@@ -267,72 +263,56 @@ export async function getFilamentWithRelations(id: string) {
   }
 }
 
-// ── Variants ────────────────────────────────────────────────────────────────
+// ── Filament Profiles ────────────────────────────────────────────────────────
 
-const variantsCrud = createCrudActions<Variant>({
-  table: variants,
-  insertSchema: insertVariantSchema,
-  updateSchema: updateVariantSchema,
+const filamentProfilesCrud = createCrudActions<FilamentProfile>({
+  table: filamentProfiles,
+  insertSchema: insertFilamentProfileSchema,
+  updateSchema: updateFilamentProfileSchema,
 });
 
-export async function createVariant(input: unknown) {
+export async function createFilamentProfile(input: unknown) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await variantsCrud.create(input);
+  const result = await filamentProfilesCrud.create(input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "variant", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "filament_profile", resourceId: result.data.id });
   }
   return result;
 }
-export async function getVariantById(id: string) {
-  return variantsCrud.getById(id);
+export async function getFilamentProfileById(id: string) {
+  return filamentProfilesCrud.getById(id);
 }
-export async function listVariants(params?: PaginationParams) {
-  return variantsCrud.list(params);
+export async function listFilamentProfiles(params?: PaginationParams) {
+  return filamentProfilesCrud.list(params);
 }
-export async function updateVariant(id: string, input: unknown) {
+export async function updateFilamentProfile(id: string, input: unknown) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await variantsCrud.update(id, input);
+  const result = await filamentProfilesCrud.update(id, input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "variant", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "filament_profile", resourceId: result.data.id });
   }
   return result;
 }
-export async function removeVariant(id: string) {
+export async function removeFilamentProfile(id: string) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await variantsCrud.remove(id);
+  const result = await filamentProfilesCrud.remove(id);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "variant", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "filament_profile", resourceId: result.data.id });
   }
   return result;
 }
 
-export async function listVariantsByFilament(
-  filamentId: string,
-  params?: PaginationParams
-): Promise<ActionResult<Variant[]>> {
+export async function getFilamentProfileByProductId(
+  productId: string
+): Promise<ActionResult<FilamentProfile>> {
   try {
-    const q = db
+    const [row] = await db
       .select()
-      .from(variants)
-      .where(eq(variants.filamentId, filamentId))
-      .$dynamic();
-    if (params?.limit) q.limit(params.limit);
-    if (params?.offset) q.offset(params.offset);
-    return ok(await q);
-  } catch (e) {
-    return err((e as Error).message);
-  }
-}
-
-export async function getVariantWithRelations(id: string) {
-  try {
-    const row = await db.query.variants.findFirst({
-      where: eq(variants.id, id),
-      with: { filament: true, skuMappings: true, nfcTagPatterns: true },
-    });
+      .from(filamentProfiles)
+      .where(eq(filamentProfiles.productId, productId));
     if (!row) return err("Not found");
     return ok(row);
   } catch (e) {
@@ -397,15 +377,15 @@ export async function getSkuByCode(
   }
 }
 
-export async function listSkusByVariant(
-  variantId: string,
+export async function listSkusByProduct(
+  productId: string,
   params?: PaginationParams
 ): Promise<ActionResult<SkuMapping[]>> {
   try {
     const q = db
       .select()
       .from(skuMappings)
-      .where(eq(skuMappings.variantId, variantId))
+      .where(eq(skuMappings.productId, productId))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
     if (params?.offset) q.offset(params.offset);
@@ -505,15 +485,15 @@ export async function lookupByOpenPrintTag(
   }
 }
 
-export async function listPatternsByVariant(
-  variantId: string,
+export async function listPatternsByProduct(
+  productId: string,
   params?: PaginationParams
 ): Promise<ActionResult<NfcTagPattern[]>> {
   try {
     const q = db
       .select()
       .from(nfcTagPatterns)
-      .where(eq(nfcTagPatterns.variantId, variantId))
+      .where(eq(nfcTagPatterns.productId, productId))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
     if (params?.offset) q.offset(params.offset);
@@ -523,125 +503,70 @@ export async function listPatternsByVariant(
   }
 }
 
-// ── Equivalence Groups ──────────────────────────────────────────────────────
+// ── Product Aliases ──────────────────────────────────────────────────────────
 
-const equivalenceGroupsCrud = createCrudActions<EquivalenceGroup>({
-  table: equivalenceGroups,
-  insertSchema: insertEquivalenceGroupSchema,
-  updateSchema: updateEquivalenceGroupSchema,
+const productAliasesCrud = createCrudActions<ProductAlias>({
+  table: productAliases,
+  insertSchema: insertProductAliasSchema,
+  updateSchema: updateProductAliasSchema,
 });
 
-export async function createEquivalenceGroup(input: unknown) {
+export async function createProductAlias(input: unknown) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await equivalenceGroupsCrud.create(input);
+  const result = await productAliasesCrud.create(input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "equivalence_group", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "product_alias", resourceId: result.data.id });
   }
   return result;
 }
-export async function getEquivalenceGroupById(id: string) {
-  return equivalenceGroupsCrud.getById(id);
+export async function getProductAliasById(id: string) {
+  return productAliasesCrud.getById(id);
 }
-export async function listEquivalenceGroups(params?: PaginationParams) {
-  return equivalenceGroupsCrud.list(params);
+export async function listProductAliases(params?: PaginationParams) {
+  return productAliasesCrud.list(params);
 }
-export async function updateEquivalenceGroup(id: string, input: unknown) {
+export async function updateProductAlias(id: string, input: unknown) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await equivalenceGroupsCrud.update(id, input);
+  const result = await productAliasesCrud.update(id, input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "equivalence_group", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "product_alias", resourceId: result.data.id });
   }
   return result;
 }
-export async function removeEquivalenceGroup(id: string) {
+export async function removeProductAlias(id: string) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  const result = await equivalenceGroupsCrud.remove(id);
+  const result = await productAliasesCrud.remove(id);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "equivalence_group", resourceId: result.data.id });
-  }
-  return result;
-}
-
-export async function getGroupWithFilaments(id: string) {
-  try {
-    const row = await db.query.equivalenceGroups.findFirst({
-      where: eq(equivalenceGroups.id, id),
-      with: { filamentEquivalences: { with: { filament: true } } },
-    });
-    if (!row) return err("Not found");
-    return ok(row);
-  } catch (e) {
-    return err((e as Error).message);
-  }
-}
-
-// ── Filament Equivalences ───────────────────────────────────────────────────
-
-const filamentEquivalencesCrud = createCrudActions<FilamentEquivalence>({
-  table: filamentEquivalences,
-  insertSchema: insertFilamentEquivalenceSchema,
-  updateSchema: updateFilamentEquivalenceSchema,
-});
-
-export async function createFilamentEquivalence(input: unknown) {
-  const guard = await requireAdmin();
-  if (guard.error !== null) return guard;
-  const result = await filamentEquivalencesCrud.create(input);
-  if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "filament_equivalence", resourceId: result.data.id });
-  }
-  return result;
-}
-export async function getFilamentEquivalenceById(id: string) {
-  return filamentEquivalencesCrud.getById(id);
-}
-export async function listFilamentEquivalences(params?: PaginationParams) {
-  return filamentEquivalencesCrud.list(params);
-}
-export async function updateFilamentEquivalence(id: string, input: unknown) {
-  const guard = await requireAdmin();
-  if (guard.error !== null) return guard;
-  const result = await filamentEquivalencesCrud.update(id, input);
-  if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "filament_equivalence", resourceId: result.data.id });
-  }
-  return result;
-}
-export async function removeFilamentEquivalence(id: string) {
-  const guard = await requireAdmin();
-  if (guard.error !== null) return guard;
-  const result = await filamentEquivalencesCrud.remove(id);
-  if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "filament_equivalence", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "product_alias", resourceId: result.data.id });
   }
   return result;
 }
 
-export async function listEquivalencesByGroup(
-  groupId: string
-): Promise<ActionResult<FilamentEquivalence[]>> {
+export async function listAliasesByProduct(
+  productId: string
+): Promise<ActionResult<ProductAlias[]>> {
   try {
     const rows = await db
       .select()
-      .from(filamentEquivalences)
-      .where(eq(filamentEquivalences.equivalenceGroupId, groupId));
+      .from(productAliases)
+      .where(eq(productAliases.productId, productId));
     return ok(rows);
   } catch (e) {
     return err((e as Error).message);
   }
 }
 
-export async function listEquivalencesByFilament(
-  filamentId: string
-): Promise<ActionResult<FilamentEquivalence[]>> {
+export async function listAliasesByRelatedProduct(
+  relatedProductId: string
+): Promise<ActionResult<ProductAlias[]>> {
   try {
     const rows = await db
       .select()
-      .from(filamentEquivalences)
-      .where(eq(filamentEquivalences.filamentId, filamentId));
+      .from(productAliases)
+      .where(eq(productAliases.relatedProductId, relatedProductId));
     return ok(rows);
   } catch (e) {
     return err((e as Error).message);

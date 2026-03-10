@@ -32,17 +32,17 @@ export default function HardwarePage() {
     <div>
       <PageHeader
         title="Hardware"
-        description="Manage racks, machines, and equipment."
+        description="Manage zones, machines, and equipment."
         action={
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
-            {tab === 0 ? "Add Rack" : tab === 1 ? "Add Machine" : "Add Equipment"}
+            {tab === 0 ? "Add Zone" : tab === 1 ? "Add Machine" : "Add Equipment"}
           </Button>
         }
       />
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab label="Racks" />
+          <Tab label="Zones" />
           <Tab label="Machines" />
           <Tab label="Equipment" />
         </Tabs>

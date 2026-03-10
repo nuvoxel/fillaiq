@@ -5,7 +5,7 @@ import { eq, and, gte, lte, desc, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   weightEvents,
-  spoolMovements,
+  itemMovements,
   usageSessions,
   dryingSessions,
   environmentalReadings,
@@ -20,7 +20,7 @@ import {
 } from "./utils";
 import {
   insertWeightEventSchema,
-  insertSpoolMovementSchema,
+  insertItemMovementSchema,
   insertEnvironmentalReadingSchema,
   insertUsageSessionSchema,
   updateUsageSessionSchema,
@@ -34,7 +34,7 @@ import {
   assertOwnership,
 } from "./auth";
 import {
-  getOwnerBySpoolId,
+  getOwnerByUserItemId,
   getOwnerBySlotId,
   getOwnerByShelfId,
 } from "./ownership";
@@ -42,7 +42,7 @@ import {
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type WeightEvent = InferSelectModel<typeof weightEvents>;
-type SpoolMovement = InferSelectModel<typeof spoolMovements>;
+type ItemMovement = InferSelectModel<typeof itemMovements>;
 type UsageSession = InferSelectModel<typeof usageSessions>;
 type DryingSession = InferSelectModel<typeof dryingSessions>;
 type EnvironmentalReading = InferSelectModel<typeof environmentalReadings>;
@@ -67,18 +67,18 @@ export async function listWeightEvents(params?: PaginationParams) {
   return weightEventActions.list(params);
 }
 
-export async function listWeightEventsBySpoolId(
-  spoolId: string,
+export async function listWeightEventsByUserItemId(
+  userItemId: string,
   params?: TimeRangeParams
 ): Promise<ActionResult<WeightEvent[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const ownerId = await getOwnerBySpoolId(spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   try {
-    const conditions: SQL[] = [eq(weightEvents.spoolId, spoolId)];
+    const conditions: SQL[] = [eq(weightEvents.userItemId, userItemId)];
     if (params?.from) conditions.push(gte(weightEvents.createdAt, params.from));
     if (params?.to) conditions.push(lte(weightEvents.createdAt, params.to));
     const q = db
@@ -123,40 +123,40 @@ export async function listWeightEventsBySlotId(
   }
 }
 
-// ── Spool Movements (append-only) ───────────────────────────────────────────
+// ── Item Movements (append-only) ─────────────────────────────────────────────
 
-const spoolMovementActions = createAppendOnlyActions<SpoolMovement>({
-  table: spoolMovements,
-  insertSchema: insertSpoolMovementSchema,
+const itemMovementActions = createAppendOnlyActions<ItemMovement>({
+  table: itemMovements,
+  insertSchema: insertItemMovementSchema,
 });
 
-export async function createSpoolMovement(input: unknown) {
+export async function createItemMovement(input: unknown) {
   const guard = await requireAuthOrApiKey();
   if (guard.error !== null) return guard;
-  return spoolMovementActions.create(input);
+  return itemMovementActions.create(input);
 }
-export async function listSpoolMovements(params?: PaginationParams) {
+export async function listItemMovements(params?: PaginationParams) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  return spoolMovementActions.list(params);
+  return itemMovementActions.list(params);
 }
 
-export async function listSpoolMovementsBySpoolId(
-  spoolId: string,
+export async function listItemMovementsByUserItemId(
+  userItemId: string,
   params?: PaginationParams
-): Promise<ActionResult<SpoolMovement[]>> {
+): Promise<ActionResult<ItemMovement[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const ownerId = await getOwnerBySpoolId(spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   try {
     const q = db
       .select()
-      .from(spoolMovements)
-      .where(eq(spoolMovements.spoolId, spoolId))
-      .orderBy(desc(spoolMovements.createdAt))
+      .from(itemMovements)
+      .where(eq(itemMovements.userItemId, userItemId))
+      .orderBy(desc(itemMovements.createdAt))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
     if (params?.offset) q.offset(params.offset);
@@ -187,8 +187,8 @@ export async function getUsageSessionById(id: string) {
   if (guard.error !== null) return guard;
   const result = await usageSessionsCrud.getById(id);
   if (result.error !== null) return result;
-  const ownerId = await getOwnerBySpoolId(result.data.spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(result.data.userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   return result;
@@ -198,28 +198,28 @@ export async function updateUsageSession(id: string, input: unknown) {
   if (guard.error !== null) return guard;
   const existing = await usageSessionsCrud.getById(id);
   if (existing.error !== null) return existing;
-  const ownerId = await getOwnerBySpoolId(existing.data.spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(existing.data.userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   return usageSessionsCrud.update(id, input);
 }
 
-export async function listUsageSessionsBySpoolId(
-  spoolId: string,
+export async function listUsageSessionsByUserItemId(
+  userItemId: string,
   params?: PaginationParams
 ): Promise<ActionResult<UsageSession[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const ownerId = await getOwnerBySpoolId(spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   try {
     const q = db
       .select()
       .from(usageSessions)
-      .where(eq(usageSessions.spoolId, spoolId))
+      .where(eq(usageSessions.userItemId, userItemId))
       .orderBy(desc(usageSessions.createdAt))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
@@ -274,8 +274,8 @@ export async function getDryingSessionById(id: string) {
   if (guard.error !== null) return guard;
   const result = await dryingSessionsCrud.getById(id);
   if (result.error !== null) return result;
-  const ownerId = await getOwnerBySpoolId(result.data.spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(result.data.userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   return result;
@@ -285,28 +285,28 @@ export async function updateDryingSession(id: string, input: unknown) {
   if (guard.error !== null) return guard;
   const existing = await dryingSessionsCrud.getById(id);
   if (existing.error !== null) return existing;
-  const ownerId = await getOwnerBySpoolId(existing.data.spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(existing.data.userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   return dryingSessionsCrud.update(id, input);
 }
 
-export async function listDryingSessionsBySpoolId(
-  spoolId: string,
+export async function listDryingSessionsByUserItemId(
+  userItemId: string,
   params?: PaginationParams
 ): Promise<ActionResult<DryingSession[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const ownerId = await getOwnerBySpoolId(spoolId);
-  if (!ownerId) return err("Spool not found");
+  const ownerId = await getOwnerByUserItemId(userItemId);
+  if (!ownerId) return err("User item not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
   try {
     const q = db
       .select()
       .from(dryingSessions)
-      .where(eq(dryingSessions.spoolId, spoolId))
+      .where(eq(dryingSessions.userItemId, userItemId))
       .orderBy(desc(dryingSessions.createdAt))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);

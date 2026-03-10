@@ -9,14 +9,14 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { weightEventTypeEnum } from "./enums";
-import { spools, machines, equipment } from "./user-library";
-import { slots, shelves } from "./hardware";
+import { userItems, machines, equipment } from "./user-library";
+import { slots, shelves } from "./storage";
 
 // ── Weight Events ───────────────────────────────────────────────────────────
 
 export const weightEvents = pgTable("weight_events", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spoolId: uuid("spool_id").references(() => spools.id),
+  userItemId: uuid("user_item_id").references(() => userItems.id),
   slotId: uuid("slot_id").references(() => slots.id),
   eventType: weightEventTypeEnum("event_type").notNull(),
   weightG: real("weight_g"),
@@ -30,12 +30,12 @@ export const weightEvents = pgTable("weight_events", {
     .notNull(),
 });
 
-// ── Spool Movements ─────────────────────────────────────────────────────────
+// ── Item Movements ──────────────────────────────────────────────────────────
 
-export const spoolMovements = pgTable("spool_movements", {
+export const itemMovements = pgTable("item_movements", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spoolId: uuid("spool_id")
-    .references(() => spools.id)
+  userItemId: uuid("user_item_id")
+    .references(() => userItems.id)
     .notNull(),
   fromSlotId: uuid("from_slot_id").references(() => slots.id),
   toSlotId: uuid("to_slot_id").references(() => slots.id),
@@ -49,8 +49,8 @@ export const spoolMovements = pgTable("spool_movements", {
 
 export const usageSessions = pgTable("usage_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spoolId: uuid("spool_id")
-    .references(() => spools.id)
+  userItemId: uuid("user_item_id")
+    .references(() => userItems.id)
     .notNull(),
   userId: uuid("user_id"),
   machineId: uuid("machine_id").references(() => machines.id),
@@ -74,8 +74,8 @@ export const usageSessions = pgTable("usage_sessions", {
 
 export const dryingSessions = pgTable("drying_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spoolId: uuid("spool_id")
-    .references(() => spools.id)
+  userItemId: uuid("user_item_id")
+    .references(() => userItems.id)
     .notNull(),
   userId: uuid("user_id"),
   equipmentId: uuid("equipment_id").references(() => equipment.id),

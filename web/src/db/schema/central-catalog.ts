@@ -8,19 +8,20 @@ import {
   boolean,
   timestamp,
   jsonb,
-  bigint,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import {
   validationStatusEnum,
+  productCategoryEnum,
+  materialClassEnum,
   finishTypeEnum,
   patternTypeEnum,
   fillTypeEnum,
   multiColorDirectionEnum,
   spoolMaterialTypeEnum,
-  workSurfaceTypeEnum,
+  packageStyleEnum,
   nfcTagFormatEnum,
-  materialClassEnum,
+  aliasTypeEnum,
 } from "./enums";
 
 // ── Brands ──────────────────────────────────────────────────────────────────
@@ -33,6 +34,8 @@ export const brands = pgTable(
     slug: varchar("slug", { length: 255 }).notNull(),
     website: varchar("website", { length: 512 }),
     logoUrl: varchar("logo_url", { length: 512 }),
+    countryOfOrigin: varchar("country_of_origin", { length: 2 }),
+    parentBrandId: uuid("parent_brand_id"), // for sub-brands / OEM relationships
     validationStatus: validationStatusEnum("validation_status")
       .default("draft")
       .notNull(),
@@ -46,27 +49,20 @@ export const brands = pgTable(
   (table) => [uniqueIndex("brands_slug_idx").on(table.slug)]
 );
 
-// ── Materials ───────────────────────────────────────────────────────────────
+// ── Materials (pure material science) ───────────────────────────────────────
 
 export const materials = pgTable("materials", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  abbreviation: varchar("abbreviation", { length: 7 }),
+  abbreviation: varchar("abbreviation", { length: 20 }),
   category: varchar("category", { length: 50 }),
   isoClassification: varchar("iso_classification", { length: 100 }),
   materialClass: materialClassEnum("material_class"),
   density: real("density"),
-  // Default temps
-  defaultNozzleTempMin: integer("default_nozzle_temp_min"),
-  defaultNozzleTempMax: integer("default_nozzle_temp_max"),
-  defaultBedTempMin: integer("default_bed_temp_min"),
-  defaultBedTempMax: integer("default_bed_temp_max"),
-  defaultChamberTemp: integer("default_chamber_temp"),
-  defaultPreheatTemp: integer("default_preheat_temp"),
-  // Drying
+  // Hygroscopic / drying
+  hygroscopic: boolean("hygroscopic"),
   defaultDryingTemp: integer("default_drying_temp"),
   defaultDryingTimeMin: integer("default_drying_time_min"),
-  hygroscopic: boolean("hygroscopic"),
   // Fill properties
   fillType: fillTypeEnum("fill_type"),
   fillPercentage: real("fill_percentage"),
@@ -82,69 +78,122 @@ export const materials = pgTable("materials", {
     .notNull(),
 });
 
-// ── Filaments ───────────────────────────────────────────────────────────────
+// ── Products (generic catalog entry) ────────────────────────────────────────
 
-export const filaments = pgTable("filaments", {
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    brandId: uuid("brand_id").references(() => brands.id),
+    materialId: uuid("material_id").references(() => materials.id),
+    category: productCategoryEnum("category").default("filament").notNull(),
+    name: varchar("name", { length: 512 }).notNull(),
+    description: text("description"),
+    imageUrl: varchar("image_url", { length: 512 }),
+
+    // ── Color ─────────────────────────────────────────────────────────────
+    colorName: varchar("color_name", { length: 255 }),
+    colorHex: varchar("color_hex", { length: 9 }),
+    colorR: integer("color_r"),
+    colorG: integer("color_g"),
+    colorB: integer("color_b"),
+    colorA: integer("color_a"),
+    // LAB color (colorimeter-measured)
+    colorLabL: real("color_lab_l"),
+    colorLabA: real("color_lab_a"),
+    colorLabB: real("color_lab_b"),
+    // Industry color matches
+    closestPantone: varchar("closest_pantone", { length: 50 }),
+    closestRal: varchar("closest_ral", { length: 50 }),
+    closestPms: varchar("closest_pms", { length: 50 }),
+    colorParent: varchar("color_parent", { length: 50 }),
+    // Multi-color
+    multiColorHexes: text("multi_color_hexes").array(),
+    multiColorDirection: multiColorDirectionEnum("multi_color_direction"),
+    // Appearance
+    finish: finishTypeEnum("finish"),
+    translucent: boolean("translucent"),
+    glow: boolean("glow"),
+    pattern: patternTypeEnum("pattern"),
+
+    // ── Weight / packaging ────────────────────────────────────────────────
+    netWeightG: real("net_weight_g"),
+    actualNetWeightG: real("actual_net_weight_g"),
+    packageWeightG: real("package_weight_g"), // spool/bottle/box weight
+    packageStyle: packageStyleEnum("package_style"),
+    packageBarcode: varchar("package_barcode", { length: 100 }),
+    packageBarcodeFormat: varchar("package_barcode_format", { length: 20 }),
+
+    // ── Provenance ────────────────────────────────────────────────────────
+    countryOfOrigin: varchar("country_of_origin", { length: 2 }),
+    certifications: text("certifications").array(),
+    gtin: varchar("gtin", { length: 14 }),
+
+    // ── External IDs ──────────────────────────────────────────────────────
+    externalSpoolmanDbId: varchar("external_spoolman_db_id", { length: 100 }),
+    external3dFpShortCode: varchar("external_3dfp_short_code", {
+      length: 100,
+    }),
+    externalFilamentColorsSlug: varchar("external_filament_colors_slug", {
+      length: 255,
+    }),
+
+    // ── Commerce ──────────────────────────────────────────────────────────
+    websiteUrl: varchar("website_url", { length: 512 }),
+    amazonAsin: varchar("amazon_asin", { length: 20 }),
+
+    // ── Status ────────────────────────────────────────────────────────────
+    validationStatus: validationStatusEnum("validation_status")
+      .default("draft")
+      .notNull(),
+    submittedByUserId: uuid("submitted_by_user_id"),
+    discontinued: boolean("discontinued").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("products_gtin_idx").on(table.gtin)]
+);
+
+// ── Filament Profiles (1:1 extension for category='filament') ───────────────
+
+export const filamentProfiles = pgTable("filament_profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
-  brandId: uuid("brand_id").references(() => brands.id),
-  materialId: uuid("material_id").references(() => materials.id),
-  name: varchar("name", { length: 512 }).notNull(),
-  description: text("description"),
-  imageUrl: varchar("image_url", { length: 512 }),
+  productId: uuid("product_id")
+    .references(() => products.id)
+    .notNull()
+    .unique(),
 
-  // Color
-  colorName: varchar("color_name", { length: 255 }),
-  colorHex: varchar("color_hex", { length: 9 }),
-  colorR: integer("color_r"),
-  colorG: integer("color_g"),
-  colorB: integer("color_b"),
-  colorA: integer("color_a"),
-  // LAB color (colorimeter-measured)
-  colorLabL: real("color_lab_l"),
-  colorLabA: real("color_lab_a"),
-  colorLabB: real("color_lab_b"),
-  // Industry matches
-  closestPantone: varchar("closest_pantone", { length: 50 }),
-  closestRal: varchar("closest_ral", { length: 50 }),
-  closestPms: varchar("closest_pms", { length: 50 }),
-  colorParent: varchar("color_parent", { length: 50 }),
-
-  // Multi-color
-  multiColorHexes: text("multi_color_hexes").array(),
-  multiColorDirection: multiColorDirectionEnum("multi_color_direction"),
-
-  // Appearance
-  finish: finishTypeEnum("finish"),
-  translucent: boolean("translucent"),
-  glow: boolean("glow"),
-  pattern: patternTypeEnum("pattern"),
-
-  // Transmission distance (HueForge)
-  transmissionDistance: real("transmission_distance"),
-  tdVoteCount: integer("td_vote_count"),
-
-  // Physical — filament
+  // ── Filament physical ─────────────────────────────────────────────────
   diameter: real("diameter").default(1.75),
-  netWeightG: real("net_weight_g"),
-  actualNetWeightG: real("actual_net_weight_g"),
+  measuredDiameter: real("measured_diameter"),
+  diameterTolerance: real("diameter_tolerance"),
   filamentLengthM: integer("filament_length_m"),
   actualFilamentLengthM: integer("actual_filament_length_m"),
   minNozzleDiameter: real("min_nozzle_diameter"),
 
-  // Physical — spool
-  spoolWeightG: real("spool_weight_g"),
-  spoolOuterDiameterMm: integer("spool_outer_diameter_mm"),
-  spoolWidthMm: integer("spool_width_mm"),
-  spoolInnerDiameterMm: integer("spool_inner_diameter_mm"),
-  spoolHoleDiameterMm: integer("spool_hole_diameter_mm"),
+  // ── Spool physical (for OEM matching / fingerprinting) ────────────────
+  spoolOuterDiameterMm: real("spool_outer_diameter_mm"),
+  spoolInnerDiameterMm: real("spool_inner_diameter_mm"),
+  spoolWidthMm: real("spool_width_mm"),
+  spoolHubHoleDiameterMm: real("spool_hub_hole_diameter_mm"),
+  spoolRimDepthMm: real("spool_rim_depth_mm"),
   spoolMaterialType: spoolMaterialTypeEnum("spool_material_type"),
+  spoolColor: varchar("spool_color", { length: 50 }),
+  spoolWeightG: real("spool_weight_g"),
+  spoolHasCardboardInsert: boolean("spool_has_cardboard_insert"),
+  // Winding
+  windingWidthMm: real("winding_width_mm"),
+  windingDiameterMm: real("winding_diameter_mm"),
 
-  // Print settings
+  // ── Print settings ────────────────────────────────────────────────────
   nozzleTempMin: integer("nozzle_temp_min"),
   nozzleTempMax: integer("nozzle_temp_max"),
   bedTempMin: integer("bed_temp_min"),
   bedTempMax: integer("bed_temp_max"),
-  bedTempType: workSurfaceTypeEnum("bed_temp_type"),
   chamberTempMin: integer("chamber_temp_min"),
   chamberTempMax: integer("chamber_temp_max"),
   chamberTemp: integer("chamber_temp"),
@@ -158,66 +207,16 @@ export const filaments = pgTable("filaments", {
   maxVolumetricSpeed: real("max_volumetric_speed"),
   targetVolumetricSpeed: real("target_volumetric_speed"),
 
-  // Bambu-specific
-  bambuMaterialId: varchar("bambu_material_id", { length: 50 }),
-  bambuVariantId: varchar("bambu_variant_id", { length: 50 }),
-  bambuFilamentType: varchar("bambu_filament_type", { length: 50 }),
-  bambuDetailedType: varchar("bambu_detailed_type", { length: 100 }),
-  bambuXcamInfo: jsonb("bambu_xcam_info"),
-  bambuNozzleDiameter: real("bambu_nozzle_diameter"),
+  // ── HueForge / transmission ───────────────────────────────────────────
+  transmissionDistance: real("transmission_distance"),
+  tdVoteCount: integer("td_vote_count"),
 
-  // Provenance
-  countryOfOrigin: varchar("country_of_origin", { length: 2 }),
-  certifications: text("certifications").array(),
-  gtin: bigint("gtin", { mode: "bigint" }),
+  // ── Vendor metadata (Bambu, Creality, Prusa, etc.) ────────────────────
+  vendorMetadata: jsonb("vendor_metadata"),
+  // Examples:
+  // { "bambu": { "materialId": "GFL99", "variantId": "...", "filamentType": "PLA", "detailedType": "PLA Basic", "xcamInfo": {...}, "nozzleDiameter": 0.4 } }
+  // { "creality": { "materialCode": "..." } }
 
-  // External IDs
-  externalSpoolmanDbId: varchar("external_spoolman_db_id", { length: 100 }),
-  external3dFpShortCode: varchar("external_3dfp_short_code", { length: 100 }),
-  externalFilamentColorsSlug: varchar("external_filament_colors_slug", {
-    length: 255,
-  }),
-
-  // Commerce
-  websiteUrl: varchar("website_url", { length: 512 }),
-  amazonAsin: varchar("amazon_asin", { length: 20 }),
-
-  // Status
-  validationStatus: validationStatusEnum("validation_status")
-    .default("draft")
-    .notNull(),
-  submittedByUserId: uuid("submitted_by_user_id"),
-  discontinued: boolean("discontinued").default(false),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
-// ── Variants ────────────────────────────────────────────────────────────────
-
-export const variants = pgTable("variants", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  filamentId: uuid("filament_id")
-    .references(() => filaments.id)
-    .notNull(),
-  name: varchar("name", { length: 255 }),
-  oemSupplier: varchar("oem_supplier", { length: 255 }),
-  batchCode: varchar("batch_code", { length: 100 }),
-  // Override settings (null = inherit from filament)
-  nozzleTempMin: integer("nozzle_temp_min"),
-  nozzleTempMax: integer("nozzle_temp_max"),
-  bedTemp: integer("bed_temp"),
-  netWeightG: real("net_weight_g"),
-  spoolWeightG: real("spool_weight_g"),
-  density: real("density"),
-  notes: text("notes"),
-  validationStatus: validationStatusEnum("validation_status")
-    .default("draft")
-    .notNull(),
-  submittedByUserId: uuid("submitted_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -232,13 +231,13 @@ export const skuMappings = pgTable(
   "sku_mappings",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    variantId: uuid("variant_id")
-      .references(() => variants.id)
+    productId: uuid("product_id")
+      .references(() => products.id)
       .notNull(),
     sku: varchar("sku", { length: 100 }),
     barcode: varchar("barcode", { length: 100 }),
     barcodeFormat: varchar("barcode_format", { length: 20 }),
-    gtin: bigint("gtin", { mode: "bigint" }),
+    gtin: varchar("gtin", { length: 14 }),
     packQuantity: integer("pack_quantity").default(1),
     retailer: varchar("retailer", { length: 255 }),
     productUrl: varchar("product_url", { length: 512 }),
@@ -261,8 +260,8 @@ export const skuMappings = pgTable(
 
 export const nfcTagPatterns = pgTable("nfc_tag_patterns", {
   id: uuid("id").defaultRandom().primaryKey(),
-  variantId: uuid("variant_id")
-    .references(() => variants.id)
+  productId: uuid("product_id")
+    .references(() => products.id)
     .notNull(),
   tagFormat: nfcTagFormatEnum("tag_format").notNull(),
   // Bambu
@@ -276,7 +275,11 @@ export const nfcTagPatterns = pgTable("nfc_tag_patterns", {
   optPackageUuid: uuid("opt_package_uuid"),
   optMaterialUuid: uuid("opt_material_uuid"),
   optBrandUuid: uuid("opt_brand_uuid"),
-  // Generic
+  // OpenSpool
+  openSpoolVendor: varchar("open_spool_vendor", { length: 255 }),
+  openSpoolType: varchar("open_spool_type", { length: 255 }),
+  openSpoolColor: varchar("open_spool_color", { length: 100 }),
+  // Generic pattern matching
   patternField: varchar("pattern_field", { length: 100 }),
   patternValue: varchar("pattern_value", { length: 255 }),
   validationStatus: validationStatusEnum("validation_status")
@@ -290,32 +293,20 @@ export const nfcTagPatterns = pgTable("nfc_tag_patterns", {
     .notNull(),
 });
 
-// ── Equivalence Groups ──────────────────────────────────────────────────────
+// ── Product Aliases ─────────────────────────────────────────────────────────
 
-export const equivalenceGroups = pgTable("equivalence_groups", {
+export const productAliases = pgTable("product_aliases", {
   id: uuid("id").defaultRandom().primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  description: text("description"),
-  validationStatus: validationStatusEnum("validation_status")
-    .default("draft")
+  productId: uuid("product_id")
+    .references(() => products.id)
     .notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
+  relatedProductId: uuid("related_product_id")
+    .references(() => products.id)
     .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
-export const filamentEquivalences = pgTable("filament_equivalences", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  equivalenceGroupId: uuid("equivalence_group_id")
-    .references(() => equivalenceGroups.id)
-    .notNull(),
-  filamentId: uuid("filament_id")
-    .references(() => filaments.id)
-    .notNull(),
-  isPrimary: boolean("is_primary").default(false),
+  aliasType: aliasTypeEnum("alias_type").notNull(),
+  confidence: real("confidence").default(1.0),
+  bidirectional: boolean("bidirectional").default(true),
+  source: varchar("source", { length: 50 }), // 'nfc_match', 'user_submitted', 'community_vote', 'admin', 'auto_detected'
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

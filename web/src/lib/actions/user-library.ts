@@ -5,7 +5,7 @@ import { eq, and, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   users,
-  spools,
+  userItems,
   machines,
   machineToolHeads,
   machineWorkSurfaces,
@@ -25,8 +25,8 @@ import {
 import {
   insertUserSchema,
   updateUserSchema,
-  insertSpoolSchema,
-  updateSpoolSchema,
+  insertUserItemSchema,
+  updateUserItemSchema,
   insertMachineSchema,
   updateMachineSchema,
   insertMachineToolHeadSchema,
@@ -51,7 +51,7 @@ import { auditActorType } from "./audit-helpers";
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type User = InferSelectModel<typeof users>;
-type Spool = InferSelectModel<typeof spools>;
+type UserItem = InferSelectModel<typeof userItems>;
 type Machine = InferSelectModel<typeof machines>;
 type MachineToolHead = InferSelectModel<typeof machineToolHeads>;
 type MachineWorkSurface = InferSelectModel<typeof machineWorkSurfaces>;
@@ -128,82 +128,82 @@ export async function getUserByEmail(
   }
 }
 
-// ── Spools ──────────────────────────────────────────────────────────────────
+// ── User Items ──────────────────────────────────────────────────────────────
 
-const spoolsCrud = createCrudActions<Spool>({
-  table: spools,
-  insertSchema: insertSpoolSchema,
-  updateSchema: updateSpoolSchema,
+const userItemsCrud = createCrudActions<UserItem>({
+  table: userItems,
+  insertSchema: insertUserItemSchema,
+  updateSchema: updateUserItemSchema,
 });
 
-export async function createSpool(input: unknown) {
+export async function createUserItem(input: unknown) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   const data =
     typeof input === "object" && input !== null ? input : {};
-  const result = await spoolsCrud.create({ ...data, userId: guard.data.userId });
+  const result = await userItemsCrud.create({ ...data, userId: guard.data.userId });
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "spool", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "user_item", resourceId: result.data.id });
   }
   return result;
 }
-export async function getSpoolById(id: string) {
+export async function getUserItemById(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const result = await spoolsCrud.getById(id);
+  const result = await userItemsCrud.getById(id);
   if (result.error !== null) return result;
   const ownership = assertOwnership(guard.data, result.data.userId);
   if (ownership) return ownership;
   return result;
 }
-export async function listSpools(params?: PaginationParams) {
+export async function listUserItems(params?: PaginationParams) {
   const guard = await requireAdmin();
   if (guard.error !== null) return guard;
-  return spoolsCrud.list(params);
+  return userItemsCrud.list(params);
 }
-export async function updateSpool(id: string, input: unknown) {
+export async function updateUserItem(id: string, input: unknown) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const existing = await spoolsCrud.getById(id);
+  const existing = await userItemsCrud.getById(id);
   if (existing.error !== null) return existing;
   const ownership = assertOwnership(guard.data, existing.data.userId);
   if (ownership) return ownership;
-  const result = await spoolsCrud.update(id, input);
+  const result = await userItemsCrud.update(id, input);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "spool", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "user_item", resourceId: result.data.id });
   }
   return result;
 }
-export async function removeSpool(id: string) {
+export async function removeUserItem(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  const existing = await spoolsCrud.getById(id);
+  const existing = await userItemsCrud.getById(id);
   if (existing.error !== null) return existing;
   const ownership = assertOwnership(guard.data, existing.data.userId);
   if (ownership) return ownership;
-  const result = await spoolsCrud.remove(id);
+  const result = await userItemsCrud.remove(id);
   if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "spool", resourceId: result.data.id });
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "user_item", resourceId: result.data.id });
   }
   return result;
 }
 
-export async function listSpoolsByUser(
+export async function listUserItemsByUser(
   userId: string,
   params?: PaginationParams & { status?: string }
-): Promise<ActionResult<Spool[]>> {
+): Promise<ActionResult<UserItem[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   const ownership = assertOwnership(guard.data, userId);
   if (ownership) return ownership;
   try {
-    const conditions: SQL[] = [eq(spools.userId, userId)];
+    const conditions: SQL[] = [eq(userItems.userId, userId)];
     if (params?.status) {
-      conditions.push(eq(spools.status, params.status as any));
+      conditions.push(eq(userItems.status, params.status as any));
     }
     const q = db
       .select()
-      .from(spools)
+      .from(userItems)
       .where(and(...conditions))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
@@ -214,13 +214,13 @@ export async function listSpoolsByUser(
   }
 }
 
-export async function getSpoolWithRelations(id: string) {
+export async function getUserItemWithRelations(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   try {
-    const row = await db.query.spools.findFirst({
-      where: eq(spools.id, id),
-      with: { variant: true, filament: true, currentSlot: true },
+    const row = await db.query.userItems.findFirst({
+      where: eq(userItems.id, id),
+      with: { product: true, currentSlot: true },
     });
     if (!row) return err("Not found");
     const ownership = assertOwnership(guard.data, row.userId);
@@ -572,8 +572,8 @@ export async function listProfilesByUser(
   }
 }
 
-export async function listProfilesByFilament(
-  filamentId: string,
+export async function listProfilesByProduct(
+  productId: string,
   params?: PaginationParams
 ): Promise<ActionResult<UserPrintProfile[]>> {
   const guard = await requireAuth();
@@ -582,7 +582,7 @@ export async function listProfilesByFilament(
     const q = db
       .select()
       .from(userPrintProfiles)
-      .where(eq(userPrintProfiles.filamentId, filamentId))
+      .where(eq(userPrintProfiles.productId, productId))
       .$dynamic();
     if (params?.limit) q.limit(params.limit);
     if (params?.offset) q.offset(params.offset);

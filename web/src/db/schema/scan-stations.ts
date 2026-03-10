@@ -11,7 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { nfcTagFormatEnum } from "./enums";
-import { users, spools } from "./user-library";
+import { users, userItems } from "./user-library";
 
 // ── Scan Stations ───────────────────────────────────────────────────────────
 
@@ -58,15 +58,15 @@ export const scanEvents = pgTable("scan_events", {
     .notNull(),
   userId: uuid("user_id").references(() => users.id),
 
-  // Weight
+  // ── Weight ────────────────────────────────────────────────────────────
   weightG: real("weight_g"),
   weightStable: boolean("weight_stable"),
 
-  // Height (TOF)
+  // ── Height (TOF) ──────────────────────────────────────────────────────
   heightMm: real("height_mm"),
   distanceMm: real("distance_mm"),
 
-  // Spectral color (AS7341 raw channels)
+  // ── Spectral color (AS7341 raw channels) ──────────────────────────────
   spectralData: jsonb("spectral_data"),
   // Derived color
   colorHex: varchar("color_hex", { length: 7 }),
@@ -74,32 +74,42 @@ export const scanEvents = pgTable("scan_events", {
   colorLabA: real("color_lab_a"),
   colorLabB: real("color_lab_b"),
 
-  // NFC
+  // ── NFC ───────────────────────────────────────────────────────────────
   nfcPresent: boolean("nfc_present").default(false),
   nfcUid: varchar("nfc_uid", { length: 50 }),
   nfcUidLength: integer("nfc_uid_length"),
-  nfcTagType: integer("nfc_tag_type"),
-  nfcRawData: text("nfc_raw_data"),
+  // Tag identification
+  nfcTagType: integer("nfc_tag_type"), // MIFARE Classic, NTAG21x, etc.
+  nfcAtqa: varchar("nfc_atqa", { length: 10 }), // Answer To Request Type A
+  nfcSak: integer("nfc_sak"), // Select Acknowledge
+  nfcTagFormat: nfcTagFormatEnum("nfc_tag_format"), // parsed protocol
+  // Raw data
+  nfcRawData: text("nfc_raw_data"), // hex dump of all sectors/pages
   nfcSectorsRead: integer("nfc_sectors_read"),
   nfcPagesRead: integer("nfc_pages_read"),
+  // Parsed fields (from whatever tag format was detected)
+  nfcParsedData: jsonb("nfc_parsed_data"),
+  // e.g. { "materialId": "GFL99", "variantId": "...", "color": "#FFFFFF", "weight": 1000, ... }
 
-  // Camera / barcode
+  // ── Camera / barcode ──────────────────────────────────────────────────
   photoUrl: varchar("photo_url", { length: 1024 }),
   barcodeValue: varchar("barcode_value", { length: 255 }),
   barcodeFormat: varchar("barcode_format", { length: 50 }),
 
-  // Turntable
+  // ── Turntable ─────────────────────────────────────────────────────────
   turntableAngle: real("turntable_angle"),
 
-  // Identification result
+  // ── Identification result ─────────────────────────────────────────────
   identified: boolean("identified").default(false),
   confidence: real("confidence"),
-  identifiedType: varchar("identified_type", { length: 50 }),
-  identifiedItemId: uuid("identified_item_id"),
-  identifiedSpoolId: uuid("identified_spool_id").references(() => spools.id),
+  identifiedType: varchar("identified_type", { length: 50 }), // 'product', 'user_item', 'inventory_item'
+  identifiedProductId: uuid("identified_product_id"),
+  identifiedUserItemId: uuid("identified_user_item_id").references(
+    () => userItems.id
+  ),
   aiSuggestions: jsonb("ai_suggestions"),
 
-  // User confirmation
+  // ── User confirmation ─────────────────────────────────────────────────
   userConfirmed: boolean("user_confirmed"),
   userOverrideData: jsonb("user_override_data"),
 
@@ -108,7 +118,7 @@ export const scanEvents = pgTable("scan_events", {
     .notNull(),
 });
 
-// ── Inventory Items (non-filament) ──────────────────────────────────────────
+// ── Inventory Items (non-filament: fasteners, electronics, etc.) ────────────
 
 export const inventoryItems = pgTable("inventory_items", {
   id: uuid("id").defaultRandom().primaryKey(),

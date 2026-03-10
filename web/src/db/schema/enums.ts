@@ -1,5 +1,7 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
+// ── Catalog ──────────────────────────────────────────────────────────────────
+
 export const validationStatusEnum = pgEnum("validation_status", [
   "draft",
   "submitted",
@@ -7,55 +9,20 @@ export const validationStatusEnum = pgEnum("validation_status", [
   "deprecated",
 ]);
 
-export const submissionTypeEnum = pgEnum("submission_type", [
-  "new_filament",
-  "new_variant",
-  "correction",
-  "equivalence",
-]);
-
-export const submissionStatusEnum = pgEnum("submission_status", [
-  "pending",
-  "approved",
-  "rejected",
-  "duplicate",
-]);
-
-export const spoolStatusEnum = pgEnum("spool_status", [
-  "active",
-  "empty",
-  "archived",
-]);
-
-export const slotStateEnum = pgEnum("slot_state", [
-  "empty",
-  "detecting",
-  "active",
-  "unknown_spool",
-  "removed",
-  "error",
-]);
-
-export const weightEventTypeEnum = pgEnum("weight_event_type", [
-  "placed",
-  "removed",
-  "reading",
-  "usage",
-  "drying",
-]);
-
-export const equipmentTypeEnum = pgEnum("equipment_type", [
-  "drybox",
-  "enclosure",
-  "storage_bin",
+export const productCategoryEnum = pgEnum("product_category", [
+  "filament",
+  "resin",
+  "cnc_stock",
+  "laser_stock",
+  "consumable",
   "other",
 ]);
 
-export const spoolMaterialTypeEnum = pgEnum("spool_material_type", [
-  "plastic",
-  "cardboard",
-  "metal",
-  "unknown",
+export const materialClassEnum = pgEnum("material_class", [
+  "fff",
+  "sla",
+  "cnc",
+  "laser",
 ]);
 
 export const finishTypeEnum = pgEnum("finish_type", [
@@ -90,6 +57,33 @@ export const multiColorDirectionEnum = pgEnum("multi_color_direction", [
   "longitudinal",
 ]);
 
+export const spoolMaterialTypeEnum = pgEnum("spool_material_type", [
+  "plastic",
+  "cardboard",
+  "metal",
+  "unknown",
+]);
+
+export const packageStyleEnum = pgEnum("package_style", [
+  "none",
+  "shrink_wrap",
+  "bag",
+  "vacuum_bag",
+  "sleeve",
+  "box",
+  "box_with_bag",
+  "other",
+]);
+
+export const aliasTypeEnum = pgEnum("alias_type", [
+  "oem_rebrand",
+  "sku_variant",
+  "substitute",
+  "color_match",
+]);
+
+// ── NFC ──────────────────────────────────────────────────────────────────────
+
 export const nfcTagFormatEnum = pgEnum("nfc_tag_format", [
   "bambu_mifare",
   "creality",
@@ -102,18 +96,53 @@ export const nfcTagFormatEnum = pgEnum("nfc_tag_format", [
   "unknown",
 ]);
 
-export const workSurfaceTypeEnum = pgEnum("work_surface_type", [
-  "cool_plate",
-  "textured_pei",
-  "engineering_plate",
-  "high_temp_plate",
-  "wasteboard",
-  "aluminum_bed",
-  "vacuum_table",
-  "honeycomb_bed",
-  "knife_blade_bed",
-  "material_pass_through",
+// ── User Items ───────────────────────────────────────────────────────────────
+
+export const itemStatusEnum = pgEnum("item_status", [
+  "active",
+  "empty",
+  "archived",
 ]);
+
+// ── Storage ──────────────────────────────────────────────────────────────────
+
+export const zoneTypeEnum = pgEnum("zone_type", [
+  "workshop",
+  "storage",
+  "printer_area",
+  "drying",
+  "other",
+]);
+
+export const slotStateEnum = pgEnum("slot_state", [
+  "empty",
+  "detecting",
+  "active",
+  "unknown_spool",
+  "removed",
+  "error",
+]);
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+export const weightEventTypeEnum = pgEnum("weight_event_type", [
+  "placed",
+  "removed",
+  "reading",
+  "usage",
+  "drying",
+]);
+
+// ── Equipment ────────────────────────────────────────────────────────────────
+
+export const equipmentTypeEnum = pgEnum("equipment_type", [
+  "drybox",
+  "enclosure",
+  "storage_bin",
+  "other",
+]);
+
+// ── Labels ───────────────────────────────────────────────────────────────────
 
 export const labelFormatEnum = pgEnum("label_format", [
   "labelife_image",
@@ -122,29 +151,7 @@ export const labelFormatEnum = pgEnum("label_format", [
   "pdf",
 ]);
 
-export const materialClassEnum = pgEnum("material_class", ["fff", "sla"]);
-
-export const connectionTypeEnum = pgEnum("connection_type", [
-  "wifi",
-  "ethernet",
-]);
-
-export const auditActorTypeEnum = pgEnum("audit_actor_type", [
-  "session",
-  "api_key",
-  "system",
-]);
-
-export const auditActionEnum = pgEnum("audit_action", [
-  "create",
-  "update",
-  "delete",
-  "review",
-  "login",
-  "logout",
-]);
-
-// ── Machine enums ───────────────────────────────────────────────────────────
+// ── Machines ─────────────────────────────────────────────────────────────────
 
 export const machineTypeEnum = pgEnum("machine_type", [
   "fdm",
@@ -201,4 +208,55 @@ export const accessoryTypeEnum = pgEnum("accessory_type", [
   "air_assist",
   "rotary_module",
   "other",
+]);
+
+export const workSurfaceTypeEnum = pgEnum("work_surface_type", [
+  "cool_plate",
+  "textured_pei",
+  "engineering_plate",
+  "high_temp_plate",
+  "wasteboard",
+  "aluminum_bed",
+  "vacuum_table",
+  "honeycomb_bed",
+  "knife_blade_bed",
+  "material_pass_through",
+]);
+
+export const connectionTypeEnum = pgEnum("connection_type", [
+  "wifi",
+  "ethernet",
+]);
+
+// ── Submissions ──────────────────────────────────────────────────────────────
+
+export const submissionTypeEnum = pgEnum("submission_type", [
+  "new_filament",
+  "new_variant",
+  "correction",
+  "equivalence",
+]);
+
+export const submissionStatusEnum = pgEnum("submission_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "duplicate",
+]);
+
+// ── Audit ────────────────────────────────────────────────────────────────────
+
+export const auditActorTypeEnum = pgEnum("audit_actor_type", [
+  "session",
+  "api_key",
+  "system",
+]);
+
+export const auditActionEnum = pgEnum("audit_action", [
+  "create",
+  "update",
+  "delete",
+  "review",
+  "login",
+  "logout",
 ]);

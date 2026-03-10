@@ -47,7 +47,7 @@ const COLORS = [
   { name: "Light Blue", hex: "#42A5F5", r: 66, g: 165, b: 245 },
 ];
 
-const AUDIT_RESOURCES = ["spool", "rack", "filament", "brand", "user"] as const;
+const AUDIT_RESOURCES = ["user_item", "rack", "product", "brand", "user"] as const;
 const AUDIT_ACTIONS = ["create", "update", "delete"] as const;
 
 async function seed() {
@@ -79,10 +79,6 @@ async function seed() {
         category: m.category,
         materialClass: m.materialClass,
         density: m.density,
-        defaultNozzleTempMin: m.nozzleMin,
-        defaultNozzleTempMax: m.nozzleMax,
-        defaultBedTempMin: m.bedMin,
-        defaultBedTempMax: m.bedMax,
         defaultDryingTemp: m.dryTemp,
         defaultDryingTimeMin: m.dryTime,
         hygroscopic: m.hygroscopic,
@@ -91,9 +87,11 @@ async function seed() {
     .returning();
   console.log(`  ${materialRows.length} materials`);
 
-  // ── Filaments (30+) ────────────────────────────────────────────────────
-  console.log("Creating filaments...");
-  const filamentValues = [];
+  // ── Products + Filament Profiles (30+) ────────────────────────────────
+  console.log("Creating products and filament profiles...");
+  const productRows: (typeof schema.products.$inferSelect)[] = [];
+  const filamentProfileRows: (typeof schema.filamentProfiles.$inferSelect)[] = [];
+
   for (const brand of brandRows) {
     const count = faker.number.int({ min: 4, max: 6 });
     for (let i = 0; i < count; i++) {
@@ -101,41 +99,57 @@ async function seed() {
       const color = faker.helpers.arrayElement(COLORS);
       const matData = MATERIALS_DATA.find((m) => m.name === material.name)!;
       const netWeight = faker.helpers.arrayElement([250, 500, 750, 1000, 1000, 1000]);
-      filamentValues.push({
-        brandId: brand.id,
-        materialId: material.id,
-        name: `${brand.name} ${material.abbreviation} ${color.name}`,
-        colorName: color.name,
-        colorHex: color.hex,
-        colorR: color.r,
-        colorG: color.g,
-        colorB: color.b,
-        diameter: 1.75,
-        netWeightG: netWeight,
-        spoolWeightG: faker.number.float({ min: 140, max: 260, fractionDigits: 0 }),
-        nozzleTempMin: matData.nozzleMin,
-        nozzleTempMax: matData.nozzleMax,
-        bedTempMin: matData.bedMin,
-        bedTempMax: matData.bedMax,
-        dryingTemp: matData.dryTemp,
-        dryingTimeMin: matData.dryTime,
-        validationStatus: "validated" as const,
-      });
+      const spoolWeight = faker.number.float({ min: 140, max: 260, fractionDigits: 0 });
+
+      // Insert product (generic catalog entry)
+      const [product] = await db
+        .insert(schema.products)
+        .values({
+          brandId: brand.id,
+          materialId: material.id,
+          category: "filament" as const,
+          name: `${brand.name} ${material.abbreviation} ${color.name}`,
+          colorName: color.name,
+          colorHex: color.hex,
+          colorR: color.r,
+          colorG: color.g,
+          colorB: color.b,
+          netWeightG: netWeight,
+          packageWeightG: spoolWeight,
+          packageStyle: "vacuum_bag" as const,
+          validationStatus: "validated" as const,
+        })
+        .returning();
+      productRows.push(product);
+
+      // Insert filament profile (filament-specific data)
+      const [profile] = await db
+        .insert(schema.filamentProfiles)
+        .values({
+          productId: product.id,
+          diameter: 1.75,
+          nozzleTempMin: matData.nozzleMin,
+          nozzleTempMax: matData.nozzleMax,
+          bedTempMin: matData.bedMin,
+          bedTempMax: matData.bedMax,
+          dryingTemp: matData.dryTemp,
+          dryingTimeMin: matData.dryTime,
+          spoolWeightG: spoolWeight,
+        })
+        .returning();
+      filamentProfileRows.push(profile);
     }
   }
-  const filamentRows = await db
-    .insert(schema.filaments)
-    .values(filamentValues)
-    .returning();
-  console.log(`  ${filamentRows.length} filaments`);
+  console.log(`  ${productRows.length} products`);
+  console.log(`  ${filamentProfileRows.length} filament profiles`);
 
-  // ── Spools (15 owned by user) ──────────────────────────────────────────
-  console.log("Creating spools...");
-  const spoolValues = [];
-  const selectedFilaments = faker.helpers.arrayElements(filamentRows, 15);
-  for (const fil of selectedFilaments) {
-    const netWeight = fil.netWeightG ?? 1000;
-    const spoolWeight = fil.spoolWeightG ?? 200;
+  // ── User Items (15 owned by user, replacing spools) ──────────────────
+  console.log("Creating user items...");
+  const userItemValues = [];
+  const selectedProducts = faker.helpers.arrayElements(productRows, 15);
+  for (const prod of selectedProducts) {
+    const netWeight = prod.netWeightG ?? 1000;
+    const packageWeight = prod.packageWeightG ?? 200;
     const usedPercent = faker.number.float({ min: 0, max: 0.85, fractionDigits: 2 });
     const currentNet = Math.round(netWeight * (1 - usedPercent));
     const status =
@@ -143,13 +157,13 @@ async function seed() {
         { value: "active" as const, weight: 8 },
         { value: "archived" as const, weight: 2 },
       ]);
-    spoolValues.push({
+    userItemValues.push({
       userId: USER_ID,
-      filamentId: fil.id,
-      initialWeightG: netWeight + spoolWeight,
-      currentWeightG: currentNet + spoolWeight,
+      productId: prod.id,
+      initialWeightG: netWeight + packageWeight,
+      currentWeightG: currentNet + packageWeight,
       netFilamentWeightG: currentNet,
-      spoolWeightG: spoolWeight,
+      spoolWeightG: packageWeight,
       percentRemaining: Math.round((1 - usedPercent) * 100),
       status,
       purchasePrice: faker.number.float({ min: 15, max: 40, fractionDigits: 2 }),
@@ -161,81 +175,84 @@ async function seed() {
       notes: faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.3 }) ?? null,
     });
   }
-  const spoolRows = await db
-    .insert(schema.spools)
-    .values(spoolValues)
+  const userItemRows = await db
+    .insert(schema.userItems)
+    .values(userItemValues)
     .returning();
-  console.log(`  ${spoolRows.length} spools`);
+  console.log(`  ${userItemRows.length} user items`);
 
-  // ── Racks & hardware ───────────────────────────────────────────────────
-  console.log("Creating hardware...");
+  // ── Zones ────────────────────────────────────────────────────────────
+  console.log("Creating zones...");
+  const [workshopZone, storageZone] = await db
+    .insert(schema.zones)
+    .values([
+      { userId: USER_ID, name: "Workshop", type: "workshop" as const },
+      { userId: USER_ID, name: "Storage Room", type: "storage" as const },
+    ])
+    .returning();
+  console.log("  2 zones");
+
+  // ── Racks (within zones) ─────────────────────────────────────────────
+  console.log("Creating racks...");
   const [rack1, rack2] = await db
     .insert(schema.racks)
     .values([
-      { userId: USER_ID, name: "Main Rack", location: "Workshop", shelfCount: 2 },
-      { userId: USER_ID, name: "Storage Rack", location: "Storage Room", shelfCount: 1 },
+      { zoneId: workshopZone.id, name: "Main Rack", position: 1, shelfCount: 2 },
+      { zoneId: storageZone.id, name: "Storage Rack", position: 1, shelfCount: 1 },
     ])
     .returning();
   console.log("  2 racks");
 
-  // Bridges
-  const [bridge1, bridge2] = await db
-    .insert(schema.bridges)
-    .values([
-      {
-        rackId: rack1.id,
-        hardwareId: "FIQ-BR-001",
-        firmwareVersion: "1.2.0",
-        ipAddress: "192.168.1.50",
-        hostname: "fillaiq-bridge-01",
-        connectionType: "wifi" as const,
-        lastSeenAt: new Date(),
-        isOnline: true,
-      },
-      {
-        rackId: rack2.id,
-        hardwareId: "FIQ-BR-002",
-        firmwareVersion: "1.2.0",
-        ipAddress: "192.168.1.51",
-        hostname: "fillaiq-bridge-02",
-        connectionType: "wifi" as const,
-        lastSeenAt: faker.date.recent({ days: 1 }),
-        isOnline: true,
-      },
-    ])
-    .returning();
-  console.log("  2 bridges");
-
-  // Shelves
+  // ── Shelves ──────────────────────────────────────────────────────────
+  console.log("Creating shelves...");
   const shelfValues = [
-    { rackId: rack1.id, position: 1, hardwareId: "FIQ-SH-001", bayCount: 4, hasTempHumiditySensor: true, isOnline: true, lastSeenAt: new Date() },
-    { rackId: rack1.id, position: 2, hardwareId: "FIQ-SH-002", bayCount: 4, hasTempHumiditySensor: true, isOnline: true, lastSeenAt: new Date() },
-    { rackId: rack2.id, position: 1, hardwareId: "FIQ-SH-003", bayCount: 4, hasTempHumiditySensor: false, isOnline: true, lastSeenAt: faker.date.recent({ days: 1 }) },
+    { rackId: rack1.id, position: 1, bayCount: 4, hasTempHumiditySensor: true },
+    { rackId: rack1.id, position: 2, bayCount: 4, hasTempHumiditySensor: true },
+    { rackId: rack2.id, position: 1, bayCount: 4, hasTempHumiditySensor: false },
   ];
   const shelfRows = await db.insert(schema.shelves).values(shelfValues).returning();
   console.log(`  ${shelfRows.length} shelves`);
 
-  // Bays & Slots
+  // ── Bays, Slots & Bay Modules ────────────────────────────────────────
+  console.log("Creating bays, slots, and bay modules...");
   const allSlotIds: string[] = [];
+  let bayModuleCount = 0;
   for (const shelf of shelfRows) {
     const bayCount = shelf.bayCount ?? 4;
     for (let b = 0; b < bayCount; b++) {
       const [bay] = await db
         .insert(schema.bays)
-        .values({ shelfId: shelf.id, position: b + 1 })
+        .values({ shelfId: shelf.id, position: b + 1, slotCount: 2 })
         .returning();
+
+      // Create bay module (IoT hardware for this bay)
+      const hardwareId = `FIQ-BM-${String(bayModuleCount + 1).padStart(3, "0")}`;
+      await db.insert(schema.bayModules).values({
+        bayId: bay.id,
+        hardwareId,
+        firmwareVersion: "1.2.0",
+        ipAddress: `192.168.1.${50 + bayModuleCount}`,
+        hx711Channels: 2,
+        nfcReaderCount: 2,
+        displayCount: 2,
+        ledCount: 2,
+        calibrationFactors: [
+          faker.number.float({ min: -430, max: -420, fractionDigits: 2 }),
+          faker.number.float({ min: -430, max: -420, fractionDigits: 2 }),
+        ],
+        lastCalibratedAt: faker.date.recent({ days: 30 }),
+        lastSeenAt: new Date(),
+        isOnline: true,
+      });
+      bayModuleCount++;
+
+      // Create slots within bay
       for (let s = 0; s < 2; s++) {
         const [slot] = await db
           .insert(schema.slots)
           .values({
             bayId: bay.id,
             position: s + 1,
-            hx711Channel: s,
-            nfcReaderIndex: s,
-            displayIndex: s,
-            ledIndex: b * 2 + s,
-            calibrationFactor: faker.number.float({ min: -430, max: -420, fractionDigits: 2 }),
-            lastCalibratedAt: faker.date.recent({ days: 30 }),
           })
           .returning();
         allSlotIds.push(slot.id);
@@ -243,29 +260,30 @@ async function seed() {
     }
   }
   console.log(`  ${allSlotIds.length} slots`);
+  console.log(`  ${bayModuleCount} bay modules`);
 
-  // ── Assign active spools to slots ──────────────────────────────────────
+  // ── Assign active user items to slots ────────────────────────────────
   console.log("Creating slot statuses...");
-  const activeSpools = spoolRows.filter((s) => s.status === "active");
+  const activeItems = userItemRows.filter((s) => s.status === "active");
   const slotsToFill = faker.helpers.arrayElements(
     allSlotIds,
-    Math.min(activeSpools.length, allSlotIds.length)
+    Math.min(activeItems.length, allSlotIds.length)
   );
 
-  for (let i = 0; i < slotsToFill.length && i < activeSpools.length; i++) {
-    const spool = activeSpools[i];
+  for (let i = 0; i < slotsToFill.length && i < activeItems.length; i++) {
+    const item = activeItems[i];
     const slotId = slotsToFill[i];
 
     await db.insert(schema.slotStatus).values({
       slotId,
       state: "active",
-      spoolId: spool.id,
-      nfcUid: spool.nfcUid,
+      userItemId: item.id,
+      nfcUid: item.nfcUid,
       nfcPresent: true,
-      weightRawG: spool.currentWeightG,
-      weightStableG: spool.currentWeightG,
+      weightRawG: item.currentWeightG,
+      weightStableG: item.currentWeightG,
       weightIsStable: true,
-      percentRemaining: spool.percentRemaining,
+      percentRemaining: item.percentRemaining,
       temperatureC: faker.number.float({ min: 20, max: 26, fractionDigits: 1 }),
       humidityPercent: faker.number.float({ min: 30, max: 55, fractionDigits: 1 }),
       stateEnteredAt: faker.date.recent({ days: 7 }),
@@ -273,9 +291,9 @@ async function seed() {
     });
 
     await db
-      .update(schema.spools)
+      .update(schema.userItems)
       .set({ currentSlotId: slotId })
-      .where(eq(schema.spools.id, spool.id));
+      .where(eq(schema.userItems.id, item.id));
   }
 
   const emptySlots = allSlotIds.filter((id) => !slotsToFill.includes(id));
@@ -295,10 +313,10 @@ async function seed() {
   // ── Weight events (historical) ─────────────────────────────────────────
   console.log("Creating weight events...");
   let eventCount = 0;
-  for (const spool of spoolRows) {
+  for (const item of userItemRows) {
     const numEvents = faker.number.int({ min: 5, max: 20 });
     const eventValues = [];
-    let weight = spool.initialWeightG ?? 1200;
+    let weight = item.initialWeightG ?? 1200;
     for (let e = 0; e < numEvents; e++) {
       const eventType = faker.helpers.weightedArrayElement([
         { value: "reading" as const, weight: 6 },
@@ -312,16 +330,16 @@ async function seed() {
             ? faker.number.float({ min: -2, max: 2, fractionDigits: 1 })
             : 0;
       const prevWeight = weight;
-      weight = Math.max(weight + delta, (spool.spoolWeightG ?? 200));
+      weight = Math.max(weight + delta, (item.spoolWeightG ?? 200));
       eventValues.push({
-        spoolId: spool.id,
+        userItemId: item.id,
         eventType,
         weightG: Math.round(weight * 10) / 10,
         previousWeightG: Math.round(prevWeight * 10) / 10,
         deltaG: Math.round(delta * 10) / 10,
-        nfcUid: spool.nfcUid,
+        nfcUid: item.nfcUid,
         createdAt: faker.date.between({
-          from: spool.purchasedAt ?? faker.date.past({ years: 1 }),
+          from: item.purchasedAt ?? faker.date.past({ years: 1 }),
           to: new Date(),
         }),
       });
@@ -342,7 +360,7 @@ async function seed() {
       actorType: "session" as const,
       action,
       resourceType: resource,
-      resourceId: faker.helpers.arrayElement(spoolRows).id,
+      resourceId: faker.helpers.arrayElement(userItemRows).id,
       metadata: { ip: faker.internet.ipv4(), userAgent: faker.internet.userAgent() },
       createdAt: faker.date.recent({ days: 30 }),
     });
@@ -521,33 +539,33 @@ async function seed() {
 
   // ── Material Slots ────────────────────────────────────────────────────
   console.log("Creating material slots...");
-  const activeSpoolsForSlots = spoolRows.filter((s) => s.status === "active");
+  const activeItemsForSlots = userItemRows.filter((s) => s.status === "active");
   const materialSlotValues = [];
 
   // X1C: AMS, 1 unit, 4 slots
   for (let slot = 1; slot <= 4; slot++) {
-    const spool = slot <= activeSpoolsForSlots.length ? activeSpoolsForSlots[slot - 1] : null;
+    const item = slot <= activeItemsForSlots.length ? activeItemsForSlots[slot - 1] : null;
     materialSlotValues.push({
       machineId: x1c.id,
       changerType: "ams" as const,
       unitNumber: 1,
       slotPosition: slot,
-      spoolId: spool?.id ?? null,
-      loadedAt: spool ? faker.date.recent({ days: 7 }) : null,
+      userItemId: item?.id ?? null,
+      loadedAt: item ? faker.date.recent({ days: 7 }) : null,
     });
   }
 
   // P1S: AMS Lite, 1 unit, 4 slots
   for (let slot = 1; slot <= 4; slot++) {
     const idx = 4 + slot - 1;
-    const spool = idx < activeSpoolsForSlots.length ? activeSpoolsForSlots[idx] : null;
+    const item = idx < activeItemsForSlots.length ? activeItemsForSlots[idx] : null;
     materialSlotValues.push({
       machineId: p1s.id,
       changerType: "ams_lite" as const,
       unitNumber: 1,
       slotPosition: slot,
-      spoolId: spool?.id ?? null,
-      loadedAt: spool ? faker.date.recent({ days: 14 }) : null,
+      userItemId: item?.id ?? null,
+      loadedAt: item ? faker.date.recent({ days: 14 }) : null,
     });
   }
 

@@ -73,7 +73,7 @@ type MaterialSlot = {
   changerType: string;
   unitNumber: number;
   slotPosition: number;
-  spoolId: string | null;
+  userItemId: string | null;
   [key: string]: unknown;
 };
 

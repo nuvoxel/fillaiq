@@ -2,33 +2,33 @@
 
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
-import { spools, users, userPreferences } from "@/db/schema/user-library";
-import { filaments, materials } from "@/db/schema/central-catalog";
+import { userItems, users, userPreferences } from "@/db/schema/user-library";
+import { products, materials } from "@/db/schema/central-catalog";
 import { apikeys } from "@/db/schema/auth";
 import { ok, err, type ActionResult } from "./utils";
 
-// ── Spool weight by material (for dashboard chart) ──────────────────────────
+// ── User item weight by material (for dashboard chart) ───────────────────────
 
 export type MaterialWeight = {
   material: string;
   totalWeightG: number;
 };
 
-export async function getSpoolWeightsByMaterial(): Promise<
+export async function getUserItemWeightsByMaterial(): Promise<
   ActionResult<MaterialWeight[]>
 > {
   try {
     const rows = await db
       .select({
         material: sql<string>`coalesce(${materials.abbreviation}, ${materials.name}, 'Unknown')`,
-        totalWeightG: sql<number>`coalesce(sum(${spools.currentWeightG}), 0)`,
+        totalWeightG: sql<number>`coalesce(sum(${userItems.currentWeightG}), 0)`,
       })
-      .from(spools)
-      .leftJoin(filaments, eq(spools.filamentId, filaments.id))
-      .leftJoin(materials, eq(filaments.materialId, materials.id))
-      .where(eq(spools.status, "active"))
+      .from(userItems)
+      .leftJoin(products, eq(userItems.productId, products.id))
+      .leftJoin(materials, eq(products.materialId, materials.id))
+      .where(eq(userItems.status, "active"))
       .groupBy(materials.id, materials.abbreviation, materials.name)
-      .orderBy(sql`coalesce(sum(${spools.currentWeightG}), 0) desc`)
+      .orderBy(sql`coalesce(sum(${userItems.currentWeightG}), 0) desc`)
       .limit(8);
     return ok(
       rows.map((r) => ({
@@ -41,24 +41,24 @@ export async function getSpoolWeightsByMaterial(): Promise<
   }
 }
 
-// ── Spool status breakdown (for dashboard chart fallback) ───────────────────
+// ── User item status breakdown (for dashboard chart fallback) ────────────────
 
-export type SpoolStatusCount = {
+export type UserItemStatusCount = {
   status: string;
   count: number;
 };
 
-export async function getSpoolStatusCounts(): Promise<
-  ActionResult<SpoolStatusCount[]>
+export async function getUserItemStatusCounts(): Promise<
+  ActionResult<UserItemStatusCount[]>
 > {
   try {
     const rows = await db
       .select({
-        status: spools.status,
+        status: userItems.status,
         count: sql<number>`count(*)`,
       })
-      .from(spools)
-      .groupBy(spools.status);
+      .from(userItems)
+      .groupBy(userItems.status);
     return ok(
       rows.map((r) => ({
         status: String(r.status),

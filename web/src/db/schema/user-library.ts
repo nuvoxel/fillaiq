@@ -11,7 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import {
-  spoolStatusEnum,
+  itemStatusEnum,
   nfcTagFormatEnum,
   equipmentTypeEnum,
   labelFormatEnum,
@@ -24,7 +24,8 @@ import {
   changerTypeEnum,
   toolCategoryEnum,
 } from "./enums";
-import { variants, filaments } from "./central-catalog";
+import { products, filamentProfiles } from "./central-catalog";
+import { slots } from "./storage";
 
 // ── Users ───────────────────────────────────────────────────────────────────
 
@@ -54,54 +55,73 @@ export const users = pgTable(
   ]
 );
 
-// ── Spools ──────────────────────────────────────────────────────────────────
+// ── User Items (owned inventory — spools, resin bottles, etc.) ──────────────
 
-export const spools = pgTable("spools", {
+export const userItems = pgTable("user_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
     .references(() => users.id)
     .notNull(),
-  variantId: uuid("variant_id").references(() => variants.id),
-  filamentId: uuid("filament_id").references(() => filaments.id),
+  productId: uuid("product_id").references(() => products.id),
 
-  // NFC identification
+  // ── NFC identification ──────────────────────────────────────────────────
   nfcUid: varchar("nfc_uid", { length: 50 }),
   nfcTagFormat: nfcTagFormatEnum("nfc_tag_format"),
+  nfcTagWritten: boolean("nfc_tag_written").default(false), // did we write the tag?
   bambuTrayUid: varchar("bambu_tray_uid", { length: 50 }),
 
-  // Weight tracking
+  // ── Weight tracking ─────────────────────────────────────────────────────
   initialWeightG: real("initial_weight_g"),
   currentWeightG: real("current_weight_g"),
   netFilamentWeightG: real("net_filament_weight_g"),
   spoolWeightG: real("spool_weight_g"),
   percentRemaining: integer("percent_remaining"),
 
-  // Cost
+  // ── Measured spool dimensions (from scan station, for OEM fingerprinting)
+  measuredSpoolOuterDiameterMm: real("measured_spool_outer_diameter_mm"),
+  measuredSpoolInnerDiameterMm: real("measured_spool_inner_diameter_mm"),
+  measuredSpoolWidthMm: real("measured_spool_width_mm"),
+  measuredSpoolHubHoleDiameterMm: real("measured_spool_hub_hole_diameter_mm"),
+  measuredSpoolWeightG: real("measured_spool_weight_g"),
+  measuredHeightMm: real("measured_height_mm"),
+  // Color from scan station sensor
+  measuredColorHex: varchar("measured_color_hex", { length: 9 }),
+  measuredColorLabL: real("measured_color_lab_l"),
+  measuredColorLabA: real("measured_color_lab_a"),
+  measuredColorLabB: real("measured_color_lab_b"),
+  measuredSpectralData: jsonb("measured_spectral_data"), // AS7341 raw channels
+
+  // ── Cost ────────────────────────────────────────────────────────────────
   purchasePrice: real("purchase_price"),
   purchaseCurrency: varchar("purchase_currency", { length: 3 }),
 
-  // Quality
+  // ── Quality ─────────────────────────────────────────────────────────────
   rating: integer("rating"),
 
-  // Lifecycle
-  status: spoolStatusEnum("status").default("active").notNull(),
+  // ── Lifecycle ───────────────────────────────────────────────────────────
+  status: itemStatusEnum("status").default("active").notNull(),
   purchasedAt: timestamp("purchased_at", { withTimezone: true }),
   productionDate: varchar("production_date", { length: 20 }),
   openedAt: timestamp("opened_at", { withTimezone: true }),
   emptiedAt: timestamp("emptied_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
 
-  // Drying state
+  // ── Drying state ────────────────────────────────────────────────────────
   lastDriedAt: timestamp("last_dried_at", { withTimezone: true }),
   dryingCycleCount: integer("drying_cycle_count").default(0),
 
-  // Location
-  currentSlotId: uuid("current_slot_id"),
-  storageLocation: varchar("storage_location", { length: 255 }),
+  // ── Location ────────────────────────────────────────────────────────────
+  currentSlotId: uuid("current_slot_id").references(() => slots.id),
+  storageLocation: varchar("storage_location", { length: 255 }), // freetext fallback
 
-  // Provenance
+  // ── Provenance ──────────────────────────────────────────────────────────
   lotNumber: varchar("lot_number", { length: 100 }),
   serialNumber: varchar("serial_number", { length: 255 }),
+  barcodeValue: varchar("barcode_value", { length: 255 }),
+  barcodeFormat: varchar("barcode_format", { length: 50 }),
+
+  // ── Scan reference ──────────────────────────────────────────────────────
+  intakeScanEventId: uuid("intake_scan_event_id"), // FK to scan_events, the scan that created this item
 
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -218,7 +238,7 @@ export const machineMaterialSlots = pgTable("machine_material_slots", {
   changerType: changerTypeEnum("changer_type").notNull(),
   unitNumber: integer("unit_number").notNull(),
   slotPosition: integer("slot_position").notNull(),
-  spoolId: uuid("spool_id").references(() => spools.id),
+  userItemId: uuid("user_item_id").references(() => userItems.id),
   loadedAt: timestamp("loaded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -256,8 +276,10 @@ export const userPrintProfiles = pgTable("user_print_profiles", {
   userId: uuid("user_id")
     .references(() => users.id)
     .notNull(),
-  variantId: uuid("variant_id").references(() => variants.id),
-  filamentId: uuid("filament_id").references(() => filaments.id),
+  productId: uuid("product_id").references(() => products.id),
+  filamentProfileId: uuid("filament_profile_id").references(
+    () => filamentProfiles.id
+  ),
   machineId: uuid("machine_id").references(() => machines.id),
   name: varchar("name", { length: 255 }),
   // Temps
@@ -334,7 +356,7 @@ export const labelTemplates = pgTable("label_templates", {
   showLotNumber: boolean("show_lot_number").default(false),
   // QR code
   qrCodeBaseUrl: varchar("qr_code_base_url", { length: 512 }).default(
-    "app.fillaiq.com/spool/"
+    "app.fillaiq.com/item/"
   ),
   // Style
   customCss: text("custom_css"),

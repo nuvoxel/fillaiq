@@ -15,9 +15,9 @@ import AddIcon from "@mui/icons-material/Add";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PageHeader } from "@/components/layout/page-header";
-import { listSpools } from "@/lib/actions/user-library";
+import { listUserItems } from "@/lib/actions/user-library";
 
-type Spool = {
+type UserItem = {
   id: string;
   status: string;
   currentWeightG: number | null;
@@ -109,20 +109,20 @@ const columns: GridColDef[] = [
 export default function SpoolsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [spools, setSpools] = useState<Spool[]>([]);
+  const [userItems, setUserItems] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    listSpools().then((result) => {
-      if (result.data) setSpools(result.data as Spool[]);
+    listUserItems().then((result) => {
+      if (result.data) setUserItems(result.data as UserItem[]);
       setLoading(false);
     });
   }, []);
 
   const filtered = statusFilter
-    ? spools.filter((s) => s.status === statusFilter)
-    : spools;
+    ? userItems.filter((s) => s.status === statusFilter)
+    : userItems;
 
   return (
     <div>

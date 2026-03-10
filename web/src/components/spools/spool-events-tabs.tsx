@@ -33,7 +33,7 @@ type DryingSession = {
   createdAt: string | Date;
 };
 
-type SpoolMovement = {
+type UserItemMovement = {
   id: string;
   weightAtMoveG: number | null;
   createdAt: string | Date;
@@ -87,15 +87,16 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-export function SpoolEventsTabs({
+export function UserItemEventsTabs({
   usageSessions,
   dryingSessions,
   movements,
 }: {
   usageSessions: UsageSession[];
   dryingSessions: DryingSession[];
-  movements: SpoolMovement[];
-}) {
+  movements: UserItemMovement[];
+})
+ {
   const [tab, setTab] = useState(0);
 
   return (
@@ -157,7 +158,7 @@ export function SpoolEventsTabs({
           ))}
         {tab === 2 &&
           (movements.length === 0 ? (
-            <EmptyState text="No spool movements recorded." />
+            <EmptyState text="No movements recorded." />
           ) : (
             <DataGrid
               rows={movements}
@@ -173,3 +174,6 @@ export function SpoolEventsTabs({
     </Card>
   );
 }
+
+/** @deprecated Use UserItemEventsTabs instead */
+export const SpoolEventsTabs = UserItemEventsTabs;

@@ -35,7 +35,7 @@ export async function GET(
     identified: event.identified ?? false,
     confidence: event.confidence ?? 0,
     itemType: event.identifiedType ?? null,
-    itemName: null, // TODO: resolve from identifiedItemId/identifiedSpoolId
+    itemName: null, // TODO: resolve from identifiedProductId/identifiedUserItemId
     suggestion: null,
     needsCamera: !event.identified && !event.userConfirmed,
   });

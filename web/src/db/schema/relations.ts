@@ -2,17 +2,16 @@ import { relations } from "drizzle-orm";
 import {
   brands,
   materials,
-  filaments,
-  variants,
+  products,
+  filamentProfiles,
   skuMappings,
   nfcTagPatterns,
-  equivalenceGroups,
-  filamentEquivalences,
+  productAliases,
 } from "./central-catalog";
 import { catalogSubmissions } from "./submissions";
 import {
   users,
-  spools,
+  userItems,
   machines,
   machineToolHeads,
   machineWorkSurfaces,
@@ -33,16 +32,17 @@ import {
   apikeys,
 } from "./auth";
 import {
+  zones,
   racks,
-  bridges,
   shelves,
   bays,
   slots,
+  bayModules,
   slotStatus,
-} from "./hardware";
+} from "./storage";
 import {
   weightEvents,
-  spoolMovements,
+  itemMovements,
   usageSessions,
   dryingSessions,
   environmentalReadings,
@@ -53,79 +53,73 @@ import { auditLogs } from "./audit";
 // ── Central Catalog Relations ───────────────────────────────────────────────
 
 export const brandsRelations = relations(brands, ({ many }) => ({
-  filaments: many(filaments),
+  products: many(products),
 }));
 
 export const materialsRelations = relations(materials, ({ many }) => ({
-  filaments: many(filaments),
+  products: many(products),
 }));
 
-export const filamentsRelations = relations(filaments, ({ one, many }) => ({
+export const productsRelations = relations(products, ({ one, many }) => ({
   brand: one(brands, {
-    fields: [filaments.brandId],
+    fields: [products.brandId],
     references: [brands.id],
   }),
   material: one(materials, {
-    fields: [filaments.materialId],
+    fields: [products.materialId],
     references: [materials.id],
   }),
   submittedBy: one(users, {
-    fields: [filaments.submittedByUserId],
+    fields: [products.submittedByUserId],
     references: [users.id],
   }),
-  variants: many(variants),
-  equivalences: many(filamentEquivalences),
-  spools: many(spools),
-}));
-
-export const variantsRelations = relations(variants, ({ one, many }) => ({
-  filament: one(filaments, {
-    fields: [variants.filamentId],
-    references: [filaments.id],
-  }),
-  submittedBy: one(users, {
-    fields: [variants.submittedByUserId],
-    references: [users.id],
-  }),
+  filamentProfile: one(filamentProfiles),
   skuMappings: many(skuMappings),
   nfcTagPatterns: many(nfcTagPatterns),
-  spools: many(spools),
+  userItems: many(userItems),
+  aliases: many(productAliases, { relationName: "product" }),
+  aliasedBy: many(productAliases, { relationName: "relatedProduct" }),
 }));
 
+export const filamentProfilesRelations = relations(
+  filamentProfiles,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [filamentProfiles.productId],
+      references: [products.id],
+    }),
+  })
+);
+
 export const skuMappingsRelations = relations(skuMappings, ({ one }) => ({
-  variant: one(variants, {
-    fields: [skuMappings.variantId],
-    references: [variants.id],
+  product: one(products, {
+    fields: [skuMappings.productId],
+    references: [products.id],
   }),
 }));
 
 export const nfcTagPatternsRelations = relations(
   nfcTagPatterns,
   ({ one }) => ({
-    variant: one(variants, {
-      fields: [nfcTagPatterns.variantId],
-      references: [variants.id],
+    product: one(products, {
+      fields: [nfcTagPatterns.productId],
+      references: [products.id],
     }),
   })
 );
 
-export const equivalenceGroupsRelations = relations(
-  equivalenceGroups,
-  ({ many }) => ({
-    filamentEquivalences: many(filamentEquivalences),
-  })
-);
-
-export const filamentEquivalencesRelations = relations(
-  filamentEquivalences,
+export const productAliasesRelations = relations(
+  productAliases,
   ({ one }) => ({
-    equivalenceGroup: one(equivalenceGroups, {
-      fields: [filamentEquivalences.equivalenceGroupId],
-      references: [equivalenceGroups.id],
+    product: one(products, {
+      fields: [productAliases.productId],
+      references: [products.id],
+      relationName: "product",
     }),
-    filament: one(filaments, {
-      fields: [filamentEquivalences.filamentId],
-      references: [filaments.id],
+    relatedProduct: one(products, {
+      fields: [productAliases.relatedProductId],
+      references: [products.id],
+      relationName: "relatedProduct",
     }),
   })
 );
@@ -155,13 +149,13 @@ export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   apikeys: many(apikeys),
   members: many(members),
-  spools: many(spools),
+  userItems: many(userItems),
   machines: many(machines),
   printProfiles: many(userPrintProfiles),
   equipment: many(equipment),
   labelTemplates: many(labelTemplates),
   preferences: many(userPreferences),
-  racks: many(racks),
+  zones: many(zones),
   scanStations: many(scanStations),
   scanEvents: many(scanEvents),
   inventoryItems: many(inventoryItems),
@@ -170,25 +164,21 @@ export const usersRelations = relations(users, ({ many }) => ({
   auditLogs: many(auditLogs),
 }));
 
-export const spoolsRelations = relations(spools, ({ one, many }) => ({
+export const userItemsRelations = relations(userItems, ({ one, many }) => ({
   user: one(users, {
-    fields: [spools.userId],
+    fields: [userItems.userId],
     references: [users.id],
   }),
-  variant: one(variants, {
-    fields: [spools.variantId],
-    references: [variants.id],
-  }),
-  filament: one(filaments, {
-    fields: [spools.filamentId],
-    references: [filaments.id],
+  product: one(products, {
+    fields: [userItems.productId],
+    references: [products.id],
   }),
   currentSlot: one(slots, {
-    fields: [spools.currentSlotId],
+    fields: [userItems.currentSlotId],
     references: [slots.id],
   }),
   weightEvents: many(weightEvents),
-  movements: many(spoolMovements),
+  movements: many(itemMovements),
   usageSessions: many(usageSessions),
   dryingSessions: many(dryingSessions),
 }));
@@ -233,9 +223,9 @@ export const machineMaterialSlotsRelations = relations(
       fields: [machineMaterialSlots.machineId],
       references: [machines.id],
     }),
-    spool: one(spools, {
-      fields: [machineMaterialSlots.spoolId],
-      references: [spools.id],
+    userItem: one(userItems, {
+      fields: [machineMaterialSlots.userItemId],
+      references: [userItems.id],
     }),
   })
 );
@@ -257,13 +247,13 @@ export const userPrintProfilesRelations = relations(
       fields: [userPrintProfiles.userId],
       references: [users.id],
     }),
-    variant: one(variants, {
-      fields: [userPrintProfiles.variantId],
-      references: [variants.id],
+    product: one(products, {
+      fields: [userPrintProfiles.productId],
+      references: [products.id],
     }),
-    filament: one(filaments, {
-      fields: [userPrintProfiles.filamentId],
-      references: [filaments.id],
+    filamentProfile: one(filamentProfiles, {
+      fields: [userPrintProfiles.filamentProfileId],
+      references: [filamentProfiles.id],
     }),
     machine: one(machines, {
       fields: [userPrintProfiles.machineId],
@@ -353,22 +343,22 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   }),
 }));
 
-// ── Hardware Relations ──────────────────────────────────────────────────────
+// ── Storage Relations ───────────────────────────────────────────────────────
 
-export const racksRelations = relations(racks, ({ one, many }) => ({
+export const zonesRelations = relations(zones, ({ one, many }) => ({
   user: one(users, {
-    fields: [racks.userId],
+    fields: [zones.userId],
     references: [users.id],
   }),
-  bridges: many(bridges),
-  shelves: many(shelves),
+  racks: many(racks),
 }));
 
-export const bridgesRelations = relations(bridges, ({ one }) => ({
-  rack: one(racks, {
-    fields: [bridges.rackId],
-    references: [racks.id],
+export const racksRelations = relations(racks, ({ one, many }) => ({
+  zone: one(zones, {
+    fields: [racks.zoneId],
+    references: [zones.id],
   }),
+  shelves: many(shelves),
 }));
 
 export const shelvesRelations = relations(shelves, ({ one, many }) => ({
@@ -386,6 +376,7 @@ export const baysRelations = relations(bays, ({ one, many }) => ({
     references: [shelves.id],
   }),
   slots: many(slots),
+  bayModule: one(bayModules),
 }));
 
 export const slotsRelations = relations(slots, ({ one }) => ({
@@ -394,6 +385,13 @@ export const slotsRelations = relations(slots, ({ one }) => ({
     references: [bays.id],
   }),
   status: one(slotStatus),
+}));
+
+export const bayModulesRelations = relations(bayModules, ({ one }) => ({
+  bay: one(bays, {
+    fields: [bayModules.bayId],
+    references: [bays.id],
+  }),
 }));
 
 export const slotStatusRelations = relations(slotStatus, ({ one }) => ({
@@ -415,9 +413,9 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 // ── Event Relations ─────────────────────────────────────────────────────────
 
 export const weightEventsRelations = relations(weightEvents, ({ one }) => ({
-  spool: one(spools, {
-    fields: [weightEvents.spoolId],
-    references: [spools.id],
+  userItem: one(userItems, {
+    fields: [weightEvents.userItemId],
+    references: [userItems.id],
   }),
   slot: one(slots, {
     fields: [weightEvents.slotId],
@@ -425,30 +423,27 @@ export const weightEventsRelations = relations(weightEvents, ({ one }) => ({
   }),
 }));
 
-export const spoolMovementsRelations = relations(
-  spoolMovements,
-  ({ one }) => ({
-    spool: one(spools, {
-      fields: [spoolMovements.spoolId],
-      references: [spools.id],
-    }),
-    fromSlot: one(slots, {
-      fields: [spoolMovements.fromSlotId],
-      references: [slots.id],
-      relationName: "fromSlot",
-    }),
-    toSlot: one(slots, {
-      fields: [spoolMovements.toSlotId],
-      references: [slots.id],
-      relationName: "toSlot",
-    }),
-  })
-);
+export const itemMovementsRelations = relations(itemMovements, ({ one }) => ({
+  userItem: one(userItems, {
+    fields: [itemMovements.userItemId],
+    references: [userItems.id],
+  }),
+  fromSlot: one(slots, {
+    fields: [itemMovements.fromSlotId],
+    references: [slots.id],
+    relationName: "fromSlot",
+  }),
+  toSlot: one(slots, {
+    fields: [itemMovements.toSlotId],
+    references: [slots.id],
+    relationName: "toSlot",
+  }),
+}));
 
 export const usageSessionsRelations = relations(usageSessions, ({ one }) => ({
-  spool: one(spools, {
-    fields: [usageSessions.spoolId],
-    references: [spools.id],
+  userItem: one(userItems, {
+    fields: [usageSessions.userItemId],
+    references: [userItems.id],
   }),
   machine: one(machines, {
     fields: [usageSessions.machineId],
@@ -469,9 +464,9 @@ export const usageSessionsRelations = relations(usageSessions, ({ one }) => ({
 export const dryingSessionsRelations = relations(
   dryingSessions,
   ({ one }) => ({
-    spool: one(spools, {
-      fields: [dryingSessions.spoolId],
-      references: [spools.id],
+    userItem: one(userItems, {
+      fields: [dryingSessions.userItemId],
+      references: [userItems.id],
     }),
     equipment: one(equipment, {
       fields: [dryingSessions.equipmentId],
@@ -512,9 +507,9 @@ export const scanEventsRelations = relations(scanEvents, ({ one }) => ({
     fields: [scanEvents.userId],
     references: [users.id],
   }),
-  identifiedSpool: one(spools, {
-    fields: [scanEvents.identifiedSpoolId],
-    references: [spools.id],
+  identifiedUserItem: one(userItems, {
+    fields: [scanEvents.identifiedUserItemId],
+    references: [userItems.id],
   }),
 }));
 
