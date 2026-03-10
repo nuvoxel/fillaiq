@@ -1,5 +1,5 @@
 {
-  "id": "76c42866-7b02-418e-8782-644cf965543a",
+  "id": "3a2a2e19-9ff7-40f5-8413-ffeb8b57f275",
   "prevId": "4ba43678-9f32-413d-96e2-dfbba421b7e6",
   "version": "7",
   "dialect": "postgresql",
@@ -496,7 +496,7 @@
         },
         "bed_temp_type": {
           "name": "bed_temp_type",
-          "type": "bed_temp_type",
+          "type": "work_surface_type",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
@@ -1689,8 +1689,449 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.printers": {
-      "name": "printers",
+    "public.machine_accessories": {
+      "name": "machine_accessories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "machine_id": {
+          "name": "machine_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "accessory_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manufacturer": {
+          "name": "manufacturer",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "machine_accessories_machine_id_machines_id_fk": {
+          "name": "machine_accessories_machine_id_machines_id_fk",
+          "tableFrom": "machine_accessories",
+          "tableTo": "machines",
+          "columnsFrom": [
+            "machine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.machine_material_slots": {
+      "name": "machine_material_slots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "machine_id": {
+          "name": "machine_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changer_type": {
+          "name": "changer_type",
+          "type": "changer_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_number": {
+          "name": "unit_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot_position": {
+          "name": "slot_position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spool_id": {
+          "name": "spool_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loaded_at": {
+          "name": "loaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "machine_material_slots_machine_id_machines_id_fk": {
+          "name": "machine_material_slots_machine_id_machines_id_fk",
+          "tableFrom": "machine_material_slots",
+          "tableTo": "machines",
+          "columnsFrom": [
+            "machine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "machine_material_slots_spool_id_spools_id_fk": {
+          "name": "machine_material_slots_spool_id_spools_id_fk",
+          "tableFrom": "machine_material_slots",
+          "tableTo": "spools",
+          "columnsFrom": [
+            "spool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.machine_tool_heads": {
+      "name": "machine_tool_heads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "machine_id": {
+          "name": "machine_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tool_category": {
+          "name": "tool_category",
+          "type": "tool_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diameter_mm": {
+          "name": "diameter_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nozzle_material": {
+          "name": "nozzle_material",
+          "type": "nozzle_material",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nozzle_type": {
+          "name": "nozzle_type",
+          "type": "nozzle_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_installed": {
+          "name": "is_installed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "wear_level": {
+          "name": "wear_level",
+          "type": "wear_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "install_count": {
+          "name": "install_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_installed_at": {
+          "name": "last_installed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bit_diameter_mm": {
+          "name": "bit_diameter_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bit_type": {
+          "name": "bit_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flute_count": {
+          "name": "flute_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bit_material": {
+          "name": "bit_material",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "laser_power_w": {
+          "name": "laser_power_w",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "laser_wavelength_nm": {
+          "name": "laser_wavelength_nm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "focal_length_mm": {
+          "name": "focal_length_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "machine_tool_heads_machine_id_machines_id_fk": {
+          "name": "machine_tool_heads_machine_id_machines_id_fk",
+          "tableFrom": "machine_tool_heads",
+          "tableTo": "machines",
+          "columnsFrom": [
+            "machine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.machine_work_surfaces": {
+      "name": "machine_work_surfaces",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "machine_id": {
+          "name": "machine_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "work_surface_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_installed": {
+          "name": "is_installed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "surface_condition": {
+          "name": "surface_condition",
+          "type": "wear_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "machine_work_surfaces_machine_id_machines_id_fk": {
+          "name": "machine_work_surfaces_machine_id_machines_id_fk",
+          "tableFrom": "machine_work_surfaces",
+          "tableTo": "machines",
+          "columnsFrom": [
+            "machine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.machines": {
+      "name": "machines",
       "schema": "",
       "columns": {
         "id": {
@@ -1711,6 +2152,14 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "machine_type": {
+          "name": "machine_type",
+          "type": "machine_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'fdm'"
         },
         "manufacturer": {
           "name": "manufacturer",
@@ -1736,21 +2185,21 @@
           "primaryKey": false,
           "notNull": false
         },
-        "has_ams": {
-          "name": "has_ams",
+        "has_filament_changer": {
+          "name": "has_filament_changer",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false,
           "default": false
         },
-        "ams_slot_count": {
-          "name": "ams_slot_count",
+        "filament_changer_slot_count": {
+          "name": "filament_changer_slot_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "ams_model": {
-          "name": "ams_model",
+        "filament_changer_model": {
+          "name": "filament_changer_model",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false
@@ -1791,6 +2240,54 @@
           "primaryKey": false,
           "notNull": false
         },
+        "tool_head_type": {
+          "name": "tool_head_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nozzle_swap_system": {
+          "name": "nozzle_swap_system",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "filament_changer_unit_count": {
+          "name": "filament_changer_unit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enclosure_type": {
+          "name": "enclosure_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spindle_max_rpm": {
+          "name": "spindle_max_rpm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spindle_power_w": {
+          "name": "spindle_power_w",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "laser_power_w": {
+          "name": "laser_power_w",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "laser_wavelength_nm": {
+          "name": "laser_wavelength_nm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -1814,9 +2311,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "printers_user_id_users_id_fk": {
-          "name": "printers_user_id_users_id_fk",
-          "tableFrom": "printers",
+        "machines_user_id_users_id_fk": {
+          "name": "machines_user_id_users_id_fk",
+          "tableFrom": "machines",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -2201,8 +2698,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "printer_id": {
-          "name": "printer_id",
+        "machine_id": {
+          "name": "machine_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -2341,12 +2838,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "user_print_profiles_printer_id_printers_id_fk": {
-          "name": "user_print_profiles_printer_id_printers_id_fk",
+        "user_print_profiles_machine_id_machines_id_fk": {
+          "name": "user_print_profiles_machine_id_machines_id_fk",
           "tableFrom": "user_print_profiles",
-          "tableTo": "printers",
+          "tableTo": "machines",
           "columnsFrom": [
-            "printer_id"
+            "machine_id"
           ],
           "columnsTo": [
             "id"
@@ -3080,9 +3577,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "identifier": {
           "name": "identifier",
@@ -4017,8 +4515,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "printer_id": {
-          "name": "printer_id",
+        "machine_id": {
+          "name": "machine_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -4112,12 +4610,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "usage_sessions_printer_id_printers_id_fk": {
-          "name": "usage_sessions_printer_id_printers_id_fk",
+        "usage_sessions_machine_id_machines_id_fk": {
+          "name": "usage_sessions_machine_id_machines_id_fk",
           "tableFrom": "usage_sessions",
-          "tableTo": "printers",
+          "tableTo": "machines",
           "columnsFrom": [
-            "printer_id"
+            "machine_id"
           ],
           "columnsTo": [
             "id"
@@ -4267,6 +4765,662 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.inventory_items": {
+      "name": "inventory_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subcategory": {
+          "name": "subcategory",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weight_g": {
+          "name": "weight_g",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height_mm": {
+          "name": "height_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "width_mm": {
+          "name": "width_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "length_mm": {
+          "name": "length_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diameter_mm": {
+          "name": "diameter_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_hex": {
+          "name": "color_hex",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_lab_l": {
+          "name": "color_lab_l",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_lab_a": {
+          "name": "color_lab_a",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_lab_b": {
+          "name": "color_lab_b",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thread_pitch": {
+          "name": "thread_pitch",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "head_type": {
+          "name": "head_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "drive_type": {
+          "name": "drive_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fastener_material": {
+          "name": "fastener_material",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "part_number": {
+          "name": "part_number",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "package_type": {
+          "name": "package_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "storage_location": {
+          "name": "storage_location",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bin_label": {
+          "name": "bin_label",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supplier": {
+          "name": "supplier",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supplier_part_number": {
+          "name": "supplier_part_number",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purchase_url": {
+          "name": "purchase_url",
+          "type": "varchar(1024)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_url": {
+          "name": "photo_url",
+          "type": "varchar(1024)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_uid": {
+          "name": "nfc_uid",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "barcode_value": {
+          "name": "barcode_value",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_scan_event_id": {
+          "name": "last_scan_event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "inventory_items_user_id_users_id_fk": {
+          "name": "inventory_items_user_id_users_id_fk",
+          "tableFrom": "inventory_items",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inventory_items_last_scan_event_id_scan_events_id_fk": {
+          "name": "inventory_items_last_scan_event_id_scan_events_id_fk",
+          "tableFrom": "inventory_items",
+          "tableTo": "scan_events",
+          "columnsFrom": [
+            "last_scan_event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scan_events": {
+      "name": "scan_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "station_id": {
+          "name": "station_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weight_g": {
+          "name": "weight_g",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weight_stable": {
+          "name": "weight_stable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height_mm": {
+          "name": "height_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distance_mm": {
+          "name": "distance_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spectral_data": {
+          "name": "spectral_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_hex": {
+          "name": "color_hex",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_lab_l": {
+          "name": "color_lab_l",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_lab_a": {
+          "name": "color_lab_a",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color_lab_b": {
+          "name": "color_lab_b",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_present": {
+          "name": "nfc_present",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "nfc_uid": {
+          "name": "nfc_uid",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_uid_length": {
+          "name": "nfc_uid_length",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_tag_type": {
+          "name": "nfc_tag_type",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_raw_data": {
+          "name": "nfc_raw_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_sectors_read": {
+          "name": "nfc_sectors_read",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nfc_pages_read": {
+          "name": "nfc_pages_read",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_url": {
+          "name": "photo_url",
+          "type": "varchar(1024)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "barcode_value": {
+          "name": "barcode_value",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "barcode_format": {
+          "name": "barcode_format",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "turntable_angle": {
+          "name": "turntable_angle",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "identified": {
+          "name": "identified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "identified_type": {
+          "name": "identified_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "identified_item_id": {
+          "name": "identified_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "identified_spool_id": {
+          "name": "identified_spool_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_suggestions": {
+          "name": "ai_suggestions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_confirmed": {
+          "name": "user_confirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_override_data": {
+          "name": "user_override_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "scan_events_station_id_scan_stations_id_fk": {
+          "name": "scan_events_station_id_scan_stations_id_fk",
+          "tableFrom": "scan_events",
+          "tableTo": "scan_stations",
+          "columnsFrom": [
+            "station_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scan_events_user_id_users_id_fk": {
+          "name": "scan_events_user_id_users_id_fk",
+          "tableFrom": "scan_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scan_events_identified_spool_id_spools_id_fk": {
+          "name": "scan_events_identified_spool_id_spools_id_fk",
+          "tableFrom": "scan_events",
+          "tableTo": "spools",
+          "columnsFrom": [
+            "identified_spool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scan_stations": {
+      "name": "scan_stations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hardware_id": {
+          "name": "hardware_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "firmware_version": {
+          "name": "firmware_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "varchar(45)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "platform_height_mm": {
+          "name": "platform_height_mm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weight_calibration_factor": {
+          "name": "weight_calibration_factor",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_turntable": {
+          "name": "has_turntable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "has_color_sensor": {
+          "name": "has_color_sensor",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "has_tof_sensor": {
+          "name": "has_tof_sensor",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "has_camera": {
+          "name": "has_camera",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_online": {
+          "name": "is_online",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "scan_stations_hardware_id_idx": {
+          "name": "scan_stations_hardware_id_idx",
+          "columns": [
+            {
+              "expression": "hardware_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scan_stations_user_id_users_id_fk": {
+          "name": "scan_stations_user_id_users_id_fk",
+          "tableFrom": "scan_stations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.audit_logs": {
       "name": "audit_logs",
       "schema": "",
@@ -4400,6 +5554,23 @@
     }
   },
   "enums": {
+    "public.accessory_type": {
+      "name": "accessory_type",
+      "schema": "public",
+      "values": [
+        "smoke_extractor",
+        "enclosure",
+        "camera",
+        "light",
+        "exhaust_fan",
+        "filament_buffer",
+        "purge_tray",
+        "dust_collector",
+        "air_assist",
+        "rotary_module",
+        "other"
+      ]
+    },
     "public.audit_action": {
       "name": "audit_action",
       "schema": "public",
@@ -4421,14 +5592,14 @@
         "system"
       ]
     },
-    "public.bed_temp_type": {
-      "name": "bed_temp_type",
+    "public.changer_type": {
+      "name": "changer_type",
       "schema": "public",
       "values": [
-        "cool_plate",
-        "textured_pei",
-        "engineering_plate",
-        "high_temp_plate"
+        "ams",
+        "ams_lite",
+        "mmu",
+        "manual"
       ]
     },
     "public.connection_type": {
@@ -4483,6 +5654,17 @@
         "pdf"
       ]
     },
+    "public.machine_type": {
+      "name": "machine_type",
+      "schema": "public",
+      "values": [
+        "fdm",
+        "cnc",
+        "laser",
+        "resin",
+        "multi"
+      ]
+    },
     "public.material_class": {
       "name": "material_class",
       "schema": "public",
@@ -4512,6 +5694,27 @@
         "ntag",
         "filla_iq",
         "unknown"
+      ]
+    },
+    "public.nozzle_material": {
+      "name": "nozzle_material",
+      "schema": "public",
+      "values": [
+        "brass",
+        "hardened_steel",
+        "stainless_steel",
+        "copper_alloy",
+        "ruby"
+      ]
+    },
+    "public.nozzle_type": {
+      "name": "nozzle_type",
+      "schema": "public",
+      "values": [
+        "standard",
+        "high_flow",
+        "chc",
+        "revo"
       ]
     },
     "public.pattern_type": {
@@ -4577,6 +5780,15 @@
         "equivalence"
       ]
     },
+    "public.tool_category": {
+      "name": "tool_category",
+      "schema": "public",
+      "values": [
+        "nozzle",
+        "spindle_bit",
+        "laser_module"
+      ]
+    },
     "public.validation_status": {
       "name": "validation_status",
       "schema": "public",
@@ -4585,6 +5797,16 @@
         "submitted",
         "validated",
         "deprecated"
+      ]
+    },
+    "public.wear_level": {
+      "name": "wear_level",
+      "schema": "public",
+      "values": [
+        "new",
+        "good",
+        "worn",
+        "replace"
       ]
     },
     "public.weight_event_type": {
@@ -4596,6 +5818,22 @@
         "reading",
         "usage",
         "drying"
+      ]
+    },
+    "public.work_surface_type": {
+      "name": "work_surface_type",
+      "schema": "public",
+      "values": [
+        "cool_plate",
+        "textured_pei",
+        "engineering_plate",
+        "high_temp_plate",
+        "wasteboard",
+        "aluminum_bed",
+        "vacuum_table",
+        "honeycomb_bed",
+        "knife_blade_bed",
+        "material_pass_through"
       ]
     }
   },

@@ -26,22 +26,8 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1771968072033,
-      "tag": "0003_flat_roland_deschain",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1771969789477,
-      "tag": "0004_nice_winter_soldier",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1772035200000,
-      "tag": "0005_machine_agnostic_refactor",
+      "when": 1773163439616,
+      "tag": "0003_combined_schema_update",
       "breakpoints": true
     }
   ]
