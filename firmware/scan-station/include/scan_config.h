@@ -76,7 +76,7 @@
 #define BLE_DEVICE_NAME_PREFIX  "FillaIQ-"
 
 // --- API ---
-#define API_TIMEOUT_MS          5000
+#define API_TIMEOUT_MS          10000
 #define DEFAULT_API_URL         "https://www.fillaiq.com"
 
 // --- Color Sensor I2C Addresses ---

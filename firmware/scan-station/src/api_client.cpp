@@ -9,15 +9,12 @@
 ApiClient apiClient;
 
 static Preferences prefs;
-static WiFiClientSecure _secClient;
-static bool _secClientInit = false;
-
 static WiFiClientSecure& getSecureClient() {
-    if (!_secClientInit) {
-        _secClient.setInsecure();
-        _secClientInit = true;
-    }
-    return _secClient;
+    static WiFiClientSecure client;
+    static bool init = false;
+    if (!init) { client.setInsecure(); init = true; }
+    client.stop();  // Ensure clean state for each request
+    return client;
 }
 
 void ApiClient::begin() {

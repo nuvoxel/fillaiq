@@ -5,24 +5,24 @@
         "stable": {
           "version": "1.0.1",
           "file": "scan-station-1.0.1.bin",
-          "md5": "eb4c4b8bb1edacceeedf2ff60cfddc2a",
-          "size": 1087712,
+          "md5": "953f16dc8f1fca77c7dba8cea4fff588",
+          "size": 1087616,
           "date": "2026-03-10",
           "notes": "OTA test release"
         },
         "beta": {
           "version": "1.0.1",
           "file": "scan-station-1.0.1.bin",
-          "md5": "eb4c4b8bb1edacceeedf2ff60cfddc2a",
-          "size": 1087712,
+          "md5": "953f16dc8f1fca77c7dba8cea4fff588",
+          "size": 1087616,
           "date": "2026-03-10",
           "notes": "OTA test release"
         },
         "dev": {
           "version": "1.0.1",
           "file": "scan-station-1.0.1.bin",
-          "md5": "eb4c4b8bb1edacceeedf2ff60cfddc2a",
-          "size": 1087712,
+          "md5": "953f16dc8f1fca77c7dba8cea4fff588",
+          "size": 1087616,
           "date": "2026-03-10",
           "notes": "OTA test release"
         }
