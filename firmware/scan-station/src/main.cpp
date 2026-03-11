@@ -796,10 +796,10 @@ void setup() {
     // Label printer — try USB Host first, then BLE
     labelPrinter.begin();
 
-    // Init USB Host and wait briefly for device enumeration
+    // Init USB Host and wait for device enumeration (up to 5s)
     display.showMessage("USB Host...", "Checking printer");
     usbPrinterBegin();
-    for (int i = 0; i < 20 && !usbPrinterReady(); i++) {
+    for (int i = 0; i < 50 && !usbPrinterReady(); i++) {
         usbPrinterLoop();
         delay(100);
     }

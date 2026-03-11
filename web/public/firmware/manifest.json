@@ -3,28 +3,28 @@
     "scan-station": {
       "channels": {
         "stable": {
-          "version": "1.0.6",
-          "file": "scan-station-1.0.6.bin",
-          "md5": "118e78d6b905989f67d640ebc86bf81a",
+          "version": "1.0.7",
+          "file": "scan-station-1.0.7.bin",
+          "md5": "f794907f9097eb4c18543f3c393be118",
           "size": 1728544,
           "date": "2026-03-11",
-          "notes": "BLE printer queries (battery/firmware/serial), USB Host support, dual transport, full-label test pattern, improved capabilities heartbeat"
+          "notes": "Fix USB Host mode: ARDUINO_USB_MODE=0 to free OTG for Host, longer enumeration wait"
         },
         "beta": {
-          "version": "1.0.6",
-          "file": "scan-station-1.0.6.bin",
-          "md5": "118e78d6b905989f67d640ebc86bf81a",
+          "version": "1.0.7",
+          "file": "scan-station-1.0.7.bin",
+          "md5": "f794907f9097eb4c18543f3c393be118",
           "size": 1728544,
           "date": "2026-03-11",
-          "notes": "BLE printer queries (battery/firmware/serial), USB Host support, dual transport, full-label test pattern, improved capabilities heartbeat"
+          "notes": "Fix USB Host mode: ARDUINO_USB_MODE=0 to free OTG for Host, longer enumeration wait"
         },
         "dev": {
-          "version": "1.0.6",
-          "file": "scan-station-1.0.6.bin",
-          "md5": "118e78d6b905989f67d640ebc86bf81a",
+          "version": "1.0.7",
+          "file": "scan-station-1.0.7.bin",
+          "md5": "f794907f9097eb4c18543f3c393be118",
           "size": 1728544,
           "date": "2026-03-11",
-          "notes": "BLE printer queries (battery/firmware/serial), USB Host support, dual transport, full-label test pattern, improved capabilities heartbeat"
+          "notes": "Fix USB Host mode: ARDUINO_USB_MODE=0 to free OTG for Host, longer enumeration wait"
         }
       }
     },
