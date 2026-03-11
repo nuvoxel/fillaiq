@@ -15,6 +15,17 @@ extern byte pn532_packetbuffer[];
 // Cached Bambu keys for incremental MIFARE reading
 static BambuKeys cachedKeys;
 
+// --- IRQ flag (set by GPIO ISR, cleared by poll) ---
+static volatile bool irqFired = false;
+
+static void IRAM_ATTR nfcIrqISR() {
+    irqFired = true;
+}
+
+// Presence check interval — how often to re-start detection
+// to confirm the tag is still on the reader
+#define PRESENCE_CHECK_MS 500
+
 // Set 106kbps Type A analog settings for maximum read range
 static void setMaxRxGain(Adafruit_PN532 &r) {
     pn532_packetbuffer[0]  = 0x32;
@@ -35,8 +46,12 @@ static void setMaxRxGain(Adafruit_PN532 &r) {
 void NfcScanner::begin() {
     _tag.clear();
     _connected = false;
+    _state = NFC_IDLE;
     _nextSector = 0xFF;
     _nextPage = 0xFF;
+
+    // Configure IRQ pin
+    pinMode(NFC_IRQ_PIN, INPUT_PULLUP);
 
     reader.begin();
 
@@ -45,14 +60,32 @@ void NfcScanner::begin() {
         uint8_t ic  = (ver >> 24) & 0xFF;
         uint8_t maj = (ver >> 16) & 0xFF;
         uint8_t min = (ver >> 8)  & 0xFF;
-        Serial.printf("  NFC: PN5%02X v%d.%d (CS=GPIO%d)\n", ic, maj, min, NFC_CS_PIN);
+        Serial.printf("  NFC: PN5%02X v%d.%d (CS=GPIO%d, IRQ=GPIO%d)\n",
+            ic, maj, min, NFC_CS_PIN, NFC_IRQ_PIN);
 
         reader.SAMConfig();
         reader.setPassiveActivationRetries(0xFF);
         setMaxRxGain(reader);
         _connected = true;
+
+        // Attach interrupt and start listening
+        attachInterrupt(digitalPinToInterrupt(NFC_IRQ_PIN), nfcIrqISR, FALLING);
+        _startListening();
     } else {
         Serial.printf("  NFC: not detected (CS=GPIO%d)\n", NFC_CS_PIN);
+    }
+}
+
+// ==================== IRQ-driven Listening ====================
+
+void NfcScanner::_startListening() {
+    irqFired = false;
+    if (reader.startPassiveTargetIDDetection(PN532_MIFARE_ISO14443A)) {
+        _state = NFC_LISTENING;
+        _listenStartTime = millis();
+    } else {
+        // Command failed — retry next poll cycle
+        _state = NFC_IDLE;
     }
 }
 
@@ -133,48 +166,96 @@ void NfcScanner::_finishRead() {
             Serial.printf("Scan: tag data captured (not Bambu)\n");
         }
     }
+
+    // Read complete — switch to presence monitoring
+    _state = NFC_PRESENT;
+    _presenceCheckTime = millis();
 }
 
-// ==================== Polling ====================
+// ==================== Polling (IRQ-driven) ====================
 
 void NfcScanner::poll() {
     if (!_connected) return;
 
-    uint8_t uid[NFC_UID_MAX_LEN] = {0};
-    uint8_t uid_len = 0;
-
-    bool found = reader.readPassiveTargetID(
-        PN532_MIFARE_ISO14443A, uid, &uid_len, 150);
-
     unsigned long now = millis();
 
-    if (found) {
-        bool is_new = !_tag.present ||
-            uid_len != _tag.uid_len ||
-            memcmp(uid, _tag.uid, uid_len) != 0;
+    switch (_state) {
+        case NFC_IDLE:
+            // Retry starting detection
+            _startListening();
+            break;
 
-        memcpy(_tag.uid, uid, uid_len);
-        _tag.uid_len = uid_len;
-        _tag.last_seen = now;
-        _tag.was_present = _tag.present;
-        _tag.present = true;
+        case NFC_LISTENING: {
+            // Check if IRQ fired (tag detected)
+            if (irqFired) {
+                irqFired = false;
 
-        if (is_new) {
-            _startRead();
+                uint8_t uid[NFC_UID_MAX_LEN] = {0};
+                uint8_t uid_len = 0;
+                bool found = reader.readDetectedPassiveTargetID(uid, &uid_len);
+
+                if (found && uid_len > 0) {
+                    bool is_new = !_tag.present ||
+                        uid_len != _tag.uid_len ||
+                        memcmp(uid, _tag.uid, uid_len) != 0;
+
+                    memcpy(_tag.uid, uid, uid_len);
+                    _tag.uid_len = uid_len;
+                    _tag.last_seen = now;
+                    _tag.was_present = _tag.present;
+                    _tag.present = true;
+
+                    if (is_new) {
+                        _startRead();
+                        _state = NFC_READING;
+                    } else {
+                        // Same tag still present — keep monitoring
+                        _state = NFC_PRESENT;
+                        _presenceCheckTime = now;
+                    }
+                } else {
+                    // IRQ fired but no valid read — restart
+                    _startListening();
+                }
+            }
+            // No timeout needed — PN532 listens indefinitely until a card appears
+            break;
         }
 
-        bool reading = (_nextSector != 0xFF || _nextPage != 0xFF);
-        if (reading) {
-            _continueRead();
+        case NFC_READING: {
+            // Continue incremental sector/page reads
+            bool reading = (_nextSector != 0xFF || _nextPage != 0xFF);
+            if (reading) {
+                _continueRead();
+                // _finishRead() transitions to NFC_PRESENT when done
+            } else {
+                // Shouldn't happen, but recover
+                _state = NFC_PRESENT;
+                _presenceCheckTime = now;
+            }
+            break;
         }
-    } else {
-        if (_tag.present && now - _tag.last_seen >= NFC_TIMEOUT_MS) {
-            _tag.present = false;
-            _filament.clear();
-            _tagData.clear();
-            _nextSector = 0xFF;
-            _nextPage = 0xFF;
-            Serial.println("Scan: tag removed");
+
+        case NFC_PRESENT: {
+            // Tag is on the reader, periodically check if it's still there
+            if (now - _presenceCheckTime >= PRESENCE_CHECK_MS) {
+                _presenceCheckTime = now;
+                // Restart detection — if tag is still present, IRQ fires quickly
+                _startListening();
+            }
+
+            // If we're listening (presence re-check started) and no IRQ within timeout
+            if (_state == NFC_LISTENING && _tag.present &&
+                now - _tag.last_seen >= NFC_TIMEOUT_MS) {
+                _tag.present = false;
+                _filament.clear();
+                _tagData.clear();
+                _nextSector = 0xFF;
+                _nextPage = 0xFF;
+                Serial.println("Scan: tag removed");
+                // Already listening for next tag
+            }
+            break;
         }
     }
 }
@@ -212,6 +293,8 @@ void NfcScanner::printStatus() {
     Serial.println("=== NFC ===");
     Serial.printf("  Connected: %s\n", _connected ? "YES" : "no");
     if (_connected) {
+        const char* stateNames[] = {"IDLE", "LISTENING", "READING", "PRESENT"};
+        Serial.printf("  State: %s (IRQ-driven, GPIO%d)\n", stateNames[_state], NFC_IRQ_PIN);
         Serial.printf("  Tag: %s\n", _tag.present ? getUidString().c_str() : "none");
         if (_tag.present) {
             Serial.printf("  Last seen: %lums ago\n", millis() - _tag.last_seen);
@@ -232,7 +315,7 @@ void NfcScanner::printStatus() {
 static unsigned long lastNfcPoll = 0;
 
 void initNfc() {
-    Serial.println("Initializing NFC reader...");
+    Serial.println("Initializing NFC reader (IRQ mode)...");
     nfcScanner.begin();
 }
 

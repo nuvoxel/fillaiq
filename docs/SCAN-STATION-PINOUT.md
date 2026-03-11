@@ -7,7 +7,7 @@
 | GPIO | Function         | Device            | Notes                        |
 |------|------------------|-------------------|------------------------------|
 | 4    | TFT Backlight    | ST7789V3 TFT      | Active HIGH                  |
-| 7    | NFC IRQ          | PN532              | Not currently wired          |
+| 7    | NFC IRQ          | PN532              | Wired, interrupt-driven      |
 | 8    | I2C SDA          | VL53L1X, AS7341   | Shared bus                   |
 | 9    | I2C SCL          | VL53L1X, AS7341   | Shared bus                   |
 | 11   | SPI MOSI         | PN532, ST7789V3    | FSPI bus, shared             |
@@ -56,7 +56,6 @@ Shared between TFT display and NFC reader. Only one device active at a time — 
 
 ## Unused / Reserved
 - GPIO 42: VL53L1X XSHUT — defined but not wired
-- GPIO 7: PN532 IRQ — defined but using polling mode
 
 ## Power
 - ESP32-S3 powered via USB-C (5V)

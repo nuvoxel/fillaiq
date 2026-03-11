@@ -3,28 +3,28 @@
     "scan-station": {
       "channels": {
         "stable": {
-          "version": "1.0.3",
-          "file": "scan-station-1.0.3.bin",
-          "md5": "6df1a8ba22693473df066b48cbc2069b",
-          "size": 1682384,
+          "version": "1.0.4",
+          "file": "scan-station-1.0.4.bin",
+          "md5": "5ae1fb2f14f7b0023329de2bd7c36a36",
+          "size": 1684752,
           "date": "2026-03-11",
-          "notes": "BLE label printer driver (Phomemo M120), printer serial commands"
+          "notes": "IRQ-driven NFC reads (GPIO 7), reduced SPI bus contention"
         },
         "beta": {
-          "version": "1.0.3",
-          "file": "scan-station-1.0.3.bin",
-          "md5": "6df1a8ba22693473df066b48cbc2069b",
-          "size": 1682384,
+          "version": "1.0.4",
+          "file": "scan-station-1.0.4.bin",
+          "md5": "5ae1fb2f14f7b0023329de2bd7c36a36",
+          "size": 1684752,
           "date": "2026-03-11",
-          "notes": "BLE label printer driver (Phomemo M120), printer serial commands"
+          "notes": "IRQ-driven NFC reads (GPIO 7), reduced SPI bus contention"
         },
         "dev": {
-          "version": "1.0.3",
-          "file": "scan-station-1.0.3.bin",
-          "md5": "6df1a8ba22693473df066b48cbc2069b",
-          "size": 1682384,
+          "version": "1.0.4",
+          "file": "scan-station-1.0.4.bin",
+          "md5": "5ae1fb2f14f7b0023329de2bd7c36a36",
+          "size": 1684752,
           "date": "2026-03-11",
-          "notes": "BLE label printer driver (Phomemo M120), printer serial commands"
+          "notes": "IRQ-driven NFC reads (GPIO 7), reduced SPI bus contention"
         }
       }
     },
