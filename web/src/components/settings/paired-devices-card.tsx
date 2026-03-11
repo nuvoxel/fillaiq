@@ -14,16 +14,19 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 import DeleteIcon from "@mui/icons-material/Delete";
 import DevicesIcon from "@mui/icons-material/Devices";
-import { listMyStations, revokeDevice } from "@/lib/actions/scan";
+import { listMyStations, revokeDevice, updateStationChannel } from "@/lib/actions/scan";
 
 type Station = {
   id: string;
   name: string;
   hardwareId: string;
+  firmwareVersion: string | null;
+  firmwareChannel: string | null;
   ipAddress: string | null;
   isOnline: boolean | null;
   lastSeenAt: string | null;
@@ -55,10 +58,19 @@ export function PairedDevicesCard() {
     });
   };
 
+  const handleChannelChange = (id: string, channel: string) => {
+    startTransition(async () => {
+      const result = await updateStationChannel(id, channel);
+      if (!result.error) {
+        fetchStations();
+      }
+    });
+  };
+
   return (
     <Card>
       <CardHeader
-        title="Paired Devices"
+        title="Devices"
         titleTypographyProps={{ fontWeight: 600 }}
       />
       <Divider />
@@ -71,8 +83,7 @@ export function PairedDevicesCard() {
           <Box sx={{ textAlign: "center", py: 4 }}>
             <DevicesIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
             <Typography variant="body2" color="text.secondary">
-              No scan stations paired. Power on a scan station and enter the pairing code
-              on the Scan Station page.
+              No devices paired. Power on a device and enter the pairing code to connect it.
             </Typography>
           </Box>
         ) : (
@@ -82,10 +93,11 @@ export function PairedDevicesCard() {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Hardware ID</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Firmware</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Channel</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>IP Address</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Last Seen</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Paired</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -97,6 +109,24 @@ export function PairedDevicesCard() {
                       <Typography variant="body2" fontFamily="monospace" color="text.secondary">
                         {station.hardwareId}
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontFamily="monospace" color="text.secondary">
+                        {station.firmwareVersion ?? "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        size="small"
+                        value={station.firmwareChannel ?? "stable"}
+                        onChange={(e) => handleChannelChange(station.id, e.target.value)}
+                        disabled={isPending}
+                        sx={{ minWidth: 90, fontSize: "0.8125rem" }}
+                      >
+                        <MenuItem value="stable">Stable</MenuItem>
+                        <MenuItem value="beta">Beta</MenuItem>
+                        <MenuItem value="dev">Dev</MenuItem>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontFamily="monospace" color="text.secondary">
@@ -114,9 +144,6 @@ export function PairedDevicesCard() {
                       {station.lastSeenAt
                         ? new Date(station.lastSeenAt).toLocaleString()
                         : "Never"}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(station.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <IconButton

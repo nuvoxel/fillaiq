@@ -1,5 +1,12 @@
 #pragma once
 
+// --- Firmware Identity ---
+#define FW_VERSION "1.0.0"
+#define FW_SKU     "scan-station"    // Device type for OTA routing
+#ifndef FW_CHANNEL
+#define FW_CHANNEL "stable"
+#endif
+
 // ============================================================
 // Filla IQ — Scan Station Configuration
 // ESP32-S3-DevKitC-1 + PN532(SPI) + HX711 + ST7789(SPI)
@@ -34,8 +41,8 @@
 
 // WS2812B LED Ring
 #define LED_PIN         48
-#define LED_SKIP         1   // Skip onboard RGB LED (pixel 0 on DevKitC-1)
-#define LED_COUNT       25   // 1 onboard + 24 ring
+#define LED_SKIP         0   // Onboard LED mirrors pixel 0 (parallel wiring)
+#define LED_COUNT       24   // 24 ring LEDs
 
 // --- Weight Settings ---
 #define WEIGHT_SAMPLES          10
@@ -92,6 +99,10 @@
 #define VL53L1X_XSHUT_PIN      42
 #define TOF_TIMING_BUDGET_MS    50
 #define TOF_ARM_HEIGHT_MM       250.0f
+
+// --- OTA Updates ---
+#define OTA_CHECK_INTERVAL_MS   (5 * 60 * 1000UL)  // 5 minutes
+#define OTA_FIRST_CHECK_DELAY   30000               // 30s after boot
 
 // --- Serial ---
 #define SERIAL_BAUD             115200

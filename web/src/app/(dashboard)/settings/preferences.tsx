@@ -13,17 +13,11 @@ import Snackbar from "@mui/material/Snackbar";
 import { upsertUserPreferences } from "@/lib/actions/dashboard";
 
 type PrefsState = {
-  emailNotifications: boolean;
-  weightWarnings: boolean;
   autoArchiveEmpty: boolean;
-  darkMode: boolean;
 };
 
 const prefsMeta: { key: keyof PrefsState; label: string; description: string }[] = [
-  { key: "emailNotifications", label: "Email notifications", description: "Receive email alerts for spool events" },
-  { key: "weightWarnings", label: "Weight warnings", description: "Alert when spool weight drops below 10%" },
   { key: "autoArchiveEmpty", label: "Auto-archive empty spools", description: "Automatically archive spools when emptied" },
-  { key: "darkMode", label: "Dark mode", description: "Use dark theme (coming soon)" },
 ];
 
 export function SettingsPreferences({

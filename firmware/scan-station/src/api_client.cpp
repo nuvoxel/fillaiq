@@ -126,6 +126,12 @@ ApiStatus ApiClient::postScan(const ScanResult& scan, const TagData* tagData,
         return API_CONNECT_FAILED;
     }
 
+    if (httpCode == 401 || httpCode == 403) {
+        Serial.printf("API auth failed: HTTP %d\n", httpCode);
+        http.end();
+        return API_AUTH_FAILED;
+    }
+
     if (httpCode != 200 && httpCode != 201) {
         Serial.printf("API error: HTTP %d\n", httpCode);
         http.end();
@@ -164,6 +170,11 @@ ApiStatus ApiClient::pollResult(const char* scanId, ScanResponse& response) {
     if (httpCode <= 0) {
         http.end();
         return API_CONNECT_FAILED;
+    }
+
+    if (httpCode == 401 || httpCode == 403) {
+        http.end();
+        return API_AUTH_FAILED;
     }
 
     if (httpCode != 200) {
@@ -330,6 +341,8 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
 
     JsonDocument doc;
     doc["hardwareId"] = _stationId;
+    doc["sku"] = FW_SKU;
+    doc["firmwareVersion"] = FW_VERSION;
 
     String payload;
     serializeJson(doc, payload);
@@ -419,11 +432,23 @@ ApiStatus ApiClient::pollPairingStatus(bool& paired) {
         memset(_pairingCode, 0, sizeof(_pairingCode));
         saveConfig();
         Serial.println("[Pair] Device paired!");
-    } else if (expired) {
+        return API_OK;
+    }
+
+    if (expired) {
         Serial.println("[Pair] Code expired");
+        return API_EXPIRED;
     }
 
     return API_OK;
+}
+
+void ApiClient::unpair() {
+    _paired = false;
+    memset(_deviceToken, 0, sizeof(_deviceToken));
+    memset(_pairingCode, 0, sizeof(_pairingCode));
+    saveConfig();
+    Serial.println("[Pair] Device unpaired");
 }
 
 // ==================== Config Persistence ====================

@@ -5,7 +5,7 @@ Backlight backlight;
 
 static Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Ring pixel indices (skip onboard LED at pixel 0)
+// Ring pixel indices
 #define RING_START  LED_SKIP
 #define RING_COUNT  (LED_COUNT - LED_SKIP)
 
@@ -37,7 +37,7 @@ void Backlight::white(uint8_t brightness) {
     for (int i = 0; i < RING_COUNT; i++) {
         strip.setPixelColor(RING_START + i, strip.Color(255, 255, 255));
     }
-    strip.setPixelColor(0, 0);  // onboard off
+
     strip.show();
 }
 
@@ -48,7 +48,7 @@ void Backlight::color(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness) {
     for (int i = 0; i < RING_COUNT; i++) {
         strip.setPixelColor(RING_START + i, strip.Color(r, g, b));
     }
-    strip.setPixelColor(0, 0);  // onboard off
+
     strip.show();
 }
 
@@ -95,7 +95,7 @@ void Backlight::update() {
             for (int i = 0; i < RING_COUNT; i++) {
                 strip.setPixelColor(RING_START + i, strip.Color(_r, _g, _b));
             }
-            strip.setPixelColor(0, 0);
+
             strip.show();
             _animStep = (_animStep + 1) % 100;
             break;
@@ -117,7 +117,7 @@ void Backlight::update() {
                 uint16_t hue = (_animStep * 256 + i * 65536 / RING_COUNT) & 0xFFFF;
                 strip.setPixelColor(RING_START + i, strip.gamma32(strip.ColorHSV(hue)));
             }
-            strip.setPixelColor(0, 0);
+
             strip.show();
             _animStep = (_animStep + 1) % 256;
             break;

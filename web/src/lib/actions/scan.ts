@@ -66,6 +66,7 @@ export async function listMyStations() {
       name: scanStations.name,
       hardwareId: scanStations.hardwareId,
       firmwareVersion: scanStations.firmwareVersion,
+      firmwareChannel: scanStations.firmwareChannel,
       ipAddress: scanStations.ipAddress,
       isOnline: scanStations.isOnline,
       lastSeenAt: scanStations.lastSeenAt,
@@ -112,6 +113,40 @@ export async function revokeDevice(stationId: string) {
     .where(eq(scanStations.id, stationId));
 
   return ok({ revoked: true });
+}
+
+const VALID_CHANNELS = ["stable", "beta", "dev"] as const;
+
+export async function updateStationChannel(stationId: string, channel: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  if (!VALID_CHANNELS.includes(channel as typeof VALID_CHANNELS[number])) {
+    return err("Invalid channel. Must be stable, beta, or dev.");
+  }
+
+  // Verify ownership
+  const [station] = await db
+    .select()
+    .from(scanStations)
+    .where(
+      and(
+        eq(scanStations.id, stationId),
+        eq(scanStations.userId, guard.data.userId)
+      )
+    );
+
+  if (!station) return err("Station not found");
+
+  await db
+    .update(scanStations)
+    .set({
+      firmwareChannel: channel,
+      updatedAt: new Date(),
+    })
+    .where(eq(scanStations.id, stationId));
+
+  return ok({ updated: true });
 }
 
 export async function getStationById(id: string) {

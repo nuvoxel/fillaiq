@@ -45,15 +45,15 @@ void Display::begin() {
 // ── Status Icons (top-right corner) ────────────────────────
 
 void Display::drawStatusIcons(uint8_t icons) {
-    // Icons drawn right-to-left from x=230, y=4, 16x12 each with 4px gap
+    // Icons drawn right-to-left, inset to avoid rounded display corners
     // Positions: [wifi] [paired] [printer] [tbd]
-    int x = 228;
-    int y = 4;
+    int x = 218;
+    int y = 10;
     int iconW = 14;
     int gap = 3;
 
     // Clear icon area
-    tft->fillRect(x - 4 * (iconW + gap), y, 4 * (iconW + gap) + iconW, 14, DARK_BG);
+    tft->fillRect(x - 4 * (iconW + gap), y - 1, 4 * (iconW + gap) + iconW, 16, DARK_BG);
 
     // WiFi icon (fan/arc shape)
     if (icons & ICON_WIFI) {

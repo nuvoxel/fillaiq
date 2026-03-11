@@ -1,0 +1,1 @@
+ALTER TABLE "scan_stations" ADD COLUMN "firmware_channel" varchar(20) DEFAULT 'stable';

@@ -70,7 +70,7 @@ export function LabelTemplatesCard() {
           <Box sx={{ textAlign: "center", py: 4 }}>
             <LabelIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
             <Typography variant="body2" color="text.secondary">
-              No label templates configured. Create one to print spool labels.
+              No label templates configured.
             </Typography>
           </Box>
         ) : (

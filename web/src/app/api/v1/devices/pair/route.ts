@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { hardwareId } = body;
+  const { hardwareId, sku, firmwareVersion } = body;
   if (!hardwareId || typeof hardwareId !== "string") {
     return NextResponse.json(
       { error: "hardwareId is required" },
@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
         deviceToken,
         pairingCode,
         pairingExpiresAt: expiresAt,
+        deviceSku: sku || existing.deviceSku,
+        firmwareVersion: firmwareVersion || existing.firmwareVersion,
         ipAddress:
           request.headers.get("x-forwarded-for")?.split(",")[0] ?? null,
         lastSeenAt: new Date(),
@@ -73,9 +75,14 @@ export async function POST(request: NextRequest) {
       .where(eq(scanStations.id, existing.id));
   } else {
     // New station — create unpaired record
+    const deviceName = sku
+      ? `${sku.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} ${hardwareId}`
+      : `Scan Station ${hardwareId}`;
     await db.insert(scanStations).values({
-      name: `Scan Station ${hardwareId}`,
+      name: deviceName,
       hardwareId,
+      deviceSku: sku || "scan-station",
+      firmwareVersion: firmwareVersion || null,
       deviceToken,
       pairingCode,
       pairingExpiresAt: expiresAt,

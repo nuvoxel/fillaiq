@@ -1,0 +1,44 @@
+{
+  "devices": {
+    "scan-station": {
+      "channels": {
+        "stable": {
+          "version": "1.0.0",
+          "file": "scan-station-1.0.0.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-10",
+          "notes": "Initial OTA-capable release"
+        },
+        "beta": {
+          "version": "1.0.0",
+          "file": "scan-station-1.0.0.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-10",
+          "notes": "Same as stable"
+        },
+        "dev": {
+          "version": "1.0.0",
+          "file": "scan-station-1.0.0.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-10",
+          "notes": "Same as stable"
+        }
+      }
+    },
+    "shelf-station": {
+      "channels": {
+        "stable": {
+          "version": "1.0.0",
+          "file": "shelf-station-1.0.0.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-10",
+          "notes": "Initial release"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "scan_stations" ADD COLUMN "device_sku" varchar(50) DEFAULT 'scan-station';

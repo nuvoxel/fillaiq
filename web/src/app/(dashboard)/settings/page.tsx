@@ -23,7 +23,6 @@ import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/layout/page-header";
 import { getUserProfile, listApiKeys, getUserPreferences } from "@/lib/actions/dashboard";
 import { SettingsPreferences } from "./preferences";
-import { PrintProfilesCard } from "@/components/settings/print-profiles-card";
 import { LabelTemplatesCard } from "@/components/settings/label-templates-card";
 import { PairedDevicesCard } from "@/components/settings/paired-devices-card";
 import { OrganizationCard } from "@/components/settings/organization-card";
@@ -47,7 +46,7 @@ export default async function SettingsPage() {
       : [];
 
   // Load preferences for the current user
-  let prefs = { emailNotifications: true, weightWarnings: true, autoArchiveEmpty: false, darkMode: false };
+  let prefs = { autoArchiveEmpty: false };
   if (user) {
     const prefsResult = await getUserPreferences(user.id);
     if (prefsResult.data) {
@@ -135,9 +134,6 @@ export default async function SettingsPage() {
           initialPrefs={prefs}
         />
 
-        {/* Print Profiles */}
-        <PrintProfilesCard />
-
         {/* Label Templates */}
         <LabelTemplatesCard />
 
@@ -158,7 +154,7 @@ export default async function SettingsPage() {
               <Box sx={{ textAlign: "center", py: 4 }}>
                 <KeyIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
                 <Typography variant="body2" color="text.secondary">
-                  No API keys configured. Generate one to connect your ESP32 bridge.
+                  No API keys configured.
                 </Typography>
               </Box>
             ) : (

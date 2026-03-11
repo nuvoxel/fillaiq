@@ -17,6 +17,8 @@ enum ApiStatus : uint8_t {
     API_TIMEOUT,
     API_HTTP_ERROR,
     API_PARSE_ERROR,
+    API_AUTH_FAILED,
+    API_EXPIRED,
 };
 
 struct ScanResponse {
@@ -57,6 +59,7 @@ public:
     ApiStatus pollPairingStatus(bool& paired);
     bool isPaired() const { return _deviceToken[0] != '\0' && _paired; }
     const char* getPairingCode() const { return _pairingCode; }
+    void unpair();
 
     // Config (stored in NVS)
     void setApiUrl(const char* url);
@@ -64,6 +67,9 @@ public:
     void setStationId(const char* id);
 
     bool hasApiUrl() const { return _apiUrl[0] != '\0'; }
+    const char* getApiUrl() const { return _apiUrl; }
+    const char* getDeviceToken() const { return _deviceToken; }
+    const char* getStationId() const { return _stationId; }
     void printStatus();
 
 private:

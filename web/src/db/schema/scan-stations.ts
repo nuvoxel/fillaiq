@@ -23,7 +23,9 @@ export const scanStations = pgTable(
       .references(() => users.id),
     name: varchar("name", { length: 255 }).notNull(),
     hardwareId: varchar("hardware_id", { length: 50 }).notNull(),
+    deviceSku: varchar("device_sku", { length: 50 }).default("scan-station"),
     firmwareVersion: varchar("firmware_version", { length: 50 }),
+    firmwareChannel: varchar("firmware_channel", { length: 20 }).default("stable"),
     ipAddress: varchar("ip_address", { length: 45 }),
     // Calibration
     platformHeightMm: real("platform_height_mm"),

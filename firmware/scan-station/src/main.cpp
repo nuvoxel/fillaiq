@@ -16,6 +16,7 @@
 #include "bambu_tag.h"
 #include "distance.h"
 #include "color.h"
+#include "ota_update.h"
 
 // ============================================================
 // Filla IQ — Scan Station Firmware
@@ -280,9 +281,12 @@ void updateScanState() {
             } else {
                 enterState(SCAN_AWAITING_RESULT);
             }
+        } else if (status == API_AUTH_FAILED) {
+            Serial.println("[API] Auth failed — device may have been revoked");
+            apiClient.unpair();
+            startPairing();
         } else {
             Serial.printf("[API] Post failed: %d\n", status);
-            // Fall back to local display
             enterState(SCAN_NEEDS_INPUT);
         }
         break;
@@ -305,6 +309,9 @@ void updateScanState() {
                 } else if (pollResp.needsCamera) {
                     enterState(SCAN_NEEDS_INPUT);
                 }
+            } else if (status == API_AUTH_FAILED) {
+                apiClient.unpair();
+                startPairing();
             }
         }
 
@@ -529,8 +536,12 @@ void handleSerial() {
         }
         Serial.println();
     }
+    else if (line == "ota") {
+        Serial.println("Checking for OTA update...");
+        otaCheckNow();
+    }
     else {
-        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c");
+        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c, ota");
     }
 }
 
@@ -542,7 +553,7 @@ void setup() {
     Serial.begin(SERIAL_BAUD);
     delay(1000);
     Serial.println("\n========================================");
-    Serial.println("  Filla IQ — Scan Station v2");
+    Serial.printf("  Filla IQ — Scan Station v%s (%s)\n", FW_VERSION, FW_CHANNEL);
     Serial.println("========================================\n");
 
     // I2C bus (TOF + Color)
@@ -564,7 +575,9 @@ void setup() {
     backlight.color(0, 0, 255);  // Blue = booting
 
     display.begin();
-    display.showMessage("Filla IQ", "Booting...");
+    char bootMsg[48];
+    snprintf(bootMsg, sizeof(bootMsg), "v%s %s", FW_VERSION, FW_CHANNEL);
+    display.showMessage("Filla IQ", bootMsg);
 
     // NFC reader
     initNfc();
@@ -605,6 +618,9 @@ void setup() {
         startProvisioning();
     }
 
+    // OTA updates
+    otaBegin();
+
     backlight.idle();
     enterState(SCAN_IDLE);
 
@@ -628,6 +644,14 @@ void loop() {
     // Captive portal processing (must run frequently when AP is active)
     provisioner.loop();
 
+    // OTA update check
+    if (!otaInProgress()) {
+        otaLoop();
+    }
+
+    // Skip everything else during OTA
+    if (otaInProgress()) return;
+
     // WiFi management (only when not in setup mode)
     if (!provisioner.isActive()) {
         tryWifiConnect();
@@ -645,6 +669,10 @@ void loop() {
             pairingActive = false;
             display.showMessage("Paired!", "Ready to scan");
             delay(2000);
+        } else if (pairStatus == API_EXPIRED) {
+            // Code expired — request a new one
+            Serial.println("[Pair] Code expired, requesting new code");
+            startPairing();
         } else if (pairStatus != API_OK) {
             Serial.printf("[Pair] Poll error: %d\n", pairStatus);
         }

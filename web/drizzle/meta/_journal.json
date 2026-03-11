@@ -15,6 +15,20 @@
       "when": 1773186810858,
       "tag": "0001_powerful_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773198892334,
+      "tag": "0002_overconfident_red_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773199153593,
+      "tag": "0003_organic_punisher",
+      "breakpoints": true
     }
   ]
 }
