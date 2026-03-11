@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>
 #include "api_client.h"
 #include "display.h"
+#include "device_config.h"
 
 extern Display display;
 
@@ -85,6 +86,13 @@ void otaCheckNow() {
     if (deserializeJson(doc, body)) {
         Serial.println("[OTA] Parse error");
         return;
+    }
+
+    // Apply device config if present
+    if (doc.containsKey("deviceConfig")) {
+        String configStr;
+        serializeJson(doc["deviceConfig"], configStr);
+        deviceConfig.applyFromJson(configStr.c_str());
     }
 
     bool updateAvailable = doc["updateAvailable"] | false;

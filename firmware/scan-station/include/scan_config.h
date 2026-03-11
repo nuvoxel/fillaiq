@@ -107,5 +107,9 @@
 // --- Environmental Reporting ---
 #define ENV_REPORT_INTERVAL_MS  (5 * 60 * 1000UL)  // 5 minutes
 
+// --- Device Config Defaults (overridden by server) ---
+#define DEFAULT_ENV_REPORT_INTERVAL_MS  (5 * 60 * 1000UL)
+#define DEFAULT_STATUS_INTERVAL_MS      2000
+
 // --- Serial ---
 #define SERIAL_BAUD             115200

@@ -79,6 +79,10 @@ export async function GET(request: NextRequest) {
     })
     .where(eq(scanStations.id, station.id));
 
+  // Device config from station config column
+  const deviceSettings = (station.config as any)?.deviceSettings ?? {};
+  const deviceConfigPayload = Object.keys(deviceSettings).length > 0 ? deviceSettings : undefined;
+
   // Read firmware manifest
   let manifest: Manifest;
   try {
@@ -86,13 +90,13 @@ export async function GET(request: NextRequest) {
     const raw = await readFile(manifestPath, "utf-8");
     manifest = JSON.parse(raw);
   } catch {
-    return NextResponse.json({ updateAvailable: false });
+    return NextResponse.json({ updateAvailable: false, deviceConfig: deviceConfigPayload });
   }
 
   // Look up device by SKU
   const device = manifest.devices[sku];
   if (!device) {
-    return NextResponse.json({ updateAvailable: false });
+    return NextResponse.json({ updateAvailable: false, deviceConfig: deviceConfigPayload });
   }
 
   // Look up channel (default: stable)
@@ -100,12 +104,12 @@ export async function GET(request: NextRequest) {
   const entry = device.channels[channel] ?? device.channels["stable"];
 
   if (!entry || !entry.file) {
-    return NextResponse.json({ updateAvailable: false });
+    return NextResponse.json({ updateAvailable: false, deviceConfig: deviceConfigPayload });
   }
 
   // Compare versions
   if (!isNewerVersion(entry.version, currentVersion)) {
-    return NextResponse.json({ updateAvailable: false });
+    return NextResponse.json({ updateAvailable: false, deviceConfig: deviceConfigPayload });
   }
 
   // Build absolute URL for the firmware binary
@@ -122,6 +126,7 @@ export async function GET(request: NextRequest) {
     sku,
     channel,
     releaseNotes: entry.notes || "",
+    deviceConfig: deviceConfigPayload,
   });
 }
 

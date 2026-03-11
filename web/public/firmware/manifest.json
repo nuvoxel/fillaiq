@@ -5,26 +5,26 @@
         "stable": {
           "version": "1.0.2",
           "file": "scan-station-1.0.2.bin",
-          "md5": "02afbcd4a5650f8166916039abc90337",
-          "size": 1093024,
-          "date": "2026-03-11",
-          "notes": "Env sensor support, rich hardware manifest, improved status output"
+          "md5": "fcee0d832130800af3517caf669295a5",
+          "size": 1100624,
+          "date": "2026-03-10",
+          "notes": "Device config push, env sensor support, rich hardware manifest, improved status output"
         },
         "beta": {
           "version": "1.0.2",
           "file": "scan-station-1.0.2.bin",
-          "md5": "02afbcd4a5650f8166916039abc90337",
-          "size": 1093024,
-          "date": "2026-03-11",
-          "notes": "Env sensor support, rich hardware manifest, improved status output"
+          "md5": "fcee0d832130800af3517caf669295a5",
+          "size": 1100624,
+          "date": "2026-03-10",
+          "notes": "Device config push, env sensor support, rich hardware manifest, improved status output"
         },
         "dev": {
           "version": "1.0.2",
           "file": "scan-station-1.0.2.bin",
-          "md5": "02afbcd4a5650f8166916039abc90337",
-          "size": 1093024,
-          "date": "2026-03-11",
-          "notes": "Env sensor support, rich hardware manifest, improved status output"
+          "md5": "fcee0d832130800af3517caf669295a5",
+          "size": 1100624,
+          "date": "2026-03-10",
+          "notes": "Device config push, env sensor support, rich hardware manifest, improved status output"
         }
       }
     },

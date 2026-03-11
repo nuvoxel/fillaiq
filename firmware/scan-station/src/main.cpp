@@ -18,6 +18,7 @@
 #include "color.h"
 #include "ota_update.h"
 #include "environment.h"
+#include "device_config.h"
 
 // ============================================================
 // Filla IQ — Scan Station Firmware
@@ -566,6 +567,7 @@ void handleSerial() {
         Serial.println("\n--- State ---");
         Serial.printf("  Scan: %s\n", scanStateName(scanState));
         Serial.printf("  Uptime: %lus  Free heap: %u bytes\n", millis() / 1000, ESP.getFreeHeap());
+        deviceConfig.printStatus();
 
         Serial.println("========================================\n");
     }
@@ -581,6 +583,9 @@ void handleSerial() {
             }
         }
         Serial.println();
+    }
+    else if (line == "config") {
+        deviceConfig.printStatus();
     }
     else if (line == "ota") {
         Serial.println("Checking for OTA update...");
@@ -605,7 +610,7 @@ void handleSerial() {
         ESP.restart();
     }
     else {
-        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c, ota, pair, unpair, reset");
+        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c, config, ota, pair, unpair, reset");
     }
 }
 
@@ -692,6 +697,9 @@ void setup() {
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
+    // Device config (loads from NVS)
+    deviceConfig.begin();
+
     // API client (loads WiFi creds from NVS)
     apiClient.begin();
     apiClient.setCapabilities(caps);
@@ -774,7 +782,7 @@ void loop() {
 
     // Environmental data reporting (every 5 min)
     if (envSensor.isConnected() && apiClient.isPaired() && apiClient.isWiFiConnected()
-        && now - lastEnvReport >= ENV_REPORT_INTERVAL_MS) {
+        && now - lastEnvReport >= deviceConfig.envReportInterval()) {
         lastEnvReport = now;
         EnvData env;
         if (envSensor.read(env)) {
@@ -793,8 +801,8 @@ void loop() {
         updateDisplayAndLed();
     }
 
-    // Periodic serial status (every 2s)
-    if (now - lastSerialStatus >= 2000) {
+    // Periodic serial status
+    if (now - lastSerialStatus >= deviceConfig.statusInterval()) {
         lastSerialStatus = now;
         float w = scale.isStable() ? scale.getStableWeight() : scale.getWeight();
         Serial.printf("W:%.1fg%s", w, scale.isStable() ? " STABLE" : "");

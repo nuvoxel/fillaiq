@@ -152,6 +152,39 @@ export async function updateStationChannel(stationId: string, channel: string) {
   return ok({ updated: true });
 }
 
+export async function updateDeviceConfig(stationId: string, settings: Record<string, any>) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [station] = await db
+    .select()
+    .from(scanStations)
+    .where(
+      and(
+        eq(scanStations.id, stationId),
+        eq(scanStations.userId, guard.data.userId)
+      )
+    );
+
+  if (!station) return err("Station not found");
+
+  const existingConfig = (station.config as any) ?? {};
+  const updatedConfig = {
+    ...existingConfig,
+    deviceSettings: {
+      ...(existingConfig.deviceSettings ?? {}),
+      ...settings,
+    },
+  };
+
+  await db
+    .update(scanStations)
+    .set({ config: updatedConfig, updatedAt: new Date() })
+    .where(eq(scanStations.id, stationId));
+
+  return ok({ updated: true });
+}
+
 export async function getStationById(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;

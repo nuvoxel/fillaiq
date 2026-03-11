@@ -26,7 +26,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import DevicesIcon from "@mui/icons-material/Devices";
 import ThermostatIcon from "@mui/icons-material/Thermostat";
-import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment } from "@/lib/actions/scan";
+import SettingsIcon from "@mui/icons-material/Settings";
+import Slider from "@mui/material/Slider";
+import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
 
 type SensorDetail = {
   detected?: boolean;
@@ -49,6 +51,7 @@ type StationConfig = {
     camera?: boolean;
     environment?: SensorDetail;
   };
+  deviceSettings?: Record<string, any>;
   latestEnvironment?: {
     temperatureC?: number | null;
     humidity?: number | null;
@@ -98,6 +101,9 @@ export function FillaIqTab() {
   const [pairOpen, setPairOpen] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
   const [pairError, setPairError] = useState("");
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configStation, setConfigStation] = useState<Station | null>(null);
+  const [configValues, setConfigValues] = useState<Record<string, any>>({});
 
   const fetchStations = async () => {
     const result = await listMyStations();
@@ -150,6 +156,40 @@ export function FillaIqTab() {
       } else {
         setPairOpen(false);
         setPairingCode("");
+        fetchStations();
+      }
+    });
+  };
+
+  const handleOpenConfig = (station: Station) => {
+    setConfigStation(station);
+    const settings = (station.config as StationConfig)?.deviceSettings ?? {};
+    setConfigValues({
+      envReportIntervalMs: (settings.envReportIntervalMs ?? 300000) / 60000,
+      otaCheckIntervalMs: (settings.otaCheckIntervalMs ?? 300000) / 60000,
+      weightCalibration: settings.weightCalibration ?? "",
+      displayBrightness: settings.displayBrightness ?? 255,
+      ledBrightness: settings.ledBrightness ?? 50,
+    });
+    setConfigOpen(true);
+  };
+
+  const handleSaveConfig = () => {
+    if (!configStation) return;
+    startTransition(async () => {
+      const settings: Record<string, any> = {};
+      if (configValues.envReportIntervalMs)
+        settings.envReportIntervalMs = configValues.envReportIntervalMs * 60000;
+      if (configValues.otaCheckIntervalMs)
+        settings.otaCheckIntervalMs = configValues.otaCheckIntervalMs * 60000;
+      if (configValues.weightCalibration)
+        settings.weightCalibration = parseFloat(configValues.weightCalibration);
+      settings.displayBrightness = configValues.displayBrightness;
+      settings.ledBrightness = configValues.ledBrightness;
+
+      const result = await updateDeviceConfig(configStation.id, settings);
+      if (!result.error) {
+        setConfigOpen(false);
         fetchStations();
       }
     });
@@ -312,6 +352,13 @@ export function FillaIqTab() {
                   <TableCell>
                     <IconButton
                       size="small"
+                      onClick={() => handleOpenConfig(station)}
+                      title="Device settings"
+                    >
+                      <SettingsIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
                       color="error"
                       onClick={() => handleRevoke(station.id, station.name)}
                       disabled={isPending}
@@ -326,6 +373,63 @@ export function FillaIqTab() {
           </Table>
         </TableContainer>
       )}
+
+      <Dialog open={configOpen} onClose={() => setConfigOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Device Settings — {configStation?.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Settings are pushed to the device on the next heartbeat check.
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+            <TextField
+              label="Environment Report Interval (minutes)"
+              type="number"
+              size="small"
+              value={configValues.envReportIntervalMs ?? ""}
+              onChange={(e) => setConfigValues(v => ({ ...v, envReportIntervalMs: e.target.value }))}
+              inputProps={{ min: 1, max: 60 }}
+            />
+            <TextField
+              label="OTA Check Interval (minutes)"
+              type="number"
+              size="small"
+              value={configValues.otaCheckIntervalMs ?? ""}
+              onChange={(e) => setConfigValues(v => ({ ...v, otaCheckIntervalMs: e.target.value }))}
+              inputProps={{ min: 1, max: 60 }}
+            />
+            <TextField
+              label="Weight Calibration Factor"
+              type="number"
+              size="small"
+              value={configValues.weightCalibration ?? ""}
+              onChange={(e) => setConfigValues(v => ({ ...v, weightCalibration: e.target.value }))}
+              inputProps={{ step: 0.0001 }}
+            />
+            <Box>
+              <Typography variant="body2" gutterBottom>Display Brightness ({configValues.displayBrightness})</Typography>
+              <Slider
+                value={configValues.displayBrightness ?? 255}
+                onChange={(_, v) => setConfigValues(vals => ({ ...vals, displayBrightness: v }))}
+                min={0} max={255} step={1}
+              />
+            </Box>
+            <Box>
+              <Typography variant="body2" gutterBottom>LED Brightness ({configValues.ledBrightness})</Typography>
+              <Slider
+                value={configValues.ledBrightness ?? 50}
+                onChange={(_, v) => setConfigValues(vals => ({ ...vals, ledBrightness: v }))}
+                min={0} max={255} step={1}
+              />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfigOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveConfig} variant="contained" disabled={isPending}>
+            {isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={pairOpen} onClose={() => setPairOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Pair Device</DialogTitle>
