@@ -3,28 +3,28 @@
     "scan-station": {
       "channels": {
         "stable": {
-          "version": "1.0.4",
-          "file": "scan-station-1.0.4.bin",
-          "md5": "ed15e0e9da4a759f8d3ae11a67685de4",
-          "size": 1685008,
+          "version": "1.0.6",
+          "file": "scan-station-1.0.6.bin",
+          "md5": "118e78d6b905989f67d640ebc86bf81a",
+          "size": 1728544,
           "date": "2026-03-11",
-          "notes": "IRQ-driven NFC reads (GPIO 7), reduced SPI bus contention"
+          "notes": "BLE printer queries (battery/firmware/serial), USB Host support, dual transport, full-label test pattern, improved capabilities heartbeat"
         },
         "beta": {
-          "version": "1.0.4",
-          "file": "scan-station-1.0.4.bin",
-          "md5": "ed15e0e9da4a759f8d3ae11a67685de4",
-          "size": 1685008,
+          "version": "1.0.6",
+          "file": "scan-station-1.0.6.bin",
+          "md5": "118e78d6b905989f67d640ebc86bf81a",
+          "size": 1728544,
           "date": "2026-03-11",
-          "notes": "IRQ-driven NFC reads (GPIO 7), reduced SPI bus contention"
+          "notes": "BLE printer queries (battery/firmware/serial), USB Host support, dual transport, full-label test pattern, improved capabilities heartbeat"
         },
         "dev": {
-          "version": "1.0.4",
-          "file": "scan-station-1.0.4.bin",
-          "md5": "ed15e0e9da4a759f8d3ae11a67685de4",
-          "size": 1685008,
+          "version": "1.0.6",
+          "file": "scan-station-1.0.6.bin",
+          "md5": "118e78d6b905989f67d640ebc86bf81a",
+          "size": 1728544,
           "date": "2026-03-11",
-          "notes": "IRQ-driven NFC reads (GPIO 7), reduced SPI bus contention"
+          "notes": "BLE printer queries (battery/firmware/serial), USB Host support, dual transport, full-label test pattern, improved capabilities heartbeat"
         }
       }
     },
