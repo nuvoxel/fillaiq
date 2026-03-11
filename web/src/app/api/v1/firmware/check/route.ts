@@ -113,9 +113,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Build absolute URL for the firmware binary
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  const host = request.headers.get("host") ?? "www.fillaiq.com";
-  const binUrl = `${proto}://${host}/api/v1/firmware/download?file=${entry.file}`;
+  // Serve from Azure Blob Storage to support HTTP/1.0 clients (ESP32 HTTPUpdate)
+  const binUrl = `https://fillaiqfw.blob.core.windows.net/firmware/${entry.file}`;
 
   return NextResponse.json({
     updateAvailable: true,
