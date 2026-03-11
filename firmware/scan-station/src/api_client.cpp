@@ -412,6 +412,26 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     addSensor("display", _capabilities.display);
     addSensor("leds", _capabilities.leds);
     addSensor("environment", _capabilities.environment);
+    // Printer has richer info than SensorInfo
+    if (_capabilities.printer.detected) {
+        JsonObject p = caps["printer"].to<JsonObject>();
+        p["detected"] = true;
+        if (_capabilities.printer.model[0]) p["model"] = _capabilities.printer.model;
+        if (_capabilities.printer.connection[0]) p["connection"] = _capabilities.printer.connection;
+        if (_capabilities.printer.labelWidthMm > 0) p["labelWidthMm"] = _capabilities.printer.labelWidthMm;
+        if (_capabilities.printer.labelHeightMm > 0) p["labelHeightMm"] = _capabilities.printer.labelHeightMm;
+        if (_capabilities.printer.dpi > 0) p["dpi"] = _capabilities.printer.dpi;
+        if (_capabilities.printer.protocol[0]) p["protocol"] = _capabilities.printer.protocol;
+        if (_capabilities.printer.usbVid > 0) {
+            char vid[8]; snprintf(vid, sizeof(vid), "0x%04X", _capabilities.printer.usbVid);
+            p["usbVid"] = vid;
+        }
+        if (_capabilities.printer.usbPid > 0) {
+            char pid[8]; snprintf(pid, sizeof(pid), "0x%04X", _capabilities.printer.usbPid);
+            p["usbPid"] = pid;
+        }
+        if (_capabilities.printer.bleAddr[0]) p["bleAddr"] = _capabilities.printer.bleAddr;
+    }
     caps["turntable"] = _capabilities.turntable;
     caps["camera"] = _capabilities.camera;
 

@@ -59,6 +59,38 @@ struct SensorInfo {
     }
 };
 
+struct PrinterInfo {
+    bool detected = false;
+    char model[32] = {0};           // e.g. "Niimbot B21", "Niimbot D110"
+    char connection[8] = {0};       // "USB", "BLE", or "BOTH"
+    int labelWidthMm = 0;           // Max label width in mm
+    int labelHeightMm = 0;          // Max label height in mm
+    int dpi = 0;                    // Print resolution
+    char protocol[16] = {0};        // "niimbot", "escpos", etc.
+    uint16_t usbVid = 0;           // USB vendor ID
+    uint16_t usbPid = 0;           // USB product ID
+    char bleAddr[18] = {0};        // BLE MAC address if connected via BLE
+
+    void set(const char* m, const char* conn, int w, int h, int res = 203) {
+        detected = true;
+        strncpy(model, m, sizeof(model) - 1);
+        strncpy(connection, conn, sizeof(connection) - 1);
+        labelWidthMm = w;
+        labelHeightMm = h;
+        dpi = res;
+        strncpy(protocol, "niimbot", sizeof(protocol) - 1);
+    }
+
+    void setUsb(uint16_t vid, uint16_t pid) {
+        usbVid = vid;
+        usbPid = pid;
+    }
+
+    void setBle(const char* addr) {
+        strncpy(bleAddr, addr, sizeof(bleAddr) - 1);
+    }
+};
+
 struct DeviceCapabilities {
     SensorInfo nfc;
     SensorInfo scale;
@@ -67,6 +99,7 @@ struct DeviceCapabilities {
     SensorInfo display;
     SensorInfo leds;
     SensorInfo environment;
+    PrinterInfo printer;
     bool turntable = false;
     bool camera = false;
 };
@@ -111,6 +144,7 @@ public:
     bool hasTurntable() const { return _capabilities.turntable; }
     bool hasCamera() const { return _capabilities.camera; }
     bool hasEnv() const { return _capabilities.environment.detected; }
+    bool hasPrinter() const { return _capabilities.printer.detected; }
 
     void printStatus();
 

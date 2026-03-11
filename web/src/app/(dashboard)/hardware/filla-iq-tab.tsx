@@ -39,6 +39,19 @@ type SensorDetail = {
   pin2?: number;
 };
 
+type PrinterDetail = {
+  detected?: boolean;
+  model?: string;
+  connection?: string;
+  labelWidthMm?: number;
+  labelHeightMm?: number;
+  dpi?: number;
+  protocol?: string;
+  usbVid?: string;
+  usbPid?: string;
+  bleAddr?: string;
+};
+
 type StationConfig = {
   capabilities?: {
     nfc?: SensorDetail;
@@ -50,6 +63,7 @@ type StationConfig = {
     turntable?: boolean;
     camera?: boolean;
     environment?: SensorDetail;
+    printer?: PrinterDetail;
   };
   deviceSettings?: Record<string, any>;
   latestEnvironment?: {
@@ -89,6 +103,26 @@ function SensorChip({ label, sensor }: { label: string; sensor?: SensorDetail })
   return (
     <Tooltip title={details || label} arrow>
       <Chip label={label} size="small" variant="outlined" />
+    </Tooltip>
+  );
+}
+
+function PrinterChip({ printer }: { printer?: PrinterDetail }) {
+  if (!printer?.detected) return null;
+  const details = [
+    printer.model,
+    printer.connection,
+    printer.dpi ? `${printer.dpi} DPI` : null,
+    printer.labelWidthMm && printer.labelHeightMm
+      ? `${printer.labelWidthMm}x${printer.labelHeightMm}mm`
+      : null,
+    printer.protocol,
+    printer.usbVid ? `USB ${printer.usbVid}:${printer.usbPid}` : null,
+    printer.bleAddr ? `BLE ${printer.bleAddr}` : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <Tooltip title={details} arrow>
+      <Chip label={`Printer: ${printer.model || "Unknown"}`} size="small" variant="outlined" color="secondary" />
     </Tooltip>
   );
 }
@@ -294,6 +328,7 @@ export function FillaIqTab() {
                               <SensorChip label="Display" sensor={caps.display} />
                               <SensorChip label="LEDs" sensor={caps.leds} />
                               <SensorChip label="Env" sensor={caps.environment} />
+                              <PrinterChip printer={caps.printer} />
                               {caps.turntable && <Chip label="Turntable" size="small" variant="outlined" />}
                               {caps.camera && <Chip label="Camera" size="small" variant="outlined" />}
                             </>

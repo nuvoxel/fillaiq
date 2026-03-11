@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -10,9 +11,11 @@ import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import AddIcon from "@mui/icons-material/Add";
 import LabelIcon from "@mui/icons-material/Label";
 import StarIcon from "@mui/icons-material/Star";
+import SettingsIcon from "@mui/icons-material/Settings";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -41,6 +44,7 @@ const formatColors: Record<string, "primary" | "secondary" | "default" | "succes
 export function LabelTemplatesCard() {
   const [templates, setTemplates] = useState<LabelTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     listLabelTemplates().then((result) => {
@@ -55,9 +59,24 @@ export function LabelTemplatesCard() {
         title="Label Templates"
         titleTypographyProps={{ fontWeight: 600 }}
         action={
-          <Button size="small" startIcon={<AddIcon />} variant="outlined">
-            Add Template
-          </Button>
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+            <Button
+              size="small"
+              startIcon={<SettingsIcon />}
+              variant="text"
+              href="/settings/labels"
+            >
+              Manage Labels
+            </Button>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              variant="outlined"
+              href="/settings/labels"
+            >
+              Add Template
+            </Button>
+          </Box>
         }
       />
       <Divider />
@@ -86,8 +105,22 @@ export function LabelTemplatesCard() {
               </TableHead>
               <TableBody>
                 {templates.map((tmpl) => (
-                  <TableRow key={tmpl.id}>
-                    <TableCell>{tmpl.name}</TableCell>
+                  <TableRow
+                    key={tmpl.id}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => router.push(`/settings/labels?id=${tmpl.id}`)}
+                  >
+                    <TableCell>
+                      <Link
+                        href={`/settings/labels?id=${tmpl.id}`}
+                        underline="hover"
+                        color="inherit"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {tmpl.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={tmpl.labelFormat.replace(/_/g, " ")}
@@ -99,7 +132,7 @@ export function LabelTemplatesCard() {
                     <TableCell>
                       {tmpl.widthMm != null && tmpl.heightMm != null
                         ? `${tmpl.widthMm} x ${tmpl.heightMm} mm`
-                        : "—"}
+                        : "\u2014"}
                     </TableCell>
                     <TableCell>
                       {tmpl.isDefault && (

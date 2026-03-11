@@ -699,9 +699,20 @@ export async function getLabelTemplateById(id: string) {
   return result;
 }
 export async function listLabelTemplates(params?: PaginationParams) {
-  const guard = await requireAdmin();
+  const guard = await requireAuth();
   if (guard.error !== null) return guard;
-  return labelTemplatesCrud.list(params);
+  try {
+    const q = db
+      .select()
+      .from(labelTemplates)
+      .where(eq(labelTemplates.userId, guard.data.userId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 export async function updateLabelTemplate(id: string, input: unknown) {
   const guard = await requireAuth();
