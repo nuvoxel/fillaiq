@@ -3,28 +3,28 @@
     "scan-station": {
       "channels": {
         "stable": {
-          "version": "1.0.0",
-          "file": "scan-station-1.0.0.bin",
-          "md5": "",
-          "size": 0,
+          "version": "1.0.1",
+          "file": "scan-station-1.0.1.bin",
+          "md5": "eb4c4b8bb1edacceeedf2ff60cfddc2a",
+          "size": 1087712,
           "date": "2026-03-10",
-          "notes": "Initial OTA-capable release"
+          "notes": "OTA test release"
         },
         "beta": {
-          "version": "1.0.0",
-          "file": "scan-station-1.0.0.bin",
-          "md5": "",
-          "size": 0,
+          "version": "1.0.1",
+          "file": "scan-station-1.0.1.bin",
+          "md5": "eb4c4b8bb1edacceeedf2ff60cfddc2a",
+          "size": 1087712,
           "date": "2026-03-10",
-          "notes": "Same as stable"
+          "notes": "OTA test release"
         },
         "dev": {
-          "version": "1.0.0",
-          "file": "scan-station-1.0.0.bin",
-          "md5": "",
-          "size": 0,
+          "version": "1.0.1",
+          "file": "scan-station-1.0.1.bin",
+          "md5": "eb4c4b8bb1edacceeedf2ff60cfddc2a",
+          "size": 1087712,
           "date": "2026-03-10",
-          "notes": "Same as stable"
+          "notes": "OTA test release"
         }
       }
     },
@@ -36,7 +36,7 @@
           "md5": "",
           "size": 0,
           "date": "2026-03-10",
-          "notes": "Initial release"
+          "notes": "Placeholder"
         }
       }
     }
