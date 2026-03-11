@@ -4,12 +4,6 @@ import { useState, useEffect, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import IconButton from "@mui/material/IconButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
@@ -22,13 +16,25 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import Divider from "@mui/material/Divider";
+import Slider from "@mui/material/Slider";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import DevicesIcon from "@mui/icons-material/Devices";
 import ThermostatIcon from "@mui/icons-material/Thermostat";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import PrintIcon from "@mui/icons-material/Print";
 import SettingsIcon from "@mui/icons-material/Settings";
-import Slider from "@mui/material/Slider";
+import InfoIcon from "@mui/icons-material/Info";
+import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 type SensorDetail = {
   detected?: boolean;
@@ -66,12 +72,6 @@ type StationConfig = {
     printer?: PrinterDetail;
   };
   deviceSettings?: Record<string, any>;
-  latestEnvironment?: {
-    temperatureC?: number | null;
-    humidity?: number | null;
-    pressureHPa?: number | null;
-    createdAt?: string;
-  };
 } | null;
 
 type Station = {
@@ -92,40 +92,366 @@ type Station = {
   createdAt: string;
 };
 
-function SensorChip({ label, sensor }: { label: string; sensor?: SensorDetail }) {
-  if (!sensor?.detected) return null;
-  const details = [
-    sensor.chip,
-    sensor.interface,
-    sensor.address,
-    sensor.pin != null ? `GPIO${sensor.pin}` : null,
-  ].filter(Boolean).join(" · ");
+// ── Small components ─────────────────────────────────────────────────────────
+
+function InfoRow({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
+  if (!value) return null;
   return (
-    <Tooltip title={details || label} arrow>
-      <Chip label={label} size="small" variant="outlined" />
-    </Tooltip>
+    <Box sx={{ display: "flex", gap: 1, alignItems: "baseline" }}>
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 100, flexShrink: 0 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" fontFamily={mono ? "monospace" : undefined}>
+        {value}
+      </Typography>
+    </Box>
   );
 }
 
-function PrinterChip({ printer }: { printer?: PrinterDetail }) {
-  if (!printer?.detected) return null;
-  const details = [
-    printer.model,
-    printer.connection,
-    printer.dpi ? `${printer.dpi} DPI` : null,
-    printer.labelWidthMm && printer.labelHeightMm
-      ? `${printer.labelWidthMm}x${printer.labelHeightMm}mm`
-      : null,
-    printer.protocol,
-    printer.usbVid ? `USB ${printer.usbVid}:${printer.usbPid}` : null,
-    printer.bleAddr ? `BLE ${printer.bleAddr}` : null,
-  ].filter(Boolean).join(" · ");
+function SensorRow({ label, sensor }: { label: string; sensor?: SensorDetail }) {
+  if (!sensor?.detected) return null;
+  const details = [sensor.chip, sensor.interface, sensor.address].filter(Boolean).join(" · ");
+  const pins = [
+    sensor.pin != null ? `GPIO${sensor.pin}` : null,
+    sensor.pin2 != null ? `GPIO${sensor.pin2}` : null,
+  ].filter(Boolean).join(", ");
   return (
-    <Tooltip title={details} arrow>
-      <Chip label={`Printer: ${printer.model || "Unknown"}`} size="small" variant="outlined" color="secondary" />
-    </Tooltip>
+    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+      <Chip label={label} size="small" variant="outlined" sx={{ minWidth: 60 }} />
+      <Typography variant="body2" color="text.secondary">
+        {details}
+        {pins && <Typography component="span" variant="body2" color="text.disabled" sx={{ ml: 0.5 }}>({pins})</Typography>}
+      </Typography>
+    </Box>
   );
 }
+
+// ── Station Card ─────────────────────────────────────────────────────────────
+
+function StationCard({
+  station,
+  envData,
+  isPending,
+  onChannelChange,
+  onRevoke,
+  onSaveConfig,
+}: {
+  station: Station;
+  envData: { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null } | undefined;
+  isPending: boolean;
+  onChannelChange: (id: string, channel: string) => void;
+  onRevoke: (id: string, name: string) => void;
+  onSaveConfig: (id: string, settings: Record<string, any>) => void;
+}) {
+  const caps = (station.config as StationConfig)?.capabilities;
+  const settings = (station.config as StationConfig)?.deviceSettings ?? {};
+  const printer = caps?.printer;
+
+  const [configValues, setConfigValues] = useState({
+    envReportIntervalMs: (settings.envReportIntervalMs ?? 300000) / 60000,
+    otaCheckIntervalMs: (settings.otaCheckIntervalMs ?? 300000) / 60000,
+    weightCalibration: settings.weightCalibration ?? "",
+    displayBrightness: settings.displayBrightness ?? 255,
+    ledBrightness: settings.ledBrightness ?? 50,
+    printerSpeed: settings.printerSpeed ?? 3,
+    printerDensity: settings.printerDensity ?? 10,
+  });
+
+  const handleSave = () => {
+    const out: Record<string, any> = {};
+    if (configValues.envReportIntervalMs)
+      out.envReportIntervalMs = configValues.envReportIntervalMs * 60000;
+    if (configValues.otaCheckIntervalMs)
+      out.otaCheckIntervalMs = configValues.otaCheckIntervalMs * 60000;
+    if (configValues.weightCalibration)
+      out.weightCalibration = parseFloat(String(configValues.weightCalibration));
+    out.displayBrightness = configValues.displayBrightness;
+    out.ledBrightness = configValues.ledBrightness;
+    out.printerSpeed = configValues.printerSpeed;
+    out.printerDensity = configValues.printerDensity;
+    onSaveConfig(station.id, out);
+  };
+
+  return (
+    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+      {/* ── Station Header ──────────────────────────────────────────── */}
+      <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 2, bgcolor: "grey.50" }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="subtitle1" fontWeight={600} noWrap>
+              {station.name}
+            </Typography>
+            <Chip
+              icon={<FiberManualRecordIcon sx={{ fontSize: "10px !important" }} />}
+              label={station.isOnline ? "Online" : "Offline"}
+              size="small"
+              color={station.isOnline ? "success" : "default"}
+              variant="outlined"
+            />
+          </Box>
+          <Box sx={{ display: "flex", gap: 2, mt: 0.25, flexWrap: "wrap" }}>
+            <Typography variant="caption" color="text.secondary">
+              {station.deviceSku ?? "scan-station"} &middot; {station.hardwareId}
+            </Typography>
+            <Typography variant="caption" fontFamily="monospace" color="text.secondary">
+              FW {station.firmwareVersion ?? "—"}
+            </Typography>
+            {station.ipAddress && (
+              <Typography variant="caption" fontFamily="monospace" color="text.secondary">
+                {station.ipAddress}
+              </Typography>
+            )}
+            {station.lastSeenAt && (
+              <Typography variant="caption" color="text.secondary">
+                Last seen {new Date(station.lastSeenAt).toLocaleString()}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        <Select
+          size="small"
+          value={station.firmwareChannel ?? "stable"}
+          onChange={(e) => onChannelChange(station.id, e.target.value)}
+          disabled={isPending}
+          sx={{ minWidth: 90, fontSize: "0.8125rem" }}
+        >
+          <MenuItem value="stable">Stable</MenuItem>
+          <MenuItem value="beta">Beta</MenuItem>
+          <MenuItem value="dev">Dev</MenuItem>
+        </Select>
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => onRevoke(station.id, station.name)}
+          disabled={isPending}
+          title="Revoke device"
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Box>
+
+      {/* ── Capabilities accordion ──────────────────────────────────── */}
+      <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <InfoIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+            <Typography variant="body2" fontWeight={500}>Capabilities</Typography>
+            {caps && (
+              <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexWrap: "wrap" }}>
+                {caps.nfc?.detected && <Chip label="NFC" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.scale?.detected && <Chip label="Scale" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.tof?.detected && <Chip label="TOF" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.colorSensor?.detected && <Chip label="Color" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.environment?.detected && <Chip label="Env" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.printer?.detected && <Chip label="Printer" size="small" variant="outlined" color="secondary" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+              </Box>
+            )}
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={0.75}>
+            <SensorRow label="NFC" sensor={caps?.nfc} />
+            <SensorRow label="Scale" sensor={caps?.scale} />
+            <SensorRow label="TOF" sensor={caps?.tof} />
+            <SensorRow label="Color" sensor={caps?.colorSensor} />
+            <SensorRow label="Display" sensor={caps?.display} />
+            <SensorRow label="LEDs" sensor={caps?.leds} />
+            <SensorRow label="Env" sensor={caps?.environment} />
+            {caps?.turntable && <Chip label="Turntable" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
+            {caps?.camera && <Chip label="Camera" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
+            {envData && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
+                <ThermostatIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                <Typography variant="body2" fontFamily="monospace" color="text.secondary">
+                  {[
+                    envData.temperatureC != null ? `${envData.temperatureC.toFixed(1)}\u00b0C` : null,
+                    envData.humidity != null ? `${envData.humidity.toFixed(0)}% RH` : null,
+                    envData.pressureHPa != null ? `${envData.pressureHPa.toFixed(0)} hPa` : null,
+                  ].filter(Boolean).join(" \u00b7 ")}
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      <Divider />
+
+      {/* ── Settings accordion ──────────────────────────────────────── */}
+      <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <SettingsIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+            <Typography variant="body2" fontWeight={500}>Settings</Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+            Settings are pushed to the device on the next heartbeat check.
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6 }}>
+              <TextField
+                label="Env Report (min)"
+                type="number"
+                size="small"
+                fullWidth
+                value={configValues.envReportIntervalMs}
+                onChange={(e) => setConfigValues(v => ({ ...v, envReportIntervalMs: Number(e.target.value) }))}
+                slotProps={{ htmlInput: { min: 1, max: 60 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField
+                label="OTA Check (min)"
+                type="number"
+                size="small"
+                fullWidth
+                value={configValues.otaCheckIntervalMs}
+                onChange={(e) => setConfigValues(v => ({ ...v, otaCheckIntervalMs: Number(e.target.value) }))}
+                slotProps={{ htmlInput: { min: 1, max: 60 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField
+                label="Weight Calibration"
+                type="number"
+                size="small"
+                fullWidth
+                value={configValues.weightCalibration}
+                onChange={(e) => setConfigValues(v => ({ ...v, weightCalibration: e.target.value }))}
+                slotProps={{ htmlInput: { step: 0.0001 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }} />
+            <Grid size={{ xs: 6 }}>
+              <Typography variant="caption" color="text.secondary">Display Brightness ({configValues.displayBrightness})</Typography>
+              <Slider
+                value={configValues.displayBrightness}
+                onChange={(_, v) => setConfigValues(vals => ({ ...vals, displayBrightness: v as number }))}
+                min={0} max={255} step={1} size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <Typography variant="caption" color="text.secondary">LED Brightness ({configValues.ledBrightness})</Typography>
+              <Slider
+                value={configValues.ledBrightness}
+                onChange={(_, v) => setConfigValues(vals => ({ ...vals, ledBrightness: v as number }))}
+                min={0} max={255} step={1} size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button size="small" variant="contained" onClick={handleSave} disabled={isPending}>
+                  {isPending ? "Saving..." : "Save Settings"}
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* ── Printer sub-device accordion ────────────────────────────── */}
+      {printer?.detected && (
+        <>
+          <Divider />
+          <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <PrintIcon sx={{ fontSize: 18, color: "secondary.main" }} />
+                <Typography variant="body2" fontWeight={500}>
+                  Label Printer
+                </Typography>
+                <Chip
+                  label={printer.model || "Unknown"}
+                  size="small"
+                  color="secondary"
+                  variant="outlined"
+                  sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  via {printer.connection}
+                </Typography>
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Grid container spacing={2}>
+                {/* Printer Info */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
+                    Device Info
+                  </Typography>
+                  <Stack spacing={0.5}>
+                    <InfoRow label="Model" value={printer.model} />
+                    <InfoRow label="Connection" value={printer.connection} />
+                    <InfoRow label="Protocol" value={printer.protocol?.toUpperCase()} />
+                    <InfoRow label="Resolution" value={printer.dpi ? `${printer.dpi} DPI` : undefined} />
+                    <InfoRow
+                      label="Label Size"
+                      value={printer.labelWidthMm && printer.labelHeightMm
+                        ? `${printer.labelWidthMm} x ${printer.labelHeightMm} mm`
+                        : undefined}
+                    />
+                    <InfoRow label="BLE Address" value={printer.bleAddr} mono />
+                    {printer.usbVid && (
+                      <InfoRow label="USB ID" value={`${printer.usbVid}:${printer.usbPid}`} mono />
+                    )}
+                  </Stack>
+                </Grid>
+
+                {/* Printer Settings */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
+                    Print Settings
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Print Speed ({configValues.printerSpeed})
+                      </Typography>
+                      <Slider
+                        value={configValues.printerSpeed}
+                        onChange={(_, v) => setConfigValues(vals => ({ ...vals, printerSpeed: v as number }))}
+                        min={1} max={5} step={1} size="small"
+                        marks={[
+                          { value: 1, label: "Slow" },
+                          { value: 3, label: "Normal" },
+                          { value: 5, label: "Fast" },
+                        ]}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Print Density ({configValues.printerDensity})
+                      </Typography>
+                      <Slider
+                        value={configValues.printerDensity}
+                        onChange={(_, v) => setConfigValues(vals => ({ ...vals, printerDensity: v as number }))}
+                        min={1} max={15} step={1} size="small"
+                        marks={[
+                          { value: 1, label: "Light" },
+                          { value: 8, label: "Normal" },
+                          { value: 15, label: "Dark" },
+                        ]}
+                      />
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                      <Button size="small" variant="contained" onClick={handleSave} disabled={isPending}>
+                        {isPending ? "Saving..." : "Save Settings"}
+                      </Button>
+                    </Box>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+        </>
+      )}
+    </Paper>
+  );
+}
+
+// ── Main Tab ─────────────────────────────────────────────────────────────────
 
 export function FillaIqTab() {
   const [stations, setStations] = useState<Station[]>([]);
@@ -135,9 +461,6 @@ export function FillaIqTab() {
   const [pairOpen, setPairOpen] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
   const [pairError, setPairError] = useState("");
-  const [configOpen, setConfigOpen] = useState(false);
-  const [configStation, setConfigStation] = useState<Station | null>(null);
-  const [configValues, setConfigValues] = useState<Record<string, any>>({});
 
   const fetchStations = async () => {
     const result = await listMyStations();
@@ -145,7 +468,6 @@ export function FillaIqTab() {
       const stationList = result.data as unknown as Station[];
       setStations(stationList);
 
-      // Fetch latest environment reading for stations with environment sensor
       const envEntries: Record<string, { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null }> = {};
       await Promise.all(
         stationList
@@ -175,9 +497,7 @@ export function FillaIqTab() {
     if (!confirm(`Revoke access for "${name}"? The device will need to be re-paired.`)) return;
     startTransition(async () => {
       const result = await revokeDevice(id);
-      if (!result.error) {
-        fetchStations();
-      }
+      if (!result.error) fetchStations();
     });
   };
 
@@ -195,46 +515,17 @@ export function FillaIqTab() {
     });
   };
 
-  const handleOpenConfig = (station: Station) => {
-    setConfigStation(station);
-    const settings = (station.config as StationConfig)?.deviceSettings ?? {};
-    setConfigValues({
-      envReportIntervalMs: (settings.envReportIntervalMs ?? 300000) / 60000,
-      otaCheckIntervalMs: (settings.otaCheckIntervalMs ?? 300000) / 60000,
-      weightCalibration: settings.weightCalibration ?? "",
-      displayBrightness: settings.displayBrightness ?? 255,
-      ledBrightness: settings.ledBrightness ?? 50,
-    });
-    setConfigOpen(true);
-  };
-
-  const handleSaveConfig = () => {
-    if (!configStation) return;
-    startTransition(async () => {
-      const settings: Record<string, any> = {};
-      if (configValues.envReportIntervalMs)
-        settings.envReportIntervalMs = configValues.envReportIntervalMs * 60000;
-      if (configValues.otaCheckIntervalMs)
-        settings.otaCheckIntervalMs = configValues.otaCheckIntervalMs * 60000;
-      if (configValues.weightCalibration)
-        settings.weightCalibration = parseFloat(configValues.weightCalibration);
-      settings.displayBrightness = configValues.displayBrightness;
-      settings.ledBrightness = configValues.ledBrightness;
-
-      const result = await updateDeviceConfig(configStation.id, settings);
-      if (!result.error) {
-        setConfigOpen(false);
-        fetchStations();
-      }
-    });
-  };
-
   const handleChannelChange = (id: string, channel: string) => {
     startTransition(async () => {
       const result = await updateStationChannel(id, channel);
-      if (!result.error) {
-        fetchStations();
-      }
+      if (!result.error) fetchStations();
+    });
+  };
+
+  const handleSaveConfig = (id: string, settings: Record<string, any>) => {
+    startTransition(async () => {
+      const result = await updateDeviceConfig(id, settings);
+      if (!result.error) fetchStations();
     });
   };
 
@@ -265,207 +556,22 @@ export function FillaIqTab() {
           </Typography>
         </Box>
       ) : (
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>SKU</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Hardware ID</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Firmware</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Channel</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Capabilities</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>IP Address</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Environment</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Last Seen</TableCell>
-                <TableCell />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {stations.map((station) => (
-                <TableRow key={station.id}>
-                  <TableCell>{station.name}</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                      {station.deviceSku ?? "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                      {station.hardwareId}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                      {station.firmwareVersion ?? "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      size="small"
-                      value={station.firmwareChannel ?? "stable"}
-                      onChange={(e) => handleChannelChange(station.id, e.target.value)}
-                      disabled={isPending}
-                      sx={{ minWidth: 90, fontSize: "0.8125rem" }}
-                    >
-                      <MenuItem value="stable">Stable</MenuItem>
-                      <MenuItem value="beta">Beta</MenuItem>
-                      <MenuItem value="dev">Dev</MenuItem>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                      {(() => {
-                        const caps = (station.config as StationConfig)?.capabilities;
-                        if (caps) {
-                          return (
-                            <>
-                              <SensorChip label="NFC" sensor={caps.nfc} />
-                              <SensorChip label="Scale" sensor={caps.scale} />
-                              <SensorChip label="TOF" sensor={caps.tof} />
-                              <SensorChip label="Color" sensor={caps.colorSensor} />
-                              <SensorChip label="Display" sensor={caps.display} />
-                              <SensorChip label="LEDs" sensor={caps.leds} />
-                              <SensorChip label="Env" sensor={caps.environment} />
-                              <PrinterChip printer={caps.printer} />
-                              {caps.turntable && <Chip label="Turntable" size="small" variant="outlined" />}
-                              {caps.camera && <Chip label="Camera" size="small" variant="outlined" />}
-                            </>
-                          );
-                        }
-                        // Fallback to boolean flags if no rich config
-                        return (
-                          <>
-                            {station.hasTofSensor && <Chip label="TOF" size="small" variant="outlined" />}
-                            {station.hasColorSensor && <Chip label="Color" size="small" variant="outlined" />}
-                            {station.hasTurntable && <Chip label="Turntable" size="small" variant="outlined" />}
-                            {station.hasCamera && <Chip label="Camera" size="small" variant="outlined" />}
-                          </>
-                        );
-                      })()}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                      {station.ipAddress ?? "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={station.isOnline ? "Online" : "Offline"}
-                      size="small"
-                      color={station.isOnline ? "success" : "default"}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const env = envData[station.id];
-                      if (!env) return <Typography variant="body2" color="text.secondary">—</Typography>;
-                      const parts: string[] = [];
-                      if (env.temperatureC != null) parts.push(`${env.temperatureC.toFixed(1)}°C`);
-                      if (env.humidity != null) parts.push(`${env.humidity.toFixed(0)}% RH`);
-                      if (env.pressureHPa != null) parts.push(`${env.pressureHPa.toFixed(0)} hPa`);
-                      if (parts.length === 0) return <Typography variant="body2" color="text.secondary">—</Typography>;
-                      return (
-                        <Tooltip title="Latest environmental reading" arrow>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <ThermostatIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                            <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                              {parts.join(" · ")}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell>
-                    {station.lastSeenAt
-                      ? new Date(station.lastSeenAt).toLocaleString()
-                      : "Never"}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleOpenConfig(station)}
-                      title="Device settings"
-                    >
-                      <SettingsIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => handleRevoke(station.id, station.name)}
-                      disabled={isPending}
-                      title="Revoke device access"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Stack spacing={2}>
+          {stations.map((station) => (
+            <StationCard
+              key={station.id}
+              station={station}
+              envData={envData[station.id]}
+              isPending={isPending}
+              onChannelChange={handleChannelChange}
+              onRevoke={handleRevoke}
+              onSaveConfig={handleSaveConfig}
+            />
+          ))}
+        </Stack>
       )}
 
-      <Dialog open={configOpen} onClose={() => setConfigOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Device Settings — {configStation?.name}</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Settings are pushed to the device on the next heartbeat check.
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-            <TextField
-              label="Environment Report Interval (minutes)"
-              type="number"
-              size="small"
-              value={configValues.envReportIntervalMs ?? ""}
-              onChange={(e) => setConfigValues(v => ({ ...v, envReportIntervalMs: e.target.value }))}
-              inputProps={{ min: 1, max: 60 }}
-            />
-            <TextField
-              label="OTA Check Interval (minutes)"
-              type="number"
-              size="small"
-              value={configValues.otaCheckIntervalMs ?? ""}
-              onChange={(e) => setConfigValues(v => ({ ...v, otaCheckIntervalMs: e.target.value }))}
-              inputProps={{ min: 1, max: 60 }}
-            />
-            <TextField
-              label="Weight Calibration Factor"
-              type="number"
-              size="small"
-              value={configValues.weightCalibration ?? ""}
-              onChange={(e) => setConfigValues(v => ({ ...v, weightCalibration: e.target.value }))}
-              inputProps={{ step: 0.0001 }}
-            />
-            <Box>
-              <Typography variant="body2" gutterBottom>Display Brightness ({configValues.displayBrightness})</Typography>
-              <Slider
-                value={configValues.displayBrightness ?? 255}
-                onChange={(_, v) => setConfigValues(vals => ({ ...vals, displayBrightness: v }))}
-                min={0} max={255} step={1}
-              />
-            </Box>
-            <Box>
-              <Typography variant="body2" gutterBottom>LED Brightness ({configValues.ledBrightness})</Typography>
-              <Slider
-                value={configValues.ledBrightness ?? 50}
-                onChange={(_, v) => setConfigValues(vals => ({ ...vals, ledBrightness: v }))}
-                min={0} max={255} step={1}
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfigOpen(false)}>Cancel</Button>
-          <Button onClick={handleSaveConfig} variant="contained" disabled={isPending}>
-            {isPending ? "Saving..." : "Save"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+      {/* Pair dialog */}
       <Dialog open={pairOpen} onClose={() => setPairOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Pair Device</DialogTitle>
         <DialogContent>
