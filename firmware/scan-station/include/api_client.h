@@ -71,14 +71,14 @@ struct PrinterInfo {
     uint16_t usbPid = 0;           // USB product ID
     char bleAddr[18] = {0};        // BLE MAC address if connected via BLE
 
-    void set(const char* m, const char* conn, int w, int h, int res = 203) {
+    void set(const char* m, const char* conn, int w, int h, int res = 203, const char* proto = "escpos") {
         detected = true;
         strncpy(model, m, sizeof(model) - 1);
         strncpy(connection, conn, sizeof(connection) - 1);
         labelWidthMm = w;
         labelHeightMm = h;
         dpi = res;
-        strncpy(protocol, "niimbot", sizeof(protocol) - 1);
+        strncpy(protocol, proto, sizeof(protocol) - 1);
     }
 
     void setUsb(uint16_t vid, uint16_t pid) {

@@ -111,5 +111,13 @@
 #define DEFAULT_ENV_REPORT_INTERVAL_MS  (5 * 60 * 1000UL)
 #define DEFAULT_STATUS_INTERVAL_MS      2000
 
+// --- Label Printer (Phomemo M120) ---
+#define PRINTER_USB_VID         0x0493  // Nuvoton
+#define PRINTER_USB_PID         0xB002
+#define PRINTER_MAX_WIDTH_MM    50
+#define PRINTER_MAX_HEIGHT_MM   200     // Continuous feed
+#define PRINTER_DPI             203
+#define PRINTER_DOTS_PER_LINE   384     // 48mm * 8 dots/mm
+
 // --- Serial ---
 #define SERIAL_BAUD             115200
