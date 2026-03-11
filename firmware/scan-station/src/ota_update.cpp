@@ -60,6 +60,13 @@ void otaCheckNow() {
     http.addHeader("X-Uptime", String(millis() / 1000));
     http.addHeader("X-Free-Heap", String(ESP.getFreeHeap()));
     http.addHeader("X-WiFi-RSSI", String(WiFi.RSSI()));
+    // Device capabilities
+    http.addHeader("X-Has-NFC", apiClient.hasNfc() ? "1" : "0");
+    http.addHeader("X-Has-Scale", apiClient.hasScale() ? "1" : "0");
+    http.addHeader("X-Has-TOF", apiClient.hasTof() ? "1" : "0");
+    http.addHeader("X-Has-Color", apiClient.hasColor() ? "1" : "0");
+    http.addHeader("X-Has-Turntable", apiClient.hasTurntable() ? "1" : "0");
+    http.addHeader("X-Has-Camera", apiClient.hasCamera() ? "1" : "0");
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.GET();

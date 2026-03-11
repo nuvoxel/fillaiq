@@ -41,6 +41,35 @@ struct ScanResponse {
     }
 };
 
+struct SensorInfo {
+    bool detected = false;
+    char chip[24] = {0};        // e.g. "PN532", "HX711", "VL53L1X", "AS7341"
+    char interface[8] = {0};    // "SPI", "I2C", "GPIO"
+    uint8_t i2cAddr = 0;        // I2C address (0 if not I2C)
+    int pin1 = -1;              // CS pin (SPI) or SCK (GPIO)
+    int pin2 = -1;              // DT pin (GPIO) or -1
+
+    void set(const char* c, const char* iface, uint8_t addr = 0, int p1 = -1, int p2 = -1) {
+        detected = true;
+        strncpy(chip, c, sizeof(chip) - 1);
+        strncpy(interface, iface, sizeof(interface) - 1);
+        i2cAddr = addr;
+        pin1 = p1;
+        pin2 = p2;
+    }
+};
+
+struct DeviceCapabilities {
+    SensorInfo nfc;
+    SensorInfo scale;
+    SensorInfo tof;
+    SensorInfo colorSensor;
+    SensorInfo display;
+    SensorInfo leds;
+    bool turntable = false;
+    bool camera = false;
+};
+
 class ApiClient {
 public:
     void begin();
@@ -70,9 +99,20 @@ public:
     const char* getApiUrl() const { return _apiUrl; }
     const char* getDeviceToken() const { return _deviceToken; }
     const char* getStationId() const { return _stationId; }
+    // Device capabilities
+    void setCapabilities(const DeviceCapabilities& caps);
+    const DeviceCapabilities& getCapabilities() const { return _capabilities; }
+    bool hasNfc() const { return _capabilities.nfc.detected; }
+    bool hasScale() const { return _capabilities.scale.detected; }
+    bool hasTof() const { return _capabilities.tof.detected; }
+    bool hasColor() const { return _capabilities.colorSensor.detected; }
+    bool hasTurntable() const { return _capabilities.turntable; }
+    bool hasCamera() const { return _capabilities.camera; }
+
     void printStatus();
 
 private:
+    DeviceCapabilities _capabilities;
     char _ssid[64];
     char _password[64];
     char _apiUrl[256];

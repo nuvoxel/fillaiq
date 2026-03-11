@@ -74,6 +74,8 @@ export async function listMyStations() {
       hasColorSensor: scanStations.hasColorSensor,
       hasTofSensor: scanStations.hasTofSensor,
       hasCamera: scanStations.hasCamera,
+      deviceSku: scanStations.deviceSku,
+      config: scanStations.config,
       createdAt: scanStations.createdAt,
     })
     .from(scanStations)

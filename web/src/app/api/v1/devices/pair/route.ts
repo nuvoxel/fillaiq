@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { hardwareId, sku, firmwareVersion } = body;
+  const { hardwareId, sku, firmwareVersion, firmwareChannel, capabilities } = body;
   if (!hardwareId || typeof hardwareId !== "string") {
     return NextResponse.json(
       { error: "hardwareId is required" },
@@ -57,6 +57,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ paired: true, stationId: existing.id });
   }
 
+  // Extract boolean flags from rich capabilities manifest
+  const capFlags = {
+    hasTofSensor: !!capabilities?.tof?.detected,
+    hasColorSensor: !!capabilities?.colorSensor?.detected,
+    hasTurntable: !!capabilities?.turntable,
+    hasCamera: !!capabilities?.camera,
+  };
+
   if (existing) {
     // Exists but unpaired — update pairing code + token
     await db
@@ -67,6 +75,9 @@ export async function POST(request: NextRequest) {
         pairingExpiresAt: expiresAt,
         deviceSku: sku || existing.deviceSku,
         firmwareVersion: firmwareVersion || existing.firmwareVersion,
+        firmwareChannel: firmwareChannel || existing.firmwareChannel,
+        ...capFlags,
+        config: capabilities ? { capabilities } : existing.config,
         ipAddress:
           request.headers.get("x-forwarded-for")?.split(",")[0] ?? null,
         lastSeenAt: new Date(),
@@ -83,6 +94,9 @@ export async function POST(request: NextRequest) {
       hardwareId,
       deviceSku: sku || "scan-station",
       firmwareVersion: firmwareVersion || null,
+      firmwareChannel: firmwareChannel || "stable",
+      ...capFlags,
+      config: capabilities ? { capabilities } : null,
       deviceToken,
       pairingCode,
       pairingExpiresAt: expiresAt,

@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     request.headers.get("x-device-sku") ??
     "scan-station";
 
-  // Update station heartbeat
+  // Update station heartbeat + capability flags
   await db
     .update(scanStations)
     .set({
@@ -71,6 +71,10 @@ export async function GET(request: NextRequest) {
       firmwareVersion: currentVersion,
       ipAddress:
         request.headers.get("x-forwarded-for")?.split(",")[0] ?? null,
+      hasTofSensor: request.headers.get("x-has-tof") === "1",
+      hasColorSensor: request.headers.get("x-has-color") === "1",
+      hasTurntable: request.headers.get("x-has-turntable") === "1",
+      hasCamera: request.headers.get("x-has-camera") === "1",
       updatedAt: new Date(),
     })
     .where(eq(scanStations.id, station.id));

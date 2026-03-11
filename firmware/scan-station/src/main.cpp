@@ -618,8 +618,32 @@ void setup() {
         scale.startTask(0, 2);  // Core 0 (loop runs on Core 1)
     }
 
+    // Build hardware manifest from detected sensors
+    DeviceCapabilities caps;
+    if (nfcScanner.isConnected())
+        caps.nfc.set("PN532", "SPI", 0, NFC_CS_PIN);
+    if (scale.isConnected())
+        caps.scale.set("HX711", "GPIO", 0, HX711_SCK_PIN, HX711_DT_PIN);
+    if (distanceSensor.isConnected())
+        caps.tof.set("VL53L1X", "I2C", VL53L1X_ADDR);
+    if (colorSensor.isConnected()) {
+        const char* chipName = "Unknown";
+        uint8_t addr = 0;
+        switch (colorSensor.getType()) {
+            case COLOR_AS7341:  chipName = "AS7341";  addr = AS7341_ADDR;  break;
+            case COLOR_AS7265X: chipName = "AS7265x"; addr = AS7265X_ADDR; break;
+            case COLOR_TCS34725: chipName = "TCS34725"; addr = TCS34725_ADDR; break;
+            case COLOR_OPT4048: chipName = "OPT4048"; addr = OPT4048_ADDR; break;
+            default: break;
+        }
+        caps.colorSensor.set(chipName, "I2C", addr);
+    }
+    caps.display.set("ST7789", "SPI", 0, TFT_CS_PIN);
+    caps.leds.set("WS2812B", "GPIO", 0, LED_PIN);
+
     // API client (loads WiFi creds from NVS)
     apiClient.begin();
+    apiClient.setCapabilities(caps);
 
     // Try WiFi if configured
     if (apiClient.connectWiFi()) {

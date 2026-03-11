@@ -24,7 +24,6 @@ import { PageHeader } from "@/components/layout/page-header";
 import { getUserProfile, listApiKeys, getUserPreferences } from "@/lib/actions/dashboard";
 import { SettingsPreferences } from "./preferences";
 import { LabelTemplatesCard } from "@/components/settings/label-templates-card";
-import { PairedDevicesCard } from "@/components/settings/paired-devices-card";
 import { OrganizationCard } from "@/components/settings/organization-card";
 
 export default async function SettingsPage() {
@@ -201,9 +200,6 @@ export default async function SettingsPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Paired Devices */}
-        <PairedDevicesCard />
 
         {/* Danger Zone */}
         <Card sx={{ borderColor: "error.main" }}>

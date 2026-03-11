@@ -105,6 +105,10 @@ void ApiClient::setStationId(const char* id) {
     saveConfig();
 }
 
+void ApiClient::setCapabilities(const DeviceCapabilities& caps) {
+    _capabilities = caps;
+}
+
 // ==================== API Calls ====================
 
 ApiStatus ApiClient::postScan(const ScanResult& scan, const TagData* tagData,
@@ -351,6 +355,33 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     doc["hardwareId"] = _stationId;
     doc["sku"] = FW_SKU;
     doc["firmwareVersion"] = FW_VERSION;
+
+    doc["firmwareChannel"] = FW_CHANNEL;
+
+    // Rich hardware manifest
+    JsonObject caps = doc["capabilities"].to<JsonObject>();
+    auto addSensor = [&](const char* key, const SensorInfo& s) {
+        if (!s.detected) return;
+        JsonObject obj = caps[key].to<JsonObject>();
+        obj["detected"] = true;
+        if (s.chip[0]) obj["chip"] = s.chip;
+        if (s.interface[0]) obj["interface"] = s.interface;
+        if (s.i2cAddr > 0) {
+            char addr[8];
+            snprintf(addr, sizeof(addr), "0x%02X", s.i2cAddr);
+            obj["address"] = addr;
+        }
+        if (s.pin1 >= 0) obj["pin"] = s.pin1;
+        if (s.pin2 >= 0) obj["pin2"] = s.pin2;
+    };
+    addSensor("nfc", _capabilities.nfc);
+    addSensor("scale", _capabilities.scale);
+    addSensor("tof", _capabilities.tof);
+    addSensor("colorSensor", _capabilities.colorSensor);
+    addSensor("display", _capabilities.display);
+    addSensor("leds", _capabilities.leds);
+    caps["turntable"] = _capabilities.turntable;
+    caps["camera"] = _capabilities.camera;
 
     String payload;
     serializeJson(doc, payload);

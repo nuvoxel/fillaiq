@@ -12,6 +12,7 @@ import { EquipmentDialog } from "@/components/hardware/equipment-dialog";
 import { RackTopologyTab } from "./rack-topology-tab";
 import { MachinesTab } from "./machines-tab";
 import { EquipmentTab } from "./equipment-tab";
+import { FillaIqTab } from "./filla-iq-tab";
 
 export default function HardwarePage() {
   const [tab, setTab] = useState(0);
@@ -34,9 +35,11 @@ export default function HardwarePage() {
         title="Hardware"
         description="Manage zones, machines, and equipment."
         action={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
-            {tab === 0 ? "Add Zone" : tab === 1 ? "Add Machine" : "Add Equipment"}
-          </Button>
+          tab !== 3 ? (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
+              {tab === 0 ? "Add Zone" : tab === 1 ? "Add Machine" : "Add Equipment"}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -45,12 +48,14 @@ export default function HardwarePage() {
           <Tab label="Zones" />
           <Tab label="Machines" />
           <Tab label="Equipment" />
+          <Tab label="Filla IQ" />
         </Tabs>
       </Box>
 
       {tab === 0 && <RackTopologyTab />}
       {tab === 1 && <MachinesTab refreshKey={refreshKey} />}
       {tab === 2 && <EquipmentTab refreshKey={refreshKey} />}
+      {tab === 3 && <FillaIqTab />}
 
       <MachineDialog
         open={machineDialogOpen}
