@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "1.0.1"
 #define FW_SKU     "scan-station"    // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
