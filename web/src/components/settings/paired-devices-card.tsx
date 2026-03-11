@@ -15,11 +15,19 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import IconButton from "@mui/material/IconButton";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import Alert from "@mui/material/Alert";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
 import DevicesIcon from "@mui/icons-material/Devices";
-import { listMyStations, revokeDevice, updateStationChannel } from "@/lib/actions/scan";
+import { listMyStations, revokeDevice, updateStationChannel, claimDevice } from "@/lib/actions/scan";
 
 type Station = {
   id: string;
@@ -37,6 +45,9 @@ export function PairedDevicesCard() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [pairOpen, setPairOpen] = useState(false);
+  const [pairingCode, setPairingCode] = useState("");
+  const [pairError, setPairError] = useState("");
 
   const fetchStations = async () => {
     const result = await listMyStations();
@@ -58,6 +69,20 @@ export function PairedDevicesCard() {
     });
   };
 
+  const handlePair = () => {
+    setPairError("");
+    startTransition(async () => {
+      const result = await claimDevice(pairingCode.trim().toUpperCase());
+      if (result.error) {
+        setPairError(result.error);
+      } else {
+        setPairOpen(false);
+        setPairingCode("");
+        fetchStations();
+      }
+    });
+  };
+
   const handleChannelChange = (id: string, channel: string) => {
     startTransition(async () => {
       const result = await updateStationChannel(id, channel);
@@ -72,6 +97,15 @@ export function PairedDevicesCard() {
       <CardHeader
         title="Devices"
         titleTypographyProps={{ fontWeight: 600 }}
+        action={
+          <Button
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => { setPairOpen(true); setPairError(""); setPairingCode(""); }}
+          >
+            Pair Device
+          </Button>
+        }
       />
       <Divider />
       <CardContent sx={{ p: 0 }}>
@@ -163,6 +197,32 @@ export function PairedDevicesCard() {
           </TableContainer>
         )}
       </CardContent>
+
+      <Dialog open={pairOpen} onClose={() => setPairOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Pair Device</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Enter the 6-character pairing code shown on your device.
+          </Typography>
+          {pairError && <Alert severity="error" sx={{ mb: 2 }}>{pairError}</Alert>}
+          <TextField
+            autoFocus
+            fullWidth
+            label="Pairing Code"
+            value={pairingCode}
+            onChange={(e) => setPairingCode(e.target.value.toUpperCase().slice(0, 6))}
+            onKeyDown={(e) => { if (e.key === "Enter" && pairingCode.length === 6) handlePair(); }}
+            inputProps={{ maxLength: 6, style: { fontFamily: "monospace", fontSize: "1.5rem", textAlign: "center", letterSpacing: "0.3em" } }}
+            placeholder="ABC123"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPairOpen(false)}>Cancel</Button>
+          <Button onClick={handlePair} variant="contained" disabled={isPending || pairingCode.length !== 6}>
+            {isPending ? "Pairing..." : "Pair"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Card>
   );
 }
