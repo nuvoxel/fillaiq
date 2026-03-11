@@ -1,5 +1,6 @@
 #include "printer.h"
 #include "scan_config.h"
+#include "usb_printer.h"
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
@@ -183,20 +184,59 @@ bool LabelPrinter::connect() {
     }
 
     _state.status = PRINTER_READY;
+    _state.transport = TRANSPORT_BLE;
     Serial.printf("[Printer] Connected to %s\n", _state.deviceName);
+
+    // Query printer info after connect
+    queryInfo();
+
     return true;
 }
 
 void LabelPrinter::disconnect() {
-    if (pClient && pClient->isConnected()) {
-        pClient->disconnect();
+    if (_state.transport == TRANSPORT_USB) {
+        usbPrinterDisconnect();
+    } else {
+        if (pClient && pClient->isConnected()) {
+            pClient->disconnect();
+        }
+        pWriteChar = nullptr;
+        pNotifyChar = nullptr;
     }
-    pWriteChar = nullptr;
-    pNotifyChar = nullptr;
     _state.status = PRINTER_DISCONNECTED;
+    _state.transport = TRANSPORT_NONE;
+}
+
+bool LabelPrinter::connectUsb() {
+    if (!usbPrinterReady()) {
+        Serial.println("[Printer] No USB printer detected");
+        return false;
+    }
+
+    // Disconnect BLE if connected
+    if (_state.transport == TRANSPORT_BLE) {
+        disconnect();
+    }
+
+    _state.transport = TRANSPORT_USB;
+    _state.status = PRINTER_READY;
+
+    // Copy USB descriptor info
+    strncpy(_state.deviceName, usbPrinterProduct(), sizeof(_state.deviceName) - 1);
+    strncpy(_state.usbManufacturer, usbPrinterManufacturer(), sizeof(_state.usbManufacturer) - 1);
+    strncpy(_state.usbProduct, usbPrinterProduct(), sizeof(_state.usbProduct) - 1);
+    strncpy(_state.usbSerial, usbPrinterSerial(), sizeof(_state.usbSerial) - 1);
+    _state.usbVid = usbPrinterVid();
+    _state.usbPid = usbPrinterPid();
+
+    Serial.printf("[Printer] USB connected — %s (%s) VID:0x%04X PID:0x%04X SN:%s\n",
+                  _state.usbProduct, _state.usbManufacturer,
+                  _state.usbVid, _state.usbPid, _state.usbSerial);
+    return true;
 }
 
 bool LabelPrinter::isConnected() const {
+    if (_state.transport == TRANSPORT_USB) return usbPrinterReady();
     return pClient && pClient->isConnected() && pWriteChar;
 }
 
@@ -289,16 +329,75 @@ bool LabelPrinter::printRaster(const uint8_t* bitmap, int widthBytes, int height
     return true;
 }
 
+// ── Query printer info ──────────────────────────────────────────────────────
+
+void LabelPrinter::queryInfo() {
+    if (!isConnected()) return;
+
+    Serial.println("[Printer] Querying printer info...");
+
+    // Query battery level
+    if (sendQuery(0x08)) {
+        Serial.printf("[Printer]   Battery: %d%%\n", _state.batteryPercent);
+    }
+
+    // Query firmware version
+    if (sendQuery(0x07)) {
+        Serial.printf("[Printer]   Firmware: %s\n", _state.firmwareVersion);
+    }
+
+    // Query serial number
+    if (sendQuery(0x13)) {
+        Serial.printf("[Printer]   Serial: %u\n", _state.serialNumber);
+    }
+
+    // Query paper/cover state — responses come as async notifications
+    uint8_t cmdPaper[] = { 0x1F, 0x11, 0x11 };
+    sendCommand(cmdPaper, sizeof(cmdPaper));
+    delay(300);
+    Serial.printf("[Printer]   Paper: %s\n", _state.paperLoaded ? "Loaded" : "Empty");
+
+    uint8_t cmdCover[] = { 0x1F, 0x11, 0x12 };
+    sendCommand(cmdCover, sizeof(cmdCover));
+    delay(300);
+    Serial.printf("[Printer]   Cover: %s\n", _state.coverClosed ? "Closed" : "Open");
+
+    _state.infoQueried = true;
+}
+
+bool LabelPrinter::sendQuery(uint8_t queryId, uint32_t timeoutMs) {
+    _pendingQuery = queryId;
+    _queryResponse = false;
+
+    uint8_t cmd[] = { 0x1F, 0x11, queryId };
+    if (!sendCommand(cmd, sizeof(cmd))) return false;
+
+    uint32_t start = millis();
+    while (!_queryResponse && (millis() - start) < timeoutMs) {
+        delay(20);
+    }
+
+    _pendingQuery = 0;
+    return _queryResponse;
+}
+
 // ── Private helpers ─────────────────────────────────────────────────────────
 
 bool LabelPrinter::sendCommand(const uint8_t* data, size_t len) {
+    if (_state.transport == TRANSPORT_USB) {
+        return usbPrinterSend(data, len);
+    }
     if (!pWriteChar) return false;
-    pWriteChar->writeValue((uint8_t*)data, len, false);  // write without response
+    pWriteChar->writeValue((uint8_t*)data, len, false);
     delay(10);
     return true;
 }
 
 bool LabelPrinter::sendChunked(const uint8_t* data, size_t len) {
+    if (_state.transport == TRANSPORT_USB) {
+        // USB can handle larger chunks directly
+        return usbPrinterSend(data, len);
+    }
     if (!pWriteChar) return false;
 
     size_t offset = 0;
@@ -314,6 +413,48 @@ bool LabelPrinter::sendChunked(const uint8_t* data, size_t len) {
 void LabelPrinter::onNotify(const uint8_t* data, size_t len) {
     if (len < 2) return;
 
+    // Log raw notify for debugging
+    Serial.printf("[Printer] Notify (%d bytes):", len);
+    for (size_t i = 0; i < len && i < 16; i++) Serial.printf(" %02X", data[i]);
+    Serial.println();
+
+    // Handle query responses: format is 0x1A <responseId> <data...>
+    // Note: command 1F 11 XX triggers response 1A YY where YY may differ from XX
+    if (_pendingQuery && len >= 3 && data[0] == 0x1A) {
+        uint8_t respId = data[1];
+        switch (respId) {
+            case 0x04:  // Battery (response to 1F 11 08): 1A 04 <percent>
+                _state.batteryPercent = data[2];
+                _queryResponse = true;
+                return;
+            case 0x07:  // Firmware version: 1A 07 <v1> <v2> <v3>
+                if (len >= 5) {
+                    snprintf(_state.firmwareVersion, sizeof(_state.firmwareVersion),
+                             "%d.%d.%d", data[4], data[3], data[2]);
+                } else if (len >= 3) {
+                    snprintf(_state.firmwareVersion, sizeof(_state.firmwareVersion),
+                             "%d", data[2]);
+                }
+                _queryResponse = true;
+                return;
+            case 0x13:  // Serial number: 1A 13 <bytes little-endian>
+                _state.serialNumber = data[2];
+                if (len >= 4) _state.serialNumber |= (uint32_t)data[3] << 8;
+                if (len >= 5) _state.serialNumber |= (uint32_t)data[4] << 16;
+                _queryResponse = true;
+                return;
+            case 0x03:  // Temperature status (response to cover/paper queries)
+            case 0x05:  // Cover status
+            case 0x06:  // Paper status
+                // These fall through to the async handler below
+                break;
+            default:
+                _queryResponse = true;
+                return;
+        }
+    }
+
+    // Async status notifications (not query responses)
     uint8_t b1 = data[len - 2];
     uint8_t b2 = data[len - 1];
 
@@ -347,9 +488,20 @@ void LabelPrinter::printStatusInfo() {
         case PRINTER_PRINTING:     statusStr = "Printing"; break;
         case PRINTER_ERROR:        statusStr = "Error"; break;
     }
-    Serial.printf("  Printer:   %s", statusStr);
+    const char* transportStr = "—";
+    switch (_state.transport) {
+        case TRANSPORT_BLE: transportStr = "BLE"; break;
+        case TRANSPORT_USB: transportStr = "USB"; break;
+        default: break;
+    }
+    Serial.printf("  Printer:   %s [%s]", statusStr, transportStr);
     if (_state.deviceName[0]) {
-        Serial.printf(" — %s (%s)", _state.deviceName, _state.bleAddr);
+        if (_state.transport == TRANSPORT_USB) {
+            Serial.printf(" — %s (VID:0x%04X PID:0x%04X)",
+                _state.deviceName, _state.usbVid, _state.usbPid);
+        } else {
+            Serial.printf(" — %s (%s)", _state.deviceName, _state.bleAddr);
+        }
     }
     Serial.println();
     if (_state.status >= PRINTER_READY) {
@@ -357,5 +509,17 @@ void LabelPrinter::printStatusInfo() {
             _state.paperLoaded ? "OK" : "EMPTY",
             _state.coverClosed ? "Closed" : "OPEN",
             _state.overheating ? "HOT" : "OK");
+        if (_state.infoQueried) {
+            Serial.printf("             Battery: %d%% | FW: %s | SN: %u\n",
+                _state.batteryPercent,
+                _state.firmwareVersion[0] ? _state.firmwareVersion : "?",
+                _state.serialNumber);
+        }
+        if (_state.transport == TRANSPORT_USB) {
+            if (_state.usbManufacturer[0])
+                Serial.printf("             Manufacturer: %s\n", _state.usbManufacturer);
+            if (_state.usbSerial[0])
+                Serial.printf("             USB Serial: %s\n", _state.usbSerial);
+        }
     }
 }

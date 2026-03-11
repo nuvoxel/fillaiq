@@ -7,6 +7,7 @@
 #include "api_client.h"
 #include "display.h"
 #include "device_config.h"
+#include "printer.h"
 
 extern Display display;
 
@@ -91,6 +92,25 @@ void otaCheckNow() {
             if (c.printer.bleAddr[0]) p["bleAddr"] = c.printer.bleAddr;
             if (c.printer.labelWidthMm > 0) p["labelWidthMm"] = c.printer.labelWidthMm;
             if (c.printer.dpi > 0) p["dpi"] = c.printer.dpi;
+            // Live state
+            const auto& ps = labelPrinter.getState();
+            p["transport"] = (ps.transport == TRANSPORT_USB) ? "USB" : "BLE";
+            if (ps.infoQueried) {
+                p["battery"] = ps.batteryPercent;
+                if (ps.firmwareVersion[0]) p["firmware"] = ps.firmwareVersion;
+                if (ps.serialNumber > 0) p["serialNumber"] = ps.serialNumber;
+            }
+            p["paperLoaded"] = ps.paperLoaded;
+            p["coverClosed"] = ps.coverClosed;
+            // USB descriptor info
+            if (ps.usbManufacturer[0]) p["usbManufacturer"] = ps.usbManufacturer;
+            if (ps.usbProduct[0]) p["usbProduct"] = ps.usbProduct;
+            if (ps.usbSerial[0]) p["usbSerialNumber"] = ps.usbSerial;
+            if (ps.usbVid > 0) {
+                char vidpid[12];
+                snprintf(vidpid, sizeof(vidpid), "%04X:%04X", ps.usbVid, ps.usbPid);
+                p["usbId"] = vidpid;
+            }
         }
         caps["turntable"] = c.turntable;
         caps["camera"] = c.camera;

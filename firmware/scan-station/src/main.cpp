@@ -20,6 +20,7 @@
 #include "environment.h"
 #include "device_config.h"
 #include "printer.h"
+#include "usb_printer.h"
 #include <BLEDevice.h>
 #include <BLEScan.h>
 
@@ -606,21 +607,60 @@ void handleSerial() {
         labelPrinter.disconnect();
         Serial.println("Printer disconnected.");
     }
+    else if (line == "prinfo") {
+        if (!labelPrinter.isConnected()) {
+            Serial.println("Printer not connected.");
+        } else {
+            labelPrinter.queryInfo();
+            labelPrinter.printStatusInfo();
+        }
+    }
+    else if (line == "prusb") {
+        if (usbPrinterReady()) {
+            labelPrinter.connectUsb();
+            labelPrinter.printStatusInfo();
+        } else {
+            Serial.println("No USB printer detected. Check cable and power.");
+        }
+    }
     else if (line == "prtest") {
         if (!labelPrinter.isConnected()) {
             Serial.println("Printer not connected. Use 'prconnect' first.");
         } else {
-            // Print a simple test pattern — horizontal lines
-            const int lines = 60;
-            uint8_t testBitmap[PRINTER_BYTES_PER_LINE * lines];
-            memset(testBitmap, 0, sizeof(testBitmap));
-            for (int y = 0; y < lines; y++) {
-                if (y % 4 < 2) {
-                    memset(&testBitmap[y * PRINTER_BYTES_PER_LINE], 0xFF, PRINTER_BYTES_PER_LINE);
+            // Full-label test pattern: border + diagonals + center cross
+            const int W = PRINTER_BYTES_PER_LINE;  // width in bytes
+            const int Wpx = W * 8;                  // width in pixels (344)
+            const int H = 240;                       // height in lines (~30mm at 203dpi)
+            uint8_t* testBitmap = (uint8_t*)calloc(W * H, 1);
+            if (!testBitmap) {
+                Serial.println("Out of memory for test pattern");
+            } else {
+                auto setPixel = [&](int x, int y) {
+                    if (x >= 0 && x < Wpx && y >= 0 && y < H)
+                        testBitmap[y * W + (x / 8)] |= (0x80 >> (x % 8));
+                };
+                for (int y = 0; y < H; y++) {
+                    for (int x = 0; x < Wpx; x++) {
+                        // Border (2px thick)
+                        if (x < 2 || x >= Wpx - 2 || y < 2 || y >= H - 2) {
+                            setPixel(x, y);
+                        }
+                        // Diagonal crosshairs
+                        int dx = x * H / Wpx;  // scaled diagonal
+                        if (abs(dx - y) <= 1 || abs(dx - (H - 1 - y)) <= 1) {
+                            setPixel(x, y);
+                        }
+                        // Center cross (3px thick)
+                        if ((abs(y - H / 2) <= 1 && x > 10 && x < Wpx - 10) ||
+                            (abs(x - Wpx / 2) <= 1 && y > 10 && y < H - 10)) {
+                            setPixel(x, y);
+                        }
+                    }
                 }
+                Serial.printf("Printing test pattern %dx%d...\n", Wpx, H);
+                labelPrinter.printRaster(testBitmap, W, H);
+                free(testBitmap);
             }
-            Serial.println("Printing test pattern...");
-            labelPrinter.printRaster(testBitmap, PRINTER_BYTES_PER_LINE, lines);
         }
     }
     else if (line == "blescan") {
@@ -753,30 +793,52 @@ void setup() {
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
-    // BLE label printer scan
-    display.showMessage("Scanning BLE...", "Looking for printer");
+    // Label printer — try USB Host first, then BLE
     labelPrinter.begin();
-    if (labelPrinter.scan(5000)) {
-        const char* prName = labelPrinter.getDeviceName();
-        const char* prAddr = labelPrinter.getBleAddr();
-        caps.printer.set(prName, "BLE",
+
+    // Init USB Host and wait briefly for device enumeration
+    display.showMessage("USB Host...", "Checking printer");
+    usbPrinterBegin();
+    for (int i = 0; i < 20 && !usbPrinterReady(); i++) {
+        usbPrinterLoop();
+        delay(100);
+    }
+
+    if (usbPrinterReady()) {
+        labelPrinter.connectUsb();
+        caps.printer.set(labelPrinter.getDeviceName(), "USB",
                          PRINTER_MAX_WIDTH_MM, PRINTER_MAX_HEIGHT_MM,
                          PRINTER_DPI, "escpos");
-        caps.printer.setBle(prAddr);
+        caps.printer.setUsb(labelPrinter.getState().usbVid,
+                            labelPrinter.getState().usbPid);
 
-        char prMsg[48];
-        snprintf(prMsg, sizeof(prMsg), "%s", prName);
-        display.showMessage("Printer Found", prMsg);
+        display.showMessage("USB Printer", labelPrinter.getDeviceName());
         delay(500);
+    } else {
+        // Fall back to BLE scan
+        display.showMessage("Scanning BLE...", "Looking for printer");
+        if (labelPrinter.scan(5000)) {
+            const char* prName = labelPrinter.getDeviceName();
+            const char* prAddr = labelPrinter.getBleAddr();
+            caps.printer.set(prName, "BLE",
+                             PRINTER_MAX_WIDTH_MM, PRINTER_MAX_HEIGHT_MM,
+                             PRINTER_DPI, "escpos");
+            caps.printer.setBle(prAddr);
 
-        // Auto-connect
-        if (labelPrinter.connect()) {
-            display.showMessage("Printer Ready", prMsg);
+            char prMsg[48];
+            snprintf(prMsg, sizeof(prMsg), "%s", prName);
+            display.showMessage("Printer Found", prMsg);
+            delay(500);
+
+            // Auto-connect
+            if (labelPrinter.connect()) {
+                display.showMessage("Printer Ready", prMsg);
+                delay(500);
+            }
+        } else {
+            display.showMessage("No Printer", "Continuing...");
             delay(500);
         }
-    } else {
-        display.showMessage("No Printer", "Continuing...");
-        delay(500);
     }
 
     // Device config (loads from NVS)
@@ -827,6 +889,15 @@ void loop() {
 
     // Captive portal processing (must run frequently when AP is active)
     provisioner.loop();
+
+    // USB Host event processing
+    usbPrinterLoop();
+
+    // Auto-connect USB printer if it appears while running
+    if (usbPrinterReady() && !labelPrinter.isConnected()) {
+        labelPrinter.connectUsb();
+        Serial.println("[USB] Printer hot-plugged — connected");
+    }
 
     // OTA update check
     if (!otaInProgress()) {
