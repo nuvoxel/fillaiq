@@ -53,9 +53,30 @@ void NfcScanner::begin() {
     // Configure IRQ pin
     pinMode(NFC_IRQ_PIN, INPUT_PULLUP);
 
-    reader.begin();
+    // Deassert TFT CS (shared SPI bus)
+    pinMode(TFT_CS_PIN, OUTPUT);
+    digitalWrite(TFT_CS_PIN, HIGH);
 
-    uint32_t ver = reader.getFirmwareVersion();
+    // Hardware reset the PN532
+    if (NFC_RST_PIN >= 0) {
+        pinMode(NFC_RST_PIN, OUTPUT);
+        digitalWrite(NFC_RST_PIN, LOW);
+        delay(100);
+        digitalWrite(NFC_RST_PIN, HIGH);
+        delay(500);  // PN532 needs generous time after reset
+        Serial.printf("  NFC: hardware reset via GPIO%d\n", NFC_RST_PIN);
+    }
+
+    reader.begin();
+    delay(100);
+
+    // Retry with increasing delays (PN532 can be slow after reset)
+    uint32_t ver = 0;
+    for (int attempt = 0; attempt < 5 && !ver; attempt++) {
+        ver = reader.getFirmwareVersion();
+        if (!ver) delay(200 * (attempt + 1));
+    }
+
     if (ver) {
         uint8_t ic  = (ver >> 24) & 0xFF;
         uint8_t maj = (ver >> 16) & 0xFF;

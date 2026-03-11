@@ -23,7 +23,7 @@
 // PN532 NFC reader (SPI mode)
 #define NFC_CS_PIN      14
 #define NFC_IRQ_PIN      7
-#define NFC_RST_PIN     -1
+#define NFC_RST_PIN      6
 
 // ST7789V3 TFT Display (240x280, 1.69" SPI)
 #define TFT_CS_PIN      21

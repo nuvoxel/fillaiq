@@ -285,9 +285,9 @@ void updateScanState() {
                 enterState(SCAN_AWAITING_RESULT);
             }
         } else if (status == API_AUTH_FAILED) {
-            Serial.println("[API] Auth failed — device may have been revoked");
+            Serial.println("[API] Auth failed — device may have been revoked. Use 'pair' to re-pair.");
             apiClient.unpair();
-            startPairing();
+            enterState(SCAN_IDLE);
         } else {
             Serial.printf("[API] Post failed: %d\n", status);
             enterState(SCAN_NEEDS_INPUT);
@@ -313,8 +313,9 @@ void updateScanState() {
                     enterState(SCAN_NEEDS_INPUT);
                 }
             } else if (status == API_AUTH_FAILED) {
+                Serial.println("[API] Auth failed during poll. Use 'pair' to re-pair.");
                 apiClient.unpair();
-                startPairing();
+                enterState(SCAN_IDLE);
             }
         }
 

@@ -7,6 +7,7 @@
 | GPIO | Function         | Device            | Notes                        |
 |------|------------------|-------------------|------------------------------|
 | 4    | TFT Backlight    | ST7789V3 TFT      | Active HIGH                  |
+| 6    | NFC RST          | PN532              | Hardware reset, active LOW   |
 | 7    | NFC IRQ          | PN532              | Wired, interrupt-driven      |
 | 8    | I2C SDA          | VL53L1X, AS7341   | Shared bus                   |
 | 9    | I2C SCL          | VL53L1X, AS7341   | Shared bus                   |
@@ -35,7 +36,7 @@ Shared between TFT display and NFC reader. Only one device active at a time — 
 
 **Devices:**
 - ST7789V3 TFT (CS=21, DC=15, RST=16, BLK=4) — 240x280 1.69" display, 40MHz SPI
-- PN532 NFC (CS=14, IRQ=7) — Elechouse NFC Module V3, SPI mode (DIP: SW1=OFF, SW2=ON)
+- PN532 NFC (CS=14, IRQ=7, RST=6) — Elechouse NFC Module V3, SPI mode (DIP: SW1=OFF, SW2=ON)
 
 ### I2C
 | Signal | GPIO |
