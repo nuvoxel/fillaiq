@@ -5,6 +5,8 @@ import { eq, and, isNotNull } from "drizzle-orm";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+const FIRMWARE_BLOB_BASE = "https://fillaiqfw.blob.core.windows.net/firmware";
+
 type ChannelEntry = {
   version: string;
   file: string;
@@ -112,9 +114,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ updateAvailable: false, deviceConfig: deviceConfigPayload });
   }
 
-  // Build absolute URL for the firmware binary
-  // Serve from Azure Blob Storage to support HTTP/1.0 clients (ESP32 HTTPUpdate)
-  const binUrl = `https://fillaiqfw.blob.core.windows.net/firmware/${entry.file}`;
+  // Serve from Azure Blob Storage (supports HTTP/1.0 + TLS 1.2+)
+  const binUrl = `${FIRMWARE_BLOB_BASE}/${entry.file}`;
 
   return NextResponse.json({
     updateAvailable: true,
