@@ -1,5 +1,6 @@
 #include "api_client.h"
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -8,6 +9,16 @@
 ApiClient apiClient;
 
 static Preferences prefs;
+static WiFiClientSecure _secClient;
+static bool _secClientInit = false;
+
+static WiFiClientSecure& getSecureClient() {
+    if (!_secClientInit) {
+        _secClient.setInsecure();
+        _secClientInit = true;
+    }
+    return _secClient;
+}
 
 void ApiClient::begin() {
     memset(_ssid, 0, sizeof(_ssid));
@@ -110,7 +121,7 @@ ApiStatus ApiClient::postScan(const ScanResult& scan, const TagData* tagData,
     String payload = buildScanPayload(scan, tagData);
 
     HTTPClient http;
-    http.begin(url);
+    http.begin(getSecureClient(), url);
     http.addHeader("Content-Type", "application/json");
     if (_deviceToken[0] != '\0') {
         http.addHeader("X-Device-Token", _deviceToken);
@@ -157,7 +168,7 @@ ApiStatus ApiClient::pollResult(const char* scanId, ScanResponse& response) {
     String url = String(_apiUrl) + "/api/v1/scan/" + scanId + "/status";
 
     HTTPClient http;
-    http.begin(url);
+    http.begin(getSecureClient(), url);
     if (_deviceToken[0] != '\0') {
         http.addHeader("X-Device-Token", _deviceToken);
     } else if (_apiKey[0] != '\0') {
@@ -348,7 +359,7 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     serializeJson(doc, payload);
 
     HTTPClient http;
-    http.begin(url);
+    http.begin(getSecureClient(), url);
     http.addHeader("Content-Type", "application/json");
     http.setTimeout(API_TIMEOUT_MS);
 
@@ -406,7 +417,7 @@ ApiStatus ApiClient::pollPairingStatus(bool& paired) {
     String url = String(_apiUrl) + "/api/v1/devices/pair?token=" + String(_deviceToken);
 
     HTTPClient http;
-    http.begin(url);
+    http.begin(getSecureClient(), url);
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.GET();
@@ -484,7 +495,16 @@ void ApiClient::printStatus() {
         isWiFiConnected() ? "connected" : "disconnected");
     if (isWiFiConnected()) {
         Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
     }
     Serial.printf("  API URL: %s\n", _apiUrl[0] ? _apiUrl : "not set");
     Serial.printf("  Station: %s\n", _stationId);
+    Serial.printf("  Firmware: v%s (%s) [%s]\n", FW_VERSION, FW_CHANNEL, FW_SKU);
+    Serial.printf("  Paired: %s\n", isPaired() ? "yes" : "no");
+    if (_pairingCode[0] != '\0') {
+        Serial.printf("  Pairing code: %s\n", _pairingCode);
+    }
+    if (_deviceToken[0] != '\0') {
+        Serial.printf("  Device token: %.8s...\n", _deviceToken);
+    }
 }

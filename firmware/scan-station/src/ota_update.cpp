@@ -45,8 +45,11 @@ void otaCheckNow() {
     url += "?version=" + String(FW_VERSION);
     url += "&sku=" + String(FW_SKU);
 
+    WiFiClientSecure secClient;
+    secClient.setInsecure();
+
     HTTPClient http;
-    http.begin(url);
+    http.begin(secClient, url);
     if (apiClient.getDeviceToken()[0] != '\0') {
         http.addHeader("X-Device-Token", apiClient.getDeviceToken());
     }

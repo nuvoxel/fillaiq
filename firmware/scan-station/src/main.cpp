@@ -540,8 +540,26 @@ void handleSerial() {
         Serial.println("Checking for OTA update...");
         otaCheckNow();
     }
+    else if (line == "pair") {
+        if (apiClient.isPaired()) {
+            Serial.println("Already paired. Use 'unpair' first to re-pair.");
+        } else if (!apiClient.isWiFiConnected()) {
+            Serial.println("No WiFi connection.");
+        } else {
+            startPairing();
+        }
+    }
+    else if (line == "unpair") {
+        apiClient.unpair();
+        Serial.println("Device unpaired.");
+    }
+    else if (line == "reset" || line == "reboot") {
+        Serial.println("Rebooting...");
+        delay(500);
+        ESP.restart();
+    }
     else {
-        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c, ota");
+        Serial.println("Commands: tare, cal, calreset, wifi, apiurl, apikey, provision, status, nfc, i2c, ota, pair, unpair, reset");
     }
 }
 
