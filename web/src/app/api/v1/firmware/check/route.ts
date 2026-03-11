@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
   // Build absolute URL for the firmware binary
   const proto = request.headers.get("x-forwarded-proto") ?? "https";
   const host = request.headers.get("host") ?? "www.fillaiq.com";
-  const binUrl = `${proto}://${host}/firmware/${entry.file}`;
+  const binUrl = `${proto}://${host}/api/v1/firmware/download?file=${encodeURIComponent(entry.file)}`;
 
   return NextResponse.json({
     updateAvailable: true,
