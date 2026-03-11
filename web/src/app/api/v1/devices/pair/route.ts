@@ -52,11 +52,6 @@ export async function POST(request: NextRequest) {
     .from(scanStations)
     .where(eq(scanStations.hardwareId, hardwareId));
 
-  if (existing && existing.userId) {
-    // Already paired — return status so device knows
-    return NextResponse.json({ paired: true, stationId: existing.id });
-  }
-
   // Extract boolean flags from rich capabilities manifest
   const capFlags = {
     hasTofSensor: !!capabilities?.tof?.detected,
@@ -66,13 +61,17 @@ export async function POST(request: NextRequest) {
   };
 
   if (existing) {
-    // Exists but unpaired — update pairing code + token
+    // Device exists — issue new token + pairing code regardless of
+    // current pairing state. If the device already has a userId, this
+    // is a re-pair (e.g. token lost). The user must approve the new
+    // code on the dashboard before the device is considered paired.
     await db
       .update(scanStations)
       .set({
         deviceToken,
         pairingCode,
         pairingExpiresAt: expiresAt,
+        userId: null, // Clear ownership until user re-approves
         deviceSku: sku || existing.deviceSku,
         firmwareVersion: firmwareVersion || existing.firmwareVersion,
         firmwareChannel: firmwareChannel || existing.firmwareChannel,

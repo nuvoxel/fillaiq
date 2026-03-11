@@ -462,15 +462,6 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     JsonDocument resp;
     if (deserializeJson(resp, body)) return API_PARSE_ERROR;
 
-    bool alreadyPaired = resp["paired"] | false;
-    if (alreadyPaired) {
-        // Already paired to a user — we're good
-        _paired = true;
-        saveConfig();
-        Serial.println("[Pair] Already paired");
-        return API_OK;
-    }
-
     const char* code = resp["pairingCode"];
     const char* token = resp["deviceToken"];
 

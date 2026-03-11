@@ -156,13 +156,6 @@ void startPairing() {
 
     ApiStatus status = apiClient.requestPairingCode(code, sizeof(code));
 
-    if (status == API_OK && apiClient.isPaired()) {
-        // Already paired
-        display.showMessage("Paired!", "Ready to scan");
-        delay(2000);
-        return;
-    }
-
     if (status == API_OK && code[0] != '\0') {
         // Show pairing code on display
         pairingActive = true;
