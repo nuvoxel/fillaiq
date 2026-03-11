@@ -20,6 +20,8 @@
 #include "environment.h"
 #include "device_config.h"
 #include "printer.h"
+#include <BLEDevice.h>
+#include <BLEScan.h>
 
 // ============================================================
 // Filla IQ — Scan Station Firmware
@@ -157,15 +159,11 @@ void startPairing() {
     ApiStatus status = apiClient.requestPairingCode(code, sizeof(code));
 
     if (status == API_OK && code[0] != '\0') {
-        // Show pairing code on display
+        // Show large pairing code on display
         pairingActive = true;
         lastPairingPoll = millis();
 
-        // Build a message with the code
-        char line2[48];
-        snprintf(line2, sizeof(line2), "Code: %s", code);
-        display.showMessage("Pair Device", line2);
-
+        display.showPairingCode(code);
         Serial.printf("[Pair] Enter code on web app: %s\n", code);
     } else {
         Serial.printf("[Pair] Failed to get pairing code: %d\n", status);
@@ -625,6 +623,26 @@ void handleSerial() {
             labelPrinter.printRaster(testBitmap, PRINTER_BYTES_PER_LINE, lines);
         }
     }
+    else if (line == "blescan") {
+        Serial.println("Scanning all BLE devices (10s)...");
+        BLEScan* pScan = BLEDevice::getScan();
+        pScan->setActiveScan(true);
+        pScan->setInterval(100);
+        pScan->setWindow(99);
+        BLEScanResults results = pScan->start(10, false);
+        int count = results.getCount();
+        Serial.printf("Found %d devices:\n", count);
+        for (int i = 0; i < count; i++) {
+            BLEAdvertisedDevice d = results.getDevice(i);
+            String name = d.getName().c_str();
+            if (name.length() == 0) name = "(unnamed)";
+            Serial.printf("  %2d: %-20s  %s  RSSI:%d\n",
+                i + 1, name.c_str(),
+                d.getAddress().toString().c_str(),
+                d.getRSSI());
+        }
+        pScan->clearResults();
+    }
     else if (line == "ota") {
         Serial.println("Checking for OTA update...");
         otaCheckNow();
@@ -739,13 +757,23 @@ void setup() {
     display.showMessage("Scanning BLE...", "Looking for printer");
     labelPrinter.begin();
     if (labelPrinter.scan(5000)) {
-        caps.printer.set("Phomemo M120", "BLE",
+        const char* prName = labelPrinter.getDeviceName();
+        const char* prAddr = labelPrinter.getBleAddr();
+        caps.printer.set(prName, "BLE",
                          PRINTER_MAX_WIDTH_MM, PRINTER_MAX_HEIGHT_MM,
                          PRINTER_DPI, "escpos");
-        caps.printer.setBle(labelPrinter.getBleAddr());
-        caps.printer.setUsb(PRINTER_USB_VID, PRINTER_USB_PID);
-        display.showMessage("Printer Found", labelPrinter.getDeviceName());
-        delay(1000);
+        caps.printer.setBle(prAddr);
+
+        char prMsg[48];
+        snprintf(prMsg, sizeof(prMsg), "%s", prName);
+        display.showMessage("Printer Found", prMsg);
+        delay(500);
+
+        // Auto-connect
+        if (labelPrinter.connect()) {
+            display.showMessage("Printer Ready", prMsg);
+            delay(500);
+        }
     } else {
         display.showMessage("No Printer", "Continuing...");
         delay(500);

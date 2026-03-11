@@ -24,6 +24,7 @@ public:
                 const ColorData* color,
                 uint8_t statusIcons = 0);
     void showMessage(const char* line1, const char* line2 = nullptr);
+    void showPairingCode(const char* code);
     void showQrCode(const char* data, const char* label = nullptr);
 
 private:

@@ -2,6 +2,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include <qrcode.h>
+#include "icons.h"
 
 Display display;
 
@@ -45,66 +46,36 @@ void Display::begin() {
 // ── Status Icons (top-right corner) ────────────────────────
 
 void Display::drawStatusIcons(uint8_t icons) {
-    // Icons drawn right-to-left, inset to avoid rounded display corners
-    // Positions: [wifi] [paired] [printer] [tbd]
-    int x = 218;
-    int y = 10;
-    int iconW = 14;
-    int gap = 3;
+    // Icons drawn right-to-left, inset to clear rounded display corners
+    int x = 204;
+    int y = 14;
+    int gap = 4;
 
     // Clear icon area
-    tft->fillRect(x - 4 * (iconW + gap), y - 1, 4 * (iconW + gap) + iconW, 16, DARK_BG);
+    tft->fillRect(x - 3 * (ICON_W + gap), y, 3 * (ICON_W + gap) + ICON_W, ICON_H, DARK_BG);
 
-    // WiFi icon (fan/arc shape)
+    // WiFi
     if (icons & ICON_WIFI) {
-        uint16_t col = GREEN;
-        int cx = x;
-        int cy = y + 12;
-        // Three arcs (simplified as lines)
-        tft->drawLine(cx, cy, cx - 6, cy - 8, col);
-        tft->drawLine(cx, cy, cx + 6, cy - 8, col);
-        tft->drawLine(cx, cy, cx - 4, cy - 5, col);
-        tft->drawLine(cx, cy, cx + 4, cy - 5, col);
-        tft->fillCircle(cx, cy - 1, 2, col);
+        tft->drawXBitmap(x, y, icon_wifi, ICON_W, ICON_H, GREEN);
     } else {
-        // WiFi off — draw X
-        uint16_t col = GRAY;
-        int cx = x;
-        int cy = y + 6;
-        tft->drawLine(cx - 5, cy - 5, cx + 5, cy + 5, col);
-        tft->drawLine(cx + 5, cy - 5, cx - 5, cy + 5, col);
+        tft->drawXBitmap(x, y, icon_wifi_off, ICON_W, ICON_H, GRAY);
     }
 
-    x -= (iconW + gap);
+    x -= (ICON_W + gap);
 
-    // Paired/linked icon (chain link)
+    // Paired/linked
     if (icons & ICON_PAIRED) {
-        uint16_t col = GREEN;
-        int cy = y + 6;
-        // Two interlocked circles
-        tft->drawCircle(x - 3, cy, 5, col);
-        tft->drawCircle(x + 3, cy, 5, col);
+        tft->drawXBitmap(x, y, icon_linked, ICON_W, ICON_H, GREEN);
     } else {
-        // Unpaired — broken link
-        uint16_t col = GRAY;
-        int cy = y + 6;
-        tft->drawCircle(x - 4, cy, 4, col);
-        tft->drawCircle(x + 4, cy, 4, col);
-        // Break indicator
-        tft->drawFastVLine(x, cy - 2, 4, DARK_BG);
+        tft->drawXBitmap(x, y, icon_unlinked, ICON_W, ICON_H, GRAY);
     }
 
-    x -= (iconW + gap);
+    x -= (ICON_W + gap);
 
-    // Printer icon placeholder
+    // Printer
     if (icons & ICON_PRINTER) {
-        uint16_t col = GREEN;
-        int cy = y + 3;
-        tft->drawRect(x - 5, cy, 10, 7, col);       // printer body
-        tft->drawRect(x - 3, cy - 3, 6, 4, col);     // paper tray
-        tft->drawFastHLine(x - 3, cy + 8, 6, col);    // output
+        tft->drawXBitmap(x, y, icon_printer, ICON_W, ICON_H, GREEN);
     }
-    // else: leave blank — reserved space
 }
 
 // ── Shared Header ───────────────────────────────────────────
@@ -330,6 +301,40 @@ void Display::showMessage(const char* line1, const char* line2) {
         tft->setTextColor(GRAY, DARK_BG);
         tft->drawString(line2, 120, 160, 2);
     }
+}
+
+// ── Pairing Code Screen ────────────────────────────────────
+
+void Display::showPairingCode(const char* code) {
+    if (!_ready) return;
+
+    tft->fillScreen(DARK_BG);
+
+    // Header
+    tft->fillRoundRect(88, 20, 64, 64, 12, BRAND_ORANGE);
+    tft->setTextColor(TFT_WHITE, BRAND_ORANGE);
+    tft->setTextDatum(MC_DATUM);
+    tft->drawString("F", 120, 52, 7);
+
+    // Title
+    tft->setTextColor(TFT_WHITE, DARK_BG);
+    tft->setTextDatum(TC_DATUM);
+    tft->drawString("Pair Device", 120, 100, 4);
+
+    // Divider
+    tft->drawFastHLine(30, 128, 180, GRAY);
+
+    // Large pairing code — use font 7 (48px 7-segment style)
+    tft->setTextColor(BRAND_ORANGE, DARK_BG);
+    tft->setTextDatum(MC_DATUM);
+    tft->setTextSize(1);
+    tft->drawString(code, 120, 170, 7);
+
+    // Instructions
+    tft->setTextColor(GRAY, DARK_BG);
+    tft->setTextDatum(TC_DATUM);
+    tft->drawString("Enter code on dashboard", 120, 215, 2);
+    tft->drawString("fillaiq.com/hardware", 120, 240, 2);
 }
 
 // ── QR Code Screen ──────────────────────────────────────────

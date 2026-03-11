@@ -13,20 +13,36 @@ static BLERemoteCharacteristic* pWriteChar = nullptr;
 static BLERemoteCharacteristic* pNotifyChar = nullptr;
 static BLEAdvertisedDevice* pTargetDevice = nullptr;
 static bool deviceFound = false;
+static int bestRSSI = -999;
 
 // ── BLE Scan Callback ───────────────────────────────────────────────────────
+
+static BLEUUID printerServiceUUID(PRINTER_SERVICE_UUID);
 
 class PrinterScanCallback : public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) override {
         String name = advertisedDevice.getName().c_str();
-        // Phomemo devices advertise as "Mr.in_M120" or similar
-        if (name.startsWith("Mr.in") || name.startsWith("M120") || name.startsWith("Phomemo")) {
-            Serial.printf("[Printer] Found: %s (%s)\n",
+        // Match by name prefix OR by Phomemo BLE service UUID (0xFF00)
+        bool nameMatch = name.startsWith("Mr.in") || name.startsWith("M120") ||
+                         name.startsWith("Phomemo") || name.startsWith("Q244");
+        bool uuidMatch = advertisedDevice.haveServiceUUID() &&
+                         advertisedDevice.isAdvertisingService(printerServiceUUID);
+
+        if (nameMatch || uuidMatch) {
+            int rssi = advertisedDevice.getRSSI();
+            Serial.printf("[Printer] Found: %s  %s  RSSI:%d%s\n",
                 name.c_str(),
-                advertisedDevice.getAddress().toString().c_str());
-            pTargetDevice = new BLEAdvertisedDevice(advertisedDevice);
-            deviceFound = true;
-            advertisedDevice.getScan()->stop();
+                advertisedDevice.getAddress().toString().c_str(),
+                rssi,
+                uuidMatch ? "  [UUID]" : "");
+
+            // Keep the strongest signal (closest printer)
+            if (rssi > bestRSSI) {
+                bestRSSI = rssi;
+                if (pTargetDevice) delete pTargetDevice;
+                pTargetDevice = new BLEAdvertisedDevice(advertisedDevice);
+                deviceFound = true;
+            }
         }
     }
 };
@@ -85,6 +101,7 @@ bool LabelPrinter::scan(uint32_t timeoutMs) {
 
     _state.status = PRINTER_SCANNING;
     deviceFound = false;
+    bestRSSI = -999;
 
     if (pTargetDevice) {
         delete pTargetDevice;
@@ -107,7 +124,8 @@ bool LabelPrinter::scan(uint32_t timeoutMs) {
                 pTargetDevice->getAddress().toString().c_str(),
                 sizeof(_state.bleAddr) - 1);
         _state.status = PRINTER_DISCONNECTED;
-        Serial.printf("[Printer] Found: %s @ %s\n", _state.deviceName, _state.bleAddr);
+        Serial.printf("[Printer] Selected: %s  %s  RSSI:%d\n",
+            _state.deviceName, _state.bleAddr, bestRSSI);
         return true;
     }
 

@@ -19,6 +19,8 @@ enum EnvSensorType : uint8_t {
     ENV_BME680,
     ENV_SHT31,
     ENV_AHT20,
+    ENV_DHT11,
+    ENV_DHT22,
 };
 
 class EnvironmentSensor {

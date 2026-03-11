@@ -61,15 +61,43 @@ void otaCheckNow() {
     http.addHeader("X-Uptime", String(millis() / 1000));
     http.addHeader("X-Free-Heap", String(ESP.getFreeHeap()));
     http.addHeader("X-WiFi-RSSI", String(WiFi.RSSI()));
-    // Device capabilities
-    http.addHeader("X-Has-NFC", apiClient.hasNfc() ? "1" : "0");
-    http.addHeader("X-Has-Scale", apiClient.hasScale() ? "1" : "0");
-    http.addHeader("X-Has-TOF", apiClient.hasTof() ? "1" : "0");
-    http.addHeader("X-Has-Color", apiClient.hasColor() ? "1" : "0");
-    http.addHeader("X-Has-Turntable", apiClient.hasTurntable() ? "1" : "0");
-    http.addHeader("X-Has-Camera", apiClient.hasCamera() ? "1" : "0");
-    http.addHeader("X-Has-Env", apiClient.hasEnv() ? "1" : "0");
-    http.addHeader("X-Has-Printer", apiClient.hasPrinter() ? "1" : "0");
+    // Send full capabilities as JSON header
+    {
+        JsonDocument caps;
+        const auto& c = apiClient.getCapabilities();
+        auto addSensor = [&](const char* key, const SensorInfo& s) {
+            if (!s.detected) return;
+            JsonObject obj = caps[key].to<JsonObject>();
+            obj["detected"] = true;
+            if (s.chip[0]) obj["chip"] = s.chip;
+            if (s.interface[0]) obj["interface"] = s.interface;
+            if (s.i2cAddr > 0) {
+                char addr[8]; snprintf(addr, sizeof(addr), "0x%02X", s.i2cAddr);
+                obj["address"] = addr;
+            }
+        };
+        addSensor("nfc", c.nfc);
+        addSensor("scale", c.scale);
+        addSensor("tof", c.tof);
+        addSensor("colorSensor", c.colorSensor);
+        addSensor("display", c.display);
+        addSensor("leds", c.leds);
+        addSensor("environment", c.environment);
+        if (c.printer.detected) {
+            JsonObject p = caps["printer"].to<JsonObject>();
+            p["detected"] = true;
+            if (c.printer.model[0]) p["model"] = c.printer.model;
+            if (c.printer.connection[0]) p["connection"] = c.printer.connection;
+            if (c.printer.bleAddr[0]) p["bleAddr"] = c.printer.bleAddr;
+            if (c.printer.labelWidthMm > 0) p["labelWidthMm"] = c.printer.labelWidthMm;
+            if (c.printer.dpi > 0) p["dpi"] = c.printer.dpi;
+        }
+        caps["turntable"] = c.turntable;
+        caps["camera"] = c.camera;
+        String capsJson;
+        serializeJson(caps, capsJson);
+        http.addHeader("X-Capabilities", capsJson);
+    }
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.GET();

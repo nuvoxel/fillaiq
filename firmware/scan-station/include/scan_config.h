@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.0.4"
+#define FW_VERSION "1.0.5"
 #define FW_SKU     "scan-station"    // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
@@ -118,6 +118,10 @@
 #define PRINTER_MAX_HEIGHT_MM   200     // Continuous feed
 #define PRINTER_DPI             203
 #define PRINTER_DOTS_PER_LINE   384     // 48mm * 8 dots/mm
+
+// --- DHT Temperature/Humidity Sensor ---
+#define DHT_PIN                 5
+#define DHT_TYPE                11      // 11 = DHT11, 22 = DHT22
 
 // --- Serial ---
 #define SERIAL_BAUD             115200

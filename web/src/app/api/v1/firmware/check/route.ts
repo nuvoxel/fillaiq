@@ -64,21 +64,33 @@ export async function GET(request: NextRequest) {
     request.headers.get("x-device-sku") ??
     "scan-station";
 
-  // Update station heartbeat + capability flags
+  // Update station heartbeat + capabilities
+  const updateData: Record<string, any> = {
+    lastSeenAt: new Date(),
+    isOnline: true,
+    firmwareVersion: currentVersion,
+    ipAddress:
+      request.headers.get("x-forwarded-for")?.split(",")[0] ?? null,
+    updatedAt: new Date(),
+  };
+
+  // Parse full capabilities JSON from heartbeat
+  const capsHeader = request.headers.get("x-capabilities");
+  if (capsHeader) {
+    const caps = JSON.parse(capsHeader);
+    updateData.hasTofSensor = !!caps.tof?.detected;
+    updateData.hasColorSensor = !!caps.colorSensor?.detected;
+    updateData.hasTurntable = !!caps.turntable;
+    updateData.hasCamera = !!caps.camera;
+
+    // Merge capabilities into config, preserving deviceSettings
+    const existingConfig = (station.config as any) ?? {};
+    updateData.config = { ...existingConfig, capabilities: caps };
+  }
+
   await db
     .update(scanStations)
-    .set({
-      lastSeenAt: new Date(),
-      isOnline: true,
-      firmwareVersion: currentVersion,
-      ipAddress:
-        request.headers.get("x-forwarded-for")?.split(",")[0] ?? null,
-      hasTofSensor: request.headers.get("x-has-tof") === "1",
-      hasColorSensor: request.headers.get("x-has-color") === "1",
-      hasTurntable: request.headers.get("x-has-turntable") === "1",
-      hasCamera: request.headers.get("x-has-camera") === "1",
-      updatedAt: new Date(),
-    })
+    .set(updateData)
     .where(eq(scanStations.id, station.id));
 
   // Device config from station config column
