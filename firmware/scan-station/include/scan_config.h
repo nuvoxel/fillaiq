@@ -34,7 +34,8 @@
 
 // WS2812B LED Ring
 #define LED_PIN         48
-#define LED_COUNT       24   // 24-LED ring
+#define LED_SKIP         1   // Skip onboard RGB LED (pixel 0 on DevKitC-1)
+#define LED_COUNT       25   // 1 onboard + 24 ring
 
 // --- Weight Settings ---
 #define WEIGHT_SAMPLES          10
@@ -69,6 +70,7 @@
 
 // --- API ---
 #define API_TIMEOUT_MS          5000
+#define DEFAULT_API_URL         "https://www.fillaiq.com"
 
 // --- Color Sensor I2C Addresses ---
 #define AS7341_ADDR             0x39

@@ -34,11 +34,10 @@ void ApiClient::begin() {
         Serial.println("  WiFi: not configured (use 'wifi <ssid> <pass>' command)");
     }
 
-    if (_apiUrl[0] != '\0') {
-        Serial.printf("  API: %s\n", _apiUrl);
-    } else {
-        Serial.println("  API: not configured (use 'apiurl <url>' command)");
+    if (_apiUrl[0] == '\0') {
+        strncpy(_apiUrl, DEFAULT_API_URL, sizeof(_apiUrl) - 1);
     }
+    Serial.printf("  API: %s\n", _apiUrl);
 
     if (_stationId[0] == '\0') {
         // Generate from MAC address

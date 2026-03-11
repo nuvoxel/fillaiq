@@ -5,6 +5,10 @@ Backlight backlight;
 
 static Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
+// Ring pixel indices (skip onboard LED at pixel 0)
+#define RING_START  LED_SKIP
+#define RING_COUNT  (LED_COUNT - LED_SKIP)
+
 void Backlight::begin() {
     _mode = LED_OFF;
     _r = _g = _b = 0;
@@ -17,7 +21,8 @@ void Backlight::begin() {
     strip.clear();
     strip.show();
 
-    Serial.printf("  Backlight: %d LEDs on GPIO%d\n", LED_COUNT, LED_PIN);
+    Serial.printf("  Backlight: %d ring LEDs on GPIO%d (skip %d onboard)\n",
+                  RING_COUNT, LED_PIN, LED_SKIP);
 }
 
 void Backlight::off() {
@@ -29,9 +34,10 @@ void Backlight::off() {
 void Backlight::white(uint8_t brightness) {
     _mode = LED_WHITE;
     strip.setBrightness(brightness);
-    for (int i = 0; i < LED_COUNT; i++) {
-        strip.setPixelColor(i, strip.Color(255, 255, 255));
+    for (int i = 0; i < RING_COUNT; i++) {
+        strip.setPixelColor(RING_START + i, strip.Color(255, 255, 255));
     }
+    strip.setPixelColor(0, 0);  // onboard off
     strip.show();
 }
 
@@ -39,9 +45,10 @@ void Backlight::color(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness) {
     _mode = LED_COLOR;
     _r = r; _g = g; _b = b;
     strip.setBrightness(brightness);
-    for (int i = 0; i < LED_COUNT; i++) {
-        strip.setPixelColor(i, strip.Color(r, g, b));
+    for (int i = 0; i < RING_COUNT; i++) {
+        strip.setPixelColor(RING_START + i, strip.Color(r, g, b));
     }
+    strip.setPixelColor(0, 0);  // onboard off
     strip.show();
 }
 
@@ -82,35 +89,35 @@ void Backlight::update() {
 
     switch (_mode) {
         case LED_PULSE: {
-            // Sine wave breathing 0-255
             float phase = (float)_animStep / 100.0f * 3.14159f * 2.0f;
             uint8_t bright = (uint8_t)((sin(phase) + 1.0f) * 0.5f * 200.0f + 20.0f);
             strip.setBrightness(bright);
-            for (int i = 0; i < LED_COUNT; i++) {
-                strip.setPixelColor(i, strip.Color(_r, _g, _b));
+            for (int i = 0; i < RING_COUNT; i++) {
+                strip.setPixelColor(RING_START + i, strip.Color(_r, _g, _b));
             }
+            strip.setPixelColor(0, 0);
             strip.show();
             _animStep = (_animStep + 1) % 100;
             break;
         }
         case LED_SPIN: {
             strip.clear();
-            int pos = _animStep % LED_COUNT;
-            strip.setPixelColor(pos, strip.Color(_r, _g, _b));
-            // Trail
-            strip.setPixelColor((pos - 1 + LED_COUNT) % LED_COUNT,
+            int pos = _animStep % RING_COUNT;
+            strip.setPixelColor(RING_START + pos, strip.Color(_r, _g, _b));
+            strip.setPixelColor(RING_START + (pos - 1 + RING_COUNT) % RING_COUNT,
                 strip.Color(_r / 3, _g / 3, _b / 3));
-            strip.setPixelColor((pos - 2 + LED_COUNT) % LED_COUNT,
+            strip.setPixelColor(RING_START + (pos - 2 + RING_COUNT) % RING_COUNT,
                 strip.Color(_r / 8, _g / 8, _b / 8));
             strip.show();
             _animStep++;
             break;
         }
         case LED_RAINBOW: {
-            for (int i = 0; i < LED_COUNT; i++) {
-                uint16_t hue = (_animStep * 256 + i * 65536 / LED_COUNT) & 0xFFFF;
-                strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(hue)));
+            for (int i = 0; i < RING_COUNT; i++) {
+                uint16_t hue = (_animStep * 256 + i * 65536 / RING_COUNT) & 0xFFFF;
+                strip.setPixelColor(RING_START + i, strip.gamma32(strip.ColorHSV(hue)));
             }
+            strip.setPixelColor(0, 0);
             strip.show();
             _animStep = (_animStep + 1) % 256;
             break;
