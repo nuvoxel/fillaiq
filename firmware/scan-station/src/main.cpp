@@ -19,6 +19,7 @@
 #include "ota_update.h"
 #include "environment.h"
 #include "device_config.h"
+#include "printer.h"
 
 // ============================================================
 // Filla IQ — Scan Station Firmware
@@ -562,6 +563,7 @@ void handleSerial() {
             Serial.printf("  (I2C 0x%02X)", envSensor.getI2CAddr());
         }
         Serial.println();
+        labelPrinter.printStatusInfo();
 
         // State
         Serial.println("\n--- State ---");
@@ -586,6 +588,48 @@ void handleSerial() {
     }
     else if (line == "config") {
         deviceConfig.printStatus();
+    }
+    else if (line == "printer" || line == "pr") {
+        labelPrinter.printStatusInfo();
+    }
+    else if (line == "printerscan" || line == "prscan") {
+        Serial.println("Scanning for BLE printer...");
+        if (labelPrinter.scan(10000)) {
+            Serial.printf("Found: %s @ %s\n", labelPrinter.getDeviceName(), labelPrinter.getBleAddr());
+            Serial.println("Use 'prconnect' to connect.");
+        } else {
+            Serial.println("No printer found.");
+        }
+    }
+    else if (line == "prconnect") {
+        if (labelPrinter.isConnected()) {
+            Serial.println("Already connected.");
+        } else if (labelPrinter.getDeviceName()[0]) {
+            labelPrinter.connect();
+        } else {
+            Serial.println("No printer found. Use 'prscan' first.");
+        }
+    }
+    else if (line == "prdisconnect") {
+        labelPrinter.disconnect();
+        Serial.println("Printer disconnected.");
+    }
+    else if (line == "prtest") {
+        if (!labelPrinter.isConnected()) {
+            Serial.println("Printer not connected. Use 'prconnect' first.");
+        } else {
+            // Print a simple test pattern — horizontal lines
+            const int lines = 60;
+            uint8_t testBitmap[PRINTER_BYTES_PER_LINE * lines];
+            memset(testBitmap, 0, sizeof(testBitmap));
+            for (int y = 0; y < lines; y++) {
+                if (y % 4 < 2) {
+                    memset(&testBitmap[y * PRINTER_BYTES_PER_LINE], 0xFF, PRINTER_BYTES_PER_LINE);
+                }
+            }
+            Serial.println("Printing test pattern...");
+            labelPrinter.printRaster(testBitmap, PRINTER_BYTES_PER_LINE, lines);
+        }
     }
     else if (line == "ota") {
         Serial.println("Checking for OTA update...");
@@ -696,6 +740,22 @@ void setup() {
     caps.leds.set("WS2812B", "GPIO", 0, LED_PIN);
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
+
+    // BLE label printer scan
+    display.showMessage("Scanning BLE...", "Looking for printer");
+    labelPrinter.begin();
+    if (labelPrinter.scan(5000)) {
+        caps.printer.set("Phomemo M120", "BLE",
+                         PRINTER_MAX_WIDTH_MM, PRINTER_MAX_HEIGHT_MM,
+                         PRINTER_DPI, "escpos");
+        caps.printer.setBle(labelPrinter.getBleAddr());
+        caps.printer.setUsb(PRINTER_USB_VID, PRINTER_USB_PID);
+        display.showMessage("Printer Found", labelPrinter.getDeviceName());
+        delay(1000);
+    } else {
+        display.showMessage("No Printer", "Continuing...");
+        delay(500);
+    }
 
     // Device config (loads from NVS)
     deviceConfig.begin();
