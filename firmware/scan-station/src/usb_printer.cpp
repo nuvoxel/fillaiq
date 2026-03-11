@@ -208,15 +208,17 @@ void usbPrinterBegin() {
 
     sXferSem = xSemaphoreCreateBinary();
 
+    Serial.println("[USB] Installing USB Host Library...");
     usb_host_config_t hostCfg = {
         .skip_phy_setup = false,
         .intr_flags = ESP_INTR_FLAG_LEVEL1,
     };
     esp_err_t err = usb_host_install(&hostCfg);
     if (err != ESP_OK) {
-        Serial.printf("[USB] Host install failed: %s\n", esp_err_to_name(err));
+        Serial.printf("[USB] Host install FAILED: %s (0x%x)\n", esp_err_to_name(err), err);
         return;
     }
+    Serial.println("[USB] Host library installed OK");
 
     // Daemon task for low-level USB events
     xTaskCreatePinnedToCore(usbHostTask, "usb_host", 4096, NULL, 2, NULL, 0);
