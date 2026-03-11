@@ -482,6 +482,10 @@ export const environmentalReadingsRelations = relations(
       fields: [environmentalReadings.shelfId],
       references: [shelves.id],
     }),
+    station: one(scanStations, {
+      fields: [environmentalReadings.stationId],
+      references: [scanStations.id],
+    }),
   })
 );
 
@@ -495,6 +499,7 @@ export const scanStationsRelations = relations(
       references: [users.id],
     }),
     scanEvents: many(scanEvents),
+    environmentalReadings: many(environmentalReadings),
   })
 );
 

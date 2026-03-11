@@ -11,6 +11,7 @@ import {
 import { weightEventTypeEnum } from "./enums";
 import { userItems, machines, equipment } from "./user-library";
 import { slots, shelves } from "./storage";
+import { scanStations } from "./scan-stations";
 
 // ── Weight Events ───────────────────────────────────────────────────────────
 
@@ -96,10 +97,12 @@ export const dryingSessions = pgTable("drying_sessions", {
 export const environmentalReadings = pgTable("environmental_readings", {
   id: uuid("id").defaultRandom().primaryKey(),
   shelfId: uuid("shelf_id")
-    .references(() => shelves.id)
-    .notNull(),
+    .references(() => shelves.id),
+  stationId: uuid("station_id")
+    .references(() => scanStations.id),
   temperatureC: real("temperature_c"),
-  humidityPercent: real("humidity_percent"),
+  humidity: real("humidity"),           // %RH
+  pressureHPa: real("pressure_hpa"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

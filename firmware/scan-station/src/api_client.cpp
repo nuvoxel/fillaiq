@@ -1,4 +1,5 @@
 #include "api_client.h"
+#include "environment.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -204,6 +205,36 @@ ApiStatus ApiClient::pollResult(const char* scanId, ScanResponse& response) {
     return API_OK;
 }
 
+// ==================== Environment Reporting ====================
+
+void ApiClient::postEnvironment(const EnvData& env) {
+    if (!isWiFiConnected() || !isPaired()) return;
+
+    String url = String(_apiUrl) + "/api/v1/environment";
+
+    JsonDocument doc;
+    doc["temperatureC"] = env.temperatureC;
+    doc["humidity"] = env.humidity;
+    if (env.pressureHPa > 0) doc["pressureHPa"] = env.pressureHPa;
+
+    String payload;
+    serializeJson(doc, payload);
+
+    HTTPClient http;
+    http.begin(getSecureClient(), url);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-Device-Token", _deviceToken);
+    http.setTimeout(API_TIMEOUT_MS);
+
+    int httpCode = http.POST(payload);
+    if (httpCode == 200 || httpCode == 201) {
+        Serial.printf("[Env] Reported: T=%.1fC H=%.0f%%\n", env.temperatureC, env.humidity);
+    } else {
+        Serial.printf("[Env] Report failed: HTTP %d\n", httpCode);
+    }
+    http.end();
+}
+
 // ==================== Payload Building ====================
 
 String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagData) {
@@ -380,6 +411,7 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     addSensor("colorSensor", _capabilities.colorSensor);
     addSensor("display", _capabilities.display);
     addSensor("leds", _capabilities.leds);
+    addSensor("environment", _capabilities.environment);
     caps["turntable"] = _capabilities.turntable;
     caps["camera"] = _capabilities.camera;
 

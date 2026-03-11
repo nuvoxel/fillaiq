@@ -25,7 +25,8 @@ import Tooltip from "@mui/material/Tooltip";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import DevicesIcon from "@mui/icons-material/Devices";
-import { listMyStations, revokeDevice, updateStationChannel, claimDevice } from "@/lib/actions/scan";
+import ThermostatIcon from "@mui/icons-material/Thermostat";
+import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment } from "@/lib/actions/scan";
 
 type SensorDetail = {
   detected?: boolean;
@@ -46,6 +47,13 @@ type StationConfig = {
     leds?: SensorDetail;
     turntable?: boolean;
     camera?: boolean;
+    environment?: SensorDetail;
+  };
+  latestEnvironment?: {
+    temperatureC?: number | null;
+    humidity?: number | null;
+    pressureHPa?: number | null;
+    createdAt?: string;
   };
 } | null;
 
@@ -86,13 +94,36 @@ export function FillaIqTab() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [envData, setEnvData] = useState<Record<string, { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null }>>({});
   const [pairOpen, setPairOpen] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
   const [pairError, setPairError] = useState("");
 
   const fetchStations = async () => {
     const result = await listMyStations();
-    if (result.data) setStations(result.data as unknown as Station[]);
+    if (result.data) {
+      const stationList = result.data as unknown as Station[];
+      setStations(stationList);
+
+      // Fetch latest environment reading for stations with environment sensor
+      const envEntries: Record<string, { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null }> = {};
+      await Promise.all(
+        stationList
+          .filter((s) => (s.config as StationConfig)?.capabilities?.environment?.detected)
+          .map(async (s) => {
+            const envResult = await getStationEnvironment(s.id, 1);
+            if (envResult.data && Array.isArray(envResult.data) && envResult.data.length > 0) {
+              const latest = envResult.data[envResult.data.length - 1];
+              envEntries[s.id] = {
+                temperatureC: latest.temperatureC,
+                humidity: latest.humidity,
+                pressureHPa: latest.pressureHPa,
+              };
+            }
+          })
+      );
+      setEnvData(envEntries);
+    }
     setLoading(false);
   };
 
@@ -172,6 +203,7 @@ export function FillaIqTab() {
                 <TableCell sx={{ fontWeight: 600 }}>Capabilities</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>IP Address</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Environment</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Last Seen</TableCell>
                 <TableCell />
               </TableRow>
@@ -221,6 +253,7 @@ export function FillaIqTab() {
                               <SensorChip label="Color" sensor={caps.colorSensor} />
                               <SensorChip label="Display" sensor={caps.display} />
                               <SensorChip label="LEDs" sensor={caps.leds} />
+                              <SensorChip label="Env" sensor={caps.environment} />
                               {caps.turntable && <Chip label="Turntable" size="small" variant="outlined" />}
                               {caps.camera && <Chip label="Camera" size="small" variant="outlined" />}
                             </>
@@ -249,6 +282,27 @@ export function FillaIqTab() {
                       size="small"
                       color={station.isOnline ? "success" : "default"}
                     />
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const env = envData[station.id];
+                      if (!env) return <Typography variant="body2" color="text.secondary">—</Typography>;
+                      const parts: string[] = [];
+                      if (env.temperatureC != null) parts.push(`${env.temperatureC.toFixed(1)}°C`);
+                      if (env.humidity != null) parts.push(`${env.humidity.toFixed(0)}% RH`);
+                      if (env.pressureHPa != null) parts.push(`${env.pressureHPa.toFixed(0)} hPa`);
+                      if (parts.length === 0) return <Typography variant="body2" color="text.secondary">—</Typography>;
+                      return (
+                        <Tooltip title="Latest environmental reading" arrow>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <ThermostatIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                            <Typography variant="body2" fontFamily="monospace" color="text.secondary">
+                              {parts.join(" · ")}
+                            </Typography>
+                          </Box>
+                        </Tooltip>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {station.lastSeenAt

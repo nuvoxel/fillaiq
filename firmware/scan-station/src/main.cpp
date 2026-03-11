@@ -17,6 +17,7 @@
 #include "distance.h"
 #include "color.h"
 #include "ota_update.h"
+#include "environment.h"
 
 // ============================================================
 // Filla IQ — Scan Station Firmware
@@ -515,12 +516,57 @@ void handleSerial() {
         }
     }
     else if (line == "status" || line == "s") {
-        Serial.println("\n========================================");
-        Serial.printf("Scan state: %s\n", scanStateName(scanState));
-        scale.printStatus();
-        nfcScanner.printStatus();
-        apiClient.printStatus();
-        Serial.printf("Setup AP: %s\n", provisioner.isActive() ? "active" : "off");
+        Serial.println();
+        Serial.println("========================================");
+        Serial.printf("  Filla IQ — Scan Station v%s (%s)\n", FW_VERSION, FW_CHANNEL);
+        Serial.printf("  SKU: %s  |  ID: %s\n", FW_SKU, apiClient.getStationId());
+        Serial.println("========================================");
+
+        // Network
+        Serial.println("\n--- Network ---");
+        if (apiClient.isWiFiConnected()) {
+            Serial.printf("  WiFi: %s (connected)\n", apiClient.hasApiUrl() ? "yes" : "no");
+            Serial.printf("  IP: %s  RSSI: %d dBm\n",
+                WiFi.localIP().toString().c_str(), WiFi.RSSI());
+        } else {
+            Serial.println("  WiFi: disconnected");
+        }
+        Serial.printf("  API: %s\n", apiClient.getApiUrl());
+        Serial.printf("  Paired: %s\n", apiClient.isPaired() ? "yes" : "no");
+        if (apiClient.getPairingCode()[0] != '\0')
+            Serial.printf("  Pairing code: %s\n", apiClient.getPairingCode());
+        if (apiClient.getDeviceToken()[0] != '\0')
+            Serial.printf("  Token: %.8s...\n", apiClient.getDeviceToken());
+        Serial.printf("  Setup AP: %s\n", provisioner.isActive() ? "active" : "off");
+
+        // Sensors
+        Serial.println("\n--- Sensors ---");
+        Serial.printf("  Scale: %s", scale.isConnected() ? "HX711" : "not detected");
+        if (scale.isConnected()) {
+            float w = scale.isStable() ? scale.getStableWeight() : scale.getWeight();
+            Serial.printf("  %.1fg %s  (cal: %.4f)", w,
+                scale.isStable() ? "STABLE" : "unstable", scale.getScaleFactor());
+        }
+        Serial.println();
+        Serial.printf("  NFC: %s\n", nfcScanner.isConnected() ? "PN532 (SPI)" : "not detected");
+        Serial.printf("  TOF: %s\n", distanceSensor.isConnected() ? "VL53L1X (I2C)" : "not detected");
+        Serial.printf("  Color: %s\n", colorSensor.isConnected()
+            ? (colorSensor.getType() == COLOR_AS7341 ? "AS7341 (I2C 0x39)" : "detected")
+            : "not detected");
+        Serial.printf("  Env: %s", envSensor.isConnected() ? envSensor.getChipName() : "not detected");
+        if (envSensor.isConnected()) {
+            EnvData env;
+            if (envSensor.read(env))
+                Serial.printf("  T=%.1f°C  H=%.0f%%  P=%.0fhPa", env.temperatureC, env.humidity, env.pressureHPa);
+            Serial.printf("  (I2C 0x%02X)", envSensor.getI2CAddr());
+        }
+        Serial.println();
+
+        // State
+        Serial.println("\n--- State ---");
+        Serial.printf("  Scan: %s\n", scanStateName(scanState));
+        Serial.printf("  Uptime: %lus  Free heap: %u bytes\n", millis() / 1000, ESP.getFreeHeap());
+
         Serial.println("========================================\n");
     }
     else if (line == "nfc") {
@@ -606,6 +652,9 @@ void setup() {
     // Color sensor (auto-detect)
     colorSensor.begin();
 
+    // Environmental sensor (auto-detect)
+    envSensor.begin();
+
     // Weight
     scale.begin();
     float savedCal = loadCalibration();
@@ -640,6 +689,8 @@ void setup() {
     }
     caps.display.set("ST7789", "SPI", 0, TFT_CS_PIN);
     caps.leds.set("WS2812B", "GPIO", 0, LED_PIN);
+    if (envSensor.isConnected())
+        caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
     // API client (loads WiFi creds from NVS)
     apiClient.begin();
@@ -676,6 +727,7 @@ void setup() {
 static unsigned long lastDisplayUpdate = 0;
 static unsigned long lastNfcPollTime = 0;
 static unsigned long lastSerialStatus = 0;
+static unsigned long lastEnvReport = 0;
 
 void loop() {
     unsigned long now = millis();
@@ -720,6 +772,16 @@ void loop() {
         }
     }
 
+    // Environmental data reporting (every 5 min)
+    if (envSensor.isConnected() && apiClient.isPaired() && apiClient.isWiFiConnected()
+        && now - lastEnvReport >= ENV_REPORT_INTERVAL_MS) {
+        lastEnvReport = now;
+        EnvData env;
+        if (envSensor.read(env)) {
+            apiClient.postEnvironment(env);
+        }
+    }
+
     // Scan state machine (skip while pairing)
     if (!pairingActive) {
         updateScanState();
@@ -742,6 +804,11 @@ void loop() {
             if (nfcScanner.hasFilamentInfo()) {
                 Serial.printf(" [%s]", nfcScanner.getFilamentInfo().name);
             }
+        }
+        static EnvData envData;
+        if (envSensor.read(envData)) {
+            Serial.printf(" T:%.1fC H:%.0f%%", envData.temperatureC, envData.humidity);
+            if (envData.pressureHPa > 0) Serial.printf(" P:%.0fhPa", envData.pressureHPa);
         }
         Serial.println();
     }

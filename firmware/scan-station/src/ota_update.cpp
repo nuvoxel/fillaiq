@@ -67,6 +67,7 @@ void otaCheckNow() {
     http.addHeader("X-Has-Color", apiClient.hasColor() ? "1" : "0");
     http.addHeader("X-Has-Turntable", apiClient.hasTurntable() ? "1" : "0");
     http.addHeader("X-Has-Camera", apiClient.hasCamera() ? "1" : "0");
+    http.addHeader("X-Has-Env", apiClient.hasEnv() ? "1" : "0");
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.GET();

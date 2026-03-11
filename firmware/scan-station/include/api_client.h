@@ -66,6 +66,7 @@ struct DeviceCapabilities {
     SensorInfo colorSensor;
     SensorInfo display;
     SensorInfo leds;
+    SensorInfo environment;
     bool turntable = false;
     bool camera = false;
 };
@@ -82,6 +83,7 @@ public:
     // API
     ApiStatus postScan(const ScanResult& scan, const TagData* tagData, ScanResponse& response);
     ApiStatus pollResult(const char* scanId, ScanResponse& response);
+    void postEnvironment(const struct EnvData& env);
 
     // Device pairing
     ApiStatus requestPairingCode(char* codeOut, size_t codeLen);
@@ -108,6 +110,7 @@ public:
     bool hasColor() const { return _capabilities.colorSensor.detected; }
     bool hasTurntable() const { return _capabilities.turntable; }
     bool hasCamera() const { return _capabilities.camera; }
+    bool hasEnv() const { return _capabilities.environment.detected; }
 
     void printStatus();
 

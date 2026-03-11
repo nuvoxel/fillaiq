@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "1.0.2"
 #define FW_SKU     "scan-station"    // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
@@ -103,6 +103,9 @@
 // --- OTA Updates ---
 #define OTA_CHECK_INTERVAL_MS   (5 * 60 * 1000UL)  // 5 minutes
 #define OTA_FIRST_CHECK_DELAY   30000               // 30s after boot
+
+// --- Environmental Reporting ---
+#define ENV_REPORT_INTERVAL_MS  (5 * 60 * 1000UL)  // 5 minutes
 
 // --- Serial ---
 #define SERIAL_BAUD             115200

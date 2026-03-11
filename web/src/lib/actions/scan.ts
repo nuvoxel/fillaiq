@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, desc, and, or, ilike, gt, isNull } from "drizzle-orm";
+import { eq, desc, and, or, ilike, gt, gte, isNull } from "drizzle-orm";
 import { scanStations, scanEvents } from "@/db/schema/scan-stations";
+import { environmentalReadings } from "@/db/schema/events";
 import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
 import { userItems } from "@/db/schema/user-library";
 import { zones, racks, shelves, bays, slots } from "@/db/schema/storage";
@@ -504,6 +505,47 @@ export async function getStorageTree() {
 }
 
 // ── Available Slots (flat list for quick picker) ──────────────────────────────
+
+// ── Environmental Data ───────────────────────────────────────────────────────
+
+export async function getStationEnvironment(stationId: string, hours = 24) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  // Verify ownership
+  const [station] = await db
+    .select({ id: scanStations.id })
+    .from(scanStations)
+    .where(
+      and(
+        eq(scanStations.id, stationId),
+        eq(scanStations.userId, guard.data.userId)
+      )
+    );
+
+  if (!station) return err("Station not found");
+
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const readings = await db
+    .select({
+      temperatureC: environmentalReadings.temperatureC,
+      humidity: environmentalReadings.humidity,
+      pressureHPa: environmentalReadings.pressureHPa,
+      createdAt: environmentalReadings.createdAt,
+    })
+    .from(environmentalReadings)
+    .where(
+      and(
+        eq(environmentalReadings.stationId, stationId),
+        gte(environmentalReadings.createdAt, since)
+      )
+    )
+    .orderBy(environmentalReadings.createdAt)
+    .limit(1000);
+
+  return ok(readings);
+}
 
 export async function getAvailableSlots() {
   const guard = await requireAuth();
