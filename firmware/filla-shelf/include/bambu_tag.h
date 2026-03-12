@@ -4,9 +4,8 @@
 #include "filament_data.h"
 
 // ============================================================
-// Filla IQ — MIFARE Classic Tag Reader
-// HKDF-SHA256 key derivation + sector auth for encrypted tags.
-// Raw data is sent to the server for parsing (Bambu, Creality, etc.)
+// Filla IQ — Bambu Lab MIFARE Classic 1K Tag Reader
+// HKDF-SHA256 key derivation + sector auth + data parsing
 // ============================================================
 
 class Adafruit_PN532;
@@ -34,3 +33,12 @@ void readMifareClassicRaw(Adafruit_PN532 &reader, const uint8_t *uid, uint8_t ui
 
 // Read all pages of an NTAG/Ultralight tag into TagData.
 void readNtagRaw(Adafruit_PN532 &reader, TagData &out);
+
+// --- Bambu-specific parsing (local fallback until web service) ---
+
+// Parse FilamentInfo from already-read raw sector data.
+// Returns true if core fields were successfully parsed.
+bool parseBambuFromRaw(const TagData &tag, FilamentInfo &out);
+
+// Print parsed filament info to serial (for diagnostics)
+void bambuPrintInfo(const FilamentInfo &info);

@@ -1,42 +1,66 @@
 {
   "devices": {
+    "filla-scan": {
+      "channels": {
+        "stable": {
+          "version": "1.0.9",
+          "file": "filla-scan-1.0.9.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-11",
+          "notes": "Rename to FillaScan, remove USB Host code"
+        },
+        "beta": {
+          "version": "1.0.9",
+          "file": "filla-scan-1.0.9.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-11",
+          "notes": "Rename to FillaScan, remove USB Host code"
+        },
+        "dev": {
+          "version": "1.0.9",
+          "file": "filla-scan-1.0.9.bin",
+          "md5": "",
+          "size": 0,
+          "date": "2026-03-11",
+          "notes": "Rename to FillaScan, remove USB Host code"
+        }
+      }
+    },
     "scan-station": {
       "channels": {
         "stable": {
-          "version": "1.0.8",
-          "file": "scan-station-1.0.8.bin",
-          "md5": "0111e58b53875050e01f2bd863b1d11e",
-          "size": 1728656,
+          "version": "1.0.9",
+          "file": "filla-scan-1.0.9.bin",
+          "md5": "",
+          "size": 0,
           "date": "2026-03-11",
-          "notes": "USB Host debug logging for printer detection"
-        },
-        "beta": {
-          "version": "1.0.8",
-          "file": "scan-station-1.0.8.bin",
-          "md5": "0111e58b53875050e01f2bd863b1d11e",
-          "size": 1728656,
+          "notes": "Legacy SKU redirect — devices will update to filla-scan"
+        }
+      }
+    },
+    "filla-shelf": {
+      "channels": {
+        "stable": {
+          "version": "0.1.0",
+          "file": "filla-shelf-0.1.0.bin",
+          "md5": "",
+          "size": 0,
           "date": "2026-03-11",
-          "notes": "USB Host debug logging for printer detection"
-        },
-        "dev": {
-          "version": "1.0.8",
-          "file": "scan-station-1.0.8.bin",
-          "md5": "0111e58b53875050e01f2bd863b1d11e",
-          "size": 1728656,
-          "date": "2026-03-11",
-          "notes": "USB Host debug logging for printer detection"
+          "notes": "Recovered from slot-module, renamed to FillaShelf"
         }
       }
     },
     "shelf-station": {
       "channels": {
         "stable": {
-          "version": "1.0.0",
-          "file": "shelf-station-1.0.0.bin",
+          "version": "0.1.0",
+          "file": "filla-shelf-0.1.0.bin",
           "md5": "",
           "size": 0,
-          "date": "2026-03-10",
-          "notes": "Placeholder"
+          "date": "2026-03-11",
+          "notes": "Legacy SKU redirect — devices will update to filla-shelf"
         }
       }
     }

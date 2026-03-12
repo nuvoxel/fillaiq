@@ -25,12 +25,12 @@ type Manifest = {
 };
 
 /**
- * GET /api/v1/firmware/check?version=1.0.0&sku=scan-station
+ * GET /api/v1/firmware/check?version=1.0.0&sku=filla-scan
  *
  * Called periodically by devices to check for firmware updates.
  * Also serves as a heartbeat — updates station last-seen and telemetry.
  *
- * Routes firmware by device SKU (scan-station, shelf-station, etc.)
+ * Routes firmware by device SKU (filla-scan, shelf-station, etc.)
  * and firmware channel (stable, beta, dev).
  */
 export async function GET(request: NextRequest) {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   const sku =
     request.nextUrl.searchParams.get("sku") ??
     request.headers.get("x-device-sku") ??
-    "scan-station";
+    "filla-scan";
 
   // Update station heartbeat + capabilities
   const updateData: Record<string, any> = {

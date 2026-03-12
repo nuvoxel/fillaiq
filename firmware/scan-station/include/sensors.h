@@ -13,6 +13,8 @@ enum ColorSensorType : uint8_t {
     COLOR_AS7265X,      // 18-channel spectral (UV + VIS + NIR, 3 sensors)
     COLOR_TCS34725,     // 4-channel RGBC
     COLOR_OPT4048,      // 4-channel CIE XYZ + lux
+    COLOR_AS7343,       // 14-channel spectral (extended vis + NIR)
+    COLOR_AS7331,       // 3-channel UV spectral (UVA + UVB + UVC)
 };
 
 // --- Color Data (unified across all sensor types) ---
@@ -45,6 +47,11 @@ struct ColorData {
     float cie_x, cie_y, cie_z;
     float opt_lux;
 
+    // AS7331 — UV spectral
+    float uva;      // UVA (320-400nm) µW/cm²
+    float uvb;      // UVB (280-320nm) µW/cm²
+    float uvc;      // UVC (200-280nm) µW/cm²
+
     bool valid;
 
     void clear_data() {
@@ -57,6 +64,7 @@ struct ColorData {
         rgbc_r = rgbc_g = rgbc_b = rgbc_c = 0;
         colorTemp = lux = 0;
         cie_x = cie_y = cie_z = opt_lux = 0;
+        uva = uvb = uvc = 0;
         valid = false;
     }
 };

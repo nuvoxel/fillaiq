@@ -62,39 +62,17 @@ void otaCheckNow() {
     http.addHeader("X-Uptime", String(millis() / 1000));
     http.addHeader("X-Free-Heap", String(ESP.getFreeHeap()));
     http.addHeader("X-WiFi-RSSI", String(WiFi.RSSI()));
-    // Send full capabilities as JSON header
+    // Send capabilities as JSON header (shared builder)
     {
-        JsonDocument caps;
-        const auto& c = apiClient.getCapabilities();
-        auto addSensor = [&](const char* key, const SensorInfo& s) {
-            if (!s.detected) return;
-            JsonObject obj = caps[key].to<JsonObject>();
-            obj["detected"] = true;
-            if (s.chip[0]) obj["chip"] = s.chip;
-            if (s.interface[0]) obj["interface"] = s.interface;
-            if (s.i2cAddr > 0) {
-                char addr[8]; snprintf(addr, sizeof(addr), "0x%02X", s.i2cAddr);
-                obj["address"] = addr;
-            }
-        };
-        addSensor("nfc", c.nfc);
-        addSensor("scale", c.scale);
-        addSensor("tof", c.tof);
-        addSensor("colorSensor", c.colorSensor);
-        addSensor("display", c.display);
-        addSensor("leds", c.leds);
-        addSensor("environment", c.environment);
-        if (c.printer.detected) {
-            JsonObject p = caps["printer"].to<JsonObject>();
-            p["detected"] = true;
-            if (c.printer.model[0]) p["model"] = c.printer.model;
-            if (c.printer.connection[0]) p["connection"] = c.printer.connection;
-            if (c.printer.bleAddr[0]) p["bleAddr"] = c.printer.bleAddr;
-            if (c.printer.labelWidthMm > 0) p["labelWidthMm"] = c.printer.labelWidthMm;
-            if (c.printer.dpi > 0) p["dpi"] = c.printer.dpi;
-            // Live state
+        String capsJson = apiClient.buildCapabilitiesJson();
+
+        // Augment with live printer state
+        if (labelPrinter.isConnected()) {
+            JsonDocument capsDoc;
+            deserializeJson(capsDoc, capsJson);
             const auto& ps = labelPrinter.getState();
-            p["transport"] = (ps.transport == TRANSPORT_USB) ? "USB" : "BLE";
+            JsonObject p = capsDoc["printer"].to<JsonObject>();
+            p["transport"] = "BLE";
             if (ps.infoQueried) {
                 p["battery"] = ps.batteryPercent;
                 if (ps.firmwareVersion[0]) p["firmware"] = ps.firmwareVersion;
@@ -102,20 +80,10 @@ void otaCheckNow() {
             }
             p["paperLoaded"] = ps.paperLoaded;
             p["coverClosed"] = ps.coverClosed;
-            // USB descriptor info
-            if (ps.usbManufacturer[0]) p["usbManufacturer"] = ps.usbManufacturer;
-            if (ps.usbProduct[0]) p["usbProduct"] = ps.usbProduct;
-            if (ps.usbSerial[0]) p["usbSerialNumber"] = ps.usbSerial;
-            if (ps.usbVid > 0) {
-                char vidpid[12];
-                snprintf(vidpid, sizeof(vidpid), "%04X:%04X", ps.usbVid, ps.usbPid);
-                p["usbId"] = vidpid;
-            }
+            capsJson = "";
+            serializeJson(capsDoc, capsJson);
         }
-        caps["turntable"] = c.turntable;
-        caps["camera"] = c.camera;
-        String capsJson;
-        serializeJson(caps, capsJson);
+
         http.addHeader("X-Capabilities", capsJson);
     }
     http.setTimeout(API_TIMEOUT_MS);

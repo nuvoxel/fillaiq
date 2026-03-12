@@ -1,4 +1,5 @@
 #include "environment.h"
+#include "color.h"
 #include <Wire.h>
 #include <DHT.h>
 
@@ -27,9 +28,23 @@ void EnvironmentSensor::begin() {
         _type = ENV_BME280;
         _connected = true;
     } else if (_i2cProbe(SHT31_ADDR)) {
-        _i2cAddr = SHT31_ADDR;
-        _type = ENV_SHT31;
-        _connected = true;
+        // SHT31 shares 0x44 with OPT4048 — skip if color sensor already claimed it
+        if (!colorSensor.isConnected() || colorSensor.getType() != COLOR_OPT4048) {
+            // Verify it's actually an SHT31 by reading the status register
+            Wire.beginTransmission(SHT31_ADDR);
+            Wire.write(0xF3);
+            Wire.write(0x2D);
+            if (Wire.endTransmission() == 0) {
+                delay(10);
+                Wire.requestFrom((uint8_t)SHT31_ADDR, (uint8_t)3);
+                if (Wire.available() >= 3) {
+                    Wire.read(); Wire.read(); Wire.read();  // status + CRC
+                    _i2cAddr = SHT31_ADDR;
+                    _type = ENV_SHT31;
+                    _connected = true;
+                }
+            }
+        }
     } else if (_i2cProbe(AHT20_ADDR)) {
         _i2cAddr = AHT20_ADDR;
         _type = ENV_AHT20;
@@ -37,6 +52,7 @@ void EnvironmentSensor::begin() {
     }
 
     // Fall back to DHT on GPIO if no I2C sensor found
+#ifdef DHT_PIN
     if (!_connected && DHT_PIN >= 0) {
         dhtSensor = new DHT(DHT_PIN, DHT_TYPE);
         dhtSensor->begin();
@@ -52,10 +68,13 @@ void EnvironmentSensor::begin() {
             dhtSensor = nullptr;
         }
     }
+#endif
 
     if (_connected) {
         if (_type == ENV_DHT11 || _type == ENV_DHT22) {
+#ifdef DHT_PIN
             Serial.printf("  Env: %s on GPIO%d\n", getChipName(), DHT_PIN);
+#endif
         } else {
             Serial.printf("  Env: %s at 0x%02X\n", getChipName(), _i2cAddr);
         }
@@ -107,7 +126,9 @@ void EnvironmentSensor::printStatus() {
     Serial.printf("  Env sensor: %s", _connected ? getChipName() : "not detected");
     if (_connected) {
         if (_type == ENV_DHT11 || _type == ENV_DHT22) {
+#ifdef DHT_PIN
             Serial.printf(" (GPIO%d)", DHT_PIN);
+#endif
         } else {
             Serial.printf(" (I2C 0x%02X)", _i2cAddr);
         }

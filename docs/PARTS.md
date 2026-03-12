@@ -1,4 +1,4 @@
-# Filla IQ — Scan Station Parts Reference
+# Filla IQ — FillaScan Parts Reference
 
 ## MCU: ESP32-S3-DevKitC-1-N8R2
 
@@ -60,7 +60,7 @@
 | 7   | IRQ   | Interrupt output               |
 | 8   | RSTO  | Reset output                   |
 
-### Scan Station Usage
+### FillaScan Usage
 
 Using **SPI mode** (DIP: SW1=OFF, SW2=ON). Shares FSPI bus with TFT display — NFC CS is deasserted before display operations.
 

@@ -1,4 +1,5 @@
 #include "api_client.h"
+#include "device_identity.h"
 #include "environment.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -13,9 +14,23 @@ static Preferences prefs;
 static WiFiClientSecure& getSecureClient() {
     static WiFiClientSecure client;
     static bool init = false;
-    if (!init) { client.setInsecure(); init = true; }
+    if (!init) { client.setInsecure(); client.setTimeout(15); init = true; }
     client.stop();  // Ensure clean state for each request
     return client;
+}
+
+// Add standard auth + identity headers to an HTTP request
+static void addAuthHeaders(HTTPClient& http, const char* deviceToken, const char* apiKey) {
+    if (deviceToken[0] != '\0') {
+        http.addHeader("X-Device-Token", deviceToken);
+    } else if (apiKey[0] != '\0') {
+        http.addHeader("X-API-Key", apiKey);
+    }
+    // Hardware-rooted identity (eFuse HMAC-derived secret)
+    if (deviceIdentity.isProvisioned()) {
+        http.addHeader("X-Device-Secret", deviceIdentity.getDeviceSecret());
+        http.addHeader("X-Hardware-Id", deviceIdentity.getHardwareId());
+    }
 }
 
 void ApiClient::begin() {
@@ -63,6 +78,7 @@ bool ApiClient::connectWiFi() {
     if (WiFi.status() == WL_CONNECTED) return true;
 
     Serial.printf("Connecting to WiFi: %s...\n", _ssid);
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Max TX power for best range
     WiFi.begin(_ssid, _password);
 
     unsigned long start = millis();
@@ -72,7 +88,7 @@ bool ApiClient::connectWiFi() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.printf("  WiFi connected: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("  WiFi connected: %s (RSSI %d dBm)\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
         return true;
     }
 
@@ -125,11 +141,7 @@ ApiStatus ApiClient::postScan(const ScanResult& scan, const TagData* tagData,
     HTTPClient http;
     http.begin(getSecureClient(), url);
     http.addHeader("Content-Type", "application/json");
-    if (_deviceToken[0] != '\0') {
-        http.addHeader("X-Device-Token", _deviceToken);
-    } else if (_apiKey[0] != '\0') {
-        http.addHeader("X-API-Key", _apiKey);
-    }
+    addAuthHeaders(http, _deviceToken, _apiKey);
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.POST(payload);
@@ -171,11 +183,7 @@ ApiStatus ApiClient::pollResult(const char* scanId, ScanResponse& response) {
 
     HTTPClient http;
     http.begin(getSecureClient(), url);
-    if (_deviceToken[0] != '\0') {
-        http.addHeader("X-Device-Token", _deviceToken);
-    } else if (_apiKey[0] != '\0') {
-        http.addHeader("X-API-Key", _apiKey);
-    }
+    addAuthHeaders(http, _deviceToken, _apiKey);
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.GET();
@@ -223,7 +231,7 @@ void ApiClient::postEnvironment(const EnvData& env) {
     HTTPClient http;
     http.begin(getSecureClient(), url);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("X-Device-Token", _deviceToken);
+    addAuthHeaders(http, _deviceToken, _apiKey);
     http.setTimeout(API_TIMEOUT_MS);
 
     int httpCode = http.POST(payload);
@@ -257,32 +265,41 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
         nfc["uidLength"] = scan.nfcUidLen;
         nfc["tagType"] = scan.nfcTagType;
 
-        // Base64 encode raw tag data
+        // Hex-encode raw tag data (pre-allocated buffer to avoid String fragmentation)
         if (tagData->valid) {
             if (tagData->type == TAG_MIFARE_CLASSIC) {
-                // Encode sector data as hex string
-                String hexData;
-                for (int s = 0; s < tagData->sectors_read; s++) {
-                    for (int b = 0; b < 3; b++) {
-                        for (int i = 0; i < 16; i++) {
-                            char hex[3];
-                            snprintf(hex, 3, "%02X", tagData->sector_data[s][b][i]);
-                            hexData += hex;
+                int hexLen = tagData->sectors_read * 3 * 16 * 2;
+                char* hexBuf = (char*)malloc(hexLen + 1);
+                if (hexBuf) {
+                    int pos = 0;
+                    for (int s = 0; s < tagData->sectors_read; s++) {
+                        for (int b = 0; b < 3; b++) {
+                            for (int i = 0; i < 16; i++) {
+                                pos += snprintf(hexBuf + pos, hexLen - pos + 1, "%02X",
+                                                tagData->sector_data[s][b][i]);
+                            }
                         }
                     }
+                    hexBuf[pos] = '\0';
+                    nfc["rawData"] = hexBuf;
+                    free(hexBuf);
                 }
-                nfc["rawData"] = hexData;
                 nfc["sectorsRead"] = tagData->sectors_read;
             } else if (tagData->type == TAG_NTAG) {
-                String hexData;
-                for (int p = 0; p < tagData->pages_read; p++) {
-                    for (int i = 0; i < 4; i++) {
-                        char hex[3];
-                        snprintf(hex, 3, "%02X", tagData->page_data[p][i]);
-                        hexData += hex;
+                int hexLen = tagData->pages_read * 4 * 2;
+                char* hexBuf = (char*)malloc(hexLen + 1);
+                if (hexBuf) {
+                    int pos = 0;
+                    for (int p = 0; p < tagData->pages_read; p++) {
+                        for (int i = 0; i < 4; i++) {
+                            pos += snprintf(hexBuf + pos, hexLen - pos + 1, "%02X",
+                                            tagData->page_data[p][i]);
+                        }
                     }
+                    hexBuf[pos] = '\0';
+                    nfc["rawData"] = hexBuf;
+                    free(hexBuf);
                 }
-                nfc["rawData"] = hexData;
                 nfc["pagesRead"] = tagData->pages_read;
             }
         }
@@ -291,7 +308,7 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
     // Color sensor data (any sensor type)
     if (scan.color.valid) {
         JsonObject c = doc["color"].to<JsonObject>();
-        const char* sensorNames[] = {"none", "as7341", "as7265x", "tcs34725", "opt4048"};
+        const char* sensorNames[] = {"none", "as7341", "as7265x", "tcs34725", "opt4048", "as7343", "as7331"};
         c["sensor"] = sensorNames[scan.color.sensorType];
         c["channelCount"] = scan.color.channelCount;
 
@@ -302,7 +319,7 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
         }
 
         // Sensor-specific named fields
-        if (scan.color.sensorType == COLOR_AS7341 || scan.color.sensorType == COLOR_AS7265X) {
+        if (scan.color.sensorType == COLOR_AS7341 || scan.color.sensorType == COLOR_AS7343 || scan.color.sensorType == COLOR_AS7265X) {
             c["f1_415nm"] = scan.color.f1_415nm;
             c["f2_445nm"] = scan.color.f2_445nm;
             c["f3_480nm"] = scan.color.f3_480nm;
@@ -327,6 +344,11 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
             c["cie_y"] = scan.color.cie_y;
             c["cie_z"] = scan.color.cie_z;
             c["lux"] = scan.color.opt_lux;
+        }
+        if (scan.color.sensorType == COLOR_AS7331) {
+            c["uva"] = scan.color.uva;
+            c["uvb"] = scan.color.uvb;
+            c["uvc"] = scan.color.uvc;
         }
     }
 
@@ -371,26 +393,33 @@ bool ApiClient::parseResponse(const String& json, ScanResponse& response) {
     const char* scanId = doc["scanId"];
     if (scanId) strncpy(response.scanId, scanId, sizeof(response.scanId) - 1);
 
+    const char* sessionId = doc["sessionId"];
+    if (sessionId) strncpy(response.sessionId, sessionId, sizeof(response.sessionId) - 1);
+
+    // Display fields from server-side NFC parsing
+    const char* mat = doc["material"];
+    if (mat) strncpy(response.material, mat, sizeof(response.material) - 1);
+
+    response.colorR = doc["colorR"] | 0;
+    response.colorG = doc["colorG"] | 0;
+    response.colorB = doc["colorB"] | 0;
+    response.nozzleTempMin = doc["nozzleTempMin"] | 0;
+    response.nozzleTempMax = doc["nozzleTempMax"] | 0;
+    response.bedTemp = doc["bedTemp"] | 0;
+
+    const char* tagFmt = doc["nfcTagFormat"];
+    if (tagFmt) strncpy(response.nfcTagFormat, tagFmt, sizeof(response.nfcTagFormat) - 1);
+
+    const char* cHex = doc["colorHex"];
+    if (cHex) strncpy(response.colorHex, cHex, sizeof(response.colorHex) - 1);
+
     return true;
 }
 
-// ==================== Device Pairing ====================
+// ==================== Shared Capabilities JSON ====================
 
-ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
-    if (!isWiFiConnected()) return API_NO_WIFI;
-    if (_apiUrl[0] == '\0') return API_CONNECT_FAILED;
-
-    String url = String(_apiUrl) + "/api/v1/devices/pair";
-
-    JsonDocument doc;
-    doc["hardwareId"] = _stationId;
-    doc["sku"] = FW_SKU;
-    doc["firmwareVersion"] = FW_VERSION;
-
-    doc["firmwareChannel"] = FW_CHANNEL;
-
-    // Rich hardware manifest
-    JsonObject caps = doc["capabilities"].to<JsonObject>();
+String ApiClient::buildCapabilitiesJson() const {
+    JsonDocument caps;
     auto addSensor = [&](const char* key, const SensorInfo& s) {
         if (!s.detected) return;
         JsonObject obj = caps[key].to<JsonObject>();
@@ -412,7 +441,7 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     addSensor("display", _capabilities.display);
     addSensor("leds", _capabilities.leds);
     addSensor("environment", _capabilities.environment);
-    // Printer has richer info than SensorInfo
+
     if (_capabilities.printer.detected) {
         JsonObject p = caps["printer"].to<JsonObject>();
         p["detected"] = true;
@@ -422,18 +451,40 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
         if (_capabilities.printer.labelHeightMm > 0) p["labelHeightMm"] = _capabilities.printer.labelHeightMm;
         if (_capabilities.printer.dpi > 0) p["dpi"] = _capabilities.printer.dpi;
         if (_capabilities.printer.protocol[0]) p["protocol"] = _capabilities.printer.protocol;
-        if (_capabilities.printer.usbVid > 0) {
-            char vid[8]; snprintf(vid, sizeof(vid), "0x%04X", _capabilities.printer.usbVid);
-            p["usbVid"] = vid;
-        }
-        if (_capabilities.printer.usbPid > 0) {
-            char pid[8]; snprintf(pid, sizeof(pid), "0x%04X", _capabilities.printer.usbPid);
-            p["usbPid"] = pid;
-        }
         if (_capabilities.printer.bleAddr[0]) p["bleAddr"] = _capabilities.printer.bleAddr;
     }
     caps["turntable"] = _capabilities.turntable;
     caps["camera"] = _capabilities.camera;
+
+    String output;
+    serializeJson(caps, output);
+    return output;
+}
+
+// ==================== Device Pairing ====================
+
+ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
+    if (!isWiFiConnected()) return API_NO_WIFI;
+    if (_apiUrl[0] == '\0') return API_CONNECT_FAILED;
+
+    String url = String(_apiUrl) + "/api/v1/devices/pair";
+
+    JsonDocument doc;
+    doc["hardwareId"] = _stationId;
+    doc["sku"] = FW_SKU;
+    doc["firmwareVersion"] = FW_VERSION;
+    doc["firmwareChannel"] = FW_CHANNEL;
+
+    // Hardware-rooted identity
+    if (deviceIdentity.isProvisioned()) {
+        doc["deviceSecret"] = deviceIdentity.getDeviceSecret();
+        doc["efuseId"] = deviceIdentity.getHardwareId();
+    }
+
+    // Embed capabilities into the pairing request
+    JsonDocument capsDoc;
+    deserializeJson(capsDoc, buildCapabilitiesJson());
+    doc["capabilities"] = capsDoc;
 
     String payload;
     serializeJson(doc, payload);
@@ -462,12 +513,27 @@ ApiStatus ApiClient::requestPairingCode(char* codeOut, size_t codeLen) {
     JsonDocument resp;
     if (deserializeJson(resp, body)) return API_PARSE_ERROR;
 
-    const char* code = resp["pairingCode"];
     const char* token = resp["deviceToken"];
+    if (!token) return API_PARSE_ERROR;
 
-    if (code && token) {
+    // Save new token regardless
+    strncpy(_deviceToken, token, sizeof(_deviceToken) - 1);
+
+    // Server may return paired:true if device is already claimed
+    bool alreadyPaired = resp["paired"] | false;
+    if (alreadyPaired) {
+        _paired = true;
+        memset(_pairingCode, 0, sizeof(_pairingCode));
+        saveConfig();
+        Serial.println("[Pair] Already paired (token refreshed)");
+        codeOut[0] = '\0';
+        return API_OK;
+    }
+
+    // New pairing — show code to user
+    const char* code = resp["pairingCode"];
+    if (code) {
         strncpy(_pairingCode, code, sizeof(_pairingCode) - 1);
-        strncpy(_deviceToken, token, sizeof(_deviceToken) - 1);
         strncpy(codeOut, code, codeLen - 1);
         codeOut[codeLen - 1] = '\0';
         _paired = false;

@@ -77,8 +77,8 @@ export const equipmentTypeLabels: Record<string, string> = {
 
 export const hardwareCategoryLabels: Record<string, string> = {
   label_printer: "Label Printer",
-  scan_station: "Scan Station",
-  shelf_station: "Shelf Station",
+  scan_station: "FillaScan",
+  shelf_station: "FillaShelf",
   fdm_printer: "FDM Printer",
   resin_printer: "Resin Printer",
   cnc: "CNC",

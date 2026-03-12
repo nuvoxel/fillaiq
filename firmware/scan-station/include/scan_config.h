@@ -1,19 +1,58 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.0.8"
-#define FW_SKU     "scan-station"    // Device type for OTA routing
+#define FW_VERSION "1.1.0"
+#define FW_SKU     "filla-scan"      // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
 #endif
 
 // ============================================================
-// Filla IQ — Scan Station Configuration
+// Filla IQ — FillaScan Configuration
 // ESP32-S3-DevKitC-1 + PN532(SPI) + HX711 + ST7789(SPI)
 // + WS2812B + VL53L1X(I2C) + AS7341(I2C)
 // ============================================================
 
-// --- Pin Assignments (ESP32-S3 DevKitC-1) ---
+// --- Pin Assignments ---
+
+#ifdef BOARD_SCAN_TOUCH
+// ── ESP32-S3 2.8" ILI9341 Touch Board (lcdwiki 2.8inch ESP32-S3) ──
+// Display is built-in; 4 expansion GPIOs on 1.25mm connector: IO2, IO3, IO14, IO21
+
+// Display SPI (directly connected on-board)
+#define TFT_CS_PIN      10
+#define TFT_DC_PIN      46
+#define TFT_BLK_PIN     45
+
+// Capacitive touch (FT6336G, separate I2C bus on-board)
+#define TOUCH_SDA       16
+#define TOUCH_SCL       15
+#define TOUCH_INT       17
+#define TOUCH_RST       18
+
+// I2C bus — dedicated header (NFC in I2C mode, NAU7802, TOF, color)
+#define I2C_SDA          6
+#define I2C_SCL          5
+
+// PN532 NFC reader (I2C mode on sensor bus, no dedicated CS/IRQ/RST)
+#define NFC_CS_PIN      -1   // Not used in I2C mode
+#define NFC_IRQ_PIN     14   // Expansion pin
+#define NFC_RST_PIN     -1   // No reset pin available
+
+// WS2812B LED Ring
+#define LED_PIN         21   // Expansion pin
+#define LED_SKIP         0
+#define LED_COUNT       24
+
+// No HX711 GPIOs — use NAU7802 (I2C) only
+#define HX711_SCK_PIN   -1
+#define HX711_DT_PIN    -1
+
+// No DHT pin available — use I2C environmental sensors (SHT31, BME280, etc.)
+#undef DHT_PIN
+
+#else
+// ── ESP32-S3 DevKitC-1 + separate ST7789 SPI display ──
 
 // FSPI Bus (shared: NFC + TFT display)
 #define SPI_SCK_PIN     12
@@ -43,6 +82,8 @@
 #define LED_PIN         48
 #define LED_SKIP         0   // Onboard LED mirrors pixel 0 (parallel wiring)
 #define LED_COUNT       24   // 24 ring LEDs
+
+#endif
 
 // --- Weight Settings ---
 #define WEIGHT_SAMPLES          10
@@ -79,13 +120,17 @@
 #define API_TIMEOUT_MS          10000
 #define DEFAULT_API_URL         "https://www.fillaiq.com"
 
+// --- Weight ADC (NAU7802 preferred, HX711 fallback) ---
+#define NAU7802_ADDR            0x2A
+
 // --- Color Sensor I2C Addresses ---
-#define AS7341_ADDR             0x39
+#define AS7341_ADDR             0x39    // Also AS7343 — differentiated by ID register
 #define AS7265X_ADDR            0x49
 #define TCS34725_ADDR           0x29
 #define OPT4048_ADDR            0x44
+#define AS7331_ADDR             0x74    // UV spectral sensor
 
-// --- AS7341 Settings ---
+// --- AS7341/AS7343 Settings ---
 #define COLOR_AS7341_ATIME      100
 #define COLOR_AS7341_ASTEP      999
 #define COLOR_AS7341_GAIN       10  // AS7341_GAIN_256X
@@ -120,8 +165,10 @@
 #define PRINTER_DOTS_PER_LINE   384     // 48mm * 8 dots/mm
 
 // --- DHT Temperature/Humidity Sensor ---
+#ifndef BOARD_SCAN_TOUCH
 #define DHT_PIN                 5
 #define DHT_TYPE                11      // 11 = DHT11, 22 = DHT22
+#endif
 
 // --- Serial ---
 #define SERIAL_BAUD             115200

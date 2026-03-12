@@ -1,20 +1,26 @@
 #include "color.h"
 #include <Wire.h>
 
-// Conditional includes — only the sensor actually present gets used
+// Sensor libraries
 #include <Adafruit_AS7341.h>
-// TCS34725 and OPT4048 use raw I2C (no heavy library needed)
-// AS7265x uses SparkFun library if available
 
 ColorSensor colorSensor;
 
 static Adafruit_AS7341 as7341;
 
-// ==================== I2C Probe ====================
+// ==================== I2C Helpers ====================
 
 bool ColorSensor::_i2cProbe(uint8_t addr) {
     Wire.beginTransmission(addr);
     return Wire.endTransmission() == 0;
+}
+
+uint8_t ColorSensor::_readDeviceId(uint8_t addr, uint8_t reg) {
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    if (Wire.endTransmission() != 0) return 0;
+    Wire.requestFrom(addr, (uint8_t)1);
+    return Wire.available() ? Wire.read() : 0;
 }
 
 // ==================== Init ====================
@@ -24,15 +30,44 @@ void ColorSensor::begin() {
     _connected = false;
 
     // Auto-detect: try each sensor address
-    // Priority: AS7265x > AS7341 > OPT4048 > TCS34725
+    // Priority: OPT4048 > AS7343/AS7341 > AS7265x > AS7331 > TCS34725
+
+    if (_i2cProbe(OPT4048_ADDR)) {
+        if (_initOPT4048()) return;
+    }
+
+    // AS7341 and AS7343 share address 0x39 — differentiate by ID register
+    if (_i2cProbe(AS7341_ADDR)) {
+        // Enable register bank 1 via CFG0 (0xBF) bit 4 to access ID register
+        Wire.beginTransmission(AS7341_ADDR);
+        Wire.write(0xBF);  // CFG0
+        Wire.write(0x10);  // REG_BANK = 1
+        Wire.endTransmission();
+        delay(5);
+
+        uint8_t id = _readDeviceId(AS7341_ADDR, 0x92);
+
+        // Switch back to bank 0
+        Wire.beginTransmission(AS7341_ADDR);
+        Wire.write(0xBF);
+        Wire.write(0x00);
+        Wire.endTransmission();
+
+        // AS7343: ID = 0x81, AS7341: ID = 0x24 or 0x09
+        if (id == 0x81) {
+            if (_initAS7343()) return;
+        } else if (id == 0x24 || id == 0x09) {
+            if (_initAS7341()) return;
+        }
+        // Unknown ID — try AS7341 library (it does its own ID check)
+        if (_initAS7341()) return;
+    }
+
     if (_i2cProbe(AS7265X_ADDR)) {
         if (_initAS7265x()) return;
     }
-    if (_i2cProbe(AS7341_ADDR)) {
-        if (_initAS7341()) return;
-    }
-    if (_i2cProbe(OPT4048_ADDR)) {
-        if (_initOPT4048()) return;
+    if (_i2cProbe(AS7331_ADDR)) {
+        if (_initAS7331()) return;
     }
     if (_i2cProbe(TCS34725_ADDR)) {
         if (_initTCS34725()) return;
@@ -54,17 +89,57 @@ bool ColorSensor::_initAS7341() {
     return false;
 }
 
+bool ColorSensor::_initAS7343() {
+    // AS7343 uses same I2C address as AS7341 but has 14 spectral channels
+    // Caller (begin) already verified device ID = 0x81
+
+    // Enable the sensor: write PON bit to ENABLE register (0x80)
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0x80);  // ENABLE register
+    Wire.write(0x01);  // PON
+    if (Wire.endTransmission() != 0) return false;
+    delay(10);
+
+    // Enable spectral measurement: SP_EN
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0x80);
+    Wire.write(0x03);  // PON + SP_EN
+    Wire.endTransmission();
+
+    // Set ATIME
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0x81);  // ATIME register
+    Wire.write(COLOR_AS7341_ATIME);
+    Wire.endTransmission();
+
+    // Set ASTEP (2 bytes, little-endian)
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0xCA);  // ASTEP_L register
+    Wire.write(COLOR_AS7341_ASTEP & 0xFF);
+    Wire.write((COLOR_AS7341_ASTEP >> 8) & 0xFF);
+    Wire.endTransmission();
+
+    // Set gain
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0xAA);  // CFG1 / GAIN register
+    Wire.write(COLOR_AS7341_GAIN);
+    Wire.endTransmission();
+
+    _type = COLOR_AS7343;
+    _connected = true;
+    Serial.println("  Color: AS7343 (14-channel spectral)");
+    return true;
+}
+
 bool ColorSensor::_initAS7265x() {
-    // AS7265x init via raw I2C
-    // The SparkFun AS7265x library uses a virtual register interface over I2C
-    // For now, basic presence check — full init requires SparkFun_AS7265X library
+    // AS7265x init via raw I2C — virtual register interface
     Wire.beginTransmission(AS7265X_ADDR);
     Wire.write(0x00);  // HW_VERSION register (virtual)
     if (Wire.endTransmission() == 0) {
         Wire.requestFrom((uint8_t)AS7265X_ADDR, (uint8_t)1);
         if (Wire.available()) {
             uint8_t hw = Wire.read();
-            if (hw == 0x40 || hw == 0x41) {  // AS72651 or AS72652
+            if (hw == 0x40 || hw == 0x41) {
                 _type = COLOR_AS7265X;
                 _connected = true;
                 Serial.printf("  Color: AS7265x (18-channel spectral, HW=0x%02X)\n", hw);
@@ -76,22 +151,19 @@ bool ColorSensor::_initAS7265x() {
 }
 
 bool ColorSensor::_initTCS34725() {
-    // TCS34725 check: read ID register (0x12 | 0x80 for command bit)
     Wire.beginTransmission(TCS34725_ADDR);
     Wire.write(0x80 | 0x12);  // Command + ID register
     if (Wire.endTransmission() == 0) {
         Wire.requestFrom((uint8_t)TCS34725_ADDR, (uint8_t)1);
         if (Wire.available()) {
             uint8_t id = Wire.read();
-            if (id == 0x44 || id == 0x4D) {  // TCS34725 or TCS34727
-                // Enable: PON + AEN
+            if (id == 0x44 || id == 0x4D) {
                 Wire.beginTransmission(TCS34725_ADDR);
-                Wire.write(0x80 | 0x00);  // ENABLE register
+                Wire.write(0x80 | 0x00);
                 Wire.write(0x03);         // PON + AEN
                 Wire.endTransmission();
-                // Set integration time
                 Wire.beginTransmission(TCS34725_ADDR);
-                Wire.write(0x80 | 0x01);  // ATIME register
+                Wire.write(0x80 | 0x01);
                 Wire.write(COLOR_TCS34725_ITIME);
                 Wire.endTransmission();
 
@@ -106,22 +178,62 @@ bool ColorSensor::_initTCS34725() {
 }
 
 bool ColorSensor::_initOPT4048() {
-    // OPT4048 check: read device ID register (0x11)
     Wire.beginTransmission(OPT4048_ADDR);
     Wire.write(0x11);  // Device ID register
     if (Wire.endTransmission() == 0) {
         Wire.requestFrom((uint8_t)OPT4048_ADDR, (uint8_t)2);
         if (Wire.available() >= 2) {
             uint16_t devId = (Wire.read() << 8) | Wire.read();
-            if (devId == 0x2048 || devId == 0x2084) {
+            // OPT4048 register 0x11 returns device ID (big-endian on wire)
+            // Known values: 0x0821 (OPT4048). Check lower byte for 0x21 or 0x20.
+            uint8_t family = devId & 0xFF;
+            if (family == 0x20 || family == 0x21) {
                 _type = COLOR_OPT4048;
                 _connected = true;
                 Serial.printf("  Color: OPT4048 (CIE XYZ, ID=0x%04X)\n", devId);
                 return true;
             }
+            Serial.printf("  Color: unknown device at 0x%02X (ID=0x%04X)\n", OPT4048_ADDR, devId);
         }
     }
     return false;
+}
+
+bool ColorSensor::_initAS7331() {
+    // AS7331 UV sensor at 0x74
+    // Read AGEN register (0xD1) for device identification
+    uint8_t agen = _readDeviceId(AS7331_ADDR, 0xD1);
+    uint8_t devId = (agen >> 4) & 0x0F;
+    if (devId != 0x02) {  // AS7331 device ID
+        // Try alternate — some revisions report differently
+        if (!_i2cProbe(AS7331_ADDR)) return false;
+    }
+
+    // Set measurement mode: CMD mode (configuration state)
+    // OSR register (0x00): write 0x00 for configuration mode
+    Wire.beginTransmission(AS7331_ADDR);
+    Wire.write(0x00);  // OSR register
+    Wire.write(0x00);  // Configuration mode
+    Wire.endTransmission();
+    delay(10);
+
+    // CREG1 (0x06): set gain and integration time
+    // Default gain=1, integration time=64ms
+    Wire.beginTransmission(AS7331_ADDR);
+    Wire.write(0x06);  // CREG1
+    Wire.write(0x50);  // GAIN=4, TIME=256ms
+    Wire.endTransmission();
+
+    // CREG3 (0x08): measurement mode = CMD (triggered)
+    Wire.beginTransmission(AS7331_ADDR);
+    Wire.write(0x08);  // CREG3
+    Wire.write(0x40);  // MMODE=CMD
+    Wire.endTransmission();
+
+    _type = COLOR_AS7331;
+    _connected = true;
+    Serial.printf("  Color: AS7331 (UV spectral, AGEN=0x%02X)\n", agen);
+    return true;
 }
 
 // ==================== Read ====================
@@ -134,9 +246,11 @@ bool ColorSensor::read(ColorData& data) {
 
     switch (_type) {
         case COLOR_AS7341:    return _readAS7341(data);
+        case COLOR_AS7343:    return _readAS7343(data);
         case COLOR_AS7265X:   return _readAS7265x(data);
         case COLOR_TCS34725:  return _readTCS34725(data);
         case COLOR_OPT4048:   return _readOPT4048(data);
+        case COLOR_AS7331:    return _readAS7331(data);
         default: return false;
     }
 }
@@ -155,7 +269,6 @@ bool ColorSensor::_readAS7341(ColorData& data) {
     data.clear    = as7341.getChannel(AS7341_CHANNEL_CLEAR);
     data.nir      = as7341.getChannel(AS7341_CHANNEL_NIR);
 
-    // Also populate channels[] array for unified access
     data.channels[0] = data.f1_415nm;
     data.channels[1] = data.f2_445nm;
     data.channels[2] = data.f3_480nm;
@@ -172,17 +285,74 @@ bool ColorSensor::_readAS7341(ColorData& data) {
     return true;
 }
 
+bool ColorSensor::_readAS7343(ColorData& data) {
+    // AS7343 has 14 spectral channels read via two SMUX configurations
+    // Channels: FZ(450) FY(555) FXL(600) NIR(855) | F2(425) F3(475) F4(515) F6(640)
+    //           F1(405) F5(550) F7(690) F8(745) | Clear FD(flicker)
+    // For simplicity, read all channels using the auto-SMUX approach
+
+    // Trigger measurement: set SP_EN in ENABLE register
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0x80);  // ENABLE
+    Wire.write(0x03);  // PON + SP_EN
+    Wire.endTransmission();
+
+    // Wait for data ready — check STATUS2 register (0xA3) bit 6
+    unsigned long start = millis();
+    while (millis() - start < 500) {
+        uint8_t status = _readDeviceId(AS7341_ADDR, 0xA3);
+        if (status & 0x40) break;  // AVALID bit
+        delay(10);
+    }
+
+    // Read all channel data registers (0x95-0xB0)
+    // AS7343 has 14 channels of 16-bit data
+    uint8_t rawBuf[28];  // 14 channels × 2 bytes
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0x95);  // First data register
+    if (Wire.endTransmission() != 0) return false;
+
+    // Read in chunks (Wire buffer limit)
+    int bytesRead = 0;
+    while (bytesRead < 28) {
+        int toRead = min(28 - bytesRead, 28);
+        int got = Wire.requestFrom((uint8_t)AS7341_ADDR, (uint8_t)toRead);
+        for (int i = 0; i < got && bytesRead < 28; i++) {
+            rawBuf[bytesRead++] = Wire.read();
+        }
+        if (got == 0) break;
+    }
+
+    if (bytesRead < 20) return false;  // Need at least some channels
+
+    // Parse channel data (little-endian 16-bit)
+    int chIdx = 0;
+    for (int i = 0; i + 1 < bytesRead && chIdx < 14; i += 2) {
+        data.channels[chIdx] = rawBuf[i] | (rawBuf[i + 1] << 8);
+        chIdx++;
+    }
+    data.channelCount = chIdx;
+
+    // Map to named fields for compatibility (approximate wavelength mapping)
+    if (chIdx >= 10) {
+        data.f1_415nm = data.channels[0];   // F1 (405nm)
+        data.f2_445nm = data.channels[1];   // F2 (425nm)
+        data.f3_480nm = data.channels[2];   // FZ (450nm)
+        data.f4_515nm = data.channels[3];   // F3 (475nm)
+        data.f5_555nm = data.channels[4];   // F4 (515nm)
+        data.f6_590nm = data.channels[5];   // FY/FXL (~555-600nm)
+        data.f7_630nm = data.channels[6];   // F6 (640nm)
+        data.f8_680nm = data.channels[7];   // F7 (690nm)
+        data.clear    = (chIdx > 12) ? data.channels[12] : 0;
+        data.nir      = (chIdx > 8)  ? data.channels[8]  : 0;
+    }
+
+    data.valid = true;
+    return true;
+}
+
 bool ColorSensor::_readAS7265x(ColorData& data) {
     // AS7265x uses virtual register interface
-    // Read all 18 calibrated channels (6 per sensor x 3 sensors)
-    // Registers: 0x08-0x13 (sensor 1), 0x14-0x1F (sensor 2), 0x20-0x2B (sensor 3)
-    // Each channel is 2 bytes (float32 calibrated, but raw uint16 for now)
-
-    // Trigger one-shot measurement
-    // Write to CONTROL_SETUP (virtual reg 0x04): DATA_RDY=0, BANK=3 (all), GAIN, ITIME
-    // This is simplified — full implementation should use SparkFun library
-
-    // For now, read raw calibrated values
     uint8_t regStart = 0x08;
     data.channelCount = 18;
 
@@ -197,7 +367,7 @@ bool ColorSensor::_readAS7265x(ColorData& data) {
         }
     }
 
-    // Map first 8 visible channels to the named fields for compatibility
+    // Map first 8 visible channels to named fields for compatibility
     if (data.channelCount >= 10) {
         data.f1_415nm = data.channels[0];
         data.f2_445nm = data.channels[1];
@@ -214,9 +384,8 @@ bool ColorSensor::_readAS7265x(ColorData& data) {
 }
 
 bool ColorSensor::_readTCS34725(ColorData& data) {
-    // Read RGBC data (registers 0x14-0x1B, auto-increment with command bit 0xA0)
     Wire.beginTransmission(TCS34725_ADDR);
-    Wire.write(0xA0 | 0x14);  // Command + auto-increment + CDATAL
+    Wire.write(0xA0 | 0x14);
     if (Wire.endTransmission() != 0) return false;
 
     Wire.requestFrom((uint8_t)TCS34725_ADDR, (uint8_t)8);
@@ -227,7 +396,7 @@ bool ColorSensor::_readTCS34725(ColorData& data) {
     data.rgbc_g = Wire.read() | (Wire.read() << 8);
     data.rgbc_b = Wire.read() | (Wire.read() << 8);
 
-    // Simple CCT approximation (McCamy's formula)
+    // McCamy's CCT formula
     if (data.rgbc_r > 0 && data.rgbc_g > 0 && data.rgbc_b > 0) {
         float x = (-0.14282f * data.rgbc_r + 1.54924f * data.rgbc_g + -0.95641f * data.rgbc_b) /
                   (float)(data.rgbc_r + data.rgbc_g + data.rgbc_b);
@@ -238,7 +407,6 @@ bool ColorSensor::_readTCS34725(ColorData& data) {
         data.colorTemp = (uint16_t)cct;
     }
 
-    // Populate channels[] for unified access
     data.channels[0] = data.rgbc_r;
     data.channels[1] = data.rgbc_g;
     data.channels[2] = data.rgbc_b;
@@ -250,10 +418,6 @@ bool ColorSensor::_readTCS34725(ColorData& data) {
 }
 
 bool ColorSensor::_readOPT4048(ColorData& data) {
-    // OPT4048: 4 result channels at registers 0x00-0x07 (2 regs per channel)
-    // Channel 0 = X, Channel 1 = Y, Channel 2 = Z, Channel 3 = W (infrared-corrected)
-    // Each result: [mantissa:20][exponent:4] across two 16-bit registers
-
     for (int ch = 0; ch < 4; ch++) {
         uint8_t reg = ch * 2;
 
@@ -267,7 +431,6 @@ bool ColorSensor::_readOPT4048(ColorData& data) {
         uint16_t msb = (Wire.read() << 8) | Wire.read();
         uint16_t lsb = (Wire.read() << 8) | Wire.read();
 
-        // Extract mantissa (20 bits) and exponent (4 bits)
         uint8_t exponent = (msb >> 12) & 0x0F;
         uint32_t mantissa = ((uint32_t)(msb & 0x0FFF) << 8) | (lsb >> 8);
 
@@ -286,6 +449,45 @@ bool ColorSensor::_readOPT4048(ColorData& data) {
     return true;
 }
 
+bool ColorSensor::_readAS7331(ColorData& data) {
+    // Trigger one-shot measurement: set MMODE to CMD and start
+    Wire.beginTransmission(AS7331_ADDR);
+    Wire.write(0x00);  // OSR register
+    Wire.write(0x83);  // Start measurement (CMD mode, one-shot)
+    Wire.endTransmission();
+
+    // Wait for measurement complete (check STATUS register)
+    delay(300);  // Wait for integration to complete
+
+    // Read output registers: MRES1 (UVA), MRES2 (UVB), MRES3 (UVC)
+    // Result registers at 0x01-0x06 (16-bit each)
+    Wire.beginTransmission(AS7331_ADDR);
+    Wire.write(0x01);  // MRES1_L
+    if (Wire.endTransmission() != 0) return false;
+
+    Wire.requestFrom((uint8_t)AS7331_ADDR, (uint8_t)6);
+    if (Wire.available() < 6) return false;
+
+    uint16_t rawA = Wire.read() | (Wire.read() << 8);
+    uint16_t rawB = Wire.read() | (Wire.read() << 8);
+    uint16_t rawC = Wire.read() | (Wire.read() << 8);
+
+    // Convert raw counts to µW/cm² (approximate — depends on gain/time config)
+    // With GAIN=4, TIME=256ms: sensitivity ≈ 0.035 µW/cm²/count (datasheet typical)
+    float sensitivity = 0.035f;
+    data.uva = rawA * sensitivity;
+    data.uvb = rawB * sensitivity;
+    data.uvc = rawC * sensitivity;
+
+    data.channels[0] = rawA;
+    data.channels[1] = rawB;
+    data.channels[2] = rawC;
+    data.channelCount = 3;
+
+    data.valid = true;
+    return true;
+}
+
 // ==================== Getters ====================
 
 ColorSensorType ColorSensor::getType() { return _type; }
@@ -293,7 +495,7 @@ bool ColorSensor::isConnected() { return _connected; }
 
 void ColorSensor::printStatus() {
     Serial.println("=== Color Sensor ===");
-    const char* names[] = {"NONE", "AS7341", "AS7265x", "TCS34725", "OPT4048"};
+    const char* names[] = {"NONE", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
     Serial.printf("  Type: %s\n", names[_type]);
     Serial.printf("  Connected: %s\n", _connected ? "YES" : "no");
 
@@ -302,10 +504,11 @@ void ColorSensor::printStatus() {
         if (read(data)) {
             switch (_type) {
                 case COLOR_AS7341:
+                case COLOR_AS7343:
                     Serial.printf("  415nm=%d 445=%d 480=%d 515=%d 555=%d 590=%d 630=%d 680=%d\n",
                         data.f1_415nm, data.f2_445nm, data.f3_480nm, data.f4_515nm,
                         data.f5_555nm, data.f6_590nm, data.f7_630nm, data.f8_680nm);
-                    Serial.printf("  Clear=%d NIR=%d\n", data.clear, data.nir);
+                    Serial.printf("  Clear=%d NIR=%d  (%d channels)\n", data.clear, data.nir, data.channelCount);
                     break;
                 case COLOR_AS7265X:
                     Serial.printf("  18 channels:");
@@ -321,6 +524,10 @@ void ColorSensor::printStatus() {
                 case COLOR_OPT4048:
                     Serial.printf("  X=%.3f Y=%.3f Z=%.3f Lux=%.1f\n",
                         data.cie_x, data.cie_y, data.cie_z, data.opt_lux);
+                    break;
+                case COLOR_AS7331:
+                    Serial.printf("  UVA=%.2f UVB=%.2f UVC=%.2f µW/cm²\n",
+                        data.uva, data.uvb, data.uvc);
                     break;
                 default: break;
             }

@@ -13,8 +13,6 @@ static WebServer* webServer = nullptr;
 void Provisioner::begin(const char* apName) {
     memset(_ssid, 0, sizeof(_ssid));
     memset(_password, 0, sizeof(_password));
-    memset(_apiUrl, 0, sizeof(_apiUrl));
-    memset(_apiKey, 0, sizeof(_apiKey));
     _newCreds = false;
     strncpy(_apSsid, apName, sizeof(_apSsid) - 1);
 
@@ -40,13 +38,19 @@ void Provisioner::begin(const char* apName) {
     webServer->on("/", HTTP_GET, [this]() { handleRoot(); });
     webServer->on("/scan", HTTP_GET, [this]() { handleScan(); });
     webServer->on("/save", HTTP_POST, [this]() { handleSave(); });
-    // Captive portal detection endpoints
-    webServer->on("/generate_204", HTTP_GET, [this]() { handleCaptive(); });
-    webServer->on("/hotspot-detect.html", HTTP_GET, [this]() { handleCaptive(); });
-    webServer->on("/connecttest.txt", HTTP_GET, [this]() { handleCaptive(); });
-    webServer->on("/ncsi.txt", HTTP_GET, [this]() { handleCaptive(); });
-    webServer->on("/fwlink", HTTP_GET, [this]() { handleCaptive(); });
-    webServer->onNotFound([this]() { handleCaptive(); });
+    // Apple CNA (Captive Network Assistant) detection — must return non-"Success"
+    // response to trigger the captive portal sheet
+    webServer->on("/hotspot-detect.html", HTTP_GET, [this]() { handleRoot(); });
+    webServer->on("/library/test/success.html", HTTP_GET, [this]() { handleRoot(); });
+    // Android captive portal detection
+    webServer->on("/generate_204", HTTP_GET, [this]() { handleRoot(); });
+    webServer->on("/gen_204", HTTP_GET, [this]() { handleRoot(); });
+    // Windows NCSI
+    webServer->on("/connecttest.txt", HTTP_GET, [this]() { handleRoot(); });
+    webServer->on("/ncsi.txt", HTTP_GET, [this]() { handleRoot(); });
+    webServer->on("/fwlink", HTTP_GET, [this]() { handleRoot(); });
+    // All other requests → setup page
+    webServer->onNotFound([this]() { handleRoot(); });
     webServer->begin();
 
     _active = true;
@@ -81,12 +85,9 @@ void Provisioner::loop() {
 bool Provisioner::isActive() { return _active; }
 bool Provisioner::hasNewCredentials() { return _newCreds; }
 
-void Provisioner::getCredentials(char* ssid, char* pass, char* apiUrl, char* apiKey,
-                                  size_t ssidLen, size_t passLen, size_t urlLen, size_t keyLen) {
+void Provisioner::getCredentials(char* ssid, char* pass, size_t ssidLen, size_t passLen) {
     strncpy(ssid, _ssid, ssidLen - 1);
     strncpy(pass, _password, passLen - 1);
-    strncpy(apiUrl, _apiUrl, urlLen - 1);
-    strncpy(apiKey, _apiKey, keyLen - 1);
 }
 
 void Provisioner::clearNewCredentials() { _newCreds = false; }
@@ -95,11 +96,6 @@ void Provisioner::clearNewCredentials() { _newCreds = false; }
 
 void Provisioner::handleRoot() {
     webServer->send(200, "text/html", buildPortalHtml());
-}
-
-void Provisioner::handleCaptive() {
-    webServer->sendHeader("Location", "http://192.168.4.1/", true);
-    webServer->send(302, "text/plain", "");
 }
 
 void Provisioner::handleScan() {
@@ -113,12 +109,6 @@ void Provisioner::handleSave() {
     if (webServer->hasArg("pass")) {
         strncpy(_password, webServer->arg("pass").c_str(), sizeof(_password) - 1);
     }
-    if (webServer->hasArg("apiurl")) {
-        strncpy(_apiUrl, webServer->arg("apiurl").c_str(), sizeof(_apiUrl) - 1);
-    }
-    if (webServer->hasArg("apikey")) {
-        strncpy(_apiKey, webServer->arg("apikey").c_str(), sizeof(_apiKey) - 1);
-    }
 
     if (_ssid[0] != '\0') {
         _newCreds = true;
@@ -129,7 +119,7 @@ void Provisioner::handleSave() {
             "<style>body{font-family:system-ui;max-width:400px;margin:40px auto;padding:0 20px;"
             "background:#111;color:#eee;text-align:center}"
             "h2{color:#4ade80}</style></head><body>"
-            "<h2>Saved!</h2><p>Station is connecting to WiFi...</p>"
+            "<h2>Saved!</h2><p>Connecting to WiFi...</p>"
             "<p>You can close this page and reconnect to your network.</p>"
             "</body></html>");
     } else {
@@ -175,14 +165,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#111;color:#eee;
 h1{font-size:1.4em;text-align:center;margin-bottom:4px;color:#fff}
 .sub{text-align:center;color:#888;font-size:.85em;margin-bottom:24px}
 label{display:block;font-size:.85em;color:#aaa;margin:12px 0 4px}
-input,select{width:100%;padding:12px;border:1px solid #333;border-radius:8px;
+input{width:100%;padding:12px;border:1px solid #333;border-radius:8px;
   background:#1a1a1a;color:#eee;font-size:1em}
-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 12px center}
 button{width:100%;padding:14px;border:none;border-radius:8px;font-size:1em;
   font-weight:600;cursor:pointer;margin-top:8px}
 .btn-scan{background:#333;color:#eee;margin-top:16px}
-.btn-save{background:#4ade80;color:#111;margin-top:20px}
+.btn-save{background:#4ade80;color:#111;margin-top:24px}
 .btn-save:disabled{background:#333;color:#666}
 .status{text-align:center;color:#888;font-size:.85em;margin-top:8px;min-height:20px}
 .net-list{max-height:200px;overflow-y:auto;margin-top:8px}
@@ -192,15 +180,13 @@ button{width:100%;padding:14px;border:none;border-radius:8px;font-size:1em;
 .net:active{background:#333}
 .net-name{font-weight:500}
 .net-rssi{font-size:.8em;color:#888}
-.lock::after{content:" 🔒";font-size:.7em}
-hr{border:none;border-top:1px solid #222;margin:20px 0}
-.section{font-size:.9em;color:#666;text-transform:uppercase;letter-spacing:.05em;margin:20px 0 8px}
+.lock::after{content:" \U0001f512";font-size:.7em}
 </style>
 </head><body>
 <h1>Filla IQ</h1>
-<p class="sub">Scan Station Setup</p>
+<p class="sub">WiFi Setup</p>
 
-<button class="btn-scan" onclick="scanNetworks()">Scan for WiFi Networks</button>
+<button class="btn-scan" onclick="scanNetworks()">Scan for Networks</button>
 <div class="status" id="scanStatus"></div>
 <div class="net-list" id="netList"></div>
 
@@ -208,19 +194,10 @@ hr{border:none;border-top:1px solid #222;margin:20px 0}
 <label for="ssid">WiFi Network</label>
 <input type="text" id="ssid" name="ssid" placeholder="Select from scan or type manually" required>
 
-<label for="pass">WiFi Password</label>
-<input type="password" id="pass" name="pass" placeholder="Password">
+<label for="pass">Password</label>
+<input type="password" id="pass" name="pass" placeholder="WiFi password">
 
-<hr>
-<div class="section">Server (optional)</div>
-
-<label for="apiurl">API URL</label>
-<input type="url" id="apiurl" name="apiurl" placeholder="https://your-server.com">
-
-<label for="apikey">API Key</label>
-<input type="text" id="apikey" name="apikey" placeholder="Station API key">
-
-<button type="submit" class="btn-save">Save & Connect</button>
+<button type="submit" class="btn-save">Connect</button>
 </form>
 
 <script>
@@ -235,7 +212,7 @@ function scanNetworks(){
     nets.forEach(function(n){
       var d=document.createElement('div');
       d.className='net';
-      var sig=n.rssi>-50?'▰▰▰▰':n.rssi>-65?'▰▰▰▱':n.rssi>-80?'▰▰▱▱':'▰▱▱▱';
+      var sig=n.rssi>-50?'\u25B0\u25B0\u25B0\u25B0':n.rssi>-65?'\u25B0\u25B0\u25B0\u25B1':n.rssi>-80?'\u25B0\u25B0\u25B1\u25B1':'\u25B0\u25B1\u25B1\u25B1';
       d.innerHTML='<span class="net-name'+(n.enc?' lock':'')+'">'
         +n.ssid+'</span><span class="net-rssi">'+sig+' '+n.rssi+'</span>';
       d.onclick=function(){
@@ -246,7 +223,6 @@ function scanNetworks(){
     });
   }).catch(function(){s.textContent='Scan failed';});
 }
-// Auto-scan on load
 scanNetworks();
 </script>
 </body></html>)rawliteral";

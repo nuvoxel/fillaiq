@@ -192,7 +192,7 @@ function StationCard({
           </Box>
           <Box sx={{ display: "flex", gap: 2, mt: 0.25, flexWrap: "wrap" }}>
             <Typography variant="caption" color="text.secondary">
-              {station.deviceSku ?? "scan-station"} &middot; {station.hardwareId}
+              {station.deviceSku ?? "filla-scan"} &middot; {station.hardwareId}
             </Typography>
             <Typography variant="caption" fontFamily="monospace" color="text.secondary">
               FW {station.firmwareVersion ?? "—"}

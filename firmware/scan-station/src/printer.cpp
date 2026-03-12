@@ -1,6 +1,5 @@
 #include "printer.h"
 #include "scan_config.h"
-#include "usb_printer.h"
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
@@ -194,49 +193,16 @@ bool LabelPrinter::connect() {
 }
 
 void LabelPrinter::disconnect() {
-    if (_state.transport == TRANSPORT_USB) {
-        usbPrinterDisconnect();
-    } else {
-        if (pClient && pClient->isConnected()) {
-            pClient->disconnect();
-        }
-        pWriteChar = nullptr;
-        pNotifyChar = nullptr;
+    if (pClient && pClient->isConnected()) {
+        pClient->disconnect();
     }
+    pWriteChar = nullptr;
+    pNotifyChar = nullptr;
     _state.status = PRINTER_DISCONNECTED;
     _state.transport = TRANSPORT_NONE;
 }
 
-bool LabelPrinter::connectUsb() {
-    if (!usbPrinterReady()) {
-        Serial.println("[Printer] No USB printer detected");
-        return false;
-    }
-
-    // Disconnect BLE if connected
-    if (_state.transport == TRANSPORT_BLE) {
-        disconnect();
-    }
-
-    _state.transport = TRANSPORT_USB;
-    _state.status = PRINTER_READY;
-
-    // Copy USB descriptor info
-    strncpy(_state.deviceName, usbPrinterProduct(), sizeof(_state.deviceName) - 1);
-    strncpy(_state.usbManufacturer, usbPrinterManufacturer(), sizeof(_state.usbManufacturer) - 1);
-    strncpy(_state.usbProduct, usbPrinterProduct(), sizeof(_state.usbProduct) - 1);
-    strncpy(_state.usbSerial, usbPrinterSerial(), sizeof(_state.usbSerial) - 1);
-    _state.usbVid = usbPrinterVid();
-    _state.usbPid = usbPrinterPid();
-
-    Serial.printf("[Printer] USB connected — %s (%s) VID:0x%04X PID:0x%04X SN:%s\n",
-                  _state.usbProduct, _state.usbManufacturer,
-                  _state.usbVid, _state.usbPid, _state.usbSerial);
-    return true;
-}
-
 bool LabelPrinter::isConnected() const {
-    if (_state.transport == TRANSPORT_USB) return usbPrinterReady();
     return pClient && pClient->isConnected() && pWriteChar;
 }
 
@@ -384,9 +350,6 @@ bool LabelPrinter::sendQuery(uint8_t queryId, uint32_t timeoutMs) {
 // ── Private helpers ─────────────────────────────────────────────────────────
 
 bool LabelPrinter::sendCommand(const uint8_t* data, size_t len) {
-    if (_state.transport == TRANSPORT_USB) {
-        return usbPrinterSend(data, len);
-    }
     if (!pWriteChar) return false;
     pWriteChar->writeValue((uint8_t*)data, len, false);
     delay(10);
@@ -394,10 +357,6 @@ bool LabelPrinter::sendCommand(const uint8_t* data, size_t len) {
 }
 
 bool LabelPrinter::sendChunked(const uint8_t* data, size_t len) {
-    if (_state.transport == TRANSPORT_USB) {
-        // USB can handle larger chunks directly
-        return usbPrinterSend(data, len);
-    }
     if (!pWriteChar) return false;
 
     size_t offset = 0;
@@ -488,20 +447,10 @@ void LabelPrinter::printStatusInfo() {
         case PRINTER_PRINTING:     statusStr = "Printing"; break;
         case PRINTER_ERROR:        statusStr = "Error"; break;
     }
-    const char* transportStr = "—";
-    switch (_state.transport) {
-        case TRANSPORT_BLE: transportStr = "BLE"; break;
-        case TRANSPORT_USB: transportStr = "USB"; break;
-        default: break;
-    }
+    const char* transportStr = _state.transport == TRANSPORT_BLE ? "BLE" : "—";
     Serial.printf("  Printer:   %s [%s]", statusStr, transportStr);
     if (_state.deviceName[0]) {
-        if (_state.transport == TRANSPORT_USB) {
-            Serial.printf(" — %s (VID:0x%04X PID:0x%04X)",
-                _state.deviceName, _state.usbVid, _state.usbPid);
-        } else {
-            Serial.printf(" — %s (%s)", _state.deviceName, _state.bleAddr);
-        }
+        Serial.printf(" — %s (%s)", _state.deviceName, _state.bleAddr);
     }
     Serial.println();
     if (_state.status >= PRINTER_READY) {
@@ -514,12 +463,6 @@ void LabelPrinter::printStatusInfo() {
                 _state.batteryPercent,
                 _state.firmwareVersion[0] ? _state.firmwareVersion : "?",
                 _state.serialNumber);
-        }
-        if (_state.transport == TRANSPORT_USB) {
-            if (_state.usbManufacturer[0])
-                Serial.printf("             Manufacturer: %s\n", _state.usbManufacturer);
-            if (_state.usbSerial[0])
-                Serial.printf("             USB Serial: %s\n", _state.usbSerial);
         }
     }
 }

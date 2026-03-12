@@ -3,9 +3,9 @@
 #include <Arduino.h>
 
 // ============================================================
-// Filla IQ — Label Printer Driver (BLE + USB Host)
-// Connects to Phomemo printers via BLE GATT or USB Host.
-// Same ESC/POS protocol over either transport.
+// Filla IQ — Label Printer Driver (BLE)
+// Connects to Phomemo printers via BLE GATT.
+// ESC/POS protocol over BLE transport.
 // ============================================================
 
 // BLE UUIDs (Phomemo family)
@@ -37,7 +37,6 @@
 enum PrinterTransport : uint8_t {
     TRANSPORT_NONE = 0,
     TRANSPORT_BLE,
-    TRANSPORT_USB,
 };
 
 enum PrinterStatus : uint8_t {
@@ -63,12 +62,6 @@ struct PrinterState {
     char firmwareVersion[16] = {0};
     uint32_t serialNumber = 0;
     bool infoQueried = false;
-    // USB descriptor info
-    char usbManufacturer[64] = {0};
-    char usbProduct[64] = {0};
-    char usbSerial[64] = {0};
-    uint16_t usbVid = 0;
-    uint16_t usbPid = 0;
 };
 
 class LabelPrinter {
@@ -78,9 +71,6 @@ public:
     // Connection — BLE
     bool scan(uint32_t timeoutMs = 5000);
     bool connect();          // Connect via BLE (after scan)
-
-    // Connection — USB
-    bool connectUsb();       // Connect via USB Host (if device present)
 
     void disconnect();
     bool isConnected() const;

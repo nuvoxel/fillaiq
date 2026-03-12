@@ -2,13 +2,20 @@
 
 #include <Arduino.h>
 #include <HX711.h>
+#include <SparkFun_Qwiic_Scale_NAU7802_Arduino_Library.h>
 #include "scan_config.h"
 
 // ============================================================
-// Filla IQ — Scan Station Single-Channel Weight Driver
-// Adapted from slot-module hx711_multi for single load cell.
-// Weight reading on Core 1 via FreeRTOS task.
+// Filla IQ — Weight Driver (NAU7802 I2C or HX711 GPIO)
+// Auto-detects NAU7802 on I2C, falls back to HX711 on GPIO.
+// Weight reading on dedicated core via FreeRTOS task.
 // ============================================================
+
+enum WeightDriverType : uint8_t {
+    WEIGHT_NONE = 0,
+    WEIGHT_NAU7802,     // I2C 24-bit ADC (preferred)
+    WEIGHT_HX711,       // GPIO bit-bang 24-bit ADC
+};
 
 class ScaleDriver {
 public:
@@ -18,13 +25,15 @@ public:
     void tare(uint8_t samples = WEIGHT_TARE_SAMPLES);
     void setScale(float factor);
 
-    // Thread-safe reads (called from core 0)
+    // Thread-safe reads (called from main loop)
     float getWeight();
     float getStableWeight();
     bool  isStable();
     bool  isConnected();
-    long  getOffset();
     float getScaleFactor();
+
+    WeightDriverType getDriverType() const { return _driverType; }
+    const char* getChipName() const;
 
     // Calibration
     double getValueForCalibration(uint8_t samples = 20);
@@ -34,7 +43,9 @@ public:
     void printStatus();
 
 private:
+    WeightDriverType _driverType = WEIGHT_NONE;
     HX711 _hx;
+    NAU7802 _nau;
     SemaphoreHandle_t _mutex;
     TaskHandle_t _task;
     volatile bool _running;
@@ -56,6 +67,9 @@ private:
 
     // Auto-tare
     unsigned long _lastAutoTare;
+
+    // NAU7802 offset (stored separately since library doesn't have get_offset)
+    int32_t _nauOffset;
 
     void processReading(long raw);
     void checkAutoTare();

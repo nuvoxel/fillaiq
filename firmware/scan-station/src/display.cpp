@@ -3,6 +3,7 @@
 #include <TFT_eSPI.h>
 #include <qrcode.h>
 #include "icons.h"
+#include "api_client.h"
 
 Display display;
 
@@ -174,7 +175,7 @@ void Display::drawUnknown(float weight, bool stable, const DistanceData* dist, c
     // Color swatch from spectral sensor
     if (color && color->valid) {
         uint8_t r8 = 0, g8 = 0, b8 = 0;
-        if (color->sensorType == COLOR_AS7341) {
+        if (color->sensorType == COLOR_AS7341 || color->sensorType == COLOR_AS7343) {
             uint16_t maxVal = max(max(color->f8_680nm, color->f5_555nm), color->f3_480nm);
             if (maxVal > 0) {
                 r8 = (uint8_t)min(255, (int)(color->f8_680nm * 255L / maxVal));
@@ -185,6 +186,14 @@ void Display::drawUnknown(float weight, bool stable, const DistanceData* dist, c
             r8 = color->rgbc_r >> 8;
             g8 = color->rgbc_g >> 8;
             b8 = color->rgbc_b >> 8;
+        } else if (color->sensorType == COLOR_OPT4048) {
+            // CIE XYZ to approximate RGB
+            float sum = color->cie_x + color->cie_y + color->cie_z;
+            if (sum > 0) {
+                r8 = (uint8_t)min(255.0f, color->cie_x / sum * 255.0f * 2.0f);
+                g8 = (uint8_t)min(255.0f, color->cie_y / sum * 255.0f * 2.0f);
+                b8 = (uint8_t)min(255.0f, color->cie_z / sum * 255.0f * 2.0f);
+            }
         }
         uint16_t swCol = rgb888to565(r8, g8, b8);
         tft->fillRoundRect(100, 110, 24, 24, 4, swCol);
@@ -205,24 +214,25 @@ void Display::drawUnknown(float weight, bool stable, const DistanceData* dist, c
     tft->drawString("Tap NFC tag or use app", 120, 180, 2);
 }
 
-// ── Identified Spool Screen ─────────────────────────────────
+// ── Identified Item Screen (data from server response) ──────
 
-void Display::drawSpool(float weight, bool stable, const FilamentInfo& fi, const DistanceData* dist, uint8_t icons) {
-    drawHeader(fi.material, GREEN, icons);
+void Display::drawIdentified(float weight, bool stable, const ScanResponse& resp, const DistanceData* dist, uint8_t icons) {
+    const char* title = resp.material[0] ? resp.material : resp.itemType;
+    drawHeader(title, GREEN, icons);
 
-    // Spool icon with filament color
-    uint16_t filColor = rgb888to565(fi.color_r, fi.color_g, fi.color_b);
-    drawSpoolIcon(65, 105, 90, 90, filColor);
+    // Spool icon with filament color (from server-parsed NFC or spectral)
+    uint16_t filColor = rgb888to565(resp.colorR, resp.colorG, resp.colorB);
+    bool hasColor = (resp.colorR || resp.colorG || resp.colorB);
+    drawSpoolIcon(65, 105, 90, 90, hasColor ? filColor : FLANGE_GRAY);
 
-    // Brand + name (right side)
-    tft->setTextColor(BRAND_ORANGE, DARK_BG);
-    tft->setTextDatum(TL_DATUM);
-    if (fi.brand[0]) {
-        tft->drawString(fi.brand, 120, 60, 2);
-    }
-
+    // Item name (right side)
     tft->setTextColor(TFT_WHITE, DARK_BG);
-    tft->drawString(fi.name, 120, 80, 4);
+    tft->setTextDatum(TL_DATUM);
+    // Truncate long names for display
+    char nameBuf[22];
+    strncpy(nameBuf, resp.itemName, sizeof(nameBuf) - 1);
+    nameBuf[sizeof(nameBuf) - 1] = '\0';
+    tft->drawString(nameBuf, 120, 65, 4);
 
     // Weight
     char wStr[16];
@@ -230,7 +240,7 @@ void Display::drawSpool(float weight, bool stable, const FilamentInfo& fi, const
     tft->setTextColor(TFT_WHITE, DARK_BG);
     tft->drawString(wStr, 120, 115, 4);
 
-    // Spool width from TOF
+    // Height from TOF
     if (dist && dist->valid) {
         float spoolW = TOF_ARM_HEIGHT_MM - dist->distanceMm;
         if (spoolW > 0) {
@@ -243,41 +253,39 @@ void Display::drawSpool(float weight, bool stable, const FilamentInfo& fi, const
 
     tft->drawFastHLine(10, 170, 220, GRAY);
 
-    // Temperature info
-    if (fi.nozzle_temp_min > 0) {
+    // Temperature info (from server-parsed NFC data)
+    if (resp.nozzleTempMin > 0) {
         char tempStr[32];
-        snprintf(tempStr, sizeof(tempStr), "Nozzle %d-%dC", fi.nozzle_temp_min, fi.nozzle_temp_max);
+        snprintf(tempStr, sizeof(tempStr), "Nozzle %d-%dC", resp.nozzleTempMin, resp.nozzleTempMax);
         tft->setTextColor(GRAY, DARK_BG);
         tft->setTextDatum(TL_DATUM);
         tft->drawString(tempStr, 10, 178, 2);
     }
-    if (fi.bed_temp > 0) {
+    if (resp.bedTemp > 0) {
         char bedStr[16];
-        snprintf(bedStr, sizeof(bedStr), "Bed %dC", fi.bed_temp);
+        snprintf(bedStr, sizeof(bedStr), "Bed %dC", resp.bedTemp);
         tft->setTextColor(GRAY, DARK_BG);
         tft->setTextDatum(TR_DATUM);
         tft->drawString(bedStr, 230, 178, 2);
     }
 
-    // Filament specs
-    if (fi.filament_diameter > 0) {
-        char specStr[40];
-        snprintf(specStr, sizeof(specStr), "%.2fmm  %dm  %dg spool",
-                 fi.filament_diameter, fi.filament_length_m, (int)fi.spool_net_weight);
-        tft->setTextColor(GRAY, DARK_BG);
-        tft->setTextDatum(TC_DATUM);
-        tft->drawString(specStr, 120, 198, 1);
+    // Color swatch + hex
+    if (hasColor) {
+        tft->fillRoundRect(10, 215, 20, 20, 4, filColor);
+        tft->drawRoundRect(10, 215, 20, 20, 4, GRAY);
+        if (resp.colorHex[0]) {
+            tft->setTextColor(GRAY, DARK_BG);
+            tft->setTextDatum(ML_DATUM);
+            tft->drawString(resp.colorHex, 35, 225, 2);
+        }
     }
 
-    // Color swatch + hex
-    uint16_t swCol = rgb888to565(fi.color_r, fi.color_g, fi.color_b);
-    tft->fillRoundRect(10, 215, 20, 20, 4, swCol);
-    tft->drawRoundRect(10, 215, 20, 20, 4, GRAY);
-    char hexStr[10];
-    snprintf(hexStr, sizeof(hexStr), "#%02X%02X%02X", fi.color_r, fi.color_g, fi.color_b);
-    tft->setTextColor(GRAY, DARK_BG);
-    tft->setTextDatum(ML_DATUM);
-    tft->drawString(hexStr, 35, 225, 2);
+    // NFC tag format indicator
+    if (resp.nfcTagFormat[0]) {
+        tft->setTextColor(GRAY, DARK_BG);
+        tft->setTextDatum(TC_DATUM);
+        tft->drawString(resp.nfcTagFormat, 120, 198, 1);
+    }
 }
 
 // ── Splash / Message Screen ─────────────────────────────────
@@ -324,11 +332,11 @@ void Display::showPairingCode(const char* code) {
     // Divider
     tft->drawFastHLine(30, 128, 180, GRAY);
 
-    // Large pairing code — use font 7 (48px 7-segment style)
+    // Large pairing code — font 4 at 2x size (supports letters + digits)
     tft->setTextColor(BRAND_ORANGE, DARK_BG);
     tft->setTextDatum(MC_DATUM);
-    tft->setTextSize(1);
-    tft->drawString(code, 120, 170, 7);
+    tft->setTextSize(2);
+    tft->drawString(code, 120, 170, 4);
 
     // Instructions
     tft->setTextColor(GRAY, DARK_BG);
@@ -342,14 +350,22 @@ void Display::showPairingCode(const char* code) {
 void Display::showQrCode(const char* data, const char* label) {
     if (!_ready) return;
 
+    // QRCode library doesn't properly detect data overflow (@TODO in source),
+    // so we must pick a version large enough for the data length.
+    // Byte-mode capacities at ECC_LOW: v3=32, v4=50, v5=64, v6=84
+    size_t dataLen = strlen(data);
+    uint8_t minVer = 3;
+    if (dataLen > 50) minVer = 6;
+    else if (dataLen > 32) minVer = 5;
+
     QRCode qrcode;
-    uint8_t qrcodeData[256];
+    uint8_t qrcodeData[512];  // v6 needs ~211 bytes
     int8_t result = -1;
 
-    for (uint8_t ver = 3; ver <= 6; ver++) {
+    for (uint8_t ver = minVer; ver <= 8; ver++) {
         result = qrcode_initText(&qrcode, qrcodeData, ver, ECC_LOW, data);
         if (result == 0) {
-            Serial.printf("[Display] QR OK: v%d size=%d\n", ver, qrcode.size);
+            Serial.printf("[Display] QR OK: v%d size=%d len=%d\n", ver, qrcode.size, dataLen);
             break;
         }
     }
@@ -411,7 +427,7 @@ static void clearRegion(int x, int y, int w, int h) {
 
 void Display::update(ScanState state, float weight, bool stable,
                      const char* nfcUid,
-                     const FilamentInfo* filament,
+                     const ScanResponse* serverData,
                      const DistanceData* distance,
                      const ColorData* color,
                      uint8_t statusIcons) {
@@ -419,10 +435,10 @@ void Display::update(ScanState state, float weight, bool stable,
 
     unsigned long now = millis();
 
-    bool hasSpool = filament && filament->valid && filament->name[0];
+    bool hasIdentified = serverData && serverData->identified && serverData->itemName[0];
     enum { MODE_IDLE, MODE_UNKNOWN, MODE_SPOOL } mode;
-    if (state == SCAN_IDLE && !hasSpool) mode = MODE_IDLE;
-    else if (hasSpool) mode = MODE_SPOOL;
+    if (state == SCAN_IDLE && !hasIdentified) mode = MODE_IDLE;
+    else if (hasIdentified) mode = MODE_SPOOL;
     else mode = MODE_UNKNOWN;
 
     static int lastMode = -1;
@@ -435,8 +451,8 @@ void Display::update(ScanState state, float weight, bool stable,
     _forceRedraw = false;
     _lastIcons = statusIcons;
 
-    // Deassert NFC CS before SPI display ops
-    digitalWrite(NFC_CS_PIN, HIGH);
+    // Deassert NFC CS before SPI display ops (SPI mode only)
+    if (NFC_CS_PIN >= 0) digitalWrite(NFC_CS_PIN, HIGH);
 
     if (isnan(weight) || isinf(weight)) weight = 0.0f;
 
@@ -458,7 +474,7 @@ void Display::update(ScanState state, float weight, bool stable,
 
     case MODE_SPOOL:
         if (modeChanged) {
-            drawSpool(weight, stable, *filament, distance, statusIcons);
+            drawIdentified(weight, stable, *serverData, distance, statusIcons);
             if (nfcUid && nfcUid[0]) {
                 tft->setTextColor(GRAY, DARK_BG);
                 tft->setTextDatum(BC_DATUM);

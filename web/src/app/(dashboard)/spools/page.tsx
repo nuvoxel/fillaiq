@@ -1,20 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PageHeader } from "@/components/layout/page-header";
+import { SpoolDialog } from "@/components/spools/spool-dialog";
 import { listMyItems } from "@/lib/actions/user-library";
 
 type UserItem = {
@@ -34,85 +38,17 @@ const statusColors: Record<string, "success" | "warning" | "default"> = {
   archived: "default",
 };
 
-const columns: GridColDef[] = [
-  {
-    field: "color",
-    headerName: "",
-    width: 48,
-    sortable: false,
-    filterable: false,
-    renderCell: () => (
-      <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-        <CircleOutlinedIcon sx={{ color: "text.disabled" }} />
-      </Box>
-    ),
-  },
-  { field: "id", headerName: "ID", width: 100, valueGetter: (value: string) => value.slice(0, 8) },
-  { field: "status", headerName: "Status", width: 120,
-    renderCell: (params) => (
-      <Chip
-        label={params.value}
-        size="small"
-        color={statusColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-  {
-    field: "percentRemaining",
-    headerName: "Weight",
-    width: 180,
-    renderCell: (params) => {
-      const pct = params.value as number | null;
-      return (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
-          <LinearProgress
-            variant="determinate"
-            value={pct ?? 0}
-            sx={{
-              flex: 1,
-              height: 8,
-              borderRadius: 4,
-              bgcolor: "grey.200",
-              "& .MuiLinearProgress-bar": {
-                bgcolor: (pct ?? 0) > 50 ? "success.main" : (pct ?? 0) > 20 ? "warning.main" : "error.main",
-              },
-            }}
-          />
-          <Typography variant="caption" sx={{ minWidth: 36 }}>
-            {pct ?? 0}%
-          </Typography>
-        </Box>
-      );
-    },
-  },
-  {
-    field: "currentWeightG",
-    headerName: "Current (g)",
-    width: 120,
-    valueFormatter: (value: number | null) => value != null ? `${Math.round(value)}g` : "—",
-  },
-  {
-    field: "netFilamentWeightG",
-    headerName: "Net (g)",
-    width: 120,
-    valueFormatter: (value: number | null) => value != null ? `${Math.round(value)}g` : "—",
-  },
-  {
-    field: "updatedAt",
-    headerName: "Last Updated",
-    width: 180,
-    valueFormatter: (value: Date) =>
-      value ? new Date(value).toLocaleDateString() : "—",
-  },
-];
-
 export default function SpoolsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [userItems, setUserItems] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<UserItem | null>(null);
+
+  const loadItems = useCallback(() => {
     setLoading(true);
     listMyItems().then((result) => {
       if (result.data) setUserItems(result.data as UserItem[]);
@@ -120,9 +56,125 @@ export default function SpoolsPage() {
     });
   }, []);
 
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
+
+  const handleOpenCreate = () => {
+    setEditingItem(null);
+    setDialogOpen(true);
+  };
+
+  const handleOpenEdit = (item: UserItem) => {
+    setEditingItem(item);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    setEditingItem(null);
+  };
+
+  const handleSaved = () => {
+    loadItems();
+  };
+
   const filtered = statusFilter
     ? userItems.filter((s) => s.status === statusFilter)
     : userItems;
+
+  const columns: GridColDef[] = [
+    {
+      field: "color",
+      headerName: "",
+      width: 48,
+      sortable: false,
+      filterable: false,
+      renderCell: () => (
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+          <CircleOutlinedIcon sx={{ color: "text.disabled" }} />
+        </Box>
+      ),
+    },
+    { field: "id", headerName: "ID", width: 100, valueGetter: (value: string) => value.slice(0, 8) },
+    { field: "status", headerName: "Status", width: 120,
+      renderCell: (params) => (
+        <Chip
+          label={params.value}
+          size="small"
+          color={statusColors[params.value as string] ?? "default"}
+        />
+      ),
+    },
+    {
+      field: "percentRemaining",
+      headerName: "Weight",
+      width: 180,
+      renderCell: (params) => {
+        const pct = params.value as number | null;
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+            <LinearProgress
+              variant="determinate"
+              value={pct ?? 0}
+              sx={{
+                flex: 1,
+                height: 8,
+                borderRadius: 4,
+                bgcolor: "grey.200",
+                "& .MuiLinearProgress-bar": {
+                  bgcolor: (pct ?? 0) > 50 ? "success.main" : (pct ?? 0) > 20 ? "warning.main" : "error.main",
+                },
+              }}
+            />
+            <Typography variant="caption" sx={{ minWidth: 36 }}>
+              {pct ?? 0}%
+            </Typography>
+          </Box>
+        );
+      },
+    },
+    {
+      field: "currentWeightG",
+      headerName: "Current (g)",
+      width: 120,
+      valueFormatter: (value: number | null) => value != null ? `${Math.round(value)}g` : "\u2014",
+    },
+    {
+      field: "netFilamentWeightG",
+      headerName: "Net (g)",
+      width: 120,
+      valueFormatter: (value: number | null) => value != null ? `${Math.round(value)}g` : "\u2014",
+    },
+    {
+      field: "updatedAt",
+      headerName: "Last Updated",
+      width: 180,
+      valueFormatter: (value: Date) =>
+        value ? new Date(value).toLocaleDateString() : "\u2014",
+    },
+    {
+      field: "actions",
+      headerName: "",
+      width: 60,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      renderCell: (params) => (
+        <Tooltip title="Edit">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenEdit(params.row as UserItem);
+            }}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ];
 
   return (
     <div>
@@ -130,7 +182,7 @@ export default function SpoolsPage() {
         title="Spools"
         description="Manage your filament spool inventory."
         action={
-          <Button variant="contained" startIcon={<AddIcon />}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
             Add Spool
           </Button>
         }
@@ -189,6 +241,13 @@ export default function SpoolsPage() {
           }}
         />
       )}
+
+      <SpoolDialog
+        open={dialogOpen}
+        onClose={handleDialogClose}
+        onSaved={handleSaved}
+        existing={editingItem}
+      />
     </div>
   );
 }

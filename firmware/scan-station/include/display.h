@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include "scan_config.h"
 #include "sensors.h"
-#include "filament_data.h"
+#include "api_client.h"
 
 // ============================================================
 // Filla IQ — Scan Station TFT Display (ST7789V3 240x280 SPI)
@@ -19,7 +19,7 @@ public:
     void begin();
     void update(ScanState state, float weight, bool stable,
                 const char* nfcUid,
-                const FilamentInfo* filament,
+                const ScanResponse* serverData,
                 const DistanceData* distance,
                 const ColorData* color,
                 uint8_t statusIcons = 0);
@@ -38,7 +38,7 @@ private:
     void drawStatusIcons(uint8_t icons);
     void drawIdle(uint8_t icons);
     void drawUnknown(float weight, bool stable, const DistanceData* dist, const ColorData* color, uint8_t icons);
-    void drawSpool(float weight, bool stable, const FilamentInfo& fi, const DistanceData* dist, uint8_t icons);
+    void drawIdentified(float weight, bool stable, const ScanResponse& resp, const DistanceData* dist, uint8_t icons);
     void drawSpoolIcon(int cx, int cy, int w, int h, uint16_t fillColor);
 };
 

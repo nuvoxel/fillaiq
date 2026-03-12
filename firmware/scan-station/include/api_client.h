@@ -29,6 +29,16 @@ struct ScanResponse {
     char suggestion[256];   // AI suggestion text
     bool needsCamera;       // Server wants a photo
     char scanId[64];        // Server-assigned scan ID for follow-up
+    char sessionId[64];     // Session for accumulating multi-scan data
+
+    // Display fields (from server-side NFC parsing + color conversion)
+    char material[16];      // e.g. "PLA" (from nfcParsedData.material)
+    uint8_t colorR, colorG, colorB;  // From nfcParsedData or colorHex
+    uint16_t nozzleTempMin; // From nfcParsedData
+    uint16_t nozzleTempMax;
+    uint16_t bedTemp;
+    char nfcTagFormat[20];  // "bambu_mifare", "ntag", etc.
+    char colorHex[8];       // "#RRGGBB" from spectral conversion
 
     void clear() {
         identified = false;
@@ -38,6 +48,12 @@ struct ScanResponse {
         memset(suggestion, 0, sizeof(suggestion));
         needsCamera = false;
         memset(scanId, 0, sizeof(scanId));
+        memset(sessionId, 0, sizeof(sessionId));
+        memset(material, 0, sizeof(material));
+        colorR = colorG = colorB = 0;
+        nozzleTempMin = nozzleTempMax = bedTemp = 0;
+        memset(nfcTagFormat, 0, sizeof(nfcTagFormat));
+        memset(colorHex, 0, sizeof(colorHex));
     }
 };
 
@@ -137,6 +153,7 @@ public:
     // Device capabilities
     void setCapabilities(const DeviceCapabilities& caps);
     const DeviceCapabilities& getCapabilities() const { return _capabilities; }
+    String buildCapabilitiesJson() const;
     bool hasNfc() const { return _capabilities.nfc.detected; }
     bool hasScale() const { return _capabilities.scale.detected; }
     bool hasTof() const { return _capabilities.tof.detected; }

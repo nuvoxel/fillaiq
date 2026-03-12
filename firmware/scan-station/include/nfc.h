@@ -47,13 +47,9 @@ public:
     void getUid(uint8_t* buf, uint8_t* len);
     String getUidString();
 
-    // Raw tag data (for web service)
+    // Raw tag data (sent to web service for parsing)
     const TagData& getTagData();
     bool hasTagData();
-
-    // Filament data (populated from local Bambu parsing)
-    const FilamentInfo& getFilamentInfo();
-    bool hasFilamentInfo();
 
     void printStatus();
 
@@ -64,7 +60,6 @@ private:
     void _startListening();
 
     TagData      _tagData;
-    FilamentInfo _filament;
     TagState     _tag;
     bool         _connected;
     NfcState     _state = NFC_IDLE;

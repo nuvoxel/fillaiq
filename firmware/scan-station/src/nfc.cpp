@@ -6,8 +6,12 @@
 // Global instance
 NfcScanner nfcScanner;
 
-// Single PN532 reader — hardware SPI
-static Adafruit_PN532 reader(NFC_CS_PIN, &SPI);
+// PN532 reader — SPI mode (DevKitC) or I2C mode (touch board)
+#ifdef BOARD_SCAN_TOUCH
+static Adafruit_PN532 reader(NFC_IRQ_PIN, -1, &Wire);  // I2C mode
+#else
+static Adafruit_PN532 reader(NFC_CS_PIN, &SPI);         // SPI mode
+#endif
 
 // Shared packet buffer (global in Adafruit_PN532.cpp)
 extern byte pn532_packetbuffer[];
@@ -51,11 +55,13 @@ void NfcScanner::begin() {
     _nextPage = 0xFF;
 
     // Configure IRQ pin
-    pinMode(NFC_IRQ_PIN, INPUT_PULLUP);
+    if (NFC_IRQ_PIN >= 0) pinMode(NFC_IRQ_PIN, INPUT_PULLUP);
 
-    // Deassert TFT CS (shared SPI bus)
+#ifndef BOARD_SCAN_TOUCH
+    // Deassert TFT CS (shared SPI bus — SPI mode only)
     pinMode(TFT_CS_PIN, OUTPUT);
     digitalWrite(TFT_CS_PIN, HIGH);
+#endif
 
     // Hardware reset the PN532
     if (NFC_RST_PIN >= 0) {
@@ -81,8 +87,13 @@ void NfcScanner::begin() {
         uint8_t ic  = (ver >> 24) & 0xFF;
         uint8_t maj = (ver >> 16) & 0xFF;
         uint8_t min = (ver >> 8)  & 0xFF;
+#ifdef BOARD_SCAN_TOUCH
+        Serial.printf("  NFC: PN5%02X v%d.%d (I2C, IRQ=GPIO%d)\n",
+            ic, maj, min, NFC_IRQ_PIN);
+#else
         Serial.printf("  NFC: PN5%02X v%d.%d (CS=GPIO%d, IRQ=GPIO%d)\n",
             ic, maj, min, NFC_CS_PIN, NFC_IRQ_PIN);
+#endif
 
         reader.SAMConfig();
         reader.setPassiveActivationRetries(0xFF);
@@ -93,7 +104,11 @@ void NfcScanner::begin() {
         attachInterrupt(digitalPinToInterrupt(NFC_IRQ_PIN), nfcIrqISR, FALLING);
         _startListening();
     } else {
+#ifdef BOARD_SCAN_TOUCH
+        Serial.println("  NFC: not detected (I2C)");
+#else
         Serial.printf("  NFC: not detected (CS=GPIO%d)\n", NFC_CS_PIN);
+#endif
     }
 }
 
@@ -176,17 +191,7 @@ void NfcScanner::_finishRead() {
         _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
         _tagData.type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
 
-    _filament.clear();
-    if (_tagData.type == TAG_MIFARE_CLASSIC && _tagData.sectors_read >= 2) {
-        if (parseBambuFromRaw(_tagData, _filament) &&
-            _filament.material[0] != '\0' && _filament.spool_net_weight > 0) {
-            Serial.printf("Scan: Bambu tag parsed OK\n");
-            bambuPrintInfo(_filament);
-        } else {
-            _filament.clear();
-            Serial.printf("Scan: tag data captured (not Bambu)\n");
-        }
-    }
+    // Raw data captured — parsing happens server-side
 
     // Read complete — switch to presence monitoring
     _state = NFC_PRESENT;
@@ -269,7 +274,6 @@ void NfcScanner::poll() {
             if (_state == NFC_LISTENING && _tag.present &&
                 now - _tag.last_seen >= NFC_TIMEOUT_MS) {
                 _tag.present = false;
-                _filament.clear();
                 _tagData.clear();
                 _nextSector = 0xFF;
                 _nextPage = 0xFF;
@@ -293,20 +297,27 @@ void NfcScanner::getUid(uint8_t* buf, uint8_t* len) {
 
 String NfcScanner::getUidString() {
     if (_tag.uid_len == 0) return "none";
-    String s;
-    for (uint8_t i = 0; i < _tag.uid_len; i++) {
-        if (i > 0) s += ":";
-        if (_tag.uid[i] < 0x10) s += "0";
-        s += String(_tag.uid[i], HEX);
+    // Use cached string if UID hasn't changed
+    static char cachedUid[22];
+    static uint8_t cachedLen = 0;
+    static uint8_t cachedBytes[7];
+    if (_tag.uid_len == cachedLen && memcmp(_tag.uid, cachedBytes, cachedLen) == 0) {
+        return String(cachedUid);
     }
-    s.toUpperCase();
-    return s;
+    // Rebuild cache
+    int pos = 0;
+    for (uint8_t i = 0; i < _tag.uid_len; i++) {
+        if (i > 0) cachedUid[pos++] = ':';
+        pos += snprintf(cachedUid + pos, sizeof(cachedUid) - pos, "%02X", _tag.uid[i]);
+    }
+    cachedUid[pos] = '\0';
+    cachedLen = _tag.uid_len;
+    memcpy(cachedBytes, _tag.uid, _tag.uid_len);
+    return String(cachedUid);
 }
 
 const TagData& NfcScanner::getTagData() { return _tagData; }
 bool NfcScanner::hasTagData() { return _tagData.valid; }
-const FilamentInfo& NfcScanner::getFilamentInfo() { return _filament; }
-bool NfcScanner::hasFilamentInfo() { return _filament.valid; }
 
 // ==================== Diagnostics ====================
 
@@ -323,9 +334,10 @@ void NfcScanner::printStatus() {
             if (reading) {
                 Serial.printf("  Reading in progress...\n");
             }
-            if (_filament.valid) {
-                Serial.printf("  Filament: %s %s (%s)\n",
-                    _filament.brand, _filament.name, _filament.material);
+            if (_tagData.valid) {
+                Serial.printf("  Tag data: %d %s\n",
+                    _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
+                    _tagData.type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
             }
         }
     }
