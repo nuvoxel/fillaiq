@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   zones,
   racks,
@@ -12,6 +13,8 @@ import {
   bayModules,
   slotStatus,
 } from "@/db/schema/storage";
+import { userItems } from "@/db/schema/user-library";
+import { weightEvents, itemMovements, usageSessions } from "@/db/schema/events";
 import {
   createCrudActions,
   createUpsertActions,
@@ -60,6 +63,52 @@ type Bay = InferSelectModel<typeof bays>;
 type Slot = InferSelectModel<typeof slots>;
 type BayModule = InferSelectModel<typeof bayModules>;
 type SlotStatus = InferSelectModel<typeof slotStatus>;
+
+// ── Cascade delete helpers ──────────────────────────────────────────────────
+
+/** Delete slots and clear all FK references to them */
+async function cascadeDeleteSlots(slotIds: string[]) {
+  if (slotIds.length === 0) return;
+  // Nullify nullable FKs pointing to these slots
+  await db.update(userItems).set({ currentSlotId: null }).where(inArray(userItems.currentSlotId, slotIds));
+  await db.update(weightEvents).set({ slotId: null }).where(inArray(weightEvents.slotId, slotIds));
+  await db.update(itemMovements).set({ fromSlotId: null }).where(inArray(itemMovements.fromSlotId, slotIds));
+  await db.update(itemMovements).set({ toSlotId: null }).where(inArray(itemMovements.toSlotId, slotIds));
+  await db.update(usageSessions).set({ removedFromSlotId: null }).where(inArray(usageSessions.removedFromSlotId, slotIds));
+  await db.update(usageSessions).set({ returnedToSlotId: null }).where(inArray(usageSessions.returnedToSlotId, slotIds));
+  // Delete slot_status rows
+  await db.delete(slotStatus).where(inArray(slotStatus.slotId, slotIds));
+  // Delete slots
+  await db.delete(slots).where(inArray(slots.id, slotIds));
+}
+
+/** Delete bays and everything inside them */
+async function cascadeDeleteBays(bayIds: string[]) {
+  if (bayIds.length === 0) return;
+  const slotRows = await db.select({ id: slots.id }).from(slots).where(inArray(slots.bayId, bayIds));
+  await cascadeDeleteSlots(slotRows.map((s) => s.id));
+  // Delete bay modules
+  await db.delete(bayModules).where(inArray(bayModules.bayId, bayIds));
+  await db.delete(bays).where(inArray(bays.id, bayIds));
+}
+
+/** Delete shelves and everything inside them */
+async function cascadeDeleteShelves(shelfIds: string[]) {
+  if (shelfIds.length === 0) return;
+  // Nullify environmental_readings FK if exists
+  await db.execute(sql`UPDATE environmental_readings SET shelf_id = NULL WHERE shelf_id = ANY(${shelfIds})`).catch(() => {});
+  const bayRows = await db.select({ id: bays.id }).from(bays).where(inArray(bays.shelfId, shelfIds));
+  await cascadeDeleteBays(bayRows.map((b) => b.id));
+  await db.delete(shelves).where(inArray(shelves.id, shelfIds));
+}
+
+/** Delete racks and everything inside them */
+async function cascadeDeleteRacks(rackIds: string[]) {
+  if (rackIds.length === 0) return;
+  const shelfRows = await db.select({ id: shelves.id }).from(shelves).where(inArray(shelves.rackId, rackIds));
+  await cascadeDeleteShelves(shelfRows.map((s) => s.id));
+  await db.delete(racks).where(inArray(racks.id, rackIds));
+}
 
 // ── Zones ───────────────────────────────────────────────────────────────────
 
@@ -114,11 +163,18 @@ export async function removeZone(id: string) {
   if (existing.error !== null) return existing;
   const ownership = assertOwnership(guard.data, existing.data.userId);
   if (ownership) return ownership;
-  const result = await zonesCrud.remove(id);
-  if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "zone", resourceId: result.data.id });
+  try {
+    // Cascade: delete all racks (→ shelves → bays → slots) in this zone
+    const rackRows = await db.select({ id: racks.id }).from(racks).where(eq(racks.zoneId, id));
+    await cascadeDeleteRacks(rackRows.map((r) => r.id));
+    const result = await zonesCrud.remove(id);
+    if (result.error === null) {
+      emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "zone", resourceId: result.data.id });
+    }
+    return result;
+  } catch (e) {
+    return err((e as Error).message);
   }
-  return result;
 }
 
 export async function listMyZones(
@@ -224,11 +280,13 @@ export async function removeRack(id: string) {
   if (!ownerId) return err("Not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
-  const result = await racksCrud.remove(id);
-  if (result.error === null) {
-    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "rack", resourceId: result.data.id });
+  try {
+    await cascadeDeleteRacks([id]);
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "rack", resourceId: id });
+    return ok({ id } as Rack);
+  } catch (e) {
+    return err((e as Error).message);
   }
-  return result;
 }
 
 export async function listRacksByZone(
@@ -339,7 +397,12 @@ export async function removeShelf(id: string) {
   if (!ownerId) return err("Not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
-  return shelvesCrud.remove(id);
+  try {
+    await cascadeDeleteShelves([id]);
+    return ok({ id } as Shelf);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 
 export async function listShelvesByRack(
@@ -419,7 +482,12 @@ export async function removeBay(id: string) {
   if (!ownerId) return err("Not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
-  return baysCrud.remove(id);
+  try {
+    await cascadeDeleteBays([id]);
+    return ok({ id } as Bay);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 
 export async function listBaysByShelf(
@@ -499,7 +567,12 @@ export async function removeSlot(id: string) {
   if (!ownerId) return err("Not found");
   const ownership = assertOwnership(guard.data, ownerId);
   if (ownership) return ownership;
-  return slotsCrud.remove(id);
+  try {
+    await cascadeDeleteSlots([id]);
+    return ok({ id } as Slot);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 
 export async function listSlotsByBay(
