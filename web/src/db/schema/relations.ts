@@ -48,6 +48,7 @@ import {
   environmentalReadings,
 } from "./events";
 import { scanStations, scanEvents, inventoryItems } from "./scan-stations";
+import { hardwareModels, hardwareIdentifiers } from "./hardware";
 import { auditLogs } from "./audit";
 
 // ── Central Catalog Relations ───────────────────────────────────────────────
@@ -120,6 +121,29 @@ export const productAliasesRelations = relations(
       fields: [productAliases.relatedProductId],
       references: [products.id],
       relationName: "relatedProduct",
+    }),
+  })
+);
+
+// ── Hardware Catalog Relations ───────────────────────────────────────────
+
+export const hardwareModelsRelations = relations(
+  hardwareModels,
+  ({ one, many }) => ({
+    brand: one(brands, {
+      fields: [hardwareModels.brandId],
+      references: [brands.id],
+    }),
+    identifiers: many(hardwareIdentifiers),
+  })
+);
+
+export const hardwareIdentifiersRelations = relations(
+  hardwareIdentifiers,
+  ({ one }) => ({
+    hardwareModel: one(hardwareModels, {
+      fields: [hardwareIdentifiers.hardwareModelId],
+      references: [hardwareModels.id],
     }),
   })
 );

@@ -36,6 +36,13 @@
       "when": 1773203681336,
       "tag": "0004_environmental_readings",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773275293619,
+      "tag": "0005_shiny_thunderbird",
+      "breakpoints": true
     }
   ]
 }

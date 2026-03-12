@@ -4,6 +4,7 @@ export * from "./submissions";
 export * from "./user-library";
 export * from "./auth";
 export * from "./storage";
+export * from "./hardware";
 export * from "./events";
 export * from "./scan-stations";
 export * from "./audit";

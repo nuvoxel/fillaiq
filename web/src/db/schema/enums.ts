@@ -151,6 +151,32 @@ export const labelFormatEnum = pgEnum("label_format", [
   "pdf",
 ]);
 
+// ── Hardware Catalog ─────────────────────────────────────────────────────────
+
+export const hardwareCategoryEnum = pgEnum("hardware_category", [
+  "label_printer",
+  "scan_station",
+  "shelf_station",
+  "fdm_printer",
+  "resin_printer",
+  "cnc",
+  "laser_cutter",
+  "laser_engraver",
+  "drybox",
+  "filament_changer",
+  "enclosure",
+  "other",
+]);
+
+export const hardwareIdentifierTypeEnum = pgEnum("hardware_identifier_type", [
+  "usb_vid_pid",
+  "ble_name_prefix",
+  "ble_service_uuid",
+  "mdns_service",
+  "mqtt_topic_prefix",
+  "serial_pattern",
+]);
+
 // ── Machines ─────────────────────────────────────────────────────────────────
 
 export const machineTypeEnum = pgEnum("machine_type", [
