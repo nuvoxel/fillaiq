@@ -429,6 +429,7 @@ export async function searchProducts(query: string, limit = 10) {
 
 export async function createIntakeItem(input: {
   productId?: string;
+  packageType?: string;
   scanEventId?: string;
   sessionId?: string;
   slotId?: string;
@@ -455,6 +456,7 @@ export async function createIntakeItem(input: {
       .values({
         userId: guard.data.userId,
         productId: input.productId ?? null,
+        packageType: (input.packageType as any) ?? null,
         intakeScanEventId: input.scanEventId ?? null,
         currentSlotId: input.slotId ?? null,
         barcodeValue: input.barcodeValue ?? null,

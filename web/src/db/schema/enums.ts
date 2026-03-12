@@ -106,6 +106,15 @@ export const scanSessionStatusEnum = pgEnum("scan_session_status", [
 
 // ── User Items ───────────────────────────────────────────────────────────────
 
+export const packageTypeEnum = pgEnum("package_type", [
+  "spool",
+  "box",
+  "bottle",
+  "bag",
+  "cartridge",
+  "other",
+]);
+
 export const itemStatusEnum = pgEnum("item_status", [
   "active",
   "empty",

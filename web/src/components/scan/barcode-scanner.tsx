@@ -4,13 +4,23 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
+import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
 import CloseIcon from "@mui/icons-material/Close";
 import FlipCameraIosIcon from "@mui/icons-material/FlipCameraIos";
+import CheckIcon from "@mui/icons-material/Check";
+import { BarcodeDetector as BarcodeDetectorPolyfill } from "barcode-detector";
+
+export type DetectedCode = {
+  value: string;
+  format: string;
+};
 
 type Props = {
-  onDetected: (value: string, format: string) => void;
+  /** Called with ALL detected codes when user taps "Done" */
+  onDetected: (codes: DetectedCode[]) => void;
   onClose: () => void;
 };
 
@@ -23,6 +33,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   const [facingMode, setFacingMode] = useState<"environment" | "user">(
     "environment"
   );
+  const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -56,20 +67,14 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
     return stopCamera;
   }, [startCamera, stopCamera]);
 
-  // Barcode detection loop
+  // Barcode detection loop — accumulates all unique codes
   useEffect(() => {
     if (!scanning) return;
 
-    // Check for BarcodeDetector API
-    const BarcodeDetector = (window as any).BarcodeDetector;
-    if (!BarcodeDetector) {
-      setError(
-        "BarcodeDetector API not supported in this browser. Try Chrome on Android or Safari on iOS."
-      );
-      return;
-    }
+    const DetectorClass =
+      (window as any).BarcodeDetector ?? BarcodeDetectorPolyfill;
 
-    const detector = new BarcodeDetector({
+    const detector = new DetectorClass({
       formats: [
         "ean_13",
         "ean_8",
@@ -83,7 +88,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
     });
 
     let animationId: number;
-    let lastDetected = "";
+    const seenValues = new Set<string>();
 
     const detect = async () => {
       if (!videoRef.current || videoRef.current.readyState < 2) {
@@ -93,15 +98,18 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
 
       try {
         const barcodes = await detector.detect(videoRef.current);
-        if (barcodes.length > 0) {
-          const barcode = barcodes[0];
-          // Debounce: don't fire twice for same barcode
-          if (barcode.rawValue !== lastDetected) {
-            lastDetected = barcode.rawValue;
-            // Draw highlight on canvas
-            drawHighlight(barcode);
-            onDetected(barcode.rawValue, barcode.format);
+        const newCodes: DetectedCode[] = [];
+
+        for (const barcode of barcodes) {
+          if (!seenValues.has(barcode.rawValue)) {
+            seenValues.add(barcode.rawValue);
+            newCodes.push({ value: barcode.rawValue, format: barcode.format });
           }
+        }
+
+        if (newCodes.length > 0) {
+          setDetectedCodes((prev) => [...prev, ...newCodes]);
+          drawHighlights(barcodes);
         }
       } catch {
         // Detection frame error, ignore and retry
@@ -112,9 +120,9 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
 
     animationId = requestAnimationFrame(detect);
     return () => cancelAnimationFrame(animationId);
-  }, [scanning, onDetected]);
+  }, [scanning]);
 
-  const drawHighlight = (barcode: any) => {
+  const drawHighlights = (barcodes: any[]) => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     if (!canvas || !video) return;
@@ -128,16 +136,28 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
     ctx.strokeStyle = "#FF5C2E";
     ctx.lineWidth = 4;
 
-    const points = barcode.cornerPoints;
-    if (points?.length === 4) {
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y);
+    for (const barcode of barcodes) {
+      const points = barcode.cornerPoints;
+      if (points?.length === 4) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
       }
-      ctx.closePath();
-      ctx.stroke();
     }
+  };
+
+  const handleDone = () => {
+    if (detectedCodes.length > 0) {
+      onDetected(detectedCodes);
+    }
+  };
+
+  const handleRemoveCode = (value: string) => {
+    setDetectedCodes((prev) => prev.filter((c) => c.value !== value));
   };
 
   return (
@@ -164,7 +184,10 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
           zIndex: 2,
         }}
       >
-        <IconButton onClick={onClose} sx={{ color: "white", bgcolor: "rgba(0,0,0,0.5)" }}>
+        <IconButton
+          onClick={onClose}
+          sx={{ color: "white", bgcolor: "rgba(0,0,0,0.5)" }}
+        >
           <CloseIcon />
         </IconButton>
         <IconButton
@@ -176,25 +199,6 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
           <FlipCameraIosIcon />
         </IconButton>
       </Box>
-
-      {/* Scanning indicator */}
-      {scanning && (
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: 12,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 2,
-          }}
-        >
-          <Chip
-            icon={<CircularProgress size={14} sx={{ color: "white" }} />}
-            label="Scanning for barcodes..."
-            sx={{ bgcolor: "rgba(0,0,0,0.6)", color: "white" }}
-          />
-        </Box>
-      )}
 
       {error ? (
         <Box sx={{ p: 4, textAlign: "center" }}>
@@ -227,6 +231,53 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
           />
         </Box>
       )}
+
+      {/* Detected codes list + done button */}
+      <Box sx={{ p: 1.5, bgcolor: "rgba(0,0,0,0.85)" }}>
+        {detectedCodes.length === 0 ? (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 1,
+              py: 0.5,
+            }}
+          >
+            {scanning && <CircularProgress size={14} sx={{ color: "white" }} />}
+            <Typography variant="body2" sx={{ color: "grey.400" }}>
+              {scanning ? "Scanning for barcodes & QR codes..." : "Starting camera..."}
+            </Typography>
+          </Box>
+        ) : (
+          <Stack spacing={1}>
+            <Stack direction="row" flexWrap="wrap" gap={0.5}>
+              {detectedCodes.map((code) => (
+                <Chip
+                  key={code.value}
+                  label={`${code.value} (${code.format})`}
+                  size="small"
+                  onDelete={() => handleRemoveCode(code.value)}
+                  sx={{
+                    bgcolor: "rgba(255,255,255,0.15)",
+                    color: "white",
+                    "& .MuiChip-deleteIcon": { color: "grey.400" },
+                  }}
+                />
+              ))}
+            </Stack>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<CheckIcon />}
+              onClick={handleDone}
+              fullWidth
+            >
+              Done ({detectedCodes.length} code{detectedCodes.length !== 1 ? "s" : ""})
+            </Button>
+          </Stack>
+        )}
+      </Box>
     </Box>
   );
 }

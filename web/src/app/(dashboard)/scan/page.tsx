@@ -16,6 +16,8 @@ import Divider from "@mui/material/Divider";
 import CircularProgress from "@mui/material/CircularProgress";
 import Autocomplete from "@mui/material/Autocomplete";
 import Stack from "@mui/material/Stack";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import SearchIcon from "@mui/icons-material/Search";
 import PlaceIcon from "@mui/icons-material/Place";
@@ -25,8 +27,11 @@ import PrintIcon from "@mui/icons-material/Print";
 import NfcIcon from "@mui/icons-material/Nfc";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ColorLensIcon from "@mui/icons-material/ColorLens";
+import TextFieldsIcon from "@mui/icons-material/TextFields";
 import { PageHeader } from "@/components/layout/page-header";
-import { BarcodeScanner } from "@/components/scan/barcode-scanner";
+import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
+import { ColorCapture, type CapturedColor } from "@/components/scan/color-capture";
 import { ProductCard } from "@/components/scan/product-card";
 import { SlotPicker } from "@/components/scan/slot-picker";
 import {
@@ -41,6 +46,17 @@ import {
 
 const STEPS = ["Identify", "Details", "Location", "Done"];
 
+const PACKAGE_TYPES = [
+  { value: "spool", label: "Spool" },
+  { value: "box", label: "Box" },
+  { value: "bottle", label: "Bottle" },
+  { value: "bag", label: "Bag" },
+  { value: "cartridge", label: "Cartridge" },
+  { value: "other", label: "Other" },
+] as const;
+
+type PackageType = (typeof PACKAGE_TYPES)[number]["value"];
+
 type ProductMatch = {
   match: string;
   product: any;
@@ -51,12 +67,14 @@ export default function ScanPage() {
   // ── Workflow state ──────────────────────────────────────────────────────────
   const [activeStep, setActiveStep] = useState(0);
   const [showCamera, setShowCamera] = useState(false);
+  const [showColorCapture, setShowColorCapture] = useState(false);
 
   // ── Station ─────────────────────────────────────────────────────────────────
   const [pairedStation, setPairedStation] = useState<any>(null);
   const [stationData, setStationData] = useState<StationScanData | null>(null);
 
   // ── Identification ──────────────────────────────────────────────────────────
+  const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
   const [barcode, setBarcode] = useState<{
     value: string;
     format: string;
@@ -66,6 +84,16 @@ export default function ScanPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+
+  // ── Package type ─────────────────────────────────────────────────────────
+  const [packageType, setPackageType] = useState<PackageType | null>(null);
+
+  // ── Color (phone camera) ──────────────────────────────────────────────────
+  const [phoneColor, setPhoneColor] = useState<CapturedColor | null>(null);
+
+  // ── OCR ─────────────────────────────────────────────────────────────────────
+  const [ocrText, setOcrText] = useState<string | null>(null);
+  const [ocrRunning, setOcrRunning] = useState(false);
 
   // ── Details ─────────────────────────────────────────────────────────────────
   const [notes, setNotes] = useState("");
@@ -103,30 +131,93 @@ export default function ScanPage() {
     [initialWeight, productMatch]
   );
 
-  // ── Barcode detected (phone camera) ─────────────────────────────────────────
+  // ── Barcodes detected (phone camera) ──────────────────────────────────────
 
-  const handleBarcodeDetected = useCallback(
-    async (value: string, format: string) => {
-      setBarcode({ value, format });
+  const handleCodesDetected = useCallback(
+    async (codes: DetectedCode[]) => {
+      setDetectedCodes(codes);
       setShowCamera(false);
-      setLookingUp(true);
-      setError(null);
 
-      const result = await lookupProductByBarcode(value);
-      setLookingUp(false);
+      // Use first code as primary barcode
+      const primary = codes[0];
+      if (primary) {
+        setBarcode({ value: primary.value, format: primary.format });
 
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
+        // Try to look up each code until we find a product match
+        setLookingUp(true);
+        setError(null);
 
-      if (result.data) {
-        setProductMatch(result.data);
-        setActiveStep(1);
+        for (const code of codes) {
+          const result = await lookupProductByBarcode(code.value);
+          if (result.data) {
+            setBarcode({ value: code.value, format: code.format });
+            setProductMatch(result.data);
+            setLookingUp(false);
+            setActiveStep(1);
+            return;
+          }
+          if (result.error) {
+            setError(result.error);
+          }
+        }
+
+        setLookingUp(false);
       }
     },
     []
   );
+
+  // ── OCR extraction ──────────────────────────────────────────────────────────
+
+  const handleRunOcr = useCallback(async () => {
+    // We need a video frame — reopen camera in a special mode? No, let's
+    // capture from the same flow. We'll use the barcode scanner's last frame
+    // or open a new camera capture for OCR.
+    // For simplicity, open the barcode scanner and after codes are captured,
+    // offer an "Extract Text" button that runs OCR on a new frame.
+    setOcrRunning(true);
+    try {
+      // Capture a frame from the camera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.playsInline = true;
+      await video.play();
+
+      // Wait a moment for camera to stabilize
+      await new Promise((r) => setTimeout(r, 500));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(video, 0, 0);
+      stream.getTracks().forEach((t) => t.stop());
+
+      // Dynamic import of tesseract.js
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("eng");
+      const { data } = await worker.recognize(canvas);
+      await worker.terminate();
+
+      const text = data.text.trim();
+      setOcrText(text || null);
+    } catch (e) {
+      console.error("OCR failed:", e);
+      setOcrText(null);
+    } finally {
+      setOcrRunning(false);
+    }
+  }, []);
+
+  // ── Color captured (phone camera) ─────────────────────────────────────────
+
+  const handleColorCaptured = useCallback((color: CapturedColor) => {
+    setPhoneColor(color);
+    setShowColorCapture(false);
+  }, []);
 
   // ── Manual search ───────────────────────────────────────────────────────────
 
@@ -148,14 +239,37 @@ export default function ScanPage() {
     setActiveStep(1);
   };
 
+  // ── Effective color (station takes priority, then phone camera) ───────────
+
+  const effectiveColorHex = stationData?.colorHex ?? phoneColor?.hex;
+
   // ── Save intake ─────────────────────────────────────────────────────────────
 
   const handleSaveIntake = async () => {
     setSaving(true);
     setError(null);
 
+    // Build notes with extra data
+    const notesParts: string[] = [];
+    if (notes) notesParts.push(notes);
+
+    // Append additional barcodes beyond the primary
+    if (detectedCodes.length > 1) {
+      const extra = detectedCodes
+        .slice(1)
+        .map((c) => `${c.value} (${c.format})`)
+        .join(", ");
+      notesParts.push(`Additional codes: ${extra}`);
+    }
+
+    // Append OCR text
+    if (ocrText) {
+      notesParts.push(`OCR text: ${ocrText}`);
+    }
+
     const result = await createIntakeItem({
       productId: productMatch?.product?.id,
+      packageType: packageType ?? undefined,
       scanEventId: stationData?.scanEventId,
       sessionId: stationData?.sessionId ?? undefined,
       slotId: selectedSlotId ?? undefined,
@@ -164,13 +278,13 @@ export default function ScanPage() {
       nfcUid: stationData?.nfcUid ?? undefined,
       nfcTagFormat: stationData?.nfcTagFormat ?? undefined,
       initialWeightG: initialWeight ? parseFloat(initialWeight) : undefined,
-      measuredColorHex: stationData?.colorHex ?? undefined,
+      measuredColorHex: effectiveColorHex ?? undefined,
       measuredColorLabL: stationData?.colorLabL ?? undefined,
       measuredColorLabA: stationData?.colorLabA ?? undefined,
       measuredColorLabB: stationData?.colorLabB ?? undefined,
       measuredSpectralData: stationData?.spectralData ?? undefined,
       measuredHeightMm: stationData?.heightMm ?? undefined,
-      notes: notes || undefined,
+      notes: notesParts.join("\n") || undefined,
     });
 
     setSaving(false);
@@ -189,10 +303,15 @@ export default function ScanPage() {
   const handleReset = () => {
     setActiveStep(0);
     setShowCamera(false);
+    setShowColorCapture(false);
+    setDetectedCodes([]);
     setBarcode(null);
     setProductMatch(null);
     setSearchQuery("");
     setSearchResults([]);
+    setPackageType(null);
+    setPhoneColor(null);
+    setOcrText(null);
     setNotes("");
     setInitialWeight("");
     setSelectedSlotId(null);
@@ -320,7 +439,7 @@ export default function ScanPage() {
             <>
               {showCamera ? (
                 <BarcodeScanner
-                  onDetected={handleBarcodeDetected}
+                  onDetected={handleCodesDetected}
                   onClose={() => setShowCamera(false)}
                 />
               ) : (
@@ -345,22 +464,29 @@ export default function ScanPage() {
                       Scan Barcode
                     </Button>
 
-                    {barcode && (
-                      <Alert
-                        severity="info"
-                        sx={{ mt: 2 }}
-                      >
-                        <Typography variant="body2">
-                          Barcode: <strong>{barcode.value}</strong>{" "}
-                          <Chip label={barcode.format} size="small" />
+                    {/* Detected codes list */}
+                    {detectedCodes.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
+                          DETECTED CODES ({detectedCodes.length})
                         </Typography>
+                        <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>
+                          {detectedCodes.map((code) => (
+                            <Chip
+                              key={code.value}
+                              label={`${code.value} (${code.format})`}
+                              size="small"
+                              variant="outlined"
+                              color={code.value === barcode?.value ? "primary" : "default"}
+                            />
+                          ))}
+                        </Stack>
                         {lookingUp && (
                           <Box
                             sx={{
                               display: "flex",
                               alignItems: "center",
                               gap: 1,
-                              mt: 1,
                             }}
                           >
                             <CircularProgress size={16} />
@@ -369,15 +495,57 @@ export default function ScanPage() {
                             </Typography>
                           </Box>
                         )}
-                        {!lookingUp && (
+                        {!lookingUp && !productMatch && (
                           <Typography
                             variant="body2"
                             color="text.secondary"
-                            sx={{ mt: 0.5 }}
                           >
-                            No match found. Try searching below or add as new.
+                            No product match found. Try searching below or add as new.
                           </Typography>
                         )}
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* OCR: Extract text from label */}
+              {!showCamera && (
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Extract label text (OCR)
+                    </Typography>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={
+                        ocrRunning ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <TextFieldsIcon />
+                        )
+                      }
+                      onClick={handleRunOcr}
+                      disabled={ocrRunning}
+                    >
+                      {ocrRunning ? "Reading text..." : "Capture & Read Text"}
+                    </Button>
+                    {ocrText && (
+                      <Alert severity="info" sx={{ mt: 1.5 }}>
+                        <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
+                          EXTRACTED TEXT
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}
+                        >
+                          {ocrText}
+                        </Typography>
                       </Alert>
                     )}
                   </CardContent>
@@ -489,7 +657,7 @@ export default function ScanPage() {
       {/* ══════════════════════════════════════════════════════════════════
           Step 1: DETAILS
           Station fills: weight (auto), color, height
-          Phone fills: notes, manual weight override
+          Phone fills: notes, manual weight override, camera color
           ══════════════════════════════════════════════════════════════════ */}
       {activeStep === 1 && (
         <Stack spacing={2}>
@@ -500,6 +668,24 @@ export default function ScanPage() {
               <Typography variant="subtitle2" sx={{ mb: 2 }}>
                 Details
               </Typography>
+
+              {/* Package type */}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                Package type
+              </Typography>
+              <ToggleButtonGroup
+                value={packageType}
+                exclusive
+                onChange={(_, val) => { if (val !== null) setPackageType(val); }}
+                size="small"
+                sx={{ mb: 2, flexWrap: "wrap", gap: 0.5 }}
+              >
+                {PACKAGE_TYPES.map((pt) => (
+                  <ToggleButton key={pt.value} value={pt.value} sx={{ textTransform: "none", px: 1.5 }}>
+                    {pt.label}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
 
               <TextField
                 fullWidth
@@ -519,42 +705,101 @@ export default function ScanPage() {
                 }}
               />
 
-              {/* Station color preview */}
-              {stationData?.colorHex && (
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.5,
-                    mb: 2,
-                    p: 1.5,
-                    bgcolor: "action.hover",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      bgcolor: stationData.colorHex,
-                      border: "2px solid",
-                      borderColor: "divider",
-                    }}
+              {/* Color section */}
+              {showColorCapture ? (
+                <Box sx={{ mb: 2 }}>
+                  <ColorCapture
+                    onCapture={handleColorCaptured}
+                    onClose={() => setShowColorCapture(false)}
                   />
-                  <Box>
-                    <Typography variant="body2" fontWeight={600}>
-                      Measured color: {stationData.colorHex}
-                    </Typography>
-                    {stationData.colorLabL != null && (
-                      <Typography variant="caption" color="text.secondary">
-                        L*a*b*: {stationData.colorLabL.toFixed(1)},{" "}
-                        {stationData.colorLabA?.toFixed(1)},{" "}
-                        {stationData.colorLabB?.toFixed(1)}
-                      </Typography>
-                    )}
-                  </Box>
                 </Box>
+              ) : (
+                <>
+                  {/* Station color (takes priority) */}
+                  {stationData?.colorHex && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        mb: 2,
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          bgcolor: stationData.colorHex,
+                          border: "2px solid",
+                          borderColor: "divider",
+                        }}
+                      />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          Measured color: {stationData.colorHex}
+                        </Typography>
+                        {stationData.colorLabL != null && (
+                          <Typography variant="caption" color="text.secondary">
+                            L*a*b*: {stationData.colorLabL.toFixed(1)},{" "}
+                            {stationData.colorLabA?.toFixed(1)},{" "}
+                            {stationData.colorLabB?.toFixed(1)}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Chip label="station" size="small" variant="outlined" color="success" sx={{ height: 20, fontSize: "0.65rem" }} />
+                    </Box>
+                  )}
+
+                  {/* Phone camera color */}
+                  {phoneColor && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        mb: 2,
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          bgcolor: phoneColor.hex,
+                          border: "2px solid",
+                          borderColor: "divider",
+                        }}
+                      />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          Camera color: {phoneColor.hex.toUpperCase()}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          RGB({phoneColor.r}, {phoneColor.g}, {phoneColor.b})
+                        </Typography>
+                      </Box>
+                      <Chip label="phone" size="small" variant="outlined" color="info" sx={{ height: 20, fontSize: "0.65rem" }} />
+                    </Box>
+                  )}
+
+                  {/* Capture color button (always available when no station color) */}
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<ColorLensIcon />}
+                    onClick={() => setShowColorCapture(true)}
+                    sx={{ mb: 2 }}
+                  >
+                    {phoneColor ? "Re-capture Color" : "Capture Color"}
+                  </Button>
+                </>
               )}
 
               {/* Station height */}
@@ -574,6 +819,21 @@ export default function ScanPage() {
                     Measured height: <strong>{stationData.heightMm.toFixed(0)}mm</strong>
                   </Typography>
                 </Box>
+              )}
+
+              {/* OCR text preview (if captured in step 0) */}
+              {ocrText && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
+                    LABEL TEXT (OCR)
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}
+                  >
+                    {ocrText}
+                  </Typography>
+                </Alert>
               )}
 
               <TextField
@@ -660,8 +920,14 @@ export default function ScanPage() {
                 {productMatch?.brand && (
                   <SummaryRow label="Brand" value={productMatch.brand.name} />
                 )}
-                {barcode && (
-                  <SummaryRow label="Barcode" value={barcode.value} />
+                {packageType && (
+                  <SummaryRow label="Package" value={packageType} />
+                )}
+                {detectedCodes.length > 0 && (
+                  <SummaryRow
+                    label="Codes"
+                    value={detectedCodes.map((c) => c.value).join(", ")}
+                  />
                 )}
                 {hasStationNfc && (
                   <SummaryRow
@@ -677,12 +943,12 @@ export default function ScanPage() {
                     source={hasStationWeight ? "station" : undefined}
                   />
                 )}
-                {stationData?.colorHex && (
+                {effectiveColorHex && (
                   <SummaryRow
                     label="Color"
-                    value={stationData.colorHex}
-                    source="station"
-                    swatch={stationData.colorHex}
+                    value={effectiveColorHex}
+                    source={stationData?.colorHex ? "station" : "phone"}
+                    swatch={effectiveColorHex}
                   />
                 )}
                 {stationData?.heightMm != null && (
@@ -691,6 +957,9 @@ export default function ScanPage() {
                     value={`${stationData.heightMm.toFixed(0)}mm`}
                     source="station"
                   />
+                )}
+                {ocrText && (
+                  <SummaryRow label="OCR" value={ocrText.slice(0, 60) + (ocrText.length > 60 ? "..." : "")} />
                 )}
                 {selectedSlotAddress && (
                   <SummaryRow label="Location" value={selectedSlotAddress} />

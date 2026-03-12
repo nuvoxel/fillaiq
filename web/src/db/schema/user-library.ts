@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   itemStatusEnum,
+  packageTypeEnum,
   nfcTagFormatEnum,
   equipmentTypeEnum,
   labelFormatEnum,
@@ -64,6 +65,9 @@ export const userItems = pgTable("user_items", {
     .references(() => users.id)
     .notNull(),
   productId: uuid("product_id").references(() => products.id),
+
+  // ── Package type ──────────────────────────────────────────────────────
+  packageType: packageTypeEnum("package_type"),
 
   // ── NFC identification ──────────────────────────────────────────────────
   nfcUid: varchar("nfc_uid", { length: 50 }),
