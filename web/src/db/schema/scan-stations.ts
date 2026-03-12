@@ -10,7 +10,7 @@ import {
   jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { nfcTagFormatEnum } from "./enums";
+import { nfcTagFormatEnum, scanSessionStatusEnum } from "./enums";
 import { users, userItems } from "./user-library";
 
 // ── Scan Stations ───────────────────────────────────────────────────────────
@@ -38,6 +38,9 @@ export const scanStations = pgTable(
     deviceToken: varchar("device_token", { length: 128 }),
     pairingCode: varchar("pairing_code", { length: 10 }),
     pairingExpiresAt: timestamp("pairing_expires_at", { withTimezone: true }),
+    // Hardware-rooted identity (ESP32-S3 eFuse HMAC)
+    deviceSecret: varchar("device_secret", { length: 128 }),
+    efuseId: varchar("efuse_id", { length: 24 }),
     // Status
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     isOnline: boolean("is_online").default(false),
@@ -54,6 +57,51 @@ export const scanStations = pgTable(
   ]
 );
 
+// ── Scan Sessions ───────────────────────────────────────────────────────────
+
+export const scanSessions = pgTable("scan_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id),
+  stationId: uuid("station_id")
+    .references(() => scanStations.id)
+    .notNull(),
+  status: scanSessionStatusEnum("status").default("active").notNull(),
+
+  // ── Accumulated best values ─────────────────────────────────────────────
+  bestWeightG: real("best_weight_g"),
+  bestHeightMm: real("best_height_mm"),
+  bestColorHex: varchar("best_color_hex", { length: 7 }),
+  bestColorLabL: real("best_color_lab_l"),
+  bestColorLabA: real("best_color_lab_a"),
+  bestColorLabB: real("best_color_lab_b"),
+  bestSpectralData: jsonb("best_spectral_data"),
+
+  // ── NFC ─────────────────────────────────────────────────────────────────
+  nfcUid: varchar("nfc_uid", { length: 50 }),
+  nfcTagFormat: nfcTagFormatEnum("nfc_tag_format"),
+  nfcParsedData: jsonb("nfc_parsed_data"),
+
+  // ── Barcode ─────────────────────────────────────────────────────────────
+  barcodeValue: varchar("barcode_value", { length: 255 }),
+  barcodeFormat: varchar("barcode_format", { length: 50 }),
+
+  // ── Catalog match ───────────────────────────────────────────────────────
+  matchedProductId: uuid("matched_product_id"),
+  matchConfidence: real("match_confidence"),
+  matchMethod: varchar("match_method", { length: 50 }), // 'nfc', 'barcode', 'spectral'
+
+  // ── Resolution ──────────────────────────────────────────────────────────
+  resolvedUserItemId: uuid("resolved_user_item_id").references(() => userItems.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // ── Scan Events ─────────────────────────────────────────────────────────────
 
 export const scanEvents = pgTable("scan_events", {
@@ -62,6 +110,7 @@ export const scanEvents = pgTable("scan_events", {
     .references(() => scanStations.id)
     .notNull(),
   userId: uuid("user_id").references(() => users.id),
+  sessionId: uuid("session_id").references(() => scanSessions.id),
 
   // ── Weight ────────────────────────────────────────────────────────────
   weightG: real("weight_g"),

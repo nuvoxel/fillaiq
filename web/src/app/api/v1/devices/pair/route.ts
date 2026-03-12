@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { db } from "@/db";
 import { scanStations } from "@/db/schema";
-import { eq, and, gt, isNull } from "drizzle-orm";
-import { getSession } from "@/lib/actions/auth";
+import { eq } from "drizzle-orm";
 
 const PAIRING_CODE_LENGTH = 6;
 const PAIRING_EXPIRY_MINUTES = 15;
@@ -17,12 +16,17 @@ function generatePairingCode(): string {
     .join("");
 }
 
+/** Hash the device secret for storage (we never store the raw secret). */
+function hashSecret(secret: string): string {
+  return createHash("sha256").update(secret).digest("hex");
+}
+
 /**
  * POST /api/v1/devices/pair
  *
- * Called by the scan station after WiFi connect.
- * Body: { hardwareId: "scan-A2B3C4" }
- * Returns: { pairingCode: "X3F7K2", deviceToken: "..." }
+ * Called by FillaScan devices after WiFi connect.
+ * Body: { hardwareId, sku?, firmwareVersion?, capabilities?, deviceSecret?, efuseId? }
+ * Returns: { paired, pairingCode?, deviceToken }
  *
  * No auth required — this is the device's first contact.
  */
@@ -34,7 +38,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { hardwareId, sku, firmwareVersion, firmwareChannel, capabilities } = body;
+  const {
+    hardwareId,
+    sku,
+    firmwareVersion,
+    firmwareChannel,
+    capabilities,
+    deviceSecret,
+    efuseId,
+  } = body;
   if (!hardwareId || typeof hardwareId !== "string") {
     return NextResponse.json(
       { error: "hardwareId is required" },
@@ -44,7 +56,18 @@ export async function POST(request: NextRequest) {
 
   const deviceToken = randomBytes(32).toString("hex");
   const pairingCode = generatePairingCode();
-  const expiresAt = new Date(Date.now() + PAIRING_EXPIRY_MINUTES * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + PAIRING_EXPIRY_MINUTES * 60 * 1000
+  );
+
+  // Hardware identity fields (stored on first contact, verified on subsequent)
+  const identityFields: Record<string, any> = {};
+  if (deviceSecret && typeof deviceSecret === "string") {
+    identityFields.deviceSecret = hashSecret(deviceSecret);
+  }
+  if (efuseId && typeof efuseId === "string") {
+    identityFields.efuseId = efuseId;
+  }
 
   // Check if station already exists
   const [existing] = await db
@@ -61,21 +84,33 @@ export async function POST(request: NextRequest) {
   };
 
   if (existing) {
-    // Device exists — issue new token + pairing code regardless of
-    // current pairing state. If the device already has a userId, this
-    // is a re-pair (e.g. token lost). The user must approve the new
-    // code on the dashboard before the device is considered paired.
+    // Verify hardware identity if both sides have it
+    if (
+      existing.deviceSecret &&
+      deviceSecret &&
+      existing.deviceSecret !== hashSecret(deviceSecret)
+    ) {
+      // Different physical device claiming the same hardwareId
+      return NextResponse.json(
+        { error: "Device identity mismatch" },
+        { status: 403 }
+      );
+    }
+
+    const alreadyPaired = !!existing.userId;
     await db
       .update(scanStations)
       .set({
         deviceToken,
-        pairingCode,
-        pairingExpiresAt: expiresAt,
-        userId: null, // Clear ownership until user re-approves
+        ...(alreadyPaired
+          ? {}
+          : { pairingCode, pairingExpiresAt: expiresAt }),
         deviceSku: sku || existing.deviceSku,
         firmwareVersion: firmwareVersion || existing.firmwareVersion,
         firmwareChannel: firmwareChannel || existing.firmwareChannel,
         ...capFlags,
+        // Store identity on first contact, don't overwrite once set
+        ...(existing.deviceSecret ? {} : identityFields),
         config: capabilities ? { capabilities } : existing.config,
         ipAddress:
           request.headers.get("x-forwarded-for")?.split(",")[0] ?? null,
@@ -83,18 +118,27 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(scanStations.id, existing.id));
+
+    if (alreadyPaired) {
+      return NextResponse.json({
+        paired: true,
+        deviceToken,
+        stationId: existing.id,
+      });
+    }
   } else {
     // New station — create unpaired record
     const deviceName = sku
       ? `${sku.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} ${hardwareId}`
-      : `Scan Station ${hardwareId}`;
+      : `FillaScan ${hardwareId}`;
     await db.insert(scanStations).values({
       name: deviceName,
       hardwareId,
-      deviceSku: sku || "scan-station",
+      deviceSku: sku || "filla-scan",
       firmwareVersion: firmwareVersion || null,
       firmwareChannel: firmwareChannel || "stable",
       ...capFlags,
+      ...identityFields,
       config: capabilities ? { capabilities } : null,
       deviceToken,
       pairingCode,
@@ -116,7 +160,7 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/v1/devices/pair?token=<deviceToken>
  *
- * Called by the scan station to poll pairing status.
+ * Called by devices to poll pairing status.
  * Returns: { paired: true/false }
  */
 export async function GET(request: NextRequest) {

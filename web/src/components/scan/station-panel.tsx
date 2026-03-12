@@ -24,6 +24,7 @@ import { listMyStations, pollStationScan } from "@/lib/actions/scan";
 
 export type StationScanData = {
   scanEventId: string;
+  sessionId: string | null;
   // Weight
   weightG: number | null;
   weightStable: boolean | null;
@@ -101,22 +102,25 @@ export function StationPanel({ onScanData, onStationChange }: Props) {
         lastScanId ?? undefined
       );
       if (result.data) {
-        const { scanEvent, autoIdentified } = result.data;
+        const { scanEvent, autoIdentified, session } = result.data;
+
+        // Prefer session-level aggregated data when available
         const data: StationScanData = {
           scanEventId: scanEvent.id,
-          weightG: scanEvent.weightG,
+          sessionId: session?.id ?? scanEvent.sessionId ?? null,
+          weightG: session?.bestWeightG ?? scanEvent.weightG,
           weightStable: scanEvent.weightStable,
           nfcPresent: scanEvent.nfcPresent,
-          nfcUid: scanEvent.nfcUid,
+          nfcUid: session?.nfcUid ?? scanEvent.nfcUid,
           nfcTagType: scanEvent.nfcTagType,
-          nfcTagFormat: scanEvent.nfcTagFormat,
-          nfcParsedData: scanEvent.nfcParsedData as Record<string, any> | null,
-          colorHex: scanEvent.colorHex,
-          colorLabL: scanEvent.colorLabL,
-          colorLabA: scanEvent.colorLabA,
-          colorLabB: scanEvent.colorLabB,
-          spectralData: scanEvent.spectralData,
-          heightMm: scanEvent.heightMm,
+          nfcTagFormat: session?.nfcTagFormat ?? scanEvent.nfcTagFormat,
+          nfcParsedData: (session?.nfcParsedData ?? scanEvent.nfcParsedData) as Record<string, any> | null,
+          colorHex: session?.bestColorHex ?? scanEvent.colorHex,
+          colorLabL: session?.bestColorLabL ?? scanEvent.colorLabL,
+          colorLabA: session?.bestColorLabA ?? scanEvent.colorLabA,
+          colorLabB: session?.bestColorLabB ?? scanEvent.colorLabB,
+          spectralData: session?.bestSpectralData ?? scanEvent.spectralData,
+          heightMm: session?.bestHeightMm ?? scanEvent.heightMm,
           autoProduct: autoIdentified ?? null,
         };
 

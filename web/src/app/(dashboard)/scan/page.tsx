@@ -157,6 +157,7 @@ export default function ScanPage() {
     const result = await createIntakeItem({
       productId: productMatch?.product?.id,
       scanEventId: stationData?.scanEventId,
+      sessionId: stationData?.sessionId ?? undefined,
       slotId: selectedSlotId ?? undefined,
       barcodeValue: barcode?.value,
       barcodeFormat: barcode?.format,
@@ -256,6 +257,42 @@ export default function ScanPage() {
                 Identified via NFC tag!
               </Typography>
             </Alert>
+          )}
+
+          {/* Parsed NFC tag details (Bambu material, color, temps, etc.) */}
+          {stationData?.nfcParsedData && (
+            <Card variant="outlined">
+              <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: "block" }}>
+                  NFC TAG DATA
+                </Typography>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, fontSize: "0.8rem" }}>
+                  {stationData.nfcParsedData.material && (
+                    <Chip label={`Material: ${stationData.nfcParsedData.material}`} size="small" variant="outlined" />
+                  )}
+                  {stationData.nfcParsedData.name && (
+                    <Chip label={stationData.nfcParsedData.name} size="small" variant="outlined" />
+                  )}
+                  {stationData.nfcParsedData.colorHex && (
+                    <Chip
+                      icon={<Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: stationData.nfcParsedData.colorHex, border: "1px solid", borderColor: "divider" }} />}
+                      label={stationData.nfcParsedData.colorHex}
+                      size="small"
+                      variant="outlined"
+                    />
+                  )}
+                  {stationData.nfcParsedData.nozzleTempMin != null && (
+                    <Chip label={`Nozzle: ${stationData.nfcParsedData.nozzleTempMin}-${stationData.nfcParsedData.nozzleTempMax}\u00B0C`} size="small" variant="outlined" />
+                  )}
+                  {stationData.nfcParsedData.bedTemp != null && (
+                    <Chip label={`Bed: ${stationData.nfcParsedData.bedTemp}\u00B0C`} size="small" variant="outlined" />
+                  )}
+                  {stationData.nfcParsedData.spoolNetWeight != null && (
+                    <Chip label={`Net: ${stationData.nfcParsedData.spoolNetWeight}g`} size="small" variant="outlined" />
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
           )}
 
           {productMatch && (

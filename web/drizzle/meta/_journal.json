@@ -50,6 +50,13 @@
       "when": 1773275513238,
       "tag": "0006_ordinary_abomination",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773289629431,
+      "tag": "0007_real_slipstream",
+      "breakpoints": true
     }
   ]
 }

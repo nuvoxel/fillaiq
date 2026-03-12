@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { eq, desc, and, or, ilike, gt, gte, isNull } from "drizzle-orm";
-import { scanStations, scanEvents } from "@/db/schema/scan-stations";
+import { scanStations, scanEvents, scanSessions } from "@/db/schema/scan-stations";
 import { environmentalReadings } from "@/db/schema/events";
 import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
 import { userItems } from "@/db/schema/user-library";
@@ -255,6 +255,28 @@ export async function pollStationScan(stationId: string, afterId?: string) {
     autoProduct = await tryIdentifyByNfc(latest);
   }
 
+  // Fetch session data if scan is linked to one
+  let session = null;
+  if (latest.sessionId) {
+    const [s] = await db
+      .select()
+      .from(scanSessions)
+      .where(eq(scanSessions.id, latest.sessionId));
+    if (s) {
+      session = s;
+      // If session has a match but we didn't get autoProduct from scanEvent,
+      // try fetching the matched product from the session
+      if (!autoProduct && s.matchedProductId) {
+        const [match] = await db
+          .select({ product: products, brand: brands })
+          .from(products)
+          .leftJoin(brands, eq(products.brandId, brands.id))
+          .where(eq(products.id, s.matchedProductId));
+        if (match) autoProduct = match;
+      }
+    }
+  }
+
   return ok({
     scanEvent: latest,
     station: {
@@ -263,6 +285,7 @@ export async function pollStationScan(stationId: string, afterId?: string) {
       isOnline: station.isOnline,
     },
     autoIdentified: autoProduct,
+    session,
   });
 }
 
@@ -407,6 +430,7 @@ export async function searchProducts(query: string, limit = 10) {
 export async function createIntakeItem(input: {
   productId?: string;
   scanEventId?: string;
+  sessionId?: string;
   slotId?: string;
   barcodeValue?: string;
   barcodeFormat?: string;
@@ -466,6 +490,19 @@ export async function createIntakeItem(input: {
           barcodeFormat: input.barcodeFormat ?? undefined,
         })
         .where(eq(scanEvents.id, input.scanEventId));
+    }
+
+    // Resolve the session if one was provided
+    if (input.sessionId) {
+      await db
+        .update(scanSessions)
+        .set({
+          status: "resolved",
+          resolvedUserItemId: item.id,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(scanSessions.id, input.sessionId));
     }
 
     return ok(item);

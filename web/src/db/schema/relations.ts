@@ -48,7 +48,7 @@ import {
   dryingSessions,
   environmentalReadings,
 } from "./events";
-import { scanStations, scanEvents, inventoryItems } from "./scan-stations";
+import { scanStations, scanEvents, scanSessions, inventoryItems } from "./scan-stations";
 import { hardwareModels, hardwareIdentifiers } from "./hardware";
 import { auditLogs } from "./audit";
 
@@ -544,6 +544,7 @@ export const scanStationsRelations = relations(
       references: [users.id],
     }),
     scanEvents: many(scanEvents),
+    scanSessions: many(scanSessions),
     environmentalReadings: many(environmentalReadings),
     printers: many(userPrinters),
   })
@@ -558,11 +559,34 @@ export const scanEventsRelations = relations(scanEvents, ({ one }) => ({
     fields: [scanEvents.userId],
     references: [users.id],
   }),
+  session: one(scanSessions, {
+    fields: [scanEvents.sessionId],
+    references: [scanSessions.id],
+  }),
   identifiedUserItem: one(userItems, {
     fields: [scanEvents.identifiedUserItemId],
     references: [userItems.id],
   }),
 }));
+
+export const scanSessionsRelations = relations(
+  scanSessions,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [scanSessions.userId],
+      references: [users.id],
+    }),
+    station: one(scanStations, {
+      fields: [scanSessions.stationId],
+      references: [scanStations.id],
+    }),
+    resolvedUserItem: one(userItems, {
+      fields: [scanSessions.resolvedUserItemId],
+      references: [userItems.id],
+    }),
+    scanEvents: many(scanEvents),
+  })
+);
 
 export const inventoryItemsRelations = relations(
   inventoryItems,

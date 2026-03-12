@@ -96,6 +96,14 @@ export const nfcTagFormatEnum = pgEnum("nfc_tag_format", [
   "unknown",
 ]);
 
+// ── Scan Sessions ────────────────────────────────────────────────────────────
+
+export const scanSessionStatusEnum = pgEnum("scan_session_status", [
+  "active",
+  "resolved",
+  "abandoned",
+]);
+
 // ── User Items ───────────────────────────────────────────────────────────────
 
 export const itemStatusEnum = pgEnum("item_status", [
