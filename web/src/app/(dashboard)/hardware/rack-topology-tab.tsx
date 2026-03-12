@@ -195,7 +195,7 @@ export function RackTopologyTab() {
 
               {/* ── Racks ── */}
               {racks.map((rack) => (
-                <Accordion key={rack.id} disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 1 }}>
+                <Accordion key={rack.id} defaultExpanded disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 1 }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
                       <Typography fontWeight={500}>Rack {rack.name ?? rack.id.slice(0, 8)}</Typography>
@@ -218,7 +218,7 @@ export function RackTopologyTab() {
                   </AccordionSummary>
                   <AccordionDetails>
                     {rack.shelves?.map((shelf) => (
-                      <Accordion key={shelf.id} disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 0.5 }}>
+                      <Accordion key={shelf.id} defaultExpanded disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 0.5 }}>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
                             <Typography variant="body2" fontWeight={500}>
