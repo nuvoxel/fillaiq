@@ -7,12 +7,11 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import Divider from "@mui/material/Divider";
 import Grid from "@mui/material/Grid";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import {
   createZone,
@@ -55,11 +54,8 @@ type Props = {
   onClose: () => void;
   onSaved: () => void;
   level: LocationLevel;
-  /** Parent entity ID (zoneId for rack, rackId for shelf, etc.) */
   parentId?: string;
-  /** Existing entity for edit mode */
   existing?: Record<string, any> | null;
-  /** Delete mode */
   deleteMode?: boolean;
 };
 
@@ -72,6 +68,7 @@ export function LocationDialog({
   existing,
   deleteMode,
 }: Props) {
+  // ── Common fields ─────────────────────────────────────────────────────────
   const [name, setName] = useState("");
   const [type, setType] = useState("workshop");
   const [description, setDescription] = useState("");
@@ -79,16 +76,19 @@ export function LocationDialog({
   const [label, setLabel] = useState("");
   const [nfcTagId, setNfcTagId] = useState("");
   const [address, setAddress] = useState("");
-  const [shelfCount, setShelfCount] = useState("");
-  const [bayCount, setBayCount] = useState("");
-  const [slotCount, setSlotCount] = useState("");
-  const [hasTempHumiditySensor, setHasTempHumiditySensor] = useState(false);
+
+  // ── Quick setup (rack creation only) ──────────────────────────────────────
+  const [quickShelves, setQuickShelves] = useState("3");
+  const [quickBays, setQuickBays] = useState("1");
+  const [quickSlots, setQuickSlots] = useState("2");
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState("");
 
   const isEdit = !!existing && !deleteMode;
   const isDelete = !!existing && !!deleteMode;
+  const isNewRack = level === "rack" && !isEdit && !isDelete;
 
   useEffect(() => {
     if (!open) return;
@@ -100,10 +100,6 @@ export function LocationDialog({
       setLabel(existing.label ?? "");
       setNfcTagId(existing.nfcTagId ?? "");
       setAddress(existing.address ?? "");
-      setShelfCount(existing.shelfCount?.toString() ?? "");
-      setBayCount(existing.bayCount?.toString() ?? "");
-      setSlotCount(existing.slotCount?.toString() ?? "");
-      setHasTempHumiditySensor(existing.hasTempHumiditySensor ?? false);
     } else {
       setName("");
       setType("workshop");
@@ -112,81 +108,121 @@ export function LocationDialog({
       setLabel("");
       setNfcTagId("");
       setAddress("");
-      setShelfCount("");
-      setBayCount("");
-      setSlotCount("");
-      setHasTempHumiditySensor(false);
+      setQuickShelves("3");
+      setQuickBays("1");
+      setQuickSlots("2");
     }
     setError(null);
+    setProgress("");
   }, [open, existing]);
 
   const handleSave = async () => {
     setError(null);
     setSaving(true);
+    setProgress("");
 
     let result: any;
 
-    if (isDelete) {
-      const removeFn = { zone: removeZone, rack: removeRack, shelf: removeShelf, bay: removeBay, slot: removeSlot }[level];
-      result = await removeFn(existing!.id);
-    } else if (level === "zone") {
-      const payload = {
-        name,
-        type,
-        description: description || null,
-        nfcTagId: nfcTagId || null,
-      };
-      result = isEdit
-        ? await updateZone(existing!.id, payload)
-        : await createZone(payload);
-    } else if (level === "rack") {
-      const payload = {
-        zoneId: parentId,
-        name,
-        position: position ? parseInt(position) : null,
-        shelfCount: shelfCount ? parseInt(shelfCount) : null,
-        nfcTagId: nfcTagId || null,
-      };
-      result = isEdit
-        ? await updateRack(existing!.id, payload)
-        : await createRack(payload);
-    } else if (level === "shelf") {
-      const payload = {
-        rackId: parentId,
-        position: position ? parseInt(position) : 1,
-        label: label || null,
-        bayCount: bayCount ? parseInt(bayCount) : null,
-        nfcTagId: nfcTagId || null,
-        hasTempHumiditySensor,
-      };
-      result = isEdit
-        ? await updateShelf(existing!.id, payload)
-        : await createShelf(payload);
-    } else if (level === "bay") {
-      const payload = {
-        shelfId: parentId,
-        position: position ? parseInt(position) : 1,
-        label: label || null,
-        slotCount: slotCount ? parseInt(slotCount) : null,
-        nfcTagId: nfcTagId || null,
-      };
-      result = isEdit
-        ? await updateBay(existing!.id, payload)
-        : await createBay(payload);
-    } else if (level === "slot") {
-      const payload = {
-        bayId: parentId,
-        position: position ? parseInt(position) : 1,
-        label: label || null,
-        nfcTagId: nfcTagId || null,
-        address: address || null,
-      };
-      result = isEdit
-        ? await updateSlot(existing!.id, payload)
-        : await createSlot(payload);
+    try {
+      if (isDelete) {
+        const removeFn = { zone: removeZone, rack: removeRack, shelf: removeShelf, bay: removeBay, slot: removeSlot }[level];
+        result = await removeFn(existing!.id);
+      } else if (level === "zone") {
+        const payload = {
+          name,
+          type,
+          description: description || null,
+          nfcTagId: nfcTagId || null,
+        };
+        result = isEdit
+          ? await updateZone(existing!.id, payload)
+          : await createZone(payload);
+      } else if (level === "rack") {
+        const payload = {
+          zoneId: parentId,
+          name,
+          position: position ? parseInt(position) : null,
+          nfcTagId: nfcTagId || null,
+        };
+
+        if (isEdit) {
+          result = await updateRack(existing!.id, payload);
+        } else {
+          // Create rack
+          result = await createRack(payload);
+          if (result?.error) {
+            setSaving(false);
+            setError(result.error);
+            return;
+          }
+
+          // Quick setup: create shelves → bays → slots
+          const rackId = result.data?.id;
+          const nShelves = parseInt(quickShelves) || 0;
+          const nBays = parseInt(quickBays) || 0;
+          const nSlots = parseInt(quickSlots) || 0;
+
+          if (rackId && nShelves > 0) {
+            for (let s = 1; s <= nShelves; s++) {
+              setProgress(`Creating shelf ${s}/${nShelves}...`);
+              const shelfResult = await createShelf({ rackId, position: s });
+              if (shelfResult?.error) continue;
+              const shelfId = shelfResult.data?.id;
+              if (!shelfId || nBays <= 0) continue;
+
+              for (let b = 1; b <= nBays; b++) {
+                const bayResult = await createBay({ shelfId, position: b });
+                if (bayResult?.error) continue;
+                const bayId = bayResult.data?.id;
+                if (!bayId || nSlots <= 0) continue;
+
+                for (let sl = 1; sl <= nSlots; sl++) {
+                  await createSlot({ bayId, position: sl });
+                }
+              }
+            }
+          }
+        }
+      } else if (level === "shelf") {
+        const payload = {
+          rackId: parentId,
+          position: position ? parseInt(position) : 1,
+          label: label || null,
+          nfcTagId: nfcTagId || null,
+        };
+        result = isEdit
+          ? await updateShelf(existing!.id, payload)
+          : await createShelf(payload);
+      } else if (level === "bay") {
+        const payload = {
+          shelfId: parentId,
+          position: position ? parseInt(position) : 1,
+          label: label || null,
+          nfcTagId: nfcTagId || null,
+        };
+        result = isEdit
+          ? await updateBay(existing!.id, payload)
+          : await createBay(payload);
+      } else if (level === "slot") {
+        const payload = {
+          bayId: parentId,
+          position: position ? parseInt(position) : 1,
+          label: label || null,
+          nfcTagId: nfcTagId || null,
+          address: address || null,
+        };
+        result = isEdit
+          ? await updateSlot(existing!.id, payload)
+          : await createSlot(payload);
+      }
+    } catch (e) {
+      setSaving(false);
+      setError((e as Error).message);
+      return;
     }
 
     setSaving(false);
+    setProgress("");
     if (result?.error) {
       setError(result.error);
       return;
@@ -214,185 +250,205 @@ export function LocationDialog({
               <strong>
                 {existing?.name || existing?.label || `${levelLabels[level]} ${existing?.position}`}
               </strong>
-              ? This will also delete all items inside it.
+              ? This will also delete everything inside it.
             </Typography>
           ) : (
             <Grid container spacing={2}>
-              {/* Name — zone and rack */}
-              {(level === "zone" || level === "rack") && (
-                <Grid size={{ xs: 12, sm: level === "zone" ? 6 : 12 }}>
-                  <TextField
-                    label="Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-              )}
-
-              {/* Zone type */}
+              {/* ── Zone fields ── */}
               {level === "zone" && (
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    select
-                    label="Type"
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                    required
-                    size="small"
-                    fullWidth
-                  >
-                    {zoneTypeOptions.map((o) => (
-                      <MenuItem key={o.value} value={o.value}>
-                        {o.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
+                <>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      label="Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      size="small"
+                      fullWidth
+                      placeholder='e.g. "Workshop", "Garage"'
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      select
+                      label="Type"
+                      value={type}
+                      onChange={(e) => setType(e.target.value)}
+                      size="small"
+                      fullWidth
+                    >
+                      {zoneTypeOptions.map((o) => (
+                        <MenuItem key={o.value} value={o.value}>
+                          {o.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      label="Description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      size="small"
+                      fullWidth
+                      multiline
+                      rows={2}
+                      placeholder="Optional"
+                    />
+                  </Grid>
+                </>
               )}
 
-              {/* Zone description */}
-              {level === "zone" && (
-                <Grid size={{ xs: 12 }}>
-                  <TextField
-                    label="Description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    size="small"
-                    fullWidth
-                    multiline
-                    rows={2}
-                  />
-                </Grid>
+              {/* ── Rack fields ── */}
+              {level === "rack" && (
+                <>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      label="Rack Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      size="small"
+                      fullWidth
+                      placeholder='e.g. "Rack A", "Left Wall"'
+                    />
+                  </Grid>
+                  {isNewRack && (
+                    <>
+                      <Grid size={{ xs: 12 }}>
+                        <Divider />
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+                          Quick Setup
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Auto-create shelves, bays, and slots. You can always add more later.
+                        </Typography>
+                      </Grid>
+                      <Grid size={{ xs: 4 }}>
+                        <TextField
+                          label="Shelves"
+                          type="number"
+                          value={quickShelves}
+                          onChange={(e) => setQuickShelves(e.target.value)}
+                          size="small"
+                          fullWidth
+                          slotProps={{ htmlInput: { min: 0, max: 20 } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 4 }}>
+                        <TextField
+                          label="Bays / shelf"
+                          type="number"
+                          value={quickBays}
+                          onChange={(e) => setQuickBays(e.target.value)}
+                          size="small"
+                          fullWidth
+                          slotProps={{ htmlInput: { min: 0, max: 20 } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 4 }}>
+                        <TextField
+                          label="Slots / bay"
+                          type="number"
+                          value={quickSlots}
+                          onChange={(e) => setQuickSlots(e.target.value)}
+                          size="small"
+                          fullWidth
+                          slotProps={{ htmlInput: { min: 0, max: 10 } }}
+                        />
+                      </Grid>
+                      {(parseInt(quickShelves) || 0) > 0 && (
+                        <Grid size={{ xs: 12 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Will create{" "}
+                            <strong>
+                              {parseInt(quickShelves) || 0} shelves
+                              {(parseInt(quickBays) || 0) > 0 &&
+                                ` × ${parseInt(quickBays)} bays`}
+                              {(parseInt(quickSlots) || 0) > 0 &&
+                                (parseInt(quickBays) || 0) > 0 &&
+                                ` × ${parseInt(quickSlots)} slots`}
+                            </strong>
+                            {" = "}
+                            {(parseInt(quickShelves) || 0) *
+                              Math.max(parseInt(quickBays) || 0, 1) *
+                              Math.max(parseInt(quickSlots) || 0, 1)}{" "}
+                            total slots
+                          </Typography>
+                        </Grid>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
-              {/* Position — rack, shelf, bay, slot */}
-              {level !== "zone" && (
-                <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Position"
-                    type="number"
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value)}
-                    size="small"
-                    fullWidth
-                    helperText={
-                      level === "rack"
-                        ? "Order within zone"
-                        : level === "shelf"
-                        ? "Shelf number (bottom-up)"
-                        : level === "bay"
-                        ? "Left-to-right on shelf"
-                        : "Position within bay"
-                    }
-                  />
-                </Grid>
-              )}
-
-              {/* Label — shelf, bay, slot */}
+              {/* ── Shelf / Bay / Slot — just position + optional label ── */}
               {(level === "shelf" || level === "bay" || level === "slot") && (
-                <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Label"
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    size="small"
-                    fullWidth
-                    placeholder="Optional display label"
-                  />
-                </Grid>
+                <>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField
+                      label="Position"
+                      type="number"
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
+                      size="small"
+                      fullWidth
+                      slotProps={{ htmlInput: { min: 1 } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField
+                      label="Label (optional)"
+                      value={label}
+                      onChange={(e) => setLabel(e.target.value)}
+                      size="small"
+                      fullWidth
+                      placeholder="Auto-numbered if blank"
+                    />
+                  </Grid>
+                </>
               )}
 
-              {/* Address — slot only */}
+              {/* ── Slot address ── */}
               {level === "slot" && (
                 <Grid size={{ xs: 12 }}>
                   <TextField
-                    label="Address"
+                    label="Address (optional)"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     size="small"
                     fullWidth
-                    placeholder="e.g. WS-A-2-1-3"
-                    helperText="Short address for display. Auto-generated if blank."
+                    placeholder="e.g. WS-A-2-1-3 — auto-generated if blank"
                   />
                 </Grid>
               )}
 
-              {/* Count hints */}
-              {level === "rack" && (
-                <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Shelf Count"
-                    type="number"
-                    value={shelfCount}
-                    onChange={(e) => setShelfCount(e.target.value)}
-                    size="small"
-                    fullWidth
-                    helperText="Expected number of shelves"
-                  />
-                </Grid>
-              )}
-              {level === "shelf" && (
-                <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Bay Count"
-                    type="number"
-                    value={bayCount}
-                    onChange={(e) => setBayCount(e.target.value)}
-                    size="small"
-                    fullWidth
-                    helperText="Expected number of bays"
-                  />
-                </Grid>
-              )}
-              {level === "bay" && (
-                <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Slot Count"
-                    type="number"
-                    value={slotCount}
-                    onChange={(e) => setSlotCount(e.target.value)}
-                    size="small"
-                    fullWidth
-                    helperText="Expected number of slots"
-                  />
-                </Grid>
-              )}
-
-              {/* Temp/humidity sensor — shelf only */}
-              {level === "shelf" && (
+              {/* ── NFC tag — only show for zone and rack (useful), hide for sub-items ── */}
+              {(level === "zone" || level === "rack") && (
                 <Grid size={{ xs: 12 }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={hasTempHumiditySensor}
-                        onChange={(e) => setHasTempHumiditySensor(e.target.checked)}
-                      />
-                    }
-                    label="Has temperature/humidity sensor"
+                  <TextField
+                    label="NFC Tag ID (optional)"
+                    value={nfcTagId}
+                    onChange={(e) => setNfcTagId(e.target.value)}
+                    size="small"
+                    fullWidth
                   />
                 </Grid>
               )}
-
-              {/* NFC tag ID — all levels */}
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="NFC Tag ID"
-                  value={nfcTagId}
-                  onChange={(e) => setNfcTagId(e.target.value)}
-                  size="small"
-                  fullWidth
-                  helperText="Optional NFC tag for quick identification"
-                />
-              </Grid>
             </Grid>
+          )}
+
+          {progress && (
+            <Typography variant="caption" color="text.secondary">
+              {progress}
+            </Typography>
           )}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
         <Button
           onClick={handleSave}
           variant="contained"
@@ -408,6 +464,8 @@ export function LocationDialog({
             ? "Saving..."
             : isDelete
             ? "Delete"
+            : isNewRack
+            ? "Create Rack"
             : "Save"}
         </Button>
       </DialogActions>
