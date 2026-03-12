@@ -24,18 +24,7 @@ import {
   PrintLabelDialog,
   type PrintLabelItem,
 } from "@/components/labels/print-label-dialog";
-import { listMyItems } from "@/lib/actions/user-library";
-
-type UserItem = {
-  id: string;
-  status: string;
-  currentWeightG: number | null;
-  netFilamentWeightG: number | null;
-  percentRemaining: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-  [key: string]: unknown;
-};
+import { listMyItems, type MyItem } from "@/lib/actions/user-library";
 
 const statusColors: Record<string, "success" | "warning" | "default"> = {
   active: "success",
@@ -46,18 +35,18 @@ const statusColors: Record<string, "success" | "warning" | "default"> = {
 export default function SpoolsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [userItems, setUserItems] = useState<UserItem[]>([]);
+  const [userItems, setMyItems] = useState<MyItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<UserItem | null>(null);
+  const [editingItem, setEditingItem] = useState<MyItem | null>(null);
   const [printItem, setPrintItem] = useState<PrintLabelItem | null>(null);
 
   const loadItems = useCallback(() => {
     setLoading(true);
     listMyItems().then((result) => {
-      if (result.data) setUserItems(result.data as UserItem[]);
+      if (result.data) setMyItems(result.data as MyItem[]);
       setLoading(false);
     });
   }, []);
@@ -71,7 +60,7 @@ export default function SpoolsPage() {
     setDialogOpen(true);
   };
 
-  const handleOpenEdit = (item: UserItem) => {
+  const handleOpenEdit = (item: MyItem) => {
     setEditingItem(item);
     setDialogOpen(true);
   };
@@ -91,19 +80,44 @@ export default function SpoolsPage() {
 
   const columns: GridColDef[] = [
     {
-      field: "color",
+      field: "colorHex",
       headerName: "",
       width: 48,
       sortable: false,
       filterable: false,
-      renderCell: () => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <CircleOutlinedIcon sx={{ color: "text.disabled" }} />
-        </Box>
-      ),
+      renderCell: (params) => {
+        const hex = (params.row.colorHex ?? params.row.measuredColorHex) as string | null;
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            {hex ? (
+              <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: hex, border: 1, borderColor: "divider" }} />
+            ) : (
+              <CircleOutlinedIcon sx={{ color: "text.disabled" }} />
+            )}
+          </Box>
+        );
+      },
     },
-    { field: "id", headerName: "ID", width: 100, valueGetter: (value: string) => value.slice(0, 8) },
-    { field: "status", headerName: "Status", width: 120,
+    {
+      field: "brandName",
+      headerName: "Brand",
+      width: 120,
+      valueFormatter: (value: string | null) => value ?? "\u2014",
+    },
+    {
+      field: "productName",
+      headerName: "Product",
+      flex: 1,
+      minWidth: 160,
+      valueFormatter: (value: string | null) => value ?? "\u2014",
+    },
+    {
+      field: "materialName",
+      headerName: "Material",
+      width: 100,
+      valueFormatter: (value: string | null) => value ?? "\u2014",
+    },
+    { field: "status", headerName: "Status", width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -167,7 +181,7 @@ export default function SpoolsPage() {
       filterable: false,
       disableColumnMenu: true,
       renderCell: (params) => {
-        const row = params.row as UserItem;
+        const row = params.row as MyItem;
         return (
           <Box sx={{ display: "flex", gap: 0.25 }}>
             <Tooltip title="Print label">
@@ -176,9 +190,9 @@ export default function SpoolsPage() {
                 onClick={(e) => {
                   e.stopPropagation();
                   setPrintItem({
-                    brand: (row as any).brandName ?? undefined,
-                    material: (row as any).materialName ?? (row as any).productName ?? undefined,
-                    color: (row as any).measuredColorHex ?? undefined,
+                    brand: row.brandName ?? undefined,
+                    material: row.materialName ?? row.productName ?? undefined,
+                    color: row.colorHex ?? (row as any).measuredColorHex ?? undefined,
                     weight: row.currentWeightG ? `${Math.round(row.currentWeightG)}g` : undefined,
                   });
                 }}

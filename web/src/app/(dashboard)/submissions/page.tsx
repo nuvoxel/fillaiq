@@ -13,6 +13,7 @@ import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PageHeader } from "@/components/layout/page-header";
+import { SubmissionDialog } from "@/components/submissions/submission-dialog";
 import { listCatalogSubmissions } from "@/lib/actions/submissions";
 
 type Submission = {
@@ -88,12 +89,18 @@ export default function SubmissionsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  useEffect(() => {
+  const loadSubmissions = () => {
+    setLoading(true);
     listCatalogSubmissions().then((result) => {
       if (result.data) setSubmissions(result.data as Submission[]);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    loadSubmissions();
   }, []);
 
   const filtered = statusFilter
@@ -106,7 +113,7 @@ export default function SubmissionsPage() {
         title="Submissions"
         description="Review community catalog submissions."
         action={
-          <Button variant="contained" startIcon={<AddIcon />}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
             New Submission
           </Button>
         }
@@ -166,6 +173,12 @@ export default function SubmissionsPage() {
           }}
         />
       )}
+
+      <SubmissionDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSaved={loadSubmissions}
+      />
     </div>
   );
 }

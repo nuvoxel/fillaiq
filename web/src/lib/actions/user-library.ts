@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, and, desc, type SQL } from "drizzle-orm";
+import { eq, and, desc, getTableColumns, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   users,
@@ -17,6 +17,7 @@ import {
   printJobs,
   userPrinters,
 } from "@/db/schema/user-library";
+import { products, brands, materials } from "@/db/schema/central-catalog";
 import { scanStations } from "@/db/schema/scan-stations";
 import {
   createCrudActions,
@@ -191,9 +192,17 @@ export async function removeUserItem(id: string) {
   return result;
 }
 
+export type MyItem = UserItem & {
+  productName: string | null;
+  brandName: string | null;
+  materialName: string | null;
+  colorHex: string | null;
+  colorName: string | null;
+};
+
 export async function listMyItems(
   params?: PaginationParams & { status?: string }
-): Promise<ActionResult<UserItem[]>> {
+): Promise<ActionResult<MyItem[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   try {
@@ -202,8 +211,18 @@ export async function listMyItems(
       conditions.push(eq(userItems.status, params.status as any));
     }
     const q = db
-      .select()
+      .select({
+        ...getTableColumns(userItems),
+        productName: products.name,
+        brandName: brands.name,
+        materialName: materials.name,
+        colorHex: products.colorHex,
+        colorName: products.colorName,
+      })
       .from(userItems)
+      .leftJoin(products, eq(userItems.productId, products.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(materials, eq(products.materialId, materials.id))
       .where(and(...conditions))
       .orderBy(desc(userItems.createdAt))
       .$dynamic();

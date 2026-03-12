@@ -1,6 +1,8 @@
+import Link from "next/link";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
+import CardActionArea from "@mui/material/CardActionArea";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
@@ -19,24 +21,28 @@ import { getUserItemWeightsByMaterial } from "@/lib/actions/dashboard";
 const statCards = [
   {
     label: "Total Spools",
+    href: "/spools",
     icon: <CircleOutlinedIcon />,
     color: "#FF5C2E",
     bg: "#FFF0EB",
   },
   {
     label: "Active Spools",
+    href: "/spools",
     icon: <CheckCircleIcon />,
     color: "#16A34A",
     bg: "#F0FDF4",
   },
   {
     label: "Locations",
+    href: "/locations",
     icon: <WarehouseIcon />,
     color: "#2563EB",
     bg: "#EFF6FF",
   },
   {
     label: "Pending Submissions",
+    href: "/submissions",
     icon: <SendIcon />,
     color: "#7C3AED",
     bg: "#EDE9FE",
@@ -97,32 +103,42 @@ export default async function DashboardPage() {
               sx={{
                 borderLeft: 4,
                 borderLeftColor: card.color,
+                transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                "&:hover": {
+                  transform: "translateY(-2px)",
+                  boxShadow: 4,
+                },
               }}
             >
-              <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 2,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    bgcolor: card.bg,
-                    color: card.color,
-                  }}
-                >
-                  {card.icon}
-                </Box>
-                <Box>
-                  <Typography variant="h4" fontWeight={700}>
-                    {counts[i]}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {card.label}
-                  </Typography>
-                </Box>
-              </CardContent>
+              <CardActionArea
+                component={Link}
+                href={card.href}
+              >
+                <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: card.bg,
+                      color: card.color,
+                    }}
+                  >
+                    {card.icon}
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>
+                      {counts[i]}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {card.label}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </CardActionArea>
             </Card>
           </Grid>
         ))}

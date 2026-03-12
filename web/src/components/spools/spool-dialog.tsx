@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Alert from "@mui/material/Alert";
+import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -13,7 +15,14 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { createUserItem, updateUserItem } from "@/lib/actions/user-library";
+import {
+  listProducts,
+  listBrands,
+  getProductWithRelations,
+} from "@/lib/actions/central-catalog";
 import { SlotPicker } from "@/components/scan/slot-picker";
+
+type ProductOption = { id: string; name: string; brandName: string };
 
 type Props = {
   open: boolean;
@@ -62,9 +71,58 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
   const [storageLocation, setStorageLocation] = useState("");
   const [currentSlotId, setCurrentSlotId] = useState<string | null>(null);
 
+  // Product autocomplete
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
+  const [productLoading, setProductLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // UI state
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Fetch product options when search changes (debounced)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setProductLoading(true);
+      try {
+        const [prodResult, brandResult] = await Promise.all([
+          listProducts({ search: productSearch, limit: 20 }),
+          listBrands({ limit: 500 }),
+        ]);
+        if (prodResult.error === null && brandResult.error === null) {
+          const brandMap = new Map(
+            brandResult.data.map((b) => [b.id, b.name])
+          );
+          setProductOptions(
+            prodResult.data.map((p) => ({
+              id: p.id,
+              name: p.name,
+              brandName: (p.brandId && brandMap.get(p.brandId)) || "Unknown",
+            }))
+          );
+        }
+      } finally {
+        setProductLoading(false);
+      }
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [productSearch]);
+
+  // Load existing product on edit to populate the autocomplete display
+  const loadExistingProduct = useCallback(async (id: string) => {
+    const result = await getProductWithRelations(id);
+    if (result.error === null) {
+      const p = result.data;
+      const brandName =
+        (p as any).brand?.name || "Unknown";
+      setSelectedProduct({ id: p.id, name: p.name, brandName });
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -86,6 +144,12 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
       setNotes(e.notes ?? "");
       setStorageLocation(e.storageLocation ?? "");
       setCurrentSlotId(e.currentSlotId ?? null);
+      // Load existing product for autocomplete display
+      if (e.productId) {
+        loadExistingProduct(e.productId);
+      } else {
+        setSelectedProduct(null);
+      }
     } else {
       setProductId("");
       setStatus("active");
@@ -103,9 +167,11 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
       setNotes("");
       setStorageLocation("");
       setCurrentSlotId(null);
+      setSelectedProduct(null);
     }
+    setProductSearch("");
     setError(null);
-  }, [open, existing]);
+  }, [open, existing, loadExistingProduct]);
 
   const handleSave = async () => {
     setError(null);
@@ -153,13 +219,40 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
           <Typography variant="subtitle2" color="text.secondary">Identity</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label="Product"
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
+              <Autocomplete
+                options={productOptions}
+                getOptionLabel={(opt) => `${opt.brandName} - ${opt.name}`}
+                filterOptions={(x) => x}
+                value={selectedProduct}
+                onChange={(_e, newValue) => {
+                  setSelectedProduct(newValue);
+                  setProductId(newValue?.id ?? "");
+                }}
+                inputValue={productSearch}
+                onInputChange={(_e, newInput) => setProductSearch(newInput)}
+                isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                loading={productLoading}
                 size="small"
                 fullWidth
-                helperText="Product UUID (product picker coming soon)"
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Product"
+                    slotProps={{
+                      input: {
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {productLoading ? (
+                              <CircularProgress color="inherit" size={18} />
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      },
+                    }}
+                  />
+                )}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
