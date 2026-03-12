@@ -10,6 +10,7 @@ import HistoryIcon from "@mui/icons-material/History";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import MemoryIcon from "@mui/icons-material/Memory";
+import WarehouseIcon from "@mui/icons-material/Warehouse";
 import SendIcon from "@mui/icons-material/Send";
 import SettingsIcon from "@mui/icons-material/Settings";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: <DashboardIcon fontSize="small" /> },
   { href: "/scan", label: "Scan", icon: <QrCodeScannerIcon fontSize="small" /> },
   { href: "/spools", label: "Spools", icon: <CircleOutlinedIcon fontSize="small" /> },
+  { href: "/locations", label: "Locations", icon: <WarehouseIcon fontSize="small" /> },
   { href: "/catalog", label: "Catalog", icon: <MenuBookIcon fontSize="small" /> },
   { href: "/hardware", label: "Hardware", icon: <MemoryIcon fontSize="small" /> },
   { href: "/audit", label: "Audit Log", icon: <HistoryIcon fontSize="small" /> },

@@ -9,7 +9,6 @@ import AddIcon from "@mui/icons-material/Add";
 import { PageHeader } from "@/components/layout/page-header";
 import { MachineDialog } from "@/components/hardware/machine-dialog";
 import { EquipmentDialog } from "@/components/hardware/equipment-dialog";
-import { RackTopologyTab } from "./rack-topology-tab";
 import { MachinesTab } from "./machines-tab";
 import { EquipmentTab } from "./equipment-tab";
 import { FillaIqTab } from "./filla-iq-tab";
@@ -20,8 +19,8 @@ export default function HardwarePage() {
   const [machineDialogOpen, setMachineDialogOpen] = useState(false);
   const [equipmentDialogOpen, setEquipmentDialogOpen] = useState(false);
   const handleAdd = () => {
-    if (tab === 1) setMachineDialogOpen(true);
-    else if (tab === 2) setEquipmentDialogOpen(true);
+    if (tab === 0) setMachineDialogOpen(true);
+    else if (tab === 1) setEquipmentDialogOpen(true);
   };
 
   const handleSaved = () => {
@@ -32,11 +31,11 @@ export default function HardwarePage() {
     <div>
       <PageHeader
         title="Hardware"
-        description="Manage zones, machines, and equipment."
+        description="Manage machines and equipment."
         action={
-          tab !== 3 ? (
+          tab !== 2 ? (
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
-              {tab === 0 ? "Add Zone" : tab === 1 ? "Add Machine" : "Add Equipment"}
+              {tab === 0 ? "Add Machine" : "Add Equipment"}
             </Button>
           ) : undefined
         }
@@ -44,17 +43,15 @@ export default function HardwarePage() {
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab label="Zones" />
           <Tab label="Machines" />
           <Tab label="Equipment" />
           <Tab label="Filla IQ" />
         </Tabs>
       </Box>
 
-      {tab === 0 && <RackTopologyTab />}
-      {tab === 1 && <MachinesTab refreshKey={refreshKey} />}
-      {tab === 2 && <EquipmentTab refreshKey={refreshKey} />}
-      {tab === 3 && <FillaIqTab />}
+      {tab === 0 && <MachinesTab refreshKey={refreshKey} />}
+      {tab === 1 && <EquipmentTab refreshKey={refreshKey} />}
+      {tab === 2 && <FillaIqTab />}
 
       <MachineDialog
         open={machineDialogOpen}

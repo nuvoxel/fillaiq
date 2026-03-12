@@ -5,7 +5,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import MemoryIcon from "@mui/icons-material/Memory";
+import WarehouseIcon from "@mui/icons-material/Warehouse";
 import SendIcon from "@mui/icons-material/Send";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PageHeader } from "@/components/layout/page-header";
@@ -30,8 +30,8 @@ const statCards = [
     bg: "#F0FDF4",
   },
   {
-    label: "Zones Online",
-    icon: <MemoryIcon />,
+    label: "Locations",
+    icon: <WarehouseIcon />,
     color: "#2563EB",
     bg: "#EFF6FF",
   },

@@ -82,10 +82,10 @@ export function RackTopologyTab() {
       <Box sx={{ textAlign: "center", py: 8 }}>
         <MemoryIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
         <Typography variant="subtitle1" fontWeight={500}>
-          No zones configured
+          No locations configured
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Add your first zone to start monitoring hardware.
+          Add your first zone to start organizing your storage layout.
         </Typography>
       </Box>
     );
