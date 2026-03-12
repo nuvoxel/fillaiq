@@ -13,10 +13,18 @@ import Stack from "@mui/material/Stack";
 import SearchIcon from "@mui/icons-material/Search";
 import InputAdornment from "@mui/material/InputAdornment";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import Button from "@mui/material/Button";
+import AddIcon from "@mui/icons-material/Add";
 import { PageHeader } from "@/components/layout/page-header";
 import { listBrands } from "@/lib/actions/central-catalog";
 import { listMaterials } from "@/lib/actions/central-catalog";
 import { listProducts } from "@/lib/actions/central-catalog";
+import { listHardwareModels } from "@/lib/actions/hardware-catalog";
+import { HardwareModelDialog } from "@/components/hardware/hardware-model-dialog";
+import { hardwareCategoryLabels } from "@/components/hardware/enum-labels";
+import UsbIcon from "@mui/icons-material/Usb";
+import BluetoothIcon from "@mui/icons-material/Bluetooth";
+import WifiIcon from "@mui/icons-material/Wifi";
 
 const validationColors: Record<string, "default" | "info" | "success" | "error"> = {
   draft: "default",
@@ -154,13 +162,98 @@ const productColumns: GridColDef[] = [
   },
 ];
 
+const hardwareCategoryColors: Record<string, "primary" | "secondary" | "default" | "success" | "warning" | "info"> = {
+  label_printer: "secondary",
+  scan_station: "primary",
+  shelf_station: "primary",
+  fdm_printer: "success",
+  resin_printer: "success",
+  cnc: "warning",
+  laser_cutter: "warning",
+  laser_engraver: "warning",
+  drybox: "info",
+  filament_changer: "info",
+  enclosure: "default",
+  other: "default",
+};
+
+const hardwareColumns: GridColDef[] = [
+  {
+    field: "category",
+    headerName: "Category",
+    width: 150,
+    renderCell: (params) => (
+      <Chip
+        label={hardwareCategoryLabels[params.value as string] ?? params.value}
+        size="small"
+        color={hardwareCategoryColors[params.value as string] ?? "default"}
+      />
+    ),
+  },
+  {
+    field: "manufacturer",
+    headerName: "Manufacturer",
+    width: 160,
+    renderCell: (params) => (
+      <Typography variant="body2" fontWeight={500}>{params.value}</Typography>
+    ),
+  },
+  { field: "model", headerName: "Model", width: 160 },
+  {
+    field: "specs",
+    headerName: "Specs",
+    width: 200,
+    sortable: false,
+    valueGetter: (_value: unknown, row: any) => {
+      if (row.category === "label_printer") {
+        const parts = [];
+        if (row.printDpi) parts.push(`${row.printDpi} DPI`);
+        if (row.printWidthMm) parts.push(`${row.printWidthMm}mm`);
+        return parts.join(" · ") || "—";
+      }
+      if (row.buildVolumeX && row.buildVolumeY && row.buildVolumeZ) {
+        return `${row.buildVolumeX}×${row.buildVolumeY}×${row.buildVolumeZ} mm`;
+      }
+      return "—";
+    },
+  },
+  {
+    field: "connectivity",
+    headerName: "Connectivity",
+    width: 140,
+    sortable: false,
+    renderCell: (params) => (
+      <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+        {params.row.hasUsb && <UsbIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
+        {params.row.hasBle && <BluetoothIcon sx={{ fontSize: 16, color: "primary.main" }} />}
+        {params.row.hasWifi && <WifiIcon sx={{ fontSize: 16, color: "success.main" }} />}
+      </Box>
+    ),
+  },
+  {
+    field: "validationStatus",
+    headerName: "Status",
+    width: 130,
+    renderCell: (params) => (
+      <Chip
+        label={params.value}
+        size="small"
+        color={validationColors[params.value as string] ?? "default"}
+      />
+    ),
+  },
+];
+
 export default function CatalogPage() {
   const [tab, setTab] = useState(0);
   const [search, setSearch] = useState("");
   const [brands, setBrands] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [hardwareModelsData, setHardwareModelsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hardwareDialogOpen, setHardwareDialogOpen] = useState(false);
+  const [editingHardware, setEditingHardware] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,9 +263,12 @@ export default function CatalogPage() {
     } else if (tab === 1) {
       const r = await listMaterials({ search: search || undefined });
       if (r.data) setMaterials(r.data);
-    } else {
+    } else if (tab === 2) {
       const r = await listProducts({ search: search || undefined });
       if (r.data) setProducts(r.data);
+    } else if (tab === 3) {
+      const r = await listHardwareModels();
+      if (r.data) setHardwareModelsData(r.data);
     }
     setLoading(false);
   }, [tab, search]);
@@ -181,14 +277,21 @@ export default function CatalogPage() {
     load();
   }, [load]);
 
-  const rows = tab === 0 ? brands : tab === 1 ? materials : products;
-  const cols = tab === 0 ? brandColumns : tab === 1 ? materialColumns : productColumns;
+  const rows = tab === 0 ? brands : tab === 1 ? materials : tab === 2 ? products : hardwareModelsData;
+  const cols = tab === 0 ? brandColumns : tab === 1 ? materialColumns : tab === 2 ? productColumns : hardwareColumns;
 
   return (
     <div>
       <PageHeader
         title="Catalog"
-        description="Browse the central product catalog."
+        description="Browse the central product and hardware catalog."
+        action={
+          tab === 3 ? (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingHardware(null); setHardwareDialogOpen(true); }}>
+              Add Model
+            </Button>
+          ) : undefined
+        }
       />
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
@@ -202,13 +305,14 @@ export default function CatalogPage() {
           <Tab label="Brands" />
           <Tab label="Materials" />
           <Tab label="Products" />
+          <Tab label="Hardware" />
         </Tabs>
       </Box>
 
       <Box sx={{ mb: 2 }}>
         <TextField
           size="small"
-          placeholder={`Search ${["brands", "materials", "products"][tab]}...`}
+          placeholder={`Search ${["brands", "materials", "products", "hardware"][tab]}...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{
@@ -255,6 +359,13 @@ export default function CatalogPage() {
           }}
         />
       )}
+
+      <HardwareModelDialog
+        open={hardwareDialogOpen}
+        onClose={() => { setHardwareDialogOpen(false); setEditingHardware(null); }}
+        onSaved={load}
+        existing={editingHardware}
+      />
     </div>
   );
 }
