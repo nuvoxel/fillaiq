@@ -33,6 +33,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import InfoIcon from "@mui/icons-material/Info";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
+import EnvironmentChart from "@/components/charts/environment-chart";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -259,21 +260,36 @@ function StationCard({
             <SensorRow label="Env" sensor={caps?.environment} />
             {caps?.turntable && <Chip label="Turntable" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
             {caps?.camera && <Chip label="Camera" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
-            {envData && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
-                <ThermostatIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                  {[
-                    envData.temperatureC != null ? `${envData.temperatureC.toFixed(1)}\u00b0C` : null,
-                    envData.humidity != null ? `${envData.humidity.toFixed(0)}% RH` : null,
-                    envData.pressureHPa != null ? `${envData.pressureHPa.toFixed(0)} hPa` : null,
-                  ].filter(Boolean).join(" \u00b7 ")}
-                </Typography>
-              </Box>
-            )}
           </Stack>
         </AccordionDetails>
       </Accordion>
+
+      {/* ── Environment chart accordion ─────────────────────────────── */}
+      {caps?.environment?.detected && (
+        <>
+          <Divider />
+          <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <ThermostatIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                <Typography variant="body2" fontWeight={500}>Environment</Typography>
+                {envData && (
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                    {[
+                      envData.temperatureC != null ? `${envData.temperatureC.toFixed(1)}\u00b0C` : null,
+                      envData.humidity != null ? `${envData.humidity.toFixed(0)}% RH` : null,
+                      envData.pressureHPa != null ? `${envData.pressureHPa.toFixed(0)} hPa` : null,
+                    ].filter(Boolean).join(" \u00b7 ")}
+                  </Typography>
+                )}
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              <EnvironmentChart stationId={station.id} />
+            </AccordionDetails>
+          </Accordion>
+        </>
+      )}
 
       <Divider />
 
