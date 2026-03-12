@@ -869,11 +869,11 @@ void setup() {
     Serial.printf("  Filla IQ — FillaScan v%s (%s)\n", FW_VERSION, FW_CHANNEL);
     Serial.println("========================================\n");
 
-    // I2C bus (TOF + Color)
+    // I2C bus (sensors + NFC on touch board)
     Wire.begin(I2C_SDA, I2C_SCL);
-    Wire.setTimeOut(500);
 
-    // I2C scan (skip 0x3C SSD1306 — U8g2 handles it)
+    // Quick I2C scan with short timeout
+    Wire.setTimeOut(50);
     Serial.print("  I2C:");
     for (uint8_t addr = 1; addr < 127; addr++) {
         Wire.beginTransmission(addr);
@@ -882,6 +882,7 @@ void setup() {
         if (err == 4) Serial.printf(" 0x%02X?", addr);  // unknown error
     }
     Serial.println();
+    Wire.setTimeOut(500);  // Restore normal timeout for sensor drivers
 
     // Init subsystems
     backlight.begin();

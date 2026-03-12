@@ -76,9 +76,10 @@ void NfcScanner::begin() {
     reader.begin();
     delay(100);
 
-    // Retry with increasing delays (PN532 can be slow after reset)
+    // Retry with increasing delays (PN532 can be slow after hardware reset)
+    int maxAttempts = (NFC_RST_PIN >= 0) ? 5 : 2;  // Fewer retries if no reset pin
     uint32_t ver = 0;
-    for (int attempt = 0; attempt < 5 && !ver; attempt++) {
+    for (int attempt = 0; attempt < maxAttempts && !ver; attempt++) {
         ver = reader.getFirmwareVersion();
         if (!ver) delay(200 * (attempt + 1));
     }
