@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
@@ -15,18 +14,16 @@ import Grid from "@mui/material/Grid";
 import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
 import Button from "@mui/material/Button";
+import InputBase from "@mui/material/InputBase";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import MemoryIcon from "@mui/icons-material/Memory";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PrintIcon from "@mui/icons-material/Print";
-import InputBase from "@mui/material/InputBase";
-import { listMyZones, listRacksByZone, getRackTopology, updateZone, updateRack, updateShelf } from "@/lib/actions/hardware";
-import {
-  LocationDialog,
-  type LocationLevel,
-} from "@/components/locations/location-dialog";
+import { listMyZones, listRacksByZone, getRackTopology, updateZone, removeZone, removeRack } from "@/lib/actions/hardware";
+import { LocationDialog } from "@/components/locations/location-dialog";
+import { RackEditDialog } from "@/components/locations/rack-edit-dialog";
 import {
   PrintLabelDialog,
   type PrintLabelItem,
@@ -34,10 +31,10 @@ import {
 
 type SlotStatusData = { state: string; [key: string]: unknown };
 type SlotData = { id: string; position: number; label?: string | null; nfcTagId?: string | null; address?: string | null; status?: SlotStatusData | null; [key: string]: unknown };
-type BayData = { id: string; position: number; label?: string | null; slotCount?: number | null; nfcTagId?: string | null; slots: SlotData[]; [key: string]: unknown };
-type ShelfData = { id: string; position: number; label?: string | null; bayCount: number | null; nfcTagId?: string | null; hasTempHumiditySensor: boolean | null; bays: BayData[]; [key: string]: unknown };
-type RackTopology = { id: string; name?: string; position?: number | null; shelfCount?: number | null; nfcTagId?: string | null; shelves: ShelfData[]; [key: string]: unknown };
-type ZoneSummary = { id: string; name: string; type?: string | null; description: string | null; nfcTagId?: string | null; [key: string]: unknown };
+type BayData = { id: string; position: number; label?: string | null; slots: SlotData[]; [key: string]: unknown };
+type ShelfData = { id: string; position: number; label?: string | null; bays: BayData[]; [key: string]: unknown };
+type RackTopology = { id: string; name?: string; position?: number | null; shelves: ShelfData[]; [key: string]: unknown };
+type ZoneSummary = { id: string; name: string; type?: string | null; description: string | null; [key: string]: unknown };
 
 const slotStateColors: Record<string, string> = {
   active: "#16A34A",
@@ -53,16 +50,6 @@ type ZoneWithRacks = {
   racks: RackTopology[];
 };
 
-type DialogState = {
-  open: boolean;
-  level: LocationLevel;
-  parentId?: string;
-  existing?: Record<string, any> | null;
-  deleteMode?: boolean;
-};
-
-const closedDialog: DialogState = { open: false, level: "zone" };
-
 type PrintDialogState = {
   open: boolean;
   items: PrintLabelItem[];
@@ -70,11 +57,22 @@ type PrintDialogState = {
 };
 const closedPrint: PrintDialogState = { open: false, items: [] };
 
+type RackEditState = {
+  open: boolean;
+  rackId: string;
+  rackName: string;
+};
+const closedRackEdit: RackEditState = { open: false, rackId: "", rackName: "" };
+
 export function RackTopologyTab() {
   const [zonesWithRacks, setZonesWithRacks] = useState<ZoneWithRacks[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialog, setDialog] = useState<DialogState>(closedDialog);
   const [printDialog, setPrintDialog] = useState<PrintDialogState>(closedPrint);
+  const [rackEdit, setRackEdit] = useState<RackEditState>(closedRackEdit);
+  // For zone add and rack add (still use LocationDialog for creation)
+  const [addDialog, setAddDialog] = useState<{ open: boolean; level: "zone" | "rack"; parentId?: string }>({ open: false, level: "zone" });
+  // For delete confirmations
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; level: "zone" | "rack"; existing?: Record<string, any> | null }>({ open: false, level: "zone" });
 
   const loadData = useCallback(async () => {
     const result = await listMyZones();
@@ -105,44 +103,19 @@ export function RackTopologyTab() {
   }, [loadData]);
 
   const handleSaved = () => {
-    setDialog(closedDialog);
+    setAddDialog({ open: false, level: "zone" });
+    setDeleteDialog({ open: false, level: "zone" });
+    setRackEdit(closedRackEdit);
     loadData();
   };
 
-  const openAdd = (level: LocationLevel, parentId: string) =>
-    setDialog({ open: true, level, parentId });
-  const openEdit = (level: LocationLevel, existing: Record<string, any>) =>
-    setDialog({ open: true, level, existing });
-  const openDelete = (level: LocationLevel, existing: Record<string, any>) =>
-    setDialog({ open: true, level, existing, deleteMode: true });
-
-  /** Collect all slot labels from a bay */
+  // ── Print helpers ──
   const baySlotItems = (bay: BayData, shelfLabel: string | number, rackName: string): PrintLabelItem[] =>
     bay.slots.map((slot) => ({
       label: `Slot ${slot.label || slot.position}`,
       location: `${rackName} / Shelf ${shelfLabel} / Bay ${bay.label || bay.position} / Slot ${slot.label || slot.position}`,
       ...(slot.address ? { lotNumber: slot.address } : {}),
     }));
-
-  const openBayPrint = (bay: BayData, shelfLabel: string | number, rackName: string) => {
-    const items = baySlotItems(bay, shelfLabel, rackName);
-    if (items.length === 0) return;
-    setPrintDialog({
-      open: true,
-      items,
-      title: `Print Labels — Bay ${bay.label || bay.position} (${items.length} slots)`,
-    });
-  };
-
-  const openShelfPrint = (shelf: ShelfData, rackName: string) => {
-    const items = shelf.bays.flatMap((bay) => baySlotItems(bay, shelf.label || shelf.position, rackName));
-    if (items.length === 0) return;
-    setPrintDialog({
-      open: true,
-      items,
-      title: `Print Labels — Shelf ${shelf.label || shelf.position} (${items.length} slots)`,
-    });
-  };
 
   const openRackPrint = (rack: RackTopology) => {
     const rackName = rack.name ?? rack.id.slice(0, 8);
@@ -195,12 +168,10 @@ export function RackTopologyTab() {
           </Typography>
         </Box>
         <LocationDialog
-          open={dialog.open}
-          level={dialog.level}
-          parentId={dialog.parentId}
-          existing={dialog.existing}
-          deleteMode={dialog.deleteMode}
-          onClose={() => setDialog(closedDialog)}
+          open={addDialog.open}
+          level={addDialog.level}
+          parentId={addDialog.parentId}
+          onClose={() => setAddDialog({ open: false, level: "zone" })}
           onSaved={handleSaved}
         />
       </>
@@ -234,7 +205,7 @@ export function RackTopologyTab() {
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Delete zone">
-                    <IconButton size="small" onClick={() => openDelete("zone", zone)}>
+                    <IconButton size="small" onClick={() => setDeleteDialog({ open: true, level: "zone", existing: zone })}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -246,22 +217,23 @@ export function RackTopologyTab() {
                 <Accordion key={rack.id} defaultExpanded disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 1 }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-                      <InlineEdit
-                        value={rack.name ?? rack.id.slice(0, 8)}
-                        fontWeight={500}
-                        onSave={(name) => { updateRack(rack.id, { name }); loadData(); }}
-                      />
+                      <Typography fontWeight={500}>{rack.name ?? rack.id.slice(0, 8)}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {rack.shelves?.length ?? 0} {(rack.shelves?.length ?? 0) === 1 ? "shelf" : "shelves"}
                       </Typography>
                       <Box sx={{ ml: "auto", mr: 1, display: "flex", gap: 0.5 }}>
+                        <Tooltip title="Edit rack">
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); setRackEdit({ open: true, rackId: rack.id, rackName: rack.name ?? rack.id.slice(0, 8) }); }}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Print all labels in rack">
                           <IconButton size="small" onClick={(e) => { e.stopPropagation(); openRackPrint(rack); }}>
                             <PrintIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete rack">
-                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDelete("rack", rack); }}>
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); setDeleteDialog({ open: true, level: "rack", existing: rack }); }}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -273,55 +245,19 @@ export function RackTopologyTab() {
                       <Accordion key={shelf.id} defaultExpanded disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 0.5 }}>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-                            <InlineEdit
-                              value={`Shelf ${shelf.label || shelf.position}`}
-                              variant="body2"
-                              fontWeight={500}
-                              onSave={(label) => { updateShelf(shelf.id, { label: label.replace(/^Shelf\s*/i, "") || null }); loadData(); }}
-                            />
+                            <Typography variant="body2" fontWeight={500}>
+                              Shelf {shelf.label || shelf.position}
+                            </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {shelf.bays.length} bay{shelf.bays.length !== 1 ? "s" : ""}
                             </Typography>
-                            <Box sx={{ ml: "auto", mr: 1, display: "flex", gap: 0.5 }}>
-                              <Tooltip title="Print all labels on shelf">
-                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openShelfPrint(shelf, rack.name ?? rack.id.slice(0, 8)); }}>
-                                  <PrintIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete shelf">
-                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDelete("shelf", shelf); }}>
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
                           </Box>
                         </AccordionSummary>
                         <AccordionDetails>
                           <Grid container spacing={1}>
                             {shelf.bays.map((bay) => (
                               <Grid key={bay.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                                <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 1, textAlign: "center", position: "relative" }}>
-                                  {/* Bay actions */}
-                                  <Box sx={{ position: "absolute", top: 2, right: 2, display: "flex", gap: 0 }}>
-                                    {bay.slots.length > 0 && (
-                                      <Tooltip title={`Print ${bay.slots.length} slot labels`}>
-                                        <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openBayPrint(bay, shelf.label || shelf.position, rack.name ?? rack.id.slice(0, 8))}>
-                                          <PrintIcon sx={{ fontSize: 14 }} />
-                                        </IconButton>
-                                      </Tooltip>
-                                    )}
-                                    <Tooltip title="Edit bay">
-                                      <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openEdit("bay", bay)}>
-                                        <EditIcon sx={{ fontSize: 14 }} />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Delete bay">
-                                      <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openDelete("bay", bay)}>
-                                        <DeleteIcon sx={{ fontSize: 14 }} />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </Box>
-
+                                <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 1, textAlign: "center" }}>
                                   <Typography variant="caption" color="text.secondary">
                                     Bay {bay.label || bay.position}
                                   </Typography>
@@ -357,7 +293,6 @@ export function RackTopologyTab() {
                         </AccordionDetails>
                       </Accordion>
                     ))}
-
                   </AccordionDetails>
                 </Accordion>
               ))}
@@ -366,7 +301,7 @@ export function RackTopologyTab() {
               <Button
                 size="small"
                 startIcon={<AddIcon />}
-                onClick={() => openAdd("rack", zone.id)}
+                onClick={() => setAddDialog({ open: true, level: "rack", parentId: zone.id })}
                 sx={{ mt: 0.5 }}
               >
                 Add Rack
@@ -376,13 +311,31 @@ export function RackTopologyTab() {
         ))}
       </Stack>
 
+      {/* Add zone / Add rack dialog (creation only) */}
       <LocationDialog
-        open={dialog.open}
-        level={dialog.level}
-        parentId={dialog.parentId}
-        existing={dialog.existing}
-        deleteMode={dialog.deleteMode}
-        onClose={() => setDialog(closedDialog)}
+        open={addDialog.open}
+        level={addDialog.level}
+        parentId={addDialog.parentId}
+        onClose={() => setAddDialog({ open: false, level: "zone" })}
+        onSaved={handleSaved}
+      />
+
+      {/* Delete confirmation dialog */}
+      <LocationDialog
+        open={deleteDialog.open}
+        level={deleteDialog.level}
+        existing={deleteDialog.existing}
+        deleteMode
+        onClose={() => setDeleteDialog({ open: false, level: "zone" })}
+        onSaved={handleSaved}
+      />
+
+      {/* Rack edit dialog */}
+      <RackEditDialog
+        open={rackEdit.open}
+        rackId={rackEdit.rackId}
+        rackName={rackEdit.rackName}
+        onClose={() => setRackEdit(closedRackEdit)}
         onSaved={handleSaved}
       />
 
