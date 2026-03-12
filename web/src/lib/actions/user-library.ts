@@ -14,7 +14,10 @@ import {
   userPrintProfiles,
   equipment,
   labelTemplates,
+  printJobs,
+  userPrinters,
 } from "@/db/schema/user-library";
+import { scanStations } from "@/db/schema/scan-stations";
 import {
   createCrudActions,
   ok,
@@ -797,6 +800,142 @@ export async function getDefaultTemplate(
         )
       );
     if (!row) return err("Not found");
+    return ok(row);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Printers ─────────────────────────────────────────────────────────────────
+
+type UserPrinter = InferSelectModel<typeof userPrinters>;
+
+export async function listMyPrinters(
+  params?: PaginationParams
+): Promise<ActionResult<UserPrinter[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(userPrinters)
+      .where(eq(userPrinters.userId, guard.data.userId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Scan Stations (for print target selection) ───────────────────────────────
+
+export async function listMyStations(): Promise<ActionResult<any[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const rows = await db
+      .select()
+      .from(scanStations)
+      .where(eq(scanStations.userId, guard.data.userId));
+    return ok(rows);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+// ── Print Jobs ───────────────────────────────────────────────────────────────
+
+type PrintJob = InferSelectModel<typeof printJobs>;
+
+export async function createPrintJob(input: {
+  templateId?: string;
+  stationId?: string;
+  labelData: Record<string, any>;
+  copies?: number;
+}): Promise<ActionResult<PrintJob>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const [row] = await db
+      .insert(printJobs)
+      .values({
+        userId: guard.data.userId,
+        templateId: input.templateId ?? null,
+        stationId: input.stationId ?? null,
+        labelData: input.labelData,
+        copies: input.copies ?? 1,
+      })
+      .returning();
+    return ok(row);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+export async function createBatchPrintJobs(
+  jobs: Array<{
+    templateId?: string;
+    stationId?: string;
+    labelData: Record<string, any>;
+  }>
+): Promise<ActionResult<PrintJob[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const rows = await db
+      .insert(printJobs)
+      .values(
+        jobs.map((j) => ({
+          userId: guard.data.userId,
+          templateId: j.templateId ?? null,
+          stationId: j.stationId ?? null,
+          labelData: j.labelData,
+          copies: 1,
+        }))
+      )
+      .returning();
+    return ok(rows);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+export async function listMyPrintJobs(
+  params?: PaginationParams
+): Promise<ActionResult<PrintJob[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(printJobs)
+      .where(eq(printJobs.userId, guard.data.userId))
+      .orderBy(desc(printJobs.createdAt))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+export async function cancelPrintJob(id: string): Promise<ActionResult<PrintJob>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const [existing] = await db.select().from(printJobs).where(eq(printJobs.id, id));
+    if (!existing) return err("Not found");
+    const ownership = assertOwnership(guard.data, existing.userId);
+    if (ownership) return ownership;
+    if (existing.status !== "pending") return err("Can only cancel pending jobs");
+    const [row] = await db
+      .update(printJobs)
+      .set({ status: "cancelled" })
+      .where(eq(printJobs.id, id))
+      .returning();
     return ok(row);
   } catch (e) {
     return err((e as Error).message);

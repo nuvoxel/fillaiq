@@ -168,6 +168,15 @@ export const labelFormatEnum = pgEnum("label_format", [
   "pdf",
 ]);
 
+export const printJobStatusEnum = pgEnum("print_job_status", [
+  "pending",
+  "sent",
+  "printing",
+  "done",
+  "failed",
+  "cancelled",
+]);
+
 // ── Hardware Catalog ─────────────────────────────────────────────────────────
 
 export const hardwareCategoryEnum = pgEnum("hardware_category", [

@@ -20,11 +20,16 @@ import MemoryIcon from "@mui/icons-material/Memory";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import PrintIcon from "@mui/icons-material/Print";
 import { listMyZones, listRacksByZone, getRackTopology } from "@/lib/actions/hardware";
 import {
   LocationDialog,
   type LocationLevel,
 } from "@/components/locations/location-dialog";
+import {
+  PrintLabelDialog,
+  type PrintLabelItem,
+} from "@/components/labels/print-label-dialog";
 
 type SlotStatusData = { state: string; [key: string]: unknown };
 type SlotData = { id: string; position: number; label?: string | null; nfcTagId?: string | null; address?: string | null; status?: SlotStatusData | null; [key: string]: unknown };
@@ -57,10 +62,18 @@ type DialogState = {
 
 const closedDialog: DialogState = { open: false, level: "zone" };
 
+type PrintDialogState = {
+  open: boolean;
+  items: PrintLabelItem[];
+  title?: string;
+};
+const closedPrint: PrintDialogState = { open: false, items: [] };
+
 export function RackTopologyTab() {
   const [zonesWithRacks, setZonesWithRacks] = useState<ZoneWithRacks[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<DialogState>(closedDialog);
+  const [printDialog, setPrintDialog] = useState<PrintDialogState>(closedPrint);
 
   const loadData = useCallback(async () => {
     const result = await listMyZones();
@@ -101,6 +114,20 @@ export function RackTopologyTab() {
     setDialog({ open: true, level, existing });
   const openDelete = (level: LocationLevel, existing: Record<string, any>) =>
     setDialog({ open: true, level, existing, deleteMode: true });
+
+  const openBayPrint = (bay: BayData, shelfLabel: string | number, rackName: string) => {
+    const items: PrintLabelItem[] = bay.slots.map((slot) => ({
+      label: `Slot ${slot.label || slot.position}`,
+      location: `${rackName} / Shelf ${shelfLabel} / Bay ${bay.label || bay.position} / Slot ${slot.label || slot.position}`,
+      ...(slot.address ? { lotNumber: slot.address } : {}),
+    }));
+    if (items.length === 0) return;
+    setPrintDialog({
+      open: true,
+      items,
+      title: `Print Labels — Bay ${bay.label || bay.position} (${items.length} slots)`,
+    });
+  };
 
   if (loading) {
     return (
@@ -221,6 +248,13 @@ export function RackTopologyTab() {
                                 <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 1, textAlign: "center", position: "relative" }}>
                                   {/* Bay actions */}
                                   <Box sx={{ position: "absolute", top: 2, right: 2, display: "flex", gap: 0 }}>
+                                    {bay.slots.length > 0 && (
+                                      <Tooltip title={`Print ${bay.slots.length} slot labels`}>
+                                        <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openBayPrint(bay, shelf.label || shelf.position, rack.name ?? rack.id.slice(0, 8))}>
+                                          <PrintIcon sx={{ fontSize: 14 }} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    )}
                                     <Tooltip title="Edit bay">
                                       <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openEdit("bay", bay)}>
                                         <EditIcon sx={{ fontSize: 14 }} />
@@ -329,6 +363,13 @@ export function RackTopologyTab() {
         deleteMode={dialog.deleteMode}
         onClose={() => setDialog(closedDialog)}
         onSaved={handleSaved}
+      />
+
+      <PrintLabelDialog
+        open={printDialog.open}
+        items={printDialog.items}
+        title={printDialog.title}
+        onClose={() => setPrintDialog(closedPrint)}
       />
     </>
   );

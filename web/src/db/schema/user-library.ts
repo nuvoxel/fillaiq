@@ -24,6 +24,7 @@ import {
   machineTypeEnum,
   changerTypeEnum,
   toolCategoryEnum,
+  printJobStatusEnum,
 } from "./enums";
 import { products, filamentProfiles } from "./central-catalog";
 import { hardwareModels } from "./hardware";
@@ -409,6 +410,32 @@ export const labelTemplates = pgTable("label_templates", {
     .defaultNow()
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Print Jobs ──────────────────────────────────────────────────────────────
+
+export const printJobs = pgTable("print_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => users.id)
+    .notNull(),
+  templateId: uuid("template_id").references(() => labelTemplates.id),
+  stationId: uuid("station_id"), // scan station to print on (FK added in relations)
+  status: printJobStatusEnum("status").default("pending").notNull(),
+  // Label content — JSON with the data fields to render
+  labelData: jsonb("label_data").notNull(), // { brand, material, color, nozzleTemp, ... }
+  // Batch support: number of copies
+  copies: integer("copies").default(1).notNull(),
+  // Optional: pre-rendered 1-bit raster (base64) for direct printing
+  rasterData: text("raster_data"),
+  rasterWidthPx: integer("raster_width_px"),
+  rasterHeightPx: integer("raster_height_px"),
+  // Error tracking
+  errorMessage: text("error_message"),
+  printedAt: timestamp("printed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });

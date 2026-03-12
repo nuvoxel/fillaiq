@@ -43,6 +43,10 @@ import {
   searchProducts,
   createIntakeItem,
 } from "@/lib/actions/scan";
+import {
+  PrintLabelDialog,
+  type PrintLabelItem,
+} from "@/components/labels/print-label-dialog";
 
 const STEPS = ["Identify", "Details", "Location", "Done"];
 
@@ -107,6 +111,7 @@ export default function ScanPage() {
   const [intakeResult, setIntakeResult] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
 
   // ── Station scan received ───────────────────────────────────────────────────
 
@@ -1014,22 +1019,22 @@ export default function ScanPage() {
             </Alert>
           )}
 
-          {/* Station actions (print / write NFC) */}
-          {hasStation && (
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Station Actions
-                </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<PrintIcon />}
-                    disabled
-                  >
-                    Print Label
-                  </Button>
+          {/* Actions (print / write NFC) */}
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Actions
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<PrintIcon />}
+                  onClick={() => setShowPrintDialog(true)}
+                >
+                  Print Label
+                </Button>
+                {hasStation && (
                   <Button
                     variant="outlined"
                     size="small"
@@ -1038,17 +1043,10 @@ export default function ScanPage() {
                   >
                     Write NFC Tag
                   </Button>
-                </Stack>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mt: 1, display: "block" }}
-                >
-                  Label printing and NFC writing coming soon.
-                </Typography>
-              </CardContent>
-            </Card>
-          )}
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Divider />
 
@@ -1063,6 +1061,26 @@ export default function ScanPage() {
           </Button>
         </Stack>
       )}
+
+      <PrintLabelDialog
+        open={showPrintDialog}
+        onClose={() => setShowPrintDialog(false)}
+        items={[
+          {
+            brand: productMatch?.product?.brand ?? undefined,
+            material: productMatch?.product?.materialName ?? productMatch?.product?.name ?? undefined,
+            color: effectiveColorHex ?? undefined,
+            nozzleTemp: productMatch?.product?.nozzleTempMin
+              ? `${productMatch.product.nozzleTempMin}-${productMatch.product.nozzleTempMax ?? productMatch.product.nozzleTempMin}°C`
+              : undefined,
+            bedTemp: productMatch?.product?.bedTempMin
+              ? `${productMatch.product.bedTempMin}°C`
+              : undefined,
+            weight: initialWeight ? `${initialWeight}g` : undefined,
+            location: selectedSlotAddress || undefined,
+          },
+        ]}
+      />
     </Box>
   );
 }

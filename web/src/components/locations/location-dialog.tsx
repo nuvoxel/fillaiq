@@ -332,7 +332,7 @@ export function LocationDialog({
                           onChange={(e) => setQuickShelves(e.target.value)}
                           size="small"
                           fullWidth
-                          slotProps={{ htmlInput: { min: 0, max: 20 } }}
+                          slotProps={{ htmlInput: { min: 0, max: 50 } }}
                         />
                       </Grid>
                       <Grid size={{ xs: 4 }}>
@@ -343,7 +343,7 @@ export function LocationDialog({
                           onChange={(e) => setQuickBays(e.target.value)}
                           size="small"
                           fullWidth
-                          slotProps={{ htmlInput: { min: 0, max: 20 } }}
+                          slotProps={{ htmlInput: { min: 0, max: 50 } }}
                         />
                       </Grid>
                       <Grid size={{ xs: 4 }}>
@@ -354,7 +354,7 @@ export function LocationDialog({
                           onChange={(e) => setQuickSlots(e.target.value)}
                           size="small"
                           fullWidth
-                          slotProps={{ htmlInput: { min: 0, max: 10 } }}
+                          slotProps={{ htmlInput: { min: 0, max: 100 } }}
                         />
                       </Grid>
                       {(parseInt(quickShelves) || 0) > 0 && (

@@ -15,10 +15,15 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import PrintIcon from "@mui/icons-material/Print";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PageHeader } from "@/components/layout/page-header";
 import { SpoolDialog } from "@/components/spools/spool-dialog";
+import {
+  PrintLabelDialog,
+  type PrintLabelItem,
+} from "@/components/labels/print-label-dialog";
 import { listMyItems } from "@/lib/actions/user-library";
 
 type UserItem = {
@@ -47,6 +52,7 @@ export default function SpoolsPage() {
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<UserItem | null>(null);
+  const [printItem, setPrintItem] = useState<PrintLabelItem | null>(null);
 
   const loadItems = useCallback(() => {
     setLoading(true);
@@ -156,23 +162,44 @@ export default function SpoolsPage() {
     {
       field: "actions",
       headerName: "",
-      width: 60,
+      width: 90,
       sortable: false,
       filterable: false,
       disableColumnMenu: true,
-      renderCell: (params) => (
-        <Tooltip title="Edit">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenEdit(params.row as UserItem);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      ),
+      renderCell: (params) => {
+        const row = params.row as UserItem;
+        return (
+          <Box sx={{ display: "flex", gap: 0.25 }}>
+            <Tooltip title="Print label">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPrintItem({
+                    brand: (row as any).brandName ?? undefined,
+                    material: (row as any).materialName ?? (row as any).productName ?? undefined,
+                    color: (row as any).measuredColorHex ?? undefined,
+                    weight: row.currentWeightG ? `${Math.round(row.currentWeightG)}g` : undefined,
+                  });
+                }}
+              >
+                <PrintIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Edit">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenEdit(row);
+                }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        );
+      },
     },
   ];
 
@@ -247,6 +274,12 @@ export default function SpoolsPage() {
         onClose={handleDialogClose}
         onSaved={handleSaved}
         existing={editingItem}
+      />
+
+      <PrintLabelDialog
+        open={!!printItem}
+        onClose={() => setPrintItem(null)}
+        items={printItem ? [printItem] : []}
       />
     </div>
   );
