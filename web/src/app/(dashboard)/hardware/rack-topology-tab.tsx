@@ -115,17 +115,59 @@ export function RackTopologyTab() {
   const openDelete = (level: LocationLevel, existing: Record<string, any>) =>
     setDialog({ open: true, level, existing, deleteMode: true });
 
-  const openBayPrint = (bay: BayData, shelfLabel: string | number, rackName: string) => {
-    const items: PrintLabelItem[] = bay.slots.map((slot) => ({
+  /** Collect all slot labels from a bay */
+  const baySlotItems = (bay: BayData, shelfLabel: string | number, rackName: string): PrintLabelItem[] =>
+    bay.slots.map((slot) => ({
       label: `Slot ${slot.label || slot.position}`,
       location: `${rackName} / Shelf ${shelfLabel} / Bay ${bay.label || bay.position} / Slot ${slot.label || slot.position}`,
       ...(slot.address ? { lotNumber: slot.address } : {}),
     }));
+
+  const openBayPrint = (bay: BayData, shelfLabel: string | number, rackName: string) => {
+    const items = baySlotItems(bay, shelfLabel, rackName);
     if (items.length === 0) return;
     setPrintDialog({
       open: true,
       items,
       title: `Print Labels — Bay ${bay.label || bay.position} (${items.length} slots)`,
+    });
+  };
+
+  const openShelfPrint = (shelf: ShelfData, rackName: string) => {
+    const items = shelf.bays.flatMap((bay) => baySlotItems(bay, shelf.label || shelf.position, rackName));
+    if (items.length === 0) return;
+    setPrintDialog({
+      open: true,
+      items,
+      title: `Print Labels — Shelf ${shelf.label || shelf.position} (${items.length} slots)`,
+    });
+  };
+
+  const openRackPrint = (rack: RackTopology) => {
+    const rackName = rack.name ?? rack.id.slice(0, 8);
+    const items = (rack.shelves ?? []).flatMap((shelf) =>
+      shelf.bays.flatMap((bay) => baySlotItems(bay, shelf.label || shelf.position, rackName))
+    );
+    if (items.length === 0) return;
+    setPrintDialog({
+      open: true,
+      items,
+      title: `Print Labels — Rack ${rackName} (${items.length} slots)`,
+    });
+  };
+
+  const openZonePrint = (zone: ZoneSummary, zoneRacks: RackTopology[]) => {
+    const items = zoneRacks.flatMap((rack) => {
+      const rackName = rack.name ?? rack.id.slice(0, 8);
+      return (rack.shelves ?? []).flatMap((shelf) =>
+        shelf.bays.flatMap((bay) => baySlotItems(bay, shelf.label || shelf.position, rackName))
+      );
+    });
+    if (items.length === 0) return;
+    setPrintDialog({
+      open: true,
+      items,
+      title: `Print Labels — ${zone.name} (${items.length} slots)`,
     });
   };
 
@@ -180,6 +222,11 @@ export function RackTopologyTab() {
                   )}
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Tooltip title="Print all labels in zone">
+                    <IconButton size="small" onClick={() => openZonePrint(zone, racks)}>
+                      <PrintIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Edit zone">
                     <IconButton size="small" onClick={() => openEdit("zone", zone)}>
                       <EditIcon fontSize="small" />
@@ -203,6 +250,11 @@ export function RackTopologyTab() {
                         {rack.shelves?.length ?? 0} {(rack.shelves?.length ?? 0) === 1 ? "shelf" : "shelves"}
                       </Typography>
                       <Box sx={{ ml: "auto", mr: 1, display: "flex", gap: 0.5 }}>
+                        <Tooltip title="Print all labels in rack">
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); openRackPrint(rack); }}>
+                            <PrintIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Edit rack">
                           <IconButton size="small" onClick={(e) => { e.stopPropagation(); openEdit("rack", rack); }}>
                             <EditIcon fontSize="small" />
@@ -228,6 +280,11 @@ export function RackTopologyTab() {
                               {shelf.bays.length} bay{shelf.bays.length !== 1 ? "s" : ""}
                             </Typography>
                             <Box sx={{ ml: "auto", mr: 1, display: "flex", gap: 0.5 }}>
+                              <Tooltip title="Print all labels on shelf">
+                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openShelfPrint(shelf, rack.name ?? rack.id.slice(0, 8)); }}>
+                                  <PrintIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                               <Tooltip title="Edit shelf">
                                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); openEdit("shelf", shelf); }}>
                                   <EditIcon fontSize="small" />
@@ -277,24 +334,15 @@ export function RackTopologyTab() {
                                         return (
                                           <Tooltip
                                             key={slot.id}
-                                            title={
-                                              <span>
-                                                Slot {slot.label || slot.position}: {state.replace("_", " ")}
-                                                <br />
-                                                Click to edit
-                                              </span>
-                                            }
+                                            title={`Slot ${slot.label || slot.position}: ${state.replace("_", " ")}`}
                                             arrow
                                           >
                                             <Box
-                                              onClick={() => openEdit("slot", slot)}
                                               sx={{
                                                 width: 16,
                                                 height: 16,
                                                 borderRadius: "50%",
                                                 bgcolor: slotStateColors[state] ?? "#9CA3AF",
-                                                cursor: "pointer",
-                                                "&:hover": { outline: "2px solid", outlineColor: "primary.main" },
                                               }}
                                             />
                                           </Tooltip>
@@ -304,39 +352,14 @@ export function RackTopologyTab() {
                                       <Typography variant="caption" color="text.disabled">Empty</Typography>
                                     )}
                                   </Box>
-                                  {/* Add slot */}
-                                  <Tooltip title="Add slot">
-                                    <IconButton size="small" sx={{ mt: 0.5, p: 0.25 }} onClick={() => openAdd("slot", bay.id)}>
-                                      <AddIcon sx={{ fontSize: 14 }} />
-                                    </IconButton>
-                                  </Tooltip>
                                 </Box>
                               </Grid>
                             ))}
                           </Grid>
-
-                          {/* Add bay */}
-                          <Button
-                            size="small"
-                            startIcon={<AddIcon />}
-                            onClick={() => openAdd("bay", shelf.id)}
-                            sx={{ mt: 1 }}
-                          >
-                            Add Bay
-                          </Button>
                         </AccordionDetails>
                       </Accordion>
                     ))}
 
-                    {/* Add shelf */}
-                    <Button
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() => openAdd("shelf", rack.id)}
-                      sx={{ mt: 0.5 }}
-                    >
-                      Add Shelf
-                    </Button>
                   </AccordionDetails>
                 </Accordion>
               ))}
