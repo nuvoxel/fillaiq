@@ -21,7 +21,8 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PrintIcon from "@mui/icons-material/Print";
-import { listMyZones, listRacksByZone, getRackTopology } from "@/lib/actions/hardware";
+import InputBase from "@mui/material/InputBase";
+import { listMyZones, listRacksByZone, getRackTopology, updateZone, updateRack, updateShelf } from "@/lib/actions/hardware";
 import {
   LocationDialog,
   type LocationLevel,
@@ -216,7 +217,12 @@ export function RackTopologyTab() {
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <MemoryIcon color="primary" />
-                  <Typography variant="h6" fontWeight={600}>{zone.name}</Typography>
+                  <InlineEdit
+                    value={zone.name}
+                    variant="h6"
+                    fontWeight={600}
+                    onSave={(name) => { updateZone(zone.id, { name }); loadData(); }}
+                  />
                   {zone.description && (
                     <Typography variant="body2" color="text.secondary">{zone.description}</Typography>
                   )}
@@ -225,11 +231,6 @@ export function RackTopologyTab() {
                   <Tooltip title="Print all labels in zone">
                     <IconButton size="small" onClick={() => openZonePrint(zone, racks)}>
                       <PrintIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Edit zone">
-                    <IconButton size="small" onClick={() => openEdit("zone", zone)}>
-                      <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Delete zone">
@@ -245,7 +246,11 @@ export function RackTopologyTab() {
                 <Accordion key={rack.id} defaultExpanded disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 1 }}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-                      <Typography fontWeight={500}>Rack {rack.name ?? rack.id.slice(0, 8)}</Typography>
+                      <InlineEdit
+                        value={rack.name ?? rack.id.slice(0, 8)}
+                        fontWeight={500}
+                        onSave={(name) => { updateRack(rack.id, { name }); loadData(); }}
+                      />
                       <Typography variant="caption" color="text.secondary">
                         {rack.shelves?.length ?? 0} {(rack.shelves?.length ?? 0) === 1 ? "shelf" : "shelves"}
                       </Typography>
@@ -253,11 +258,6 @@ export function RackTopologyTab() {
                         <Tooltip title="Print all labels in rack">
                           <IconButton size="small" onClick={(e) => { e.stopPropagation(); openRackPrint(rack); }}>
                             <PrintIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit rack">
-                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); openEdit("rack", rack); }}>
-                            <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete rack">
@@ -273,9 +273,12 @@ export function RackTopologyTab() {
                       <Accordion key={shelf.id} defaultExpanded disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 0.5 }}>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-                            <Typography variant="body2" fontWeight={500}>
-                              Shelf {shelf.label || shelf.position}
-                            </Typography>
+                            <InlineEdit
+                              value={`Shelf ${shelf.label || shelf.position}`}
+                              variant="body2"
+                              fontWeight={500}
+                              onSave={(label) => { updateShelf(shelf.id, { label: label.replace(/^Shelf\s*/i, "") || null }); loadData(); }}
+                            />
                             <Typography variant="caption" color="text.secondary">
                               {shelf.bays.length} bay{shelf.bays.length !== 1 ? "s" : ""}
                             </Typography>
@@ -283,11 +286,6 @@ export function RackTopologyTab() {
                               <Tooltip title="Print all labels on shelf">
                                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); openShelfPrint(shelf, rack.name ?? rack.id.slice(0, 8)); }}>
                                   <PrintIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Edit shelf">
-                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openEdit("shelf", shelf); }}>
-                                  <EditIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Delete shelf">
@@ -395,5 +393,71 @@ export function RackTopologyTab() {
         onClose={() => setPrintDialog(closedPrint)}
       />
     </>
+  );
+}
+
+// ── Inline editable name ──────────────────────────────────────────────────────
+
+function InlineEdit({
+  value,
+  onSave,
+  variant = "body1",
+  fontWeight = 500,
+  fontSize,
+}: {
+  value: string;
+  onSave: (newValue: string) => void;
+  variant?: "h6" | "body1" | "body2";
+  fontWeight?: number;
+  fontSize?: number | string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+
+  const commit = () => {
+    const trimmed = text.trim();
+    if (trimmed && trimmed !== value) {
+      onSave(trimmed);
+    } else {
+      setText(value);
+    }
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <Typography
+        variant={variant}
+        fontWeight={fontWeight}
+        sx={{
+          fontSize,
+          cursor: "pointer",
+          "&:hover": { textDecoration: "underline dotted", textUnderlineOffset: 3 },
+        }}
+        onClick={() => setEditing(true)}
+      >
+        {value}
+      </Typography>
+    );
+  }
+
+  return (
+    <InputBase
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") { setText(value); setEditing(false); }
+      }}
+      autoFocus
+      sx={{
+        fontWeight,
+        fontSize: fontSize ?? (variant === "h6" ? "1.25rem" : variant === "body2" ? "0.875rem" : "1rem"),
+        p: 0,
+        "& input": { p: 0 },
+      }}
+      onClick={(e) => e.stopPropagation()}
+    />
   );
 }
