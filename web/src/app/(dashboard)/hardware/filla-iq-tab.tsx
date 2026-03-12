@@ -243,6 +243,8 @@ function StationCard({
                 {caps.scale?.detected && <Chip label="Scale" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.tof?.detected && <Chip label="TOF" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.colorSensor?.detected && <Chip label="Color" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.display?.detected && <Chip label="Display" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.leds?.detected && <Chip label="LED" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.environment?.detected && <Chip label="Env" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.printer?.detected && <Chip label="Printer" size="small" variant="outlined" color="secondary" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
               </Box>
