@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -13,16 +13,25 @@ import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Grid from "@mui/material/Grid";
 import Tooltip from "@mui/material/Tooltip";
+import IconButton from "@mui/material/IconButton";
+import Button from "@mui/material/Button";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import MemoryIcon from "@mui/icons-material/Memory";
-import { listZones, listRacksByZone, getRackTopology } from "@/lib/actions/hardware";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { listMyZones, listRacksByZone, getRackTopology } from "@/lib/actions/hardware";
+import {
+  LocationDialog,
+  type LocationLevel,
+} from "@/components/locations/location-dialog";
 
 type SlotStatusData = { state: string; [key: string]: unknown };
-type SlotData = { id: string; position: number; status?: SlotStatusData | null; [key: string]: unknown };
-type BayData = { id: string; position: number; slots: SlotData[]; [key: string]: unknown };
-type ShelfData = { id: string; position: number; bayCount: number | null; hasTempHumiditySensor: boolean | null; bays: BayData[]; [key: string]: unknown };
-type RackTopology = { id: string; name?: string; shelves: ShelfData[]; [key: string]: unknown };
-type ZoneSummary = { id: string; name: string; description: string | null; [key: string]: unknown };
+type SlotData = { id: string; position: number; label?: string | null; nfcTagId?: string | null; address?: string | null; status?: SlotStatusData | null; [key: string]: unknown };
+type BayData = { id: string; position: number; label?: string | null; slotCount?: number | null; nfcTagId?: string | null; slots: SlotData[]; [key: string]: unknown };
+type ShelfData = { id: string; position: number; label?: string | null; bayCount: number | null; nfcTagId?: string | null; hasTempHumiditySensor: boolean | null; bays: BayData[]; [key: string]: unknown };
+type RackTopology = { id: string; name?: string; position?: number | null; shelfCount?: number | null; nfcTagId?: string | null; shelves: ShelfData[]; [key: string]: unknown };
+type ZoneSummary = { id: string; name: string; type?: string | null; description: string | null; nfcTagId?: string | null; [key: string]: unknown };
 
 const slotStateColors: Record<string, string> = {
   active: "#16A34A",
@@ -38,34 +47,60 @@ type ZoneWithRacks = {
   racks: RackTopology[];
 };
 
+type DialogState = {
+  open: boolean;
+  level: LocationLevel;
+  parentId?: string;
+  existing?: Record<string, any> | null;
+  deleteMode?: boolean;
+};
+
+const closedDialog: DialogState = { open: false, level: "zone" };
+
 export function RackTopologyTab() {
   const [zonesWithRacks, setZonesWithRacks] = useState<ZoneWithRacks[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState<DialogState>(closedDialog);
+
+  const loadData = useCallback(async () => {
+    const result = await listMyZones();
+    if (result.data) {
+      const zoneList = result.data as ZoneSummary[];
+      const zwr: ZoneWithRacks[] = [];
+      await Promise.allSettled(
+        zoneList.map(async (zone) => {
+          const racksResult = await listRacksByZone(zone.id);
+          const rackSummaries = racksResult.data ?? [];
+          const rackTopos: RackTopology[] = [];
+          await Promise.allSettled(
+            (rackSummaries as any[]).map(async (rack: any) => {
+              const t = await getRackTopology(rack.id);
+              if (t.data) rackTopos.push(t.data as RackTopology);
+            })
+          );
+          zwr.push({ zone, racks: rackTopos });
+        })
+      );
+      setZonesWithRacks(zwr);
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    listZones().then(async (result) => {
-      if (result.data) {
-        const zoneList = result.data as ZoneSummary[];
-        const zwr: ZoneWithRacks[] = [];
-        await Promise.allSettled(
-          zoneList.map(async (zone) => {
-            const racksResult = await listRacksByZone(zone.id);
-            const rackSummaries = racksResult.data ?? [];
-            const rackTopos: RackTopology[] = [];
-            await Promise.allSettled(
-              (rackSummaries as any[]).map(async (rack: any) => {
-                const t = await getRackTopology(rack.id);
-                if (t.data) rackTopos.push(t.data as RackTopology);
-              })
-            );
-            zwr.push({ zone, racks: rackTopos });
-          })
-        );
-        setZonesWithRacks(zwr);
-      }
-      setLoading(false);
-    });
-  }, []);
+    loadData();
+  }, [loadData]);
+
+  const handleSaved = () => {
+    setDialog(closedDialog);
+    loadData();
+  };
+
+  const openAdd = (level: LocationLevel, parentId: string) =>
+    setDialog({ open: true, level, parentId });
+  const openEdit = (level: LocationLevel, existing: Record<string, any>) =>
+    setDialog({ open: true, level, existing });
+  const openDelete = (level: LocationLevel, existing: Record<string, any>) =>
+    setDialog({ open: true, level, existing, deleteMode: true });
 
   if (loading) {
     return (
@@ -79,103 +114,222 @@ export function RackTopologyTab() {
 
   if (zonesWithRacks.length === 0) {
     return (
-      <Box sx={{ textAlign: "center", py: 8 }}>
-        <MemoryIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-        <Typography variant="subtitle1" fontWeight={500}>
-          No locations configured
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Add your first zone to start organizing your storage layout.
-        </Typography>
-      </Box>
+      <>
+        <Box sx={{ textAlign: "center", py: 8 }}>
+          <MemoryIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
+          <Typography variant="subtitle1" fontWeight={500}>
+            No locations configured
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Add your first zone to start organizing your storage layout.
+          </Typography>
+        </Box>
+        <LocationDialog
+          open={dialog.open}
+          level={dialog.level}
+          parentId={dialog.parentId}
+          existing={dialog.existing}
+          deleteMode={dialog.deleteMode}
+          onClose={() => setDialog(closedDialog)}
+          onSaved={handleSaved}
+        />
+      </>
     );
   }
 
   return (
-    <Stack spacing={2}>
-      {zonesWithRacks.map(({ zone, racks }) => (
-        <Card key={zone.id}>
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <MemoryIcon color="primary" />
-                <Typography variant="h6" fontWeight={600}>{zone.name}</Typography>
-                {zone.description && (
-                  <Typography variant="body2" color="text.secondary">{zone.description}</Typography>
-                )}
+    <>
+      <Stack spacing={2}>
+        {zonesWithRacks.map(({ zone, racks }) => (
+          <Card key={zone.id}>
+            <CardContent>
+              {/* ── Zone header ── */}
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <MemoryIcon color="primary" />
+                  <Typography variant="h6" fontWeight={600}>{zone.name}</Typography>
+                  {zone.description && (
+                    <Typography variant="body2" color="text.secondary">{zone.description}</Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Tooltip title="Edit zone">
+                    <IconButton size="small" onClick={() => openEdit("zone", zone)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete zone">
+                    <IconButton size="small" onClick={() => openDelete("zone", zone)}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
-              <Chip label="Online" size="small" color="success" />
-            </Box>
 
-            {racks.map((rack) => (
-              <Accordion key={rack.id} disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 1 }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Typography fontWeight={500}>Rack {rack.name ?? rack.id.slice(0, 8)}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {rack.shelves?.length ?? 0} {(rack.shelves?.length ?? 0) === 1 ? "shelf" : "shelves"}
-                    </Typography>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  {rack.shelves?.map((shelf) => (
-                    <Accordion key={shelf.id} disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 0.5 }}>
-                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Typography variant="body2" fontWeight={500}>Shelf {shelf.position}</Typography>
-                          <Chip
-                            label={shelf.isOnline ? "Online" : "Offline"}
-                            size="small"
-                            color={shelf.isOnline ? "success" : "default"}
-                            variant="outlined"
-                          />
-                          <Typography variant="caption" color="text.secondary">
-                            {shelf.bays.length} bay{shelf.bays.length !== 1 ? "s" : ""}
-                          </Typography>
-                        </Box>
-                      </AccordionSummary>
-                      <AccordionDetails>
-                        <Grid container spacing={1}>
-                          {shelf.bays.map((bay) => (
-                            <Grid key={bay.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                              <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 1, textAlign: "center" }}>
-                                <Typography variant="caption" color="text.secondary">
-                                  Bay {bay.position}
-                                </Typography>
-                                <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center", mt: 0.5 }}>
-                                  {bay.slots.length > 0 ? (
-                                    bay.slots.map((slot) => {
-                                      const state = slot.status?.state ?? "empty";
-                                      return (
-                                        <Tooltip key={slot.id} title={state.replace("_", " ")} arrow>
-                                          <Box
-                                            sx={{
-                                              width: 16,
-                                              height: 16,
-                                              borderRadius: "50%",
-                                              bgcolor: slotStateColors[state] ?? "#9CA3AF",
-                                            }}
-                                          />
-                                        </Tooltip>
-                                      );
-                                    })
-                                  ) : (
-                                    <Typography variant="caption" color="text.disabled">Empty</Typography>
-                                  )}
+              {/* ── Racks ── */}
+              {racks.map((rack) => (
+                <Accordion key={rack.id} disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 1 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
+                      <Typography fontWeight={500}>Rack {rack.name ?? rack.id.slice(0, 8)}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {rack.shelves?.length ?? 0} {(rack.shelves?.length ?? 0) === 1 ? "shelf" : "shelves"}
+                      </Typography>
+                      <Box sx={{ ml: "auto", mr: 1, display: "flex", gap: 0.5 }}>
+                        <Tooltip title="Edit rack">
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); openEdit("rack", rack); }}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete rack">
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDelete("rack", rack); }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    {rack.shelves?.map((shelf) => (
+                      <Accordion key={shelf.id} disableGutters sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" }, mb: 0.5 }}>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
+                            <Typography variant="body2" fontWeight={500}>
+                              Shelf {shelf.label || shelf.position}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {shelf.bays.length} bay{shelf.bays.length !== 1 ? "s" : ""}
+                            </Typography>
+                            <Box sx={{ ml: "auto", mr: 1, display: "flex", gap: 0.5 }}>
+                              <Tooltip title="Edit shelf">
+                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openEdit("shelf", shelf); }}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete shelf">
+                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDelete("shelf", shelf); }}>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Grid container spacing={1}>
+                            {shelf.bays.map((bay) => (
+                              <Grid key={bay.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+                                <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 1, textAlign: "center", position: "relative" }}>
+                                  {/* Bay actions */}
+                                  <Box sx={{ position: "absolute", top: 2, right: 2, display: "flex", gap: 0 }}>
+                                    <Tooltip title="Edit bay">
+                                      <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openEdit("bay", bay)}>
+                                        <EditIcon sx={{ fontSize: 14 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete bay">
+                                      <IconButton size="small" sx={{ p: 0.25 }} onClick={() => openDelete("bay", bay)}>
+                                        <DeleteIcon sx={{ fontSize: 14 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+
+                                  <Typography variant="caption" color="text.secondary">
+                                    Bay {bay.label || bay.position}
+                                  </Typography>
+                                  <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center", mt: 0.5, flexWrap: "wrap" }}>
+                                    {bay.slots.length > 0 ? (
+                                      bay.slots.map((slot) => {
+                                        const state = slot.status?.state ?? "empty";
+                                        return (
+                                          <Tooltip
+                                            key={slot.id}
+                                            title={
+                                              <span>
+                                                Slot {slot.label || slot.position}: {state.replace("_", " ")}
+                                                <br />
+                                                Click to edit
+                                              </span>
+                                            }
+                                            arrow
+                                          >
+                                            <Box
+                                              onClick={() => openEdit("slot", slot)}
+                                              sx={{
+                                                width: 16,
+                                                height: 16,
+                                                borderRadius: "50%",
+                                                bgcolor: slotStateColors[state] ?? "#9CA3AF",
+                                                cursor: "pointer",
+                                                "&:hover": { outline: "2px solid", outlineColor: "primary.main" },
+                                              }}
+                                            />
+                                          </Tooltip>
+                                        );
+                                      })
+                                    ) : (
+                                      <Typography variant="caption" color="text.disabled">Empty</Typography>
+                                    )}
+                                  </Box>
+                                  {/* Add slot */}
+                                  <Tooltip title="Add slot">
+                                    <IconButton size="small" sx={{ mt: 0.5, p: 0.25 }} onClick={() => openAdd("slot", bay.id)}>
+                                      <AddIcon sx={{ fontSize: 14 }} />
+                                    </IconButton>
+                                  </Tooltip>
                                 </Box>
-                              </Box>
-                            </Grid>
-                          ))}
-                        </Grid>
-                      </AccordionDetails>
-                    </Accordion>
-                  ))}
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </CardContent>
-        </Card>
-      ))}
-    </Stack>
+                              </Grid>
+                            ))}
+                          </Grid>
+
+                          {/* Add bay */}
+                          <Button
+                            size="small"
+                            startIcon={<AddIcon />}
+                            onClick={() => openAdd("bay", shelf.id)}
+                            sx={{ mt: 1 }}
+                          >
+                            Add Bay
+                          </Button>
+                        </AccordionDetails>
+                      </Accordion>
+                    ))}
+
+                    {/* Add shelf */}
+                    <Button
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => openAdd("shelf", rack.id)}
+                      sx={{ mt: 0.5 }}
+                    >
+                      Add Shelf
+                    </Button>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+
+              {/* Add rack */}
+              <Button
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => openAdd("rack", zone.id)}
+                sx={{ mt: 0.5 }}
+              >
+                Add Rack
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </Stack>
+
+      <LocationDialog
+        open={dialog.open}
+        level={dialog.level}
+        parentId={dialog.parentId}
+        existing={dialog.existing}
+        deleteMode={dialog.deleteMode}
+        onClose={() => setDialog(closedDialog)}
+        onSaved={handleSaved}
+      />
+    </>
   );
 }

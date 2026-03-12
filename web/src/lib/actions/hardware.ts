@@ -121,6 +121,26 @@ export async function removeZone(id: string) {
   return result;
 }
 
+export async function listMyZones(
+  params?: PaginationParams
+): Promise<ActionResult<Zone[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  const userId = guard.data.userId;
+  try {
+    const q = db
+      .select()
+      .from(zones)
+      .where(eq(zones.userId, userId))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
 export async function listZonesByUser(
   userId: string,
   params?: PaginationParams

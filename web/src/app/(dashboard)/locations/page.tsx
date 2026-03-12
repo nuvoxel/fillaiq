@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
 import { PageHeader } from "@/components/layout/page-header";
-import { ZoneDialog } from "@/components/locations/zone-dialog";
+import { LocationDialog } from "@/components/locations/location-dialog";
 import { RackTopologyTab } from "../hardware/rack-topology-tab";
 
 export default function LocationsPage() {
@@ -30,10 +29,14 @@ export default function LocationsPage() {
 
       <RackTopologyTab key={refreshKey} />
 
-      <ZoneDialog
+      <LocationDialog
         open={zoneDialogOpen}
+        level="zone"
         onClose={() => setZoneDialogOpen(false)}
-        onSaved={() => setRefreshKey((k) => k + 1)}
+        onSaved={() => {
+          setZoneDialogOpen(false);
+          setRefreshKey((k) => k + 1);
+        }}
       />
     </div>
   );
