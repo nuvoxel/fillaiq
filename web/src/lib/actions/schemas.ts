@@ -38,6 +38,7 @@ import {
   dryingSessions,
   environmentalReadings,
 } from "@/db/schema/events";
+import { hardwareModels, hardwareIdentifiers } from "@/db/schema/hardware";
 import { auditLogs } from "@/db/schema/audit";
 
 const serverManaged = { id: true, createdAt: true, updatedAt: true } as const;
@@ -127,6 +128,14 @@ export const insertBayModuleSchema = createInsertSchema(bayModules).omit(serverM
 export const updateBayModuleSchema = createUpdateSchema(bayModules).omit(serverManaged);
 
 export const insertSlotStatusSchema = createInsertSchema(slotStatus).omit(serverManaged);
+
+// ── Hardware Catalog ────────────────────────────────────────────────────────
+
+export const insertHardwareModelSchema = createInsertSchema(hardwareModels).omit(serverManaged);
+export const updateHardwareModelSchema = createUpdateSchema(hardwareModels).omit(serverManaged);
+
+export const insertHardwareIdentifierSchema = createInsertSchema(hardwareIdentifiers).omit(serverManaged);
+export const updateHardwareIdentifierSchema = createUpdateSchema(hardwareIdentifiers).omit(serverManaged);
 
 // ── Events ──────────────────────────────────────────────────────────────────
 

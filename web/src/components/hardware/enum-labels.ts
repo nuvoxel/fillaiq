@@ -75,6 +75,30 @@ export const equipmentTypeLabels: Record<string, string> = {
   other: "Other",
 };
 
+export const hardwareCategoryLabels: Record<string, string> = {
+  label_printer: "Label Printer",
+  scan_station: "Scan Station",
+  shelf_station: "Shelf Station",
+  fdm_printer: "FDM Printer",
+  resin_printer: "Resin Printer",
+  cnc: "CNC",
+  laser_cutter: "Laser Cutter",
+  laser_engraver: "Laser Engraver",
+  drybox: "Drybox",
+  filament_changer: "Filament Changer",
+  enclosure: "Enclosure",
+  other: "Other",
+};
+
+export const hardwareIdentifierTypeLabels: Record<string, string> = {
+  usb_vid_pid: "USB VID:PID",
+  ble_name_prefix: "BLE Name Prefix",
+  ble_service_uuid: "BLE Service UUID",
+  mdns_service: "mDNS Service",
+  mqtt_topic_prefix: "MQTT Topic Prefix",
+  serial_pattern: "Serial Pattern",
+};
+
 export function enumToOptions(labels: Record<string, string>) {
   return Object.entries(labels).map(([value, label]) => ({ value, label }));
 }
