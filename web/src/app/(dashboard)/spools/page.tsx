@@ -15,7 +15,7 @@ import AddIcon from "@mui/icons-material/Add";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PageHeader } from "@/components/layout/page-header";
-import { listUserItems } from "@/lib/actions/user-library";
+import { listMyItems } from "@/lib/actions/user-library";
 
 type UserItem = {
   id: string;
@@ -114,7 +114,7 @@ export default function SpoolsPage() {
 
   useEffect(() => {
     setLoading(true);
-    listUserItems().then((result) => {
+    listMyItems().then((result) => {
       if (result.data) setUserItems(result.data as UserItem[]);
       setLoading(false);
     });

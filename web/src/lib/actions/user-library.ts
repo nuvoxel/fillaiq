@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, and, type SQL } from "drizzle-orm";
+import { eq, and, desc, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   users,
@@ -186,6 +186,30 @@ export async function removeUserItem(id: string) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "user_item", resourceId: result.data.id });
   }
   return result;
+}
+
+export async function listMyItems(
+  params?: PaginationParams & { status?: string }
+): Promise<ActionResult<UserItem[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const conditions: SQL[] = [eq(userItems.userId, guard.data.userId)];
+    if (params?.status) {
+      conditions.push(eq(userItems.status, params.status as any));
+    }
+    const q = db
+      .select()
+      .from(userItems)
+      .where(and(...conditions))
+      .orderBy(desc(userItems.createdAt))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 
 export async function listUserItemsByUser(
