@@ -25,6 +25,7 @@ import {
   toolCategoryEnum,
 } from "./enums";
 import { products, filamentProfiles } from "./central-catalog";
+import { hardwareModels } from "./hardware";
 import { slots } from "./storage";
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -260,6 +261,45 @@ export const machineAccessories = pgTable("machine_accessories", {
   manufacturer: varchar("manufacturer", { length: 255 }),
   model: varchar("model", { length: 255 }),
   isActive: boolean("is_active").default(true).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── User Printers (physical label printer instances) ─────────────────────────
+
+export const userPrinters = pgTable("user_printers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => users.id)
+    .notNull(),
+  hardwareModelId: uuid("hardware_model_id").references(
+    () => hardwareModels.id
+  ),
+  name: varchar("name", { length: 255 }).notNull(),
+  // ── Instance identity ──────────────────────────────────────────────────
+  serialNumber: varchar("serial_number", { length: 255 }),
+  firmwareVersion: varchar("firmware_version", { length: 50 }),
+  bleAddress: varchar("ble_address", { length: 20 }),
+  bleName: varchar("ble_name", { length: 100 }),
+  // ── USB identity (from USB Host discovery) ─────────────────────────────
+  usbVid: varchar("usb_vid", { length: 6 }),
+  usbPid: varchar("usb_pid", { length: 6 }),
+  usbManufacturer: varchar("usb_manufacturer", { length: 255 }),
+  usbProduct: varchar("usb_product", { length: 255 }),
+  usbSerial: varchar("usb_serial", { length: 255 }),
+  // ── Live state ─────────────────────────────────────────────────────────
+  batteryPercent: integer("battery_percent"),
+  paperLoaded: boolean("paper_loaded"),
+  coverClosed: boolean("cover_closed"),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  lastConnectedVia: varchar("last_connected_via", { length: 10 }), // ble, usb
+  // ── Association ────────────────────────────────────────────────────────
+  scanStationId: uuid("scan_station_id"), // FK added below to avoid circular
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

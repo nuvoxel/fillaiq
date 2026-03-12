@@ -13,6 +13,7 @@ import {
   users,
   userItems,
   machines,
+  userPrinters,
   machineToolHeads,
   machineWorkSurfaces,
   machineMaterialSlots,
@@ -135,6 +136,7 @@ export const hardwareModelsRelations = relations(
       references: [brands.id],
     }),
     identifiers: many(hardwareIdentifiers),
+    userPrinters: many(userPrinters),
   })
 );
 
@@ -175,6 +177,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   members: many(members),
   userItems: many(userItems),
   machines: many(machines),
+  printers: many(userPrinters),
   printProfiles: many(userPrintProfiles),
   equipment: many(equipment),
   labelTemplates: many(labelTemplates),
@@ -206,6 +209,24 @@ export const userItemsRelations = relations(userItems, ({ one, many }) => ({
   usageSessions: many(usageSessions),
   dryingSessions: many(dryingSessions),
 }));
+
+export const userPrintersRelations = relations(
+  userPrinters,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userPrinters.userId],
+      references: [users.id],
+    }),
+    hardwareModel: one(hardwareModels, {
+      fields: [userPrinters.hardwareModelId],
+      references: [hardwareModels.id],
+    }),
+    scanStation: one(scanStations, {
+      fields: [userPrinters.scanStationId],
+      references: [scanStations.id],
+    }),
+  })
+);
 
 export const machinesRelations = relations(machines, ({ one, many }) => ({
   user: one(users, {
@@ -524,6 +545,7 @@ export const scanStationsRelations = relations(
     }),
     scanEvents: many(scanEvents),
     environmentalReadings: many(environmentalReadings),
+    printers: many(userPrinters),
   })
 );
 
