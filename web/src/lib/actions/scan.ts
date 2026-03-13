@@ -322,6 +322,92 @@ async function tryIdentifyByNfc(
   return null;
 }
 
+// ── Scan Sessions ─────────────────────────────────────────────────────────────
+
+export async function listMyScanSessions(params?: {
+  stationId?: string;
+  status?: string;
+  limit?: number;
+}) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const conditions = [eq(scanSessions.userId, guard.data.userId)];
+  if (params?.stationId) {
+    conditions.push(eq(scanSessions.stationId, params.stationId));
+  }
+  if (params?.status) {
+    conditions.push(eq(scanSessions.status, params.status as any));
+  }
+
+  const rows = await db
+    .select({
+      session: scanSessions,
+      productName: products.name,
+      brandName: brands.name,
+    })
+    .from(scanSessions)
+    .leftJoin(products, eq(scanSessions.matchedProductId, products.id))
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .where(and(...conditions))
+    .orderBy(desc(scanSessions.updatedAt))
+    .limit(params?.limit ?? 20);
+
+  return ok(
+    rows.map((r) => ({
+      ...r.session,
+      productName: r.productName,
+      brandName: r.brandName,
+    }))
+  );
+}
+
+export async function getScanSession(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [row] = await db
+    .select({
+      session: scanSessions,
+      productName: products.name,
+      brandName: brands.name,
+    })
+    .from(scanSessions)
+    .leftJoin(products, eq(scanSessions.matchedProductId, products.id))
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .where(
+      and(eq(scanSessions.id, id), eq(scanSessions.userId, guard.data.userId))
+    );
+
+  if (!row) return err("Session not found");
+  return ok({ ...row.session, productName: row.productName, brandName: row.brandName });
+}
+
+export async function abandonSession(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [session] = await db
+    .select()
+    .from(scanSessions)
+    .where(
+      and(
+        eq(scanSessions.id, id),
+        eq(scanSessions.userId, guard.data.userId),
+        eq(scanSessions.status, "active")
+      )
+    );
+
+  if (!session) return err("Active session not found");
+
+  await db
+    .update(scanSessions)
+    .set({ status: "abandoned", updatedAt: new Date() })
+    .where(eq(scanSessions.id, id));
+
+  return ok({ abandoned: true });
+}
+
 // ── Recent Scans ──────────────────────────────────────────────────────────────
 
 export async function listMyRecentScans(limit = 20) {

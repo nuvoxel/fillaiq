@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -29,6 +29,17 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ColorLensIcon from "@mui/icons-material/ColorLens";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
+import SensorsIcon from "@mui/icons-material/Sensors";
+import HistoryIcon from "@mui/icons-material/History";
+import FiberNewIcon from "@mui/icons-material/FiberNew";
+import CloseIcon from "@mui/icons-material/Close";
+import Skeleton from "@mui/material/Skeleton";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import { PageHeader } from "@/components/layout/page-header";
 import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
 import { ColorCapture, type CapturedColor } from "@/components/scan/color-capture";
@@ -42,6 +53,8 @@ import {
   lookupProductByBarcode,
   searchProducts,
   createIntakeItem,
+  listMyScanSessions,
+  abandonSession,
 } from "@/lib/actions/scan";
 import {
   PrintLabelDialog,
@@ -107,17 +120,121 @@ export default function ScanPage() {
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedSlotAddress, setSelectedSlotAddress] = useState("");
 
+  // ── Sessions ────────────────────────────────────────────────────────────────
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sessionMode, setSessionMode] = useState<"pick" | "active" | null>(null);
+
   // ── Result ──────────────────────────────────────────────────────────────────
   const [intakeResult, setIntakeResult] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
 
+  // ── Load sessions when station changes ────────────────────────────────────
+
+  const loadSessions = useCallback(async (stationId: string) => {
+    setSessionsLoading(true);
+    const result = await listMyScanSessions({ stationId, limit: 10 });
+    if (result.data) {
+      setSessions(result.data);
+      // If there are active sessions, show the picker
+      const active = result.data.filter((s: any) => s.status === "active");
+      if (active.length > 0 && !selectedSessionId) {
+        setSessionMode("pick");
+      }
+    }
+    setSessionsLoading(false);
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (pairedStation?.id) {
+      loadSessions(pairedStation.id);
+    } else {
+      setSessions([]);
+      setSessionMode(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairedStation?.id]);
+
+  const handleSelectSession = useCallback(
+    (session: any) => {
+      setSelectedSessionId(session.id);
+      setSessionMode("active");
+
+      // Pre-fill data from the session
+      if (session.bestWeightG != null) {
+        setInitialWeight(session.bestWeightG.toFixed(1));
+      }
+
+      // If session has a matched product, look it up
+      if (session.matchedProductId && session.productName) {
+        setProductMatch({
+          match: session.matchMethod ?? "session",
+          product: {
+            id: session.matchedProductId,
+            name: session.productName,
+          },
+          brand: session.brandName ? { name: session.brandName } : null,
+        });
+      }
+
+      // Pre-fill NFC data
+      if (session.nfcUid) {
+        setStationData((prev) => ({
+          scanEventId: prev?.scanEventId ?? "",
+          sessionId: session.id,
+          weightG: session.bestWeightG ?? prev?.weightG ?? null,
+          weightStable: prev?.weightStable ?? null,
+          nfcPresent: true,
+          nfcUid: session.nfcUid,
+          nfcTagType: prev?.nfcTagType ?? null,
+          nfcTagFormat: session.nfcTagFormat ?? null,
+          nfcParsedData: session.nfcParsedData as Record<string, any> | null,
+          colorHex: session.bestColorHex ?? prev?.colorHex ?? null,
+          colorLabL: session.bestColorLabL ?? prev?.colorLabL ?? null,
+          colorLabA: session.bestColorLabA ?? prev?.colorLabA ?? null,
+          colorLabB: session.bestColorLabB ?? prev?.colorLabB ?? null,
+          spectralData: session.bestSpectralData ?? prev?.spectralData ?? null,
+          heightMm: session.bestHeightMm ?? prev?.heightMm ?? null,
+          autoProduct: prev?.autoProduct ?? null,
+        }));
+      }
+    },
+    []
+  );
+
+  const handleNewSession = useCallback(() => {
+    setSelectedSessionId(null);
+    setSessionMode("active");
+  }, []);
+
+  const handleAbandonSession = useCallback(
+    async (sessionId: string) => {
+      await abandonSession(sessionId);
+      if (pairedStation?.id) {
+        loadSessions(pairedStation.id);
+      }
+      if (selectedSessionId === sessionId) {
+        setSelectedSessionId(null);
+        setSessionMode("pick");
+      }
+    },
+    [pairedStation?.id, selectedSessionId, loadSessions]
+  );
+
   // ── Station scan received ───────────────────────────────────────────────────
 
   const handleStationScan = useCallback(
     (data: StationScanData) => {
       setStationData(data);
+
+      // If station provides a session and we haven't picked one yet, auto-select it
+      if (data.sessionId && !selectedSessionId && sessionMode !== "pick") {
+        setSelectedSessionId(data.sessionId);
+        setSessionMode("active");
+      }
 
       // Pre-fill weight from station if we don't have one yet
       if (data.weightG != null && data.weightStable && !initialWeight) {
@@ -133,7 +250,7 @@ export default function ScanPage() {
         });
       }
     },
-    [initialWeight, productMatch]
+    [initialWeight, productMatch, selectedSessionId, sessionMode]
   );
 
   // ── Barcodes detected (phone camera) ──────────────────────────────────────
@@ -276,7 +393,7 @@ export default function ScanPage() {
       productId: productMatch?.product?.id,
       packageType: packageType ?? undefined,
       scanEventId: stationData?.scanEventId,
-      sessionId: stationData?.sessionId ?? undefined,
+      sessionId: selectedSessionId ?? stationData?.sessionId ?? undefined,
       slotId: selectedSlotId ?? undefined,
       barcodeValue: barcode?.value,
       barcodeFormat: barcode?.format,
@@ -324,6 +441,13 @@ export default function ScanPage() {
     setIntakeResult(null);
     setStationData(null);
     setError(null);
+    setSelectedSessionId(null);
+    // Re-show session picker if there are active sessions
+    if (pairedStation?.id) {
+      loadSessions(pairedStation.id);
+    } else {
+      setSessionMode(null);
+    }
   };
 
   // ── Whether we have station providing data ──────────────────────────────────
@@ -352,7 +476,117 @@ export default function ScanPage() {
         />
       </Box>
 
+      {/* ── Session Selector ───────────────────────────────────────── */}
+      {sessionMode === "pick" && (
+        <Card variant="outlined" sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 0.5 }}>
+              <HistoryIcon fontSize="small" />
+              Active Scan Sessions
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Continue an existing session or start a new one.
+            </Typography>
+
+            {sessionsLoading ? (
+              <Stack spacing={1}>
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} variant="rounded" height={56} />
+                ))}
+              </Stack>
+            ) : (
+              <List disablePadding>
+                {sessions
+                  .filter((s) => s.status === "active")
+                  .map((session) => (
+                    <ListItemButton
+                      key={session.id}
+                      onClick={() => handleSelectSession(session)}
+                      sx={{
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 2,
+                        mb: 1,
+                        "&:hover": { borderColor: "primary.main" },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        {session.bestColorHex ? (
+                          <Box
+                            sx={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: "50%",
+                              bgcolor: session.bestColorHex,
+                              border: 1,
+                              borderColor: "divider",
+                            }}
+                          />
+                        ) : (
+                          <SensorsIcon color="primary" fontSize="small" />
+                        )}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          session.productName
+                            ? `${session.brandName ? session.brandName + " " : ""}${session.productName}`
+                            : session.nfcUid
+                              ? `NFC: ${session.nfcUid.slice(0, 16)}...`
+                              : "Unidentified spool"
+                        }
+                        secondary={
+                          [
+                            session.bestWeightG != null && `${session.bestWeightG.toFixed(0)}g`,
+                            session.matchMethod && `via ${session.matchMethod}`,
+                            `Started ${new Date(session.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        }
+                        primaryTypographyProps={{ fontWeight: 500, variant: "body2" }}
+                        secondaryTypographyProps={{ variant: "caption" }}
+                      />
+                      <Tooltip title="Abandon session">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAbandonSession(session.id);
+                          }}
+                          sx={{ ml: 1 }}
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </ListItemButton>
+                  ))}
+
+                <ListItemButton
+                  onClick={handleNewSession}
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    borderStyle: "dashed",
+                    "&:hover": { borderColor: "primary.main" },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <FiberNewIcon color="primary" fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="Start new session"
+                    primaryTypographyProps={{ fontWeight: 500, variant: "body2", color: "primary.main" }}
+                  />
+                </ListItemButton>
+              </List>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Stepper ───────────────────────────────────────────────────── */}
+      {(sessionMode !== "pick") && (
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
         {STEPS.map((label) => (
           <Step key={label}>
@@ -360,6 +594,7 @@ export default function ScanPage() {
           </Step>
         ))}
       </Stepper>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -372,7 +607,7 @@ export default function ScanPage() {
           Station provides: NFC (auto-lookup), weight, color, height
           Phone provides: barcode camera, manual search
           ══════════════════════════════════════════════════════════════════ */}
-      {activeStep === 0 && (
+      {activeStep === 0 && sessionMode !== "pick" && (
         <Stack spacing={2}>
           {/* Auto-identified via station NFC */}
           {productMatch?.match === "nfc" && (
