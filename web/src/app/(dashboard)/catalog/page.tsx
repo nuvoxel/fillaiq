@@ -15,12 +15,16 @@ import SearchIcon from "@mui/icons-material/Search";
 import InputAdornment from "@mui/material/InputAdornment";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { PageHeader } from "@/components/layout/page-header";
 import { listBrands } from "@/lib/actions/central-catalog";
 import { listMaterials } from "@/lib/actions/central-catalog";
 import { listProducts } from "@/lib/actions/central-catalog";
-import { listHardwareModels } from "@/lib/actions/hardware-catalog";
+import { listHardwareModels, removeHardwareModel } from "@/lib/actions/hardware-catalog";
 import { HardwareModelDialog } from "@/components/hardware/hardware-model-dialog";
 import { hardwareCategoryLabels } from "@/components/hardware/enum-labels";
 import UsbIcon from "@mui/icons-material/Usb";
@@ -256,6 +260,53 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [hardwareDialogOpen, setHardwareDialogOpen] = useState(false);
   const [editingHardware, setEditingHardware] = useState<any>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleDeleteHardware = async (id: string) => {
+    if (!confirm("Delete this hardware model?")) return;
+    setDeleting(id);
+    await removeHardwareModel(id);
+    setDeleting(null);
+    load();
+  };
+
+  const hwActionsColumn: GridColDef = {
+    field: "actions",
+    headerName: "",
+    width: 90,
+    sortable: false,
+    filterable: false,
+    disableColumnMenu: true,
+    renderCell: (params) => (
+      <Box sx={{ display: "flex", gap: 0.25 }}>
+        <Tooltip title="Edit">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingHardware(params.row);
+              setHardwareDialogOpen(true);
+            }}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Delete">
+          <IconButton
+            size="small"
+            color="error"
+            disabled={deleting === params.row.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteHardware(params.row.id);
+            }}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    ),
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -280,7 +331,7 @@ export default function CatalogPage() {
   }, [load]);
 
   const rows = tab === 0 ? brands : tab === 1 ? materials : tab === 2 ? products : hardwareModelsData;
-  const cols = tab === 0 ? brandColumns : tab === 1 ? materialColumns : tab === 2 ? productColumns : hardwareColumns;
+  const cols = tab === 0 ? brandColumns : tab === 1 ? materialColumns : tab === 2 ? productColumns : [...hardwareColumns, hwActionsColumn];
 
   return (
     <div>
