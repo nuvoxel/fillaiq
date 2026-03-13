@@ -103,19 +103,24 @@ void Display::begin() {
     // Init SPI bus (FSPI on ESP32-S3)
     tftSPI = &SPI;
     tftSPI->begin(SPI_SCK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN, TFT_CS_PIN);
+    Serial.println("  SPI init done"); Serial.flush();
 
     // Init LVGL
     lv_init();
     lv_tick_set_cb([]() -> uint32_t { return (uint32_t)millis(); });
     lv_delay_set_cb([](uint32_t ms){ delay(ms); });
+    Serial.println("  LVGL init done"); Serial.flush();
 
     // Create display using LVGL native driver
 #ifdef BOARD_SCAN_TOUCH
-    // ILI9341 320x240 — landscape
+    // ILI9341 — native 240x320, rotated to 320x240 landscape
     _screenW = 320;
     _screenH = 240;
-    lvDisp = lv_ili9341_create(_screenW, _screenH, LV_LCD_FLAG_NONE, spiSendCmd, spiSendColor);
+    Serial.println("  Creating ILI9341..."); Serial.flush();
+    lvDisp = lv_ili9341_create(240, 320, LV_LCD_FLAG_NONE, spiSendCmd, spiSendColor);
+    Serial.println("  ILI9341 created"); Serial.flush();
     lv_display_set_rotation(lvDisp, LV_DISPLAY_ROTATION_90);
+    Serial.println("  Rotation set"); Serial.flush();
 #else
     // ST7789 240x280 — portrait
     _screenW = 240;
@@ -123,6 +128,16 @@ void Display::begin() {
     lvDisp = lv_st7789_create(_screenW, _screenH, LV_LCD_FLAG_NONE, spiSendCmd, spiSendColor);
     lv_st7789_set_gap(lvDisp, 0, 20);  // 1.69" display VRAM offset
 #endif
+
+    // Allocate draw buffers — partial mode, 20 rows at a time
+    // 320 = max width (ILI9341 landscape), 2 bytes per pixel (RGB565)
+    #define DRAW_BUF_LINES 20
+    #define DRAW_BUF_SIZE  (320 * DRAW_BUF_LINES * 2)
+    static uint8_t __attribute__((aligned(4))) buf1[DRAW_BUF_SIZE];
+    static uint8_t __attribute__((aligned(4))) buf2[DRAW_BUF_SIZE];
+    lv_display_set_buffers(lvDisp, buf1, buf2, sizeof(buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    Serial.printf("  LVGL bufs: %d bytes x2 @ %p, %p\n", DRAW_BUF_SIZE, buf1, buf2);
+    Serial.flush();
 
     // Cache colors (matched to web brand palette)
     brandOrange = lv_color_hex(BRAND_ORANGE_HEX);
