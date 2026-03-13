@@ -12,6 +12,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { PageHeader } from "@/components/layout/page-header";
+import { SpoolActions } from "@/components/spools/spool-actions";
 import { WeightChart } from "@/components/spools/weight-chart";
 import { UserItemEventsTabs } from "@/components/spools/spool-events-tabs";
 import { getUserItemWithRelations } from "@/lib/actions/user-library";
@@ -74,13 +75,27 @@ export default async function SpoolDetailPage({
         colorHex?: string;
         colorName?: string;
         brandId?: string;
+        brand?: { name?: string } | null;
+        material?: { name?: string } | null;
       }
     | null
     | undefined;
 
+  const brandName = product?.brand?.name ?? undefined;
+  const materialName = product?.material?.name ?? undefined;
+
   return (
     <div>
-      <Box sx={{ mb: 2 }}>
+      <Box
+        sx={{
+          mb: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 1,
+        }}
+      >
         <Button
           href="/spools"
           startIcon={<ArrowBackIcon />}
@@ -88,6 +103,12 @@ export default async function SpoolDetailPage({
         >
           Back to Spools
         </Button>
+        <SpoolActions
+          spool={userItem as any}
+          product={product ?? null}
+          brandName={brandName}
+          materialName={materialName}
+        />
       </Box>
       <PageHeader title="Spool Details" />
 

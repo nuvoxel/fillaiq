@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, ilike, and, type SQL } from "drizzle-orm";
+import { eq, or, ilike, and, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   brands,
@@ -254,7 +254,15 @@ export async function getProductWithRelations(id: string) {
   try {
     const row = await db.query.products.findFirst({
       where: eq(products.id, id),
-      with: { brand: true, material: true, filamentProfile: true, skuMappings: true, nfcTagPatterns: true },
+      with: {
+        brand: true,
+        material: true,
+        filamentProfile: true,
+        skuMappings: true,
+        nfcTagPatterns: true,
+        aliases: { with: { relatedProduct: { with: { brand: true } } } },
+        aliasedBy: { with: { product: { with: { brand: true } } } },
+      },
     });
     if (!row) return err("Not found");
     return ok(row);
@@ -567,6 +575,26 @@ export async function listAliasesByRelatedProduct(
       .select()
       .from(productAliases)
       .where(eq(productAliases.relatedProductId, relatedProductId));
+    return ok(rows);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+/** List all aliases where the product appears as either source or target. */
+export async function listAliasesForProduct(
+  productId: string
+): Promise<ActionResult<ProductAlias[]>> {
+  try {
+    const rows = await db
+      .select()
+      .from(productAliases)
+      .where(
+        or(
+          eq(productAliases.productId, productId),
+          eq(productAliases.relatedProductId, productId)
+        )
+      );
     return ok(rows);
   } catch (e) {
     return err((e as Error).message);

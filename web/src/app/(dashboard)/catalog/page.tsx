@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
@@ -245,6 +246,7 @@ const hardwareColumns: GridColDef[] = [
 ];
 
 export default function CatalogPage() {
+  const router = useRouter();
   const [tab, setTab] = useState(0);
   const [search, setSearch] = useState("");
   const [brands, setBrands] = useState<any[]>([]);
@@ -351,11 +353,17 @@ export default function CatalogPage() {
           pageSizeOptions={[10, 25, 50]}
           disableRowSelectionOnClick
           autoHeight
+          onRowClick={(params) => {
+            if (tab === 0) router.push(`/catalog/brands/${params.id}`);
+            else if (tab === 1) router.push(`/catalog/materials/${params.id}`);
+            else if (tab === 2) router.push(`/catalog/products/${params.id}`);
+          }}
           sx={{
             border: 1,
             borderColor: "divider",
             borderRadius: 3,
             "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
+            ...(tab < 3 ? { "& .MuiDataGrid-row": { cursor: "pointer" } } : {}),
           }}
         />
       )}

@@ -14,7 +14,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { listMachines, getMachineWithRelations, removeMachine, createMachine } from "@/lib/actions/user-library";
+import { listMyMachines, getMachineWithRelations, removeMachine, createMachine } from "@/lib/actions/user-library";
 import { MachineDialog } from "@/components/hardware/machine-dialog";
 import { useDeleteWithUndo } from "@/components/hardware/use-delete-with-undo";
 import { MachineDetail } from "./machine-detail";
@@ -26,6 +26,9 @@ type Machine = {
   manufacturer: string | null;
   model: string | null;
   nozzleDiameterMm: number | null;
+  buildVolumeX: number | null;
+  buildVolumeY: number | null;
+  buildVolumeZ: number | null;
   ipAddress: string | null;
   hasFilamentChanger: boolean | null;
   filamentChangerSlotCount: number | null;
@@ -58,7 +61,7 @@ export function MachinesTab({ refreshKey }: { refreshKey?: number }) {
 
   const loadData = () => {
     setLoading(true);
-    listMachines().then((result) => {
+    listMyMachines().then((result) => {
       if (result.data) setMachines(result.data as Machine[]);
       setLoading(false);
     });
@@ -126,6 +129,17 @@ export function MachinesTab({ refreshKey }: { refreshKey?: number }) {
       width: 200,
       valueGetter: (_value, row) =>
         [row.manufacturer, row.model].filter(Boolean).join(" "),
+    },
+    {
+      field: "buildVolume",
+      headerName: "Build Volume",
+      width: 150,
+      valueGetter: (_value, row) => {
+        const { buildVolumeX: x, buildVolumeY: y, buildVolumeZ: z } = row;
+        if (x != null && y != null && z != null) return `${x} x ${y} x ${z}`;
+        return null;
+      },
+      valueFormatter: (v: string | null) => v ?? "—",
     },
     {
       field: "nozzleDiameterMm",

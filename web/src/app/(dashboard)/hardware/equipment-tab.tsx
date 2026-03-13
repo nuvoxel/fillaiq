@@ -13,7 +13,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import InventoryIcon from "@mui/icons-material/Inventory";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { listEquipment, removeEquipment, createEquipment } from "@/lib/actions/user-library";
+import { listMyEquipment, removeEquipment, createEquipment } from "@/lib/actions/user-library";
 import { EquipmentDialog } from "@/components/hardware/equipment-dialog";
 import { useDeleteWithUndo } from "@/components/hardware/use-delete-with-undo";
 
@@ -45,7 +45,7 @@ export function EquipmentTab({ refreshKey }: { refreshKey?: number }) {
 
   const loadData = () => {
     setLoading(true);
-    listEquipment().then((result) => {
+    listMyEquipment().then((result) => {
       if (result.data) setEquipment(result.data as Equipment[]);
       setLoading(false);
     });

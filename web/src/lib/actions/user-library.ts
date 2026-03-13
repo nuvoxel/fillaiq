@@ -266,7 +266,10 @@ export async function getUserItemWithRelations(id: string) {
   try {
     const row = await db.query.userItems.findFirst({
       where: eq(userItems.id, id),
-      with: { product: true, currentSlot: true },
+      with: {
+        product: { with: { brand: true, material: true } },
+        currentSlot: true,
+      },
     });
     if (!row) return err("Not found");
     const ownership = assertOwnership(guard.data, row.userId);
@@ -335,6 +338,26 @@ export async function removeMachine(id: string) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "machine", resourceId: result.data.id });
   }
   return result;
+}
+
+export async function listMyMachines(
+  params?: PaginationParams
+): Promise<ActionResult<Machine[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(machines)
+      .where(eq(machines.userId, guard.data.userId))
+      .orderBy(desc(machines.createdAt))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 
 export async function getMachineWithRelations(id: string) {
@@ -696,6 +719,26 @@ export async function removeEquipment(id: string) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "equipment", resourceId: result.data.id });
   }
   return result;
+}
+
+export async function listMyEquipment(
+  params?: PaginationParams
+): Promise<ActionResult<Equipment[]>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const q = db
+      .select()
+      .from(equipment)
+      .where(eq(equipment.userId, guard.data.userId))
+      .orderBy(desc(equipment.createdAt))
+      .$dynamic();
+    if (params?.limit) q.limit(params.limit);
+    if (params?.offset) q.offset(params.offset);
+    return ok(await q);
+  } catch (e) {
+    return err((e as Error).message);
+  }
 }
 
 export async function listEquipmentByUser(
