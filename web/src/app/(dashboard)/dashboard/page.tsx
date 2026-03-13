@@ -2,7 +2,6 @@ import Link from "next/link";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import CardActionArea from "@mui/material/CardActionArea";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
@@ -99,20 +98,18 @@ export default async function DashboardPage() {
       <Grid container spacing={2} sx={{ mb: 4 }}>
         {statCards.map((card, i) => (
           <Grid key={card.label} size={{ xs: 12, sm: 6, md: 3 }}>
-            <Card
-              sx={{
-                borderLeft: 4,
-                borderLeftColor: card.color,
-                transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                "&:hover": {
-                  transform: "translateY(-2px)",
-                  boxShadow: 4,
-                },
-              }}
-            >
-              <CardActionArea
-                component={Link}
-                href={card.href}
+            <Link href={card.href} style={{ textDecoration: "none" }}>
+              <Card
+                sx={{
+                  borderLeft: 4,
+                  borderLeftColor: card.color,
+                  cursor: "pointer",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                  "&:hover": {
+                    transform: "translateY(-2px)",
+                    boxShadow: 4,
+                  },
+                }}
               >
                 <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                   <Box
@@ -138,8 +135,8 @@ export default async function DashboardPage() {
                     </Typography>
                   </Box>
                 </CardContent>
-              </CardActionArea>
-            </Card>
+              </Card>
+            </Link>
           </Grid>
         ))}
       </Grid>
