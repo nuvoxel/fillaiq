@@ -73,6 +73,15 @@ void NfcScanner::begin() {
         Serial.printf("  NFC: hardware reset via GPIO%d\n", NFC_RST_PIN);
     }
 
+    // Quick I2C address probe before full init (avoids 30s+ of error spam)
+#ifdef BOARD_SCAN_TOUCH
+    Wire.beginTransmission(0x24);  // PN532 I2C address
+    if (Wire.endTransmission() != 0) {
+        Serial.println("  NFC: not detected (I2C addr 0x24 no response)");
+        return;
+    }
+#endif
+
     reader.begin();
     delay(100);
 

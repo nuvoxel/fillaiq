@@ -4,10 +4,7 @@
 #include "scan_config.h"
 #include "sensors.h"
 #include "api_client.h"
-
-// ============================================================
-// Filla IQ — Scan Station TFT Display (ST7789V3 240x280 SPI)
-// ============================================================
+#include <lvgl.h>
 
 // Status icon flags (bitmask)
 #define ICON_WIFI       0x01
@@ -17,6 +14,7 @@
 class Display {
 public:
     void begin();
+    void tick();  // Call from loop() — runs lv_timer_handler()
     void update(ScanState state, float weight, bool stable,
                 const char* nfcUid,
                 const ScanResponse* serverData,
@@ -27,19 +25,58 @@ public:
     void showPairingCode(const char* code);
     void showQrCode(const char* data, const char* label = nullptr);
 
-private:
-    bool _ready;
-    ScanState _lastState;
-    unsigned long _lastUpdate;
-    bool _forceRedraw;
-    uint8_t _lastIcons;
+    int screenWidth() const { return _screenW; }
+    int screenHeight() const { return _screenH; }
 
-    void drawHeader(const char* title, uint16_t titleColor, uint8_t icons);
-    void drawStatusIcons(uint8_t icons);
-    void drawIdle(uint8_t icons);
-    void drawUnknown(float weight, bool stable, const DistanceData* dist, const ColorData* color, uint8_t icons);
-    void drawIdentified(float weight, bool stable, const ScanResponse& resp, const DistanceData* dist, uint8_t icons);
-    void drawSpoolIcon(int cx, int cy, int w, int h, uint16_t fillColor);
+private:
+    bool _ready = false;
+    int _screenW = 0;
+    int _screenH = 0;
+    ScanState _lastState = SCAN_IDLE;
+    uint8_t _lastIcons = 0xFF;
+    unsigned long _lastUpdate = 0;
+    bool _forceRedraw = true;
+
+    // Current screen type (for knowing when to rebuild)
+    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_PAIRING, SCR_QR };
+    ScreenMode _currentScreen = SCR_NONE;
+
+    // LVGL objects — persistent across updates
+    lv_obj_t* _screen = nullptr;
+
+    // Status bar
+    lv_obj_t* _iconWifi = nullptr;
+    lv_obj_t* _iconPaired = nullptr;
+    lv_obj_t* _iconPrinter = nullptr;
+
+    // Idle screen
+    lv_obj_t* _idleTitle = nullptr;
+    lv_obj_t* _idleSubtitle = nullptr;
+
+    // Scanning/unknown screen
+    lv_obj_t* _weightLabel = nullptr;
+    lv_obj_t* _heightLabel = nullptr;
+    lv_obj_t* _colorSwatch = nullptr;
+
+    // Identified screen
+    lv_obj_t* _itemName = nullptr;
+    lv_obj_t* _materialLabel = nullptr;
+    lv_obj_t* _tempLabel = nullptr;
+
+    // Message screen
+    lv_obj_t* _msgLine1 = nullptr;
+    lv_obj_t* _msgLine2 = nullptr;
+
+    // Pairing screen
+    lv_obj_t* _pairCode = nullptr;
+
+    void buildIdleScreen(uint8_t icons);
+    void buildUnknownScreen(float weight, bool stable, const DistanceData* dist, const ColorData* color, uint8_t icons);
+    void buildIdentifiedScreen(float weight, bool stable, const ScanResponse& resp, const DistanceData* dist, uint8_t icons);
+    void updateStatusIcons(uint8_t icons);
+
+    void clearScreen();
+    lv_obj_t* createStatusBar(lv_obj_t* parent, uint8_t icons);
 };
 
 extern Display display;

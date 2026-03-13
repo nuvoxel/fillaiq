@@ -869,46 +869,77 @@ void setup() {
     Serial.printf("  Filla IQ — FillaScan v%s (%s)\n", FW_VERSION, FW_CHANNEL);
     Serial.println("========================================\n");
 
-    // I2C bus (sensors + NFC on touch board)
-    Wire.begin(I2C_SDA, I2C_SCL);
-
-    // Quick I2C scan with short timeout
-    Wire.setTimeOut(50);
-    Serial.print("  I2C:");
-    for (uint8_t addr = 1; addr < 127; addr++) {
-        Wire.beginTransmission(addr);
-        uint8_t err = Wire.endTransmission();
-        if (err == 0) Serial.printf(" 0x%02X", addr);
-        if (err == 4) Serial.printf(" 0x%02X?", addr);  // unknown error
-    }
-    Serial.println();
-    Wire.setTimeOut(500);  // Restore normal timeout for sensor drivers
-
-    // Init subsystems
+    // Display + backlight first — show boot screen immediately
     backlight.begin();
     backlight.color(0, 0, 255);  // Blue = booting
-
     display.begin();
     char bootMsg[48];
     snprintf(bootMsg, sizeof(bootMsg), "v%s %s", FW_VERSION, FW_CHANNEL);
     display.showMessage("Filla IQ", bootMsg);
 
+    // I2C bus (sensors + NFC on touch board)
+    display.showMessage("Booting...", "I2C init");
+
+    // Bus recovery: toggle SCL 9 times to release any stuck device
+    pinMode(I2C_SDA, INPUT_PULLUP);
+    pinMode(I2C_SCL, OUTPUT);
+    for (int i = 0; i < 9; i++) {
+        digitalWrite(I2C_SCL, LOW);
+        delayMicroseconds(5);
+        digitalWrite(I2C_SCL, HIGH);
+        delayMicroseconds(5);
+    }
+    // STOP condition
+    pinMode(I2C_SDA, OUTPUT);
+    digitalWrite(I2C_SDA, LOW);
+    delayMicroseconds(5);
+    digitalWrite(I2C_SCL, HIGH);
+    delayMicroseconds(5);
+    digitalWrite(I2C_SDA, HIGH);
+    delayMicroseconds(5);
+
+    Wire.begin(I2C_SDA, I2C_SCL);
+    Wire.setTimeOut(50);
+    Serial.printf("  I2C bus: SDA=%d SCL=%d\n", I2C_SDA, I2C_SCL); Serial.flush();
+
+    // Probe known addresses only (full scan can hang on stuck bus)
+    display.showMessage("Booting...", "I2C scan");
+    const uint8_t knownAddrs[] = { NAU7802_ADDR, VL53L1X_ADDR, VL53L1X_DEFAULT_ADDR,
+                                    AS7341_ADDR, TCS34725_ADDR, OPT4048_ADDR,
+                                    AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/ };
+    Serial.print("  I2C:"); Serial.flush();
+    for (size_t i = 0; i < sizeof(knownAddrs); i++) {
+        Wire.beginTransmission(knownAddrs[i]);
+        uint8_t err = Wire.endTransmission();
+        if (err == 0) { Serial.printf(" 0x%02X", knownAddrs[i]); Serial.flush(); }
+    }
+    Serial.println(); Serial.flush();
+    // Keep short timeout during sensor detection — restored after init
+    Wire.setTimeOut(100);
+    display.showMessage("Booting...", "I2C done");
+
     // Hardware-rooted device identity (eFuse HMAC)
+    display.showMessage("Booting...", "Identity");
     deviceIdentity.begin();
 
     // NFC reader
+    display.showMessage("Booting...", "NFC");
     initNfc();
 
     // TOF distance sensor
+    display.showMessage("Booting...", "TOF");
     distanceSensor.begin();
 
     // Color sensor (auto-detect)
+    display.showMessage("Booting...", "Color");
     colorSensor.begin();
 
     // Environmental sensor (auto-detect)
+    display.showMessage("Booting...", "Environment");
     envSensor.begin();
 
     // Weight
+    display.showMessage("Booting...", "Weight");
     scale.begin();
     float savedCal = loadCalibration();
     if (savedCal != 0) {
@@ -946,15 +977,18 @@ void setup() {
         }
         caps.colorSensor.set(chipName, "I2C", addr);
     }
+#ifdef BOARD_SCAN_TOUCH
+    caps.display.set("ILI9341", "SPI", 0, TFT_CS_PIN);
+#else
     caps.display.set("ST7789", "SPI", 0, TFT_CS_PIN);
+#endif
     caps.leds.set("WS2812B", "GPIO", 0, LED_PIN);
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
     // Label printer — BLE scan
+    display.showMessage("Booting...", "BLE Printer");
     labelPrinter.begin();
-
-    display.showMessage("Scanning BLE...", "Looking for printer");
     if (labelPrinter.scan(5000)) {
         const char* prName = labelPrinter.getDeviceName();
         const char* prAddr = labelPrinter.getBleAddr();
@@ -1003,6 +1037,7 @@ void setup() {
     // OTA updates
     otaBegin();
 
+    Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
     backlight.idle();
     enterState(SCAN_IDLE);
 
@@ -1019,6 +1054,9 @@ static unsigned long lastEnvReport = 0;
 
 void loop() {
     unsigned long now = millis();
+
+    // LVGL tick — must run frequently for rendering + animations
+    display.tick();
 
     // Snapshot weight once per loop (avoids repeated mutex acquisitions)
     snapshotWeight();

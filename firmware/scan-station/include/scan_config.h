@@ -19,9 +19,15 @@
 // ── ESP32-S3 2.8" ILI9341 Touch Board (lcdwiki 2.8inch ESP32-S3) ──
 // Display is built-in; 4 expansion GPIOs on 1.25mm connector: IO2, IO3, IO14, IO21
 
+// SPI bus (shared display + future peripherals)
+#define SPI_SCK_PIN     12
+#define SPI_MOSI_PIN    11
+#define SPI_MISO_PIN    13
+
 // Display SPI (directly connected on-board)
 #define TFT_CS_PIN      10
 #define TFT_DC_PIN      46
+#define TFT_RST_PIN     -1   // No reset pin on this board
 #define TFT_BLK_PIN     45
 
 // Capacitive touch (FT6336G, separate I2C bus on-board)
