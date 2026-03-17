@@ -33,6 +33,12 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import InfoIcon from "@mui/icons-material/Info";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
+import { listMyPrinters, listMyPrintJobs, cancelPrintJob, cancelAllPendingPrintJobs } from "@/lib/actions/user-library";
+import CloseIcon from "@mui/icons-material/Close";
+import BatteryFullIcon from "@mui/icons-material/BatteryFull";
+import Battery5BarIcon from "@mui/icons-material/Battery5Bar";
+import Battery2BarIcon from "@mui/icons-material/Battery2Bar";
+import BatteryAlertIcon from "@mui/icons-material/BatteryAlert";
 import EnvironmentChart from "@/components/charts/environment-chart";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -71,6 +77,10 @@ type StationConfig = {
     camera?: boolean;
     environment?: SensorDetail;
     printer?: PrinterDetail;
+    touch?: SensorDetail;
+    sdCard?: SensorDetail;
+    audio?: SensorDetail;
+    battery?: SensorDetail;
   };
   deviceSettings?: Record<string, any>;
 } | null;
@@ -246,6 +256,10 @@ function StationCard({
                 {caps.display?.detected && <Chip label="Display" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.leds?.detected && <Chip label="LED" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.environment?.detected && <Chip label="Env" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.touch?.detected && <Chip label="Touch" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.sdCard?.detected && <Chip label="SD" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.audio?.detected && <Chip label="Audio" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
+                {caps.battery?.detected && <Chip label="Battery" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
                 {caps.printer?.detected && <Chip label="Printer" size="small" variant="outlined" color="secondary" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
               </Box>
             )}
@@ -260,6 +274,10 @@ function StationCard({
             <SensorRow label="Display" sensor={caps?.display} />
             <SensorRow label="LEDs" sensor={caps?.leds} />
             <SensorRow label="Env" sensor={caps?.environment} />
+            <SensorRow label="Touch" sensor={caps?.touch} />
+            <SensorRow label="SD Card" sensor={caps?.sdCard} />
+            <SensorRow label="Audio" sensor={caps?.audio} />
+            <SensorRow label="Battery" sensor={caps?.battery} />
             {caps?.turntable && <Chip label="Turntable" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
             {caps?.camera && <Chip label="Camera" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
           </Stack>
@@ -469,10 +487,211 @@ function StationCard({
   );
 }
 
+// ── Printer types & card ─────────────────────────────────────────────────────
+
+type UserPrinterRow = {
+  id: string;
+  name: string;
+  hardwareModelId: string | null;
+  serialNumber: string | null;
+  firmwareVersion: string | null;
+  bleAddress: string | null;
+  bleName: string | null;
+  batteryPercent: number | null;
+  paperLoaded: boolean | null;
+  coverClosed: boolean | null;
+  lastSeenAt: string | null;
+  lastConnectedVia: string | null;
+  scanStationId: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+const JOB_STATUS_COLOR: Record<string, "default" | "warning" | "success" | "error" | "info"> = {
+  pending: "warning",
+  sent: "info",
+  printing: "info",
+  printed: "success",
+  done: "success",
+  failed: "error",
+  cancelled: "default",
+};
+
+function PrinterCard({
+  printer, stationName, stationOnline, jobs, isPending, onCancelJob, onClearAll,
+}: {
+  printer: UserPrinterRow;
+  stationName?: string;
+  stationOnline?: boolean;
+  jobs: PrintJobRow[];
+  isPending: boolean;
+  onCancelJob: (id: string) => void;
+  onClearAll: () => void;
+}) {
+  const isOnline = stationOnline ?? false;
+  const activeJobs = jobs.filter((j) => ["pending", "sent", "printing"].includes(j.status));
+  const recentJobs = jobs.filter((j) => !["pending", "sent", "printing"].includes(j.status)).slice(0, 5);
+  const allJobs = [...activeJobs, ...recentJobs];
+
+  return (
+    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+      <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 2, bgcolor: "grey.50" }}>
+        <PrintIcon sx={{ color: "secondary.main" }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="subtitle1" fontWeight={600} noWrap>
+              {printer.name}
+            </Typography>
+            <Chip
+              icon={<FiberManualRecordIcon sx={{ fontSize: "10px !important" }} />}
+              label={isOnline ? "Online" : "Offline"}
+              size="small"
+              color={isOnline ? "success" : "default"}
+              variant="outlined"
+            />
+            {activeJobs.length > 0 && (
+              <Chip label={`${activeJobs.length} queued`} size="small" color="warning" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />
+            )}
+          </Box>
+          <Box sx={{ display: "flex", gap: 2, mt: 0.25, flexWrap: "wrap" }}>
+            {printer.bleAddress && (
+              <Typography variant="caption" fontFamily="monospace" color="text.secondary">
+                BLE {printer.bleAddress}
+              </Typography>
+            )}
+            {printer.bleName && (
+              <Typography variant="caption" color="text.secondary">
+                {printer.bleName}
+              </Typography>
+            )}
+            {stationName && (
+              <Typography variant="caption" color="text.secondary">
+                via {stationName}
+              </Typography>
+            )}
+            {printer.lastSeenAt && (
+              <Typography variant="caption" color="text.secondary">
+                Last seen {new Date(printer.lastSeenAt).toLocaleString()}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {printer.batteryPercent != null && (
+            <Chip
+              icon={
+                printer.batteryPercent <= 10 ? <BatteryAlertIcon /> :
+                printer.batteryPercent <= 30 ? <Battery2BarIcon /> :
+                printer.batteryPercent <= 70 ? <Battery5BarIcon /> :
+                <BatteryFullIcon />
+              }
+              label={`${printer.batteryPercent}%`}
+              size="small"
+              variant="outlined"
+              color={printer.batteryPercent <= 10 ? "error" : printer.batteryPercent <= 25 ? "warning" : "default"}
+            />
+          )}
+        </Box>
+      </Box>
+      {/* ── Status indicators ── */}
+      <Box sx={{ px: 2, py: 1, display: "flex", gap: 1, flexWrap: "wrap", borderTop: 1, borderColor: "divider" }}>
+        {printer.paperLoaded != null && (
+          <Chip
+            label={printer.paperLoaded ? "Paper OK" : "No Paper"}
+            size="small"
+            color={printer.paperLoaded ? "success" : "warning"}
+            variant="outlined"
+            sx={{ height: 22 }}
+          />
+        )}
+        {printer.coverClosed != null && (
+          <Chip
+            label={printer.coverClosed ? "Cover Closed" : "Cover Open"}
+            size="small"
+            color={printer.coverClosed ? "success" : "warning"}
+            variant="outlined"
+            sx={{ height: 22 }}
+          />
+        )}
+        {printer.lastConnectedVia && (
+          <Chip label={printer.lastConnectedVia.toUpperCase()} size="small" variant="outlined" sx={{ height: 22 }} />
+        )}
+        {printer.firmwareVersion && (
+          <Chip label={`FW ${printer.firmwareVersion}`} size="small" variant="outlined" sx={{ height: 22 }} />
+        )}
+      </Box>
+      {/* ── Print queue ── */}
+      <Box sx={{ borderTop: 1, borderColor: "divider" }}>
+        <Box sx={{ px: 2, py: 0.75, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "grey.50" }}>
+          <Typography variant="caption" fontWeight={600} color="text.secondary">
+            Print Queue
+          </Typography>
+          {activeJobs.length > 0 && (
+            <Button size="small" color="error" onClick={onClearAll} disabled={isPending} sx={{ fontSize: "0.7rem", minWidth: 0, py: 0 }}>
+              Clear All
+            </Button>
+          )}
+        </Box>
+        {allJobs.length === 0 ? (
+          <Box sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: "divider" }}>
+            <Typography variant="caption" color="text.disabled">
+              No print jobs
+            </Typography>
+          </Box>
+        ) : (
+          allJobs.map((job) => (
+            <Box
+              key={job.id}
+              sx={{
+                px: 2, py: 0.75,
+                display: "flex", alignItems: "center", gap: 1,
+                borderTop: 1, borderColor: "divider",
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" fontSize="0.8rem" noWrap>
+                  {(job.labelData as any)?.label || (job.labelData as any)?.location || "Print job"}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
+                  {new Date(job.createdAt).toLocaleString()}
+                </Typography>
+              </Box>
+              <Chip
+                label={job.status}
+                size="small"
+                color={JOB_STATUS_COLOR[job.status] ?? "default"}
+                variant="outlined"
+                sx={{ height: 20, textTransform: "capitalize", "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
+              />
+              {["pending", "sent", "printing"].includes(job.status) && (
+                <IconButton size="small" onClick={() => onCancelJob(job.id)} disabled={isPending} sx={{ p: 0.25 }}>
+                  <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              )}
+            </Box>
+          ))
+        )}
+      </Box>
+    </Paper>
+  );
+}
+
 // ── Main Tab ─────────────────────────────────────────────────────────────────
+
+type PrintJobRow = {
+  id: string;
+  status: string;
+  labelData: Record<string, any>;
+  copies: number;
+  stationId: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+};
 
 export function FillaIqTab() {
   const [stations, setStations] = useState<Station[]>([]);
+  const [printers, setPrinters] = useState<UserPrinterRow[]>([]);
+  const [printJobs, setPrintJobs] = useState<PrintJobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [envData, setEnvData] = useState<Record<string, { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null }>>({});
@@ -481,9 +700,13 @@ export function FillaIqTab() {
   const [pairError, setPairError] = useState("");
 
   const fetchStations = async () => {
-    const result = await listMyStations();
-    if (result.data) {
-      const stationList = result.data as unknown as Station[];
+    const [stationsResult, printersResult, jobsResult] = await Promise.all([
+      listMyStations(),
+      listMyPrinters(),
+      listMyPrintJobs({ limit: 50 }),
+    ]);
+    if (stationsResult.data) {
+      const stationList = stationsResult.data as unknown as Station[];
       setStations(stationList);
 
       const envEntries: Record<string, { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null }> = {};
@@ -503,6 +726,12 @@ export function FillaIqTab() {
           })
       );
       setEnvData(envEntries);
+    }
+    if (printersResult.data) {
+      setPrinters(printersResult.data as unknown as UserPrinterRow[]);
+    }
+    if (jobsResult.data) {
+      setPrintJobs(jobsResult.data as unknown as PrintJobRow[]);
     }
     setLoading(false);
   };
@@ -547,11 +776,18 @@ export function FillaIqTab() {
     });
   };
 
+  const stationNameMap = Object.fromEntries(stations.map((s) => [s.id, s.name]));
+  const stationPrinterOnlineMap = Object.fromEntries(stations.map((s) => {
+    const hasPrinter = Boolean((s.config as StationConfig)?.capabilities?.printer?.detected);
+    return [s.id, Boolean(s.isOnline) && hasPrinter];
+  }));
+
   return (
     <>
+      {/* ── Scan Stations ── */}
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Typography variant="h6" fontWeight={600}>
-          Devices
+          Scan Stations
         </Typography>
         <Button
           variant="contained"
@@ -587,6 +823,45 @@ export function FillaIqTab() {
             />
           ))}
         </Stack>
+      )}
+
+      {/* ── Label Printers ── */}
+      {!loading && printers.length > 0 && (
+        <>
+          <Typography variant="h6" fontWeight={600} sx={{ mt: 4, mb: 2 }}>
+            Label Printers
+          </Typography>
+          <Stack spacing={2}>
+            {printers.map((p) => {
+              // Jobs for this printer: assigned to its station, or unassigned
+              const printerJobs = printJobs.filter(
+                (j) => !j.stationId || j.stationId === p.scanStationId
+              );
+              return (
+                <PrinterCard
+                  key={p.id}
+                  printer={p}
+                  stationName={p.scanStationId ? stationNameMap[p.scanStationId] : undefined}
+                  stationOnline={p.scanStationId ? stationPrinterOnlineMap[p.scanStationId] : undefined}
+                  jobs={printerJobs}
+                  isPending={isPending}
+                  onCancelJob={(id) => {
+                    startTransition(async () => {
+                      await cancelPrintJob(id);
+                      fetchStations();
+                    });
+                  }}
+                  onClearAll={() => {
+                    startTransition(async () => {
+                      await cancelAllPendingPrintJobs();
+                      fetchStations();
+                    });
+                  }}
+                />
+              );
+            })}
+          </Stack>
+        </>
       )}
 
       {/* Pair dialog */}

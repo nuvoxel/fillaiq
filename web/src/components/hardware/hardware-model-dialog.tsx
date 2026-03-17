@@ -17,6 +17,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { createHardwareModel, updateHardwareModel } from "@/lib/actions/hardware-catalog";
 import { enumToOptions, hardwareCategoryLabels } from "./enum-labels";
+import { ImageUpload } from "@/components/image-upload";
 
 const categoryOptions = enumToOptions(hardwareCategoryLabels);
 
@@ -43,6 +44,7 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   // Label printer
   const [printWidthMm, setPrintWidthMm] = useState("");
   const [printHeightMaxMm, setPrintHeightMaxMm] = useState("");
@@ -99,6 +101,7 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
       const e = existing as Record<string, any>;
       setDescription(e.description ?? "");
       setWebsiteUrl(e.websiteUrl ?? "");
+      setImageUrl(e.imageUrl ?? null);
       setPrintWidthMm(e.printWidthMm != null ? String(e.printWidthMm) : "");
       setPrintHeightMaxMm(e.printHeightMaxMm != null ? String(e.printHeightMaxMm) : "");
       setPrintDpi(e.printDpi != null ? String(e.printDpi) : "");
@@ -129,6 +132,7 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
       setSlug("");
       setDescription("");
       setWebsiteUrl("");
+      setImageUrl(null);
       setPrintWidthMm("");
       setPrintHeightMaxMm("");
       setPrintDpi("");
@@ -167,6 +171,7 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
       slug,
       description: description || null,
       websiteUrl: websiteUrl || null,
+      imageUrl: imageUrl || null,
       hasUsb,
       hasBle,
       hasWifi,
@@ -218,38 +223,48 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
           {error && <Alert severity="error">{error}</Alert>}
 
           {/* ── Identity ─────────────────────────────────────────── */}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                label="Category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                required
-                size="small"
-                fullWidth
-              >
-                {categoryOptions.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                ))}
-              </TextField>
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <ImageUpload
+              value={imageUrl}
+              onChange={setImageUrl}
+              category="hardware"
+              label="Product Image"
+              width={120}
+              height={120}
+            />
+            <Grid container spacing={2} sx={{ flex: 1 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  select
+                  label="Category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  required
+                  size="small"
+                  fullWidth
+                >
+                  {categoryOptions.map((o) => (
+                    <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} required size="small" fullWidth />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label="Model" value={model} onChange={(e) => setModel(e.target.value)} required size="small" fullWidth />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} required size="small" fullWidth helperText="Auto-generated URL identifier" />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} size="small" fullWidth multiline rows={2} />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField label="Website URL" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} size="small" fullWidth />
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} required size="small" fullWidth />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Model" value={model} onChange={(e) => setModel(e.target.value)} required size="small" fullWidth />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} required size="small" fullWidth helperText="Auto-generated URL identifier" />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} size="small" fullWidth multiline rows={2} />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField label="Website URL" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} size="small" fullWidth />
-            </Grid>
-          </Grid>
+          </Box>
 
           {/* ── Label Printer Specs ──────────────────────────────── */}
           {isLabelPrinter && (

@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.1.0"
+#define FW_VERSION "1.1.1"
 #define FW_SKU     "filla-scan"      // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
@@ -30,25 +30,59 @@
 #define TFT_RST_PIN     -1   // No reset pin on this board
 #define TFT_BLK_PIN     45
 
-// Capacitive touch (FT6336G, separate I2C bus on-board)
+// Capacitive touch (FT6336G) + external sensors share I2C bus
+// The board's I2C header and touch controller are both on GPIO 15/16.
+// GPIO 5/6 are I2S audio (ES8311 codec) — NOT usable for I2C.
 #define TOUCH_SDA       16
 #define TOUCH_SCL       15
 #define TOUCH_INT       17
 #define TOUCH_RST       18
 
-// I2C bus — dedicated header (NFC in I2C mode, NAU7802, TOF, color)
-#define I2C_SDA          6
-#define I2C_SCL          5
+// I2C bus — shared with touch (NFC in I2C mode, NAU7802, TOF, color)
+#define I2C_SDA         16
+#define I2C_SCL         15
 
-// PN532 NFC reader (I2C mode on sensor bus, no dedicated CS/IRQ/RST)
+// PN532 NFC reader (dedicated I2C bus — Wire1 on UART pins)
 #define NFC_CS_PIN      -1   // Not used in I2C mode
-#define NFC_IRQ_PIN     14   // Expansion pin
+#define NFC_IRQ_PIN     14   // Expansion pin (not currently wired)
 #define NFC_RST_PIN     -1   // No reset pin available
+#define NFC_I2C_SDA     44   // Dedicated I2C bus (Wire1) for PN532
+#define NFC_I2C_SCL     43   // (avoids blocking main I2C bus)
 
-// WS2812B LED Ring
+// WS2812B LED Ring (external, expansion connector)
 #define LED_PIN         21   // Expansion pin
 #define LED_SKIP         0
 #define LED_COUNT       24
+
+// Onboard RGB LED (WS2812B single pixel)
+#define ONBOARD_RGB_PIN 42
+
+// SD Card (SDMMC 4-bit mode)
+#define SD_CLK_PIN      38
+#define SD_CMD_PIN      40
+#define SD_D0_PIN       39
+#define SD_D1_PIN       41
+#define SD_D2_PIN       48
+#define SD_D3_PIN       47
+
+// Audio — ES8311 codec (I2C control + I2S data)
+#define ES8311_ADDR     0x18
+#define I2S_MCK_PIN      4
+#define I2S_BCK_PIN      5
+#define I2S_WS_PIN       7
+#define I2S_DOUT_PIN     8   // Speaker (DAC output)
+#define I2S_DIN_PIN      6   // Microphone (ADC input)
+#define AMP_EN_PIN       1   // Amplifier enable (LOW = on)
+
+// Battery voltage ADC
+#define BATTERY_ADC_PIN  9
+
+// Button (BOOT key)
+#define BUTTON_PIN       0
+
+// UART (exposed on header)
+#define UART_RX_PIN     43
+#define UART_TX_PIN     44
 
 // No HX711 GPIOs — use NAU7802 (I2C) only
 #define HX711_SCK_PIN   -1

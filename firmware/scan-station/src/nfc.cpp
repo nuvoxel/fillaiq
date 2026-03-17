@@ -1,16 +1,17 @@
 #include "nfc.h"
 #include <SPI.h>
+#include <Wire.h>
 #include <Adafruit_PN532.h>
 #include "bambu_tag.h"
 
 // Global instance
 NfcScanner nfcScanner;
 
-// PN532 reader — SPI mode (DevKitC) or I2C mode (touch board)
+// PN532 reader — SPI mode (DevKitC) or dedicated I2C bus (touch board)
 #ifdef BOARD_SCAN_TOUCH
-static Adafruit_PN532 reader(NFC_IRQ_PIN, -1, &Wire);  // I2C mode
+static Adafruit_PN532 reader(NFC_IRQ_PIN, -1, &Wire1);  // Dedicated I2C bus (Wire1)
 #else
-static Adafruit_PN532 reader(NFC_CS_PIN, &SPI);         // SPI mode
+static Adafruit_PN532 reader(NFC_CS_PIN, &SPI);          // SPI mode
 #endif
 
 // Shared packet buffer (global in Adafruit_PN532.cpp)
@@ -73,11 +74,15 @@ void NfcScanner::begin() {
         Serial.printf("  NFC: hardware reset via GPIO%d\n", NFC_RST_PIN);
     }
 
-    // Quick I2C address probe before full init (avoids 30s+ of error spam)
+    // Init dedicated I2C bus for PN532 (separate from main sensor bus)
 #ifdef BOARD_SCAN_TOUCH
-    Wire.beginTransmission(0x24);  // PN532 I2C address
-    if (Wire.endTransmission() != 0) {
-        Serial.println("  NFC: not detected (I2C addr 0x24 no response)");
+    Wire1.begin(NFC_I2C_SDA, NFC_I2C_SCL, 100000);
+    Wire1.setTimeOut(100);
+
+    // Quick I2C address probe before full init (avoids 30s+ of error spam)
+    Wire1.beginTransmission(0x24);  // PN532 I2C address
+    if (Wire1.endTransmission() != 0) {
+        Serial.println("  NFC: not detected (I2C addr 0x24 no response on Wire1)");
         return;
     }
 #endif

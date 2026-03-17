@@ -112,6 +112,8 @@ void ScaleDriver::taskFunc(void* param) {
 }
 
 void ScaleDriver::processReading(long raw) {
+    _lastRawAdc = raw;
+
     float weight;
     if (_driverType == WEIGHT_NAU7802) {
         weight = (float)(raw - _nauOffset) / _scaleFactor;
@@ -197,6 +199,7 @@ bool ScaleDriver::isStable() {
 
 bool ScaleDriver::isConnected() { return _connected; }
 float ScaleDriver::getScaleFactor() { return _scaleFactor; }
+long  ScaleDriver::getLastRawAdc()  { return _lastRawAdc; }
 
 void ScaleDriver::tare(uint8_t samples) {
     if (!_connected) return;

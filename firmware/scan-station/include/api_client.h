@@ -115,6 +115,10 @@ struct DeviceCapabilities {
     SensorInfo display;
     SensorInfo leds;
     SensorInfo environment;
+    SensorInfo touch;
+    SensorInfo sdCard;
+    SensorInfo audio;
+    SensorInfo battery;
     PrinterInfo printer;
     bool turntable = false;
     bool camera = false;

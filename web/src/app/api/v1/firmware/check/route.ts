@@ -165,7 +165,7 @@ async function upsertPrinterFromHeartbeat(
   const model = printer.model || printer.usbProduct || "Unknown";
   const bleAddr = printer.bleAddr || null;
   const usbId = printer.usbId || null; // "0493:B002"
-  const bleName = model; // BLE advertised name is typically the model
+  const bleName = printer.bleName || printer.deviceName || null; // BLE advertised name from runtime state
 
   // 1. Try to find existing hardware model by identifiers
   let hardwareModelId: string | null = null;
@@ -307,11 +307,18 @@ async function upsertPrinterFromHeartbeat(
   const [usbVid, usbPid] = usbId ? usbId.split(":") : [null, null];
   const now = new Date();
 
+  // Build serial number string from integer or string
+  const serialStr = printer.serialNumber
+    ? String(printer.serialNumber)
+    : null;
+
   if (existingPrinter) {
     await db
       .update(userPrinters)
       .set({
         hardwareModelId,
+        bleName: bleName || undefined,
+        serialNumber: serialStr || undefined,
         firmwareVersion: printer.firmware || null,
         batteryPercent: printer.battery ?? null,
         paperLoaded: printer.paperLoaded ?? null,
@@ -331,10 +338,10 @@ async function upsertPrinterFromHeartbeat(
     await db.insert(userPrinters).values({
       userId,
       hardwareModelId,
-      name: model,
+      name: bleName || model,
       bleAddress: bleAddr,
       bleName: bleName,
-      serialNumber: printer.serialNumber ? String(printer.serialNumber) : null,
+      serialNumber: serialStr,
       firmwareVersion: printer.firmware || null,
       usbVid: usbVid || null,
       usbPid: usbPid || null,

@@ -31,6 +31,7 @@ public:
     bool  isStable();
     bool  isConnected();
     float getScaleFactor();
+    long  getLastRawAdc();   // Non-blocking: last raw ADC from weight task
 
     WeightDriverType getDriverType() const { return _driverType; }
     const char* getChipName() const;
@@ -70,6 +71,9 @@ private:
 
     // NAU7802 offset (stored separately since library doesn't have get_offset)
     int32_t _nauOffset;
+
+    // Last raw ADC value (updated by task, read by UI)
+    volatile long _lastRawAdc = 0;
 
     void processReading(long raw);
     void checkAutoTare();

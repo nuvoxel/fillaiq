@@ -45,11 +45,15 @@ void EnvironmentSensor::begin() {
                 }
             }
         }
-    } else if (_i2cProbe(AHT20_ADDR)) {
+    }
+#ifndef BOARD_SCAN_TOUCH
+    // AHT20 at 0x38 conflicts with FT6336G touch controller on the touch board
+    else if (_i2cProbe(AHT20_ADDR)) {
         _i2cAddr = AHT20_ADDR;
         _type = ENV_AHT20;
         _connected = true;
     }
+#endif
 
     // Fall back to DHT on GPIO if no I2C sensor found
 #ifdef DHT_PIN

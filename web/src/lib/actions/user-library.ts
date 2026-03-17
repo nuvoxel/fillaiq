@@ -1003,3 +1003,23 @@ export async function cancelPrintJob(id: string): Promise<ActionResult<PrintJob>
     return err((e as Error).message);
   }
 }
+
+export async function cancelAllPendingPrintJobs(): Promise<ActionResult<number>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const rows = await db
+      .update(printJobs)
+      .set({ status: "cancelled" })
+      .where(
+        and(
+          eq(printJobs.userId, guard.data.userId),
+          eq(printJobs.status, "pending")
+        )
+      )
+      .returning({ id: printJobs.id });
+    return ok(rows.length);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}

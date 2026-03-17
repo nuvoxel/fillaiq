@@ -5,9 +5,8 @@
 #include "api_client.h"
 
 // LVGL native display drivers
-#ifdef BOARD_SCAN_TOUCH
-#include "src/drivers/display/ili9341/lv_ili9341.h"
-#else
+#include "src/drivers/display/lcd/lv_lcd_generic_mipi.h"
+#ifndef BOARD_SCAN_TOUCH
 #include "src/drivers/display/st7789/lv_st7789.h"
 #endif
 
@@ -66,6 +65,11 @@ static void spiSendColor(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size
     digitalWrite(TFT_DC_PIN, LOW);
     for (size_t i = 0; i < cmd_size; i++) tftSPI->transfer(cmd[i]);
 
+    // Byte-swap RGB565: LVGL outputs little-endian, ILI9341 expects big-endian
+    uint16_t* px = (uint16_t*)param;
+    size_t count = param_size / 2;
+    for (size_t i = 0; i < count; i++) px[i] = __builtin_bswap16(px[i]);
+
     // Pixel data: DC high — use writeBytes for DMA bulk transfer
     digitalWrite(TFT_DC_PIN, HIGH);
     tftSPI->writeBytes(param, param_size);
@@ -75,6 +79,40 @@ static void spiSendColor(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size
 
     lv_display_flush_ready(disp);
 }
+
+// ── ILI9341V IPS init (lcdwiki 2.8" ESP32-S3 board) ──────────
+// Complete panel-specific init from vendor SDK.  Sent after the
+// generic MIPI create (which handles reset, sleep-out, MADCTL,
+// pixel format and display-on).
+#ifdef BOARD_SCAN_TOUCH
+static const uint8_t ili9341v_init_cmds[] = {
+    0xCF, 3, 0x00, 0xC1, 0x30,         // Power Control B
+    0xED, 4, 0x64, 0x03, 0x12, 0x81,   // Power On Sequence
+    0xE8, 3, 0x85, 0x00, 0x78,         // Driver Timing Control A
+    0xCB, 5, 0x39, 0x2C, 0x00,         // Power Control A
+              0x34, 0x02,
+    0xF7, 1, 0x20,                     // Pump Ratio Control
+    0xEA, 2, 0x00, 0x00,               // Driver Timing Control B
+    0xC0, 1, 0x13,                     // Power Control 1
+    0xC1, 1, 0x13,                     // Power Control 2
+    0xC5, 2, 0x22, 0x35,               // VCOM Control 1
+    0xC7, 1, 0xBD,                     // VCOM Control 2
+    0xB6, 2, 0x0A, 0x82,               // Display Function Control
+    0xF6, 2, 0x01, 0x30,               // Interface Control
+    0xB1, 2, 0x00, 0x1B,               // Frame Rate (70 Hz)
+    0xF2, 1, 0x00,                     // 3-Gamma Function Disable
+    0x26, 1, 0x01,                     // Gamma Curve Selected
+    0xE0, 15, 0x0F, 0x35, 0x31, 0x0B,  // Positive Gamma
+              0x0E, 0x06, 0x49, 0xA7,
+              0x33, 0x07, 0x0F, 0x03,
+              0x0C, 0x0A, 0x00,
+    0xE1, 15, 0x00, 0x0A, 0x0F, 0x04,  // Negative Gamma
+              0x11, 0x08, 0x36, 0x58,
+              0x4D, 0x07, 0x10, 0x0C,
+              0x32, 0x34, 0x0F,
+    LV_LCD_CMD_DELAY_MS, LV_LCD_CMD_EOF
+};
+#endif
 
 // ── Display Init ─────────────────────────────────────────────
 
@@ -111,16 +149,19 @@ void Display::begin() {
     lv_delay_set_cb([](uint32_t ms){ delay(ms); });
     Serial.println("  LVGL init done"); Serial.flush();
 
-    // Create display using LVGL native driver
+    // Create display using LVGL generic MIPI driver + board-specific init
 #ifdef BOARD_SCAN_TOUCH
-    // ILI9341 — native 240x320, rotated to 320x240 landscape
+    // ILI9341V IPS — 320x240 landscape via MADCTL hardware rotation
     _screenW = 320;
     _screenH = 240;
-    Serial.println("  Creating ILI9341..."); Serial.flush();
-    lvDisp = lv_ili9341_create(240, 320, LV_LCD_FLAG_NONE, spiSendCmd, spiSendColor);
-    Serial.println("  ILI9341 created"); Serial.flush();
-    lv_display_set_rotation(lvDisp, LV_DISPLAY_ROTATION_90);
-    Serial.println("  Rotation set"); Serial.flush();
+    Serial.println("  Creating ILI9341V..."); Serial.flush();
+    lvDisp = lv_lcd_generic_mipi_create(_screenW, _screenH, LV_LCD_FLAG_BGR, spiSendCmd, spiSendColor);
+    lv_lcd_generic_mipi_send_cmd_list(lvDisp, ili9341v_init_cmds);
+    // Set landscape: swap XY via MADCTL (MV + BGR = 0x28, matching vendor SDK)
+    lv_lcd_generic_mipi_set_address_mode(lvDisp, false, false, true, true);
+    // IPS panel requires display inversion ON for correct colors
+    lv_lcd_generic_mipi_set_invert(lvDisp, true);
+    Serial.println("  ILI9341V init done"); Serial.flush();
 #else
     // ST7789 240x280 — portrait
     _screenW = 240;
@@ -201,6 +242,37 @@ static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, lv_color_t c
 // ── Status Bar ───────────────────────────────────────────────
 
 lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
+    // Sensor indicators on the left
+    if (_sensorFlags) {
+        lv_obj_t* sensorBar = lv_obj_create(parent);
+        lv_obj_remove_style_all(sensorBar);
+        lv_obj_set_size(sensorBar, LV_SIZE_CONTENT, 16);
+        lv_obj_align(sensorBar, LV_ALIGN_TOP_LEFT, 8, 10);
+        lv_obj_set_flex_flow(sensorBar, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(sensorBar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(sensorBar, 6, 0);
+
+        struct { uint8_t flag; const char* name; } sensors[] = {
+            { SENSOR_NFC,   "NFC" },
+            { SENSOR_SCALE, "W" },
+            { SENSOR_TOF,   "D" },
+            { SENSOR_COLOR, "C" },
+            { SENSOR_ENV,   "E" },
+            { SENSOR_SD,    "SD" },
+            { SENSOR_AUDIO, LV_SYMBOL_AUDIO },
+        };
+        for (auto& s : sensors) {
+            if (_sensorFlags & s.flag) {
+                lv_obj_t* lbl = lv_label_create(sensorBar);
+                lv_obj_remove_style_all(lbl);
+                lv_label_set_text(lbl, s.name);
+                lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
+                lv_obj_set_style_text_color(lbl, green, 0);
+            }
+        }
+    }
+
+    // Connectivity icons on the right
     lv_obj_t* bar = lv_obj_create(parent);
     lv_obj_remove_style_all(bar);
     lv_obj_set_size(bar, 100, 20);
@@ -223,12 +295,16 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
 
     _iconPrinter = lv_label_create(bar);
     lv_obj_remove_style_all(_iconPrinter);
-    lv_label_set_text(_iconPrinter, LV_SYMBOL_COPY);
+    lv_label_set_text(_iconPrinter, "PRN");
     lv_obj_set_style_text_font(_iconPrinter, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
     if (!(icons & ICON_PRINTER)) lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
 
     return bar;
+}
+
+void Display::setSensorFlags(uint8_t flags) {
+    _sensorFlags = flags;
 }
 
 void Display::updateStatusIcons(uint8_t icons) {
@@ -244,6 +320,37 @@ void Display::updateStatusIcons(uint8_t icons) {
     _lastIcons = icons;
 }
 
+// ── LVGL Event Callbacks ────────────────────────────────────
+
+void Display::onSettingsBtnClick(lv_event_t* e) {
+    (void)e;
+    display.showMenu();
+}
+
+void Display::onBackBtnClick(lv_event_t* e) {
+    (void)e;
+    display._forceRedraw = true;
+    display._currentScreen = SCR_NONE;  // Force rebuild on next update()
+}
+
+void Display::onMenuItemClick(lv_event_t* e) {
+    int idx = (int)(intptr_t)lv_event_get_user_data(e);
+    switch (idx) {
+        case 0: if (display.onMenuFormatSd)  display.onMenuFormatSd();  break;
+        case 1: if (display.onMenuWifiSetup) display.onMenuWifiSetup(); break;
+        case 2: if (display.onMenuTareScale) display.onMenuTareScale(); break;
+        case 3: if (display.onMenuRawScale)   display.onMenuRawScale();   break;
+        case 4: if (display.onMenuRawSensors) display.onMenuRawSensors(); break;
+        case 5: if (display.onMenuCalibrate) display.onMenuCalibrate(); break;
+        case 6: if (display.onMenuReboot)    display.onMenuReboot();    break;
+    }
+}
+
+void Display::onSubmitTap(lv_event_t* e) {
+    (void)e;
+    display.touchSubmitRequested = true;
+}
+
 // ── Idle Screen ──────────────────────────────────────────────
 
 void Display::buildIdleScreen(uint8_t icons) {
@@ -251,6 +358,24 @@ void Display::buildIdleScreen(uint8_t icons) {
     _currentScreen = SCR_IDLE;
 
     createStatusBar(_screen, icons);
+
+    // Settings gear button (bottom-right)
+#ifdef BOARD_SCAN_TOUCH
+    lv_obj_t* gearBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(gearBtn);
+    lv_obj_set_size(gearBtn, 40, 40);
+    lv_obj_align(gearBtn, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
+    lv_obj_set_style_bg_color(gearBtn, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_opa(gearBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(gearBtn, 8, 0);
+    lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* gearIcon = lv_label_create(gearBtn);
+    lv_label_set_text(gearIcon, LV_SYMBOL_SETTINGS);
+    lv_obj_set_style_text_font(gearIcon, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(gearIcon, grayLight, 0);
+    lv_obj_center(gearIcon);
+#endif
 
     // "F" logo — rounded orange box
     lv_obj_t* logo = lv_obj_create(_screen);
@@ -373,7 +498,13 @@ void Display::buildUnknownScreen(float weight, bool stable,
               LV_ALIGN_TOP_MID, 0, 155, "Unidentified object");
 
     makeLabel(_screen, &lv_font_montserrat_12, gray,
-              LV_ALIGN_TOP_MID, 0, 178, "Tap NFC tag or use app");
+              LV_ALIGN_TOP_MID, 0, 178, "Tap NFC tag, screen, or use app");
+
+    // Touch-to-submit: make the screen tappable
+#ifdef BOARD_SCAN_TOUCH
+    lv_obj_add_flag(_screen, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(_screen, onSubmitTap, LV_EVENT_CLICKED, NULL);
+#endif
 }
 
 // ── Identified Screen ────────────────────────────────────────
@@ -493,6 +624,363 @@ void Display::showMessage(const char* line1, const char* line2) {
                               LV_ALIGN_CENTER, 0, 40, line2);
     }
 
+    lv_refr_now(NULL);
+}
+
+// ── Boot Screen ──────────────────────────────────────────────
+
+void Display::showBootScreen(const char* version) {
+    if (!_ready) return;
+
+    clearScreen();
+    _currentScreen = SCR_BOOT;
+    _bootCount = 0;
+
+    // Logo + title row
+    lv_obj_t* logo = lv_obj_create(_screen);
+    lv_obj_remove_style_all(logo);
+    lv_obj_set_size(logo, 36, 36);
+    lv_obj_set_style_bg_color(logo, brandOrange, 0);
+    lv_obj_set_style_bg_opa(logo, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(logo, 8, 0);
+    lv_obj_align(logo, LV_ALIGN_TOP_LEFT, 10, 8);
+
+    lv_obj_t* fLetter = lv_label_create(logo);
+    lv_label_set_text(fLetter, "F");
+    lv_obj_set_style_text_font(fLetter, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(fLetter, white, 0);
+    lv_obj_center(fLetter);
+
+    char titleBuf[48];
+    snprintf(titleBuf, sizeof(titleBuf), "Filla IQ  v%s", version);
+    makeLabel(_screen, &lv_font_montserrat_16, white,
+              LV_ALIGN_TOP_LEFT, 54, 16, titleBuf);
+
+    // Divider
+    lv_obj_t* div = lv_obj_create(_screen);
+    lv_obj_remove_style_all(div);
+    lv_obj_set_size(div, _screenW - 20, 1);
+    lv_obj_set_style_bg_color(div, gray, 0);
+    lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
+    lv_obj_align(div, LV_ALIGN_TOP_LEFT, 10, 50);
+
+    // Sensor list container — 2-column flex layout
+    _bootList = lv_obj_create(_screen);
+    lv_obj_remove_style_all(_bootList);
+    lv_obj_set_size(_bootList, _screenW - 20, _screenH - 90);
+    lv_obj_align(_bootList, LV_ALIGN_TOP_LEFT, 10, 56);
+    lv_obj_set_flex_flow(_bootList, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(_bootList, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_column(_bootList, 4, 0);
+    lv_obj_set_style_pad_row(_bootList, 4, 0);
+
+    // Status line at bottom
+    _bootStatus = makeLabel(_screen, &lv_font_montserrat_12, gray,
+                             LV_ALIGN_BOTTOM_MID, 0, -6, "Initializing...");
+
+    lv_refr_now(NULL);
+}
+
+void Display::addBootItem(const char* name, bool found) {
+    if (!_ready || !_bootList) return;
+
+    // Each item is a small row: icon + name, sized to fit ~2 columns
+    lv_obj_t* item = lv_obj_create(_bootList);
+    lv_obj_remove_style_all(item);
+    lv_obj_set_size(item, (_screenW - 28) / 2, 20);
+    lv_obj_set_flex_flow(item, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(item, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(item, 4, 0);
+
+    lv_obj_t* icon = lv_label_create(item);
+    lv_obj_remove_style_all(icon);
+    lv_label_set_text(icon, found ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(icon, found ? green : lv_color_hex(RED_HEX), 0);
+
+    lv_obj_t* lbl = lv_label_create(item);
+    lv_obj_remove_style_all(lbl);
+    lv_label_set_text(lbl, name);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(lbl, found ? white : grayLight, 0);
+
+    _bootCount++;
+
+    // Update status to show what was just detected
+    if (_bootStatus) {
+        char buf[48];
+        snprintf(buf, sizeof(buf), "%s %s", found ? "Found" : "No", name);
+        lv_label_set_text(_bootStatus, buf);
+    }
+
+    lv_refr_now(NULL);
+}
+
+void Display::setBootStatus(const char* msg) {
+    if (!_ready || !_bootStatus) return;
+    lv_label_set_text(_bootStatus, msg);
+    lv_refr_now(NULL);
+}
+
+// ── Menu Screen ──────────────────────────────────────────────
+
+static lv_obj_t* makeMenuBtn(lv_obj_t* parent, const char* icon, const char* text,
+                              lv_event_cb_t cb, void* userData) {
+    lv_obj_t* btn = lv_btn_create(parent);
+    lv_obj_remove_style_all(btn);
+    lv_obj_set_size(btn, lv_pct(100), 44);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(btn, 8, 0);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x3A3A3A), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_left(btn, 12, 0);
+    lv_obj_set_style_pad_column(btn, 10, 0);
+
+    lv_obj_t* iconLbl = lv_label_create(btn);
+    lv_label_set_text(iconLbl, icon);
+    lv_obj_set_style_text_font(iconLbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(iconLbl, lv_color_hex(BRAND_ORANGE_HEX), 0);
+
+    lv_obj_t* textLbl = lv_label_create(btn);
+    lv_label_set_text(textLbl, text);
+    lv_obj_set_style_text_font(textLbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(textLbl, lv_color_hex(WHITE_HEX), 0);
+
+    if (cb) lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, userData);
+    return btn;
+}
+
+void Display::showMenu() {
+    if (!_ready) return;
+    buildMenuScreen();
+}
+
+void Display::buildMenuScreen() {
+    clearScreen();
+    _currentScreen = SCR_MENU;
+
+    // Title bar
+    makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
+              LV_ALIGN_TOP_LEFT, 12, 12, "Settings");
+
+    // Divider
+    lv_obj_t* div = lv_obj_create(_screen);
+    lv_obj_remove_style_all(div);
+    lv_obj_set_size(div, _screenW - 24, 1);
+    lv_obj_set_style_bg_color(div, gray, 0);
+    lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
+    lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 40);
+
+    // Menu list container
+    lv_obj_t* list = lv_obj_create(_screen);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_size(list, _screenW - 24, _screenH - 90);
+    lv_obj_align(list, LV_ALIGN_TOP_LEFT, 12, 48);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(list, 6, 0);
+
+    makeMenuBtn(list, LV_SYMBOL_SD_CARD, "Format SD Card",
+                onMenuItemClick, (void*)(intptr_t)0);
+    makeMenuBtn(list, LV_SYMBOL_WIFI, "WiFi Setup",
+                onMenuItemClick, (void*)(intptr_t)1);
+    makeMenuBtn(list, LV_SYMBOL_REFRESH, "Tare Scale",
+                onMenuItemClick, (void*)(intptr_t)2);
+    makeMenuBtn(list, LV_SYMBOL_SETTINGS, "Raw Scale",
+                onMenuItemClick, (void*)(intptr_t)3);
+    makeMenuBtn(list, LV_SYMBOL_EYE_OPEN, "Raw Sensors",
+                onMenuItemClick, (void*)(intptr_t)4);
+    makeMenuBtn(list, LV_SYMBOL_EDIT, "Calibrate Scale",
+                onMenuItemClick, (void*)(intptr_t)5);
+    makeMenuBtn(list, LV_SYMBOL_POWER, "Reboot",
+                onMenuItemClick, (void*)(intptr_t)6);
+
+    // Device info line
+    char info[64];
+    snprintf(info, sizeof(info), "FillaScan v%s", FW_VERSION);
+    makeLabel(_screen, &lv_font_montserrat_12, gray,
+              LV_ALIGN_BOTTOM_LEFT, 12, -8, info);
+
+    // Back button
+    lv_obj_t* backBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(backBtn);
+    lv_obj_set_size(backBtn, 60, 36);
+    lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
+    lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(backBtn, 6, 0);
+    lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* backLbl = lv_label_create(backBtn);
+    lv_label_set_text(backLbl, LV_SYMBOL_LEFT " Back");
+    lv_obj_set_style_text_font(backLbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(backLbl, lv_color_hex(WHITE_HEX), 0);
+    lv_obj_center(backLbl);
+
+    lv_refr_now(NULL);
+}
+
+// ── Raw Scale Screen ─────────────────────────────────────────
+
+void Display::showRawScale(float weight, double rawAdc, float factor, bool stable) {
+    if (!_ready) return;
+
+    if (_currentScreen != SCR_RAW_SCALE) {
+        // First call — build the screen
+        clearScreen();
+        _currentScreen = SCR_RAW_SCALE;
+
+        makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
+                  LV_ALIGN_TOP_LEFT, 12, 12, "Raw Scale");
+
+        lv_obj_t* div = lv_obj_create(_screen);
+        lv_obj_remove_style_all(div);
+        lv_obj_set_size(div, _screenW - 24, 1);
+        lv_obj_set_style_bg_color(div, gray, 0);
+        lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
+        lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 40);
+
+        _rawWeightLabel = lv_label_create(_screen);
+        lv_obj_set_style_text_font(_rawWeightLabel, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_color(_rawWeightLabel, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_align(_rawWeightLabel, LV_ALIGN_TOP_LEFT, 16, 52);
+
+        _rawAdcLabel = lv_label_create(_screen);
+        lv_obj_set_style_text_font(_rawAdcLabel, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(_rawAdcLabel, grayLight, 0);
+        lv_obj_align(_rawAdcLabel, LV_ALIGN_TOP_LEFT, 16, 90);
+
+        _rawFactorLabel = lv_label_create(_screen);
+        lv_obj_set_style_text_font(_rawFactorLabel, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(_rawFactorLabel, gray, 0);
+        lv_obj_align(_rawFactorLabel, LV_ALIGN_TOP_LEFT, 16, 116);
+
+        // Back button
+        lv_obj_t* backBtn = lv_btn_create(_screen);
+        lv_obj_remove_style_all(backBtn);
+        lv_obj_set_size(backBtn, 60, 36);
+        lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
+        lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(backBtn, 6, 0);
+        lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
+        lv_obj_t* backLbl = lv_label_create(backBtn);
+        lv_label_set_text(backLbl, LV_SYMBOL_LEFT " Back");
+        lv_obj_set_style_text_font(backLbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(backLbl, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_center(backLbl);
+    }
+
+    // Update values
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f g %s", weight, stable ? "STABLE" : "");
+    lv_label_set_text(_rawWeightLabel, buf);
+
+    snprintf(buf, sizeof(buf), "Raw ADC: %.0f", rawAdc);
+    lv_label_set_text(_rawAdcLabel, buf);
+
+    snprintf(buf, sizeof(buf), "Factor: %.4f", factor);
+    lv_label_set_text(_rawFactorLabel, buf);
+}
+
+// ── Raw Sensors Screen ───────────────────────────────────────
+
+void Display::showRawSensors(const char* text) {
+    if (!_ready) return;
+
+    if (_currentScreen != SCR_RAW_SENSORS) {
+        clearScreen();
+        _currentScreen = SCR_RAW_SENSORS;
+
+        makeLabel(_screen, &lv_font_montserrat_16, brandOrange,
+                  LV_ALIGN_TOP_LEFT, 12, 6, "Raw Sensors");
+
+        lv_obj_t* div = lv_obj_create(_screen);
+        lv_obj_remove_style_all(div);
+        lv_obj_set_size(div, _screenW - 24, 1);
+        lv_obj_set_style_bg_color(div, gray, 0);
+        lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
+        lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 28);
+
+        _rawSensorsLabel = lv_label_create(_screen);
+        lv_obj_set_style_text_font(_rawSensorsLabel, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(_rawSensorsLabel, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_set_width(_rawSensorsLabel, _screenW - 16);
+        lv_label_set_long_mode(_rawSensorsLabel, LV_LABEL_LONG_WRAP);
+        lv_obj_align(_rawSensorsLabel, LV_ALIGN_TOP_LEFT, 8, 34);
+
+        // Back button
+        lv_obj_t* backBtn = lv_btn_create(_screen);
+        lv_obj_remove_style_all(backBtn);
+        lv_obj_set_size(backBtn, 60, 30);
+        lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -2);
+        lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(backBtn, 6, 0);
+        lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
+        lv_obj_t* backLbl = lv_label_create(backBtn);
+        lv_label_set_text(backLbl, LV_SYMBOL_LEFT " Back");
+        lv_obj_set_style_text_font(backLbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(backLbl, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_center(backLbl);
+    }
+
+    lv_label_set_text(_rawSensorsLabel, text);
+}
+
+// ── Calibrate Screen ─────────────────────────────────────────
+
+void Display::showCalibrate(const char* step, const char* detail) {
+    if (!_ready) return;
+
+    if (_currentScreen != SCR_CALIBRATE) {
+        clearScreen();
+        _currentScreen = SCR_CALIBRATE;
+
+        makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
+                  LV_ALIGN_TOP_LEFT, 12, 12, "Calibrate");
+
+        lv_obj_t* div = lv_obj_create(_screen);
+        lv_obj_remove_style_all(div);
+        lv_obj_set_size(div, _screenW - 24, 1);
+        lv_obj_set_style_bg_color(div, gray, 0);
+        lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
+        lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 40);
+
+        _calStepLabel = lv_label_create(_screen);
+        lv_obj_set_style_text_font(_calStepLabel, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(_calStepLabel, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_set_width(_calStepLabel, _screenW - 32);
+        lv_label_set_long_mode(_calStepLabel, LV_LABEL_LONG_WRAP);
+        lv_obj_align(_calStepLabel, LV_ALIGN_TOP_LEFT, 16, 56);
+
+        _calDetailLabel = lv_label_create(_screen);
+        lv_obj_set_style_text_font(_calDetailLabel, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(_calDetailLabel, grayLight, 0);
+        lv_obj_set_width(_calDetailLabel, _screenW - 32);
+        lv_label_set_long_mode(_calDetailLabel, LV_LABEL_LONG_WRAP);
+        lv_obj_align(_calDetailLabel, LV_ALIGN_TOP_LEFT, 16, 100);
+
+        // Back button (exits calibration)
+        lv_obj_t* backBtn = lv_btn_create(_screen);
+        lv_obj_remove_style_all(backBtn);
+        lv_obj_set_size(backBtn, 60, 36);
+        lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
+        lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(backBtn, 6, 0);
+        lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
+        lv_obj_t* backLbl = lv_label_create(backBtn);
+        lv_label_set_text(backLbl, LV_SYMBOL_LEFT " Back");
+        lv_obj_set_style_text_font(backLbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(backLbl, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_center(backLbl);
+    }
+
+    lv_label_set_text(_calStepLabel, step);
+    lv_label_set_text(_calDetailLabel, detail ? detail : "");
     lv_refr_now(NULL);
 }
 

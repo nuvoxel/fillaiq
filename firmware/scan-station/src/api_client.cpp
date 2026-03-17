@@ -1,6 +1,7 @@
 #include "api_client.h"
 #include "device_identity.h"
 #include "environment.h"
+#include "printer.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -441,6 +442,10 @@ String ApiClient::buildCapabilitiesJson() const {
     addSensor("display", _capabilities.display);
     addSensor("leds", _capabilities.leds);
     addSensor("environment", _capabilities.environment);
+    addSensor("touch", _capabilities.touch);
+    addSensor("sdCard", _capabilities.sdCard);
+    addSensor("audio", _capabilities.audio);
+    addSensor("battery", _capabilities.battery);
 
     if (_capabilities.printer.detected) {
         JsonObject p = caps["printer"].to<JsonObject>();
@@ -452,6 +457,16 @@ String ApiClient::buildCapabilitiesJson() const {
         if (_capabilities.printer.dpi > 0) p["dpi"] = _capabilities.printer.dpi;
         if (_capabilities.printer.protocol[0]) p["protocol"] = _capabilities.printer.protocol;
         if (_capabilities.printer.bleAddr[0]) p["bleAddr"] = _capabilities.printer.bleAddr;
+
+        // Runtime state from the actual printer connection
+        const auto& ps = labelPrinter.getState();
+        if (ps.deviceName[0]) p["bleName"] = ps.deviceName;
+        p["battery"] = ps.batteryPercent;
+        p["paperLoaded"] = ps.paperLoaded;
+        p["coverClosed"] = ps.coverClosed;
+        if (ps.serialNumber > 0) p["serialNumber"] = ps.serialNumber;
+        if (ps.firmwareVersion[0]) p["firmware"] = ps.firmwareVersion;
+        p["transport"] = (ps.transport == TRANSPORT_BLE) ? "BLE" : "none";
     }
     caps["turntable"] = _capabilities.turntable;
     caps["camera"] = _capabilities.camera;

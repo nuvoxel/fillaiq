@@ -21,6 +21,11 @@
 #include "device_config.h"
 #include "device_identity.h"
 #include "printer.h"
+#ifdef BOARD_SCAN_TOUCH
+#include "touch.h"
+#include "sdcard.h"
+#include "audio.h"
+#endif
 #include <BLEDevice.h>
 #include <BLEScan.h>
 
@@ -50,6 +55,12 @@ unsigned long lastPairingPoll = 0;
 // Auth failure tracking — only unpair after consecutive failures
 uint8_t authFailCount = 0;
 #define AUTH_FAIL_THRESHOLD  3
+
+// Menu action flags (set by LVGL callbacks, processed in main loop)
+#ifdef BOARD_SCAN_TOUCH
+enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT };
+volatile MenuAction menuActionPending = MENU_NONE;
+#endif
 
 // ── Scan State Machine ────────────────────────────────────────────────────────
 
@@ -287,6 +298,10 @@ void updateScanState() {
             Serial.printf("[API] Scan posted: id=%s identified=%d\n",
                          lastResponse.scanId, lastResponse.identified);
 
+#ifdef BOARD_SCAN_TOUCH
+            if (audio.isConnected()) audio.playSubmitBeep();
+#endif
+
             if (lastResponse.identified) {
                 enterState(SCAN_IDENTIFIED);
             } else if (lastResponse.needsCamera) {
@@ -347,17 +362,45 @@ void updateScanState() {
         break;
     }
 
-    case SCAN_IDENTIFIED:
+    case SCAN_IDENTIFIED: {
+        // One-time actions on entering this state
+        static bool identifiedSoundPlayed = false;
+        if (elapsed < 100 && !identifiedSoundPlayed) {
+            identifiedSoundPlayed = true;
+#ifdef BOARD_SCAN_TOUCH
+            if (audio.isConnected()) audio.playSuccessBeep();
+            if (sdCard.isConnected()) sdCard.logScan(currentScan, lastResponse);
+#endif
+        }
         if (weightRemoved) {
+            identifiedSoundPlayed = false;
             enterState(SCAN_IDLE);
         }
         break;
+    }
 
-    case SCAN_NEEDS_INPUT:
+    case SCAN_NEEDS_INPUT: {
+        // Log unidentified scans too
+        static bool needsInputLogged = false;
+        if (elapsed < 100 && !needsInputLogged) {
+            needsInputLogged = true;
+#ifdef BOARD_SCAN_TOUCH
+            if (sdCard.isConnected()) sdCard.logScan(currentScan, lastResponse);
+#endif
+        }
         if (weightRemoved) {
+            needsInputLogged = false;
             enterState(SCAN_IDLE);
         }
+#ifdef BOARD_SCAN_TOUCH
+        // Touch-to-submit: tap the screen to retry posting
+        if (display.touchSubmitRequested) {
+            display.touchSubmitRequested = false;
+            enterState(SCAN_POSTING);
+        }
+#endif
         break;
+    }
 
     default:
         enterState(SCAN_IDLE);
@@ -411,6 +454,7 @@ void updateDisplayAndLed() {
     uint8_t icons = 0;
     if (apiClient.isWiFiConnected()) icons |= ICON_WIFI;
     if (apiClient.isPaired())        icons |= ICON_PAIRED;
+    if (labelPrinter.isConnected())  icons |= ICON_PRINTER;
 
     // Update display
     display.update(scanState, w, stable, uid, serverData, dist, color, icons);
@@ -464,6 +508,8 @@ void printHelp() {
     Serial.println("  i2c             Scan I2C bus");
     Serial.println("  config          Device config (from server)");
     Serial.println("  identity        Hardware identity (eFuse HMAC)");
+    Serial.println("  weight (w)      Current weight + raw ADC value");
+    Serial.println("  raw             Continuous raw ADC output (any key to stop)");
     Serial.println("  tare            Zero the scale");
     Serial.println("  cal             Calibrate scale (interactive)");
     Serial.println("  calreset        Reset calibration to default");
@@ -704,6 +750,38 @@ void handleSerial() {
     else if (line == "identity" || line == "id") {
         deviceIdentity.printStatus();
     }
+    else if (line == "weight" || line == "w") {
+        if (!scale.isConnected()) {
+            Serial.println("Scale not connected.");
+        } else {
+            scale.pauseTask();
+            delay(100);
+            double raw = scale.getValueForCalibration(5);
+            float w = scale.getWeight();
+            Serial.printf("Weight: %.2fg  Stable: %.2fg %s  Raw: %.0f  Factor: %.4f\n",
+                w, scale.getStableWeight(), scale.isStable() ? "[STABLE]" : "",
+                raw, scale.getScaleFactor());
+            scale.resumeTask();
+        }
+    }
+    else if (line == "raw") {
+        if (!scale.isConnected()) {
+            Serial.println("Scale not connected.");
+        } else {
+            Serial.println("Streaming raw ADC values (send any key to stop)...");
+            scale.pauseTask();
+            delay(100);
+            while (!Serial.available()) {
+                double raw = scale.getValueForCalibration(1);
+                float w = scale.getWeight();
+                Serial.printf("Raw: %12.0f  Weight: %8.2fg\n", raw, w);
+                delay(100);
+            }
+            while (Serial.available()) Serial.read();  // flush
+            scale.resumeTask();
+            Serial.println("Stopped.");
+        }
+    }
     else if (line == "tare") {
         scale.pauseTask();
         delay(200);
@@ -847,6 +925,33 @@ void handleSerial() {
         Serial.println("Checking for update...");
         otaCheckNow();
     }
+
+#ifdef BOARD_SCAN_TOUCH
+    else if (line == "beep") {
+        if (audio.isConnected()) {
+            Serial.println("Playing submit beep...");
+            audio.playSubmitBeep();
+        } else {
+            Serial.println("Audio not connected.");
+        }
+    }
+    else if (line == "beep2") {
+        if (audio.isConnected()) {
+            Serial.println("Playing success beep...");
+            audio.playSuccessBeep();
+        } else {
+            Serial.println("Audio not connected.");
+        }
+    }
+    else if (line == "beep3") {
+        if (audio.isConnected()) {
+            Serial.println("Playing error beep...");
+            audio.playErrorBeep();
+        } else {
+            Serial.println("Audio not connected.");
+        }
+    }
+#endif
     else if (line == "reset" || line == "reboot") {
         Serial.println("Rebooting...");
         delay(500);
@@ -873,12 +978,10 @@ void setup() {
     backlight.begin();
     backlight.color(0, 0, 255);  // Blue = booting
     display.begin();
-    char bootMsg[48];
-    snprintf(bootMsg, sizeof(bootMsg), "v%s %s", FW_VERSION, FW_CHANNEL);
-    display.showMessage("Filla IQ", bootMsg);
+    display.showBootScreen(FW_VERSION);
 
     // I2C bus (sensors + NFC on touch board)
-    display.showMessage("Booting...", "I2C init");
+    display.setBootStatus("I2C bus init...");
 
     // Bus recovery: toggle SCL 9 times to release any stuck device
     pinMode(I2C_SDA, INPUT_PULLUP);
@@ -902,11 +1005,25 @@ void setup() {
     Wire.setTimeOut(50);
     Serial.printf("  I2C bus: SDA=%d SCL=%d\n", I2C_SDA, I2C_SCL); Serial.flush();
 
+    // Touch init first — reset FT6336G so it releases SDA before we scan
+#ifdef BOARD_SCAN_TOUCH
+    display.setBootStatus("Touch init...");
+    touchInput.begin();
+    if (touchInput.isConnected()) {
+        touchInput.registerLvglInput();
+    }
+    display.addBootItem("Touch", touchInput.isConnected());
+#endif
+
     // Probe known addresses only (full scan can hang on stuck bus)
-    display.showMessage("Booting...", "I2C scan");
+    display.setBootStatus("Scanning I2C...");
     const uint8_t knownAddrs[] = { NAU7802_ADDR, VL53L1X_ADDR, VL53L1X_DEFAULT_ADDR,
                                     AS7341_ADDR, TCS34725_ADDR, OPT4048_ADDR,
-                                    AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/ };
+                                    AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/,
+#ifdef BOARD_SCAN_TOUCH
+                                    0x38 /*FT6336*/, ES8311_ADDR,
+#endif
+                                    };
     Serial.print("  I2C:"); Serial.flush();
     for (size_t i = 0; i < sizeof(knownAddrs); i++) {
         Wire.beginTransmission(knownAddrs[i]);
@@ -916,39 +1033,77 @@ void setup() {
     Serial.println(); Serial.flush();
     // Keep short timeout during sensor detection — restored after init
     Wire.setTimeOut(100);
-    display.showMessage("Booting...", "I2C done");
 
     // Hardware-rooted device identity (eFuse HMAC)
-    display.showMessage("Booting...", "Identity");
+    display.setBootStatus("Identity...");
     deviceIdentity.begin();
 
-    // NFC reader
-    display.showMessage("Booting...", "NFC");
+    // NFC reader (dedicated I2C bus — Wire1)
+    display.setBootStatus("NFC init...");
     initNfc();
+    display.addBootItem("NFC", nfcScanner.isConnected());
 
     // TOF distance sensor
-    display.showMessage("Booting...", "TOF");
+    display.setBootStatus("TOF init...");
     distanceSensor.begin();
+    display.addBootItem("TOF", distanceSensor.isConnected());
 
     // Color sensor (auto-detect)
-    display.showMessage("Booting...", "Color");
+    display.setBootStatus("Color init...");
     colorSensor.begin();
+    {
+        const char* colorNames[] = { nullptr, "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331" };
+        bool found = colorSensor.isConnected();
+        const char* name = found ? colorNames[colorSensor.getType()] : "Color";
+        display.addBootItem(name ? name : "Color", found);
+    }
 
     // Environmental sensor (auto-detect)
-    display.showMessage("Booting...", "Environment");
+    display.setBootStatus("Environment...");
     envSensor.begin();
+    display.addBootItem(envSensor.isConnected() ? envSensor.getChipName() : "Env", envSensor.isConnected());
 
     // Weight
-    display.showMessage("Booting...", "Weight");
+    display.setBootStatus("Weight init...");
     scale.begin();
     float savedCal = loadCalibration();
     if (savedCal != 0) {
         scale.setScale(savedCal);
         Serial.printf("  Calibration: %.4f (from NVS)\n", savedCal);
     }
+    display.addBootItem(scale.isConnected() ? scale.getChipName() : "Scale", scale.isConnected());
     if (scale.isConnected()) {
         scale.tare();
         scale.startTask(0, 2);  // Weight task on Core 0, loop() on Core 1
+    }
+
+    // SD card
+#ifdef BOARD_SCAN_TOUCH
+    display.setBootStatus("SD card init...");
+    sdCard.begin();
+    display.addBootItem("SD", sdCard.isConnected());
+#endif
+
+    // Audio
+#ifdef BOARD_SCAN_TOUCH
+    display.setBootStatus("Audio init...");
+    audio.begin();
+    display.addBootItem("Audio", audio.isConnected());
+#endif
+
+    // Set sensor flags for status bar icons on runtime screens
+    {
+        uint8_t sf = 0;
+        if (nfcScanner.isConnected())       sf |= SENSOR_NFC;
+        if (scale.isConnected())            sf |= SENSOR_SCALE;
+        if (distanceSensor.isConnected())   sf |= SENSOR_TOF;
+        if (colorSensor.isConnected())      sf |= SENSOR_COLOR;
+        if (envSensor.isConnected())        sf |= SENSOR_ENV;
+#ifdef BOARD_SCAN_TOUCH
+        if (sdCard.isConnected())           sf |= SENSOR_SD;
+        if (audio.isConnected())            sf |= SENSOR_AUDIO;
+#endif
+        display.setSensorFlags(sf);
     }
 
     // Build hardware manifest from detected sensors
@@ -986,8 +1141,19 @@ void setup() {
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
+#ifdef BOARD_SCAN_TOUCH
+    if (touchInput.isConnected())
+        caps.touch.set("FT6336G", "I2C", 0x38);
+    if (sdCard.isConnected())
+        caps.sdCard.set(sdCard.getChipName(), "SDMMC");
+    if (audio.isConnected())
+        caps.audio.set("ES8311", "I2S", ES8311_ADDR);
+    // Battery ADC — always present on touch board
+    caps.battery.set("ADC", "GPIO", 0, BATTERY_ADC_PIN);
+#endif
+
     // Label printer — BLE scan
-    display.showMessage("Booting...", "BLE Printer");
+    display.setBootStatus("Scanning BLE printer...");
     labelPrinter.begin();
     if (labelPrinter.scan(5000)) {
         const char* prName = labelPrinter.getDeviceName();
@@ -997,19 +1163,11 @@ void setup() {
                          PRINTER_DPI, "escpos");
         caps.printer.setBle(prAddr);
 
-        char prMsg[48];
-        snprintf(prMsg, sizeof(prMsg), "%s", prName);
-        display.showMessage("Printer Found", prMsg);
-        delay(500);
-
-        // Auto-connect
-        if (labelPrinter.connect()) {
-            display.showMessage("Printer Ready", prMsg);
-            delay(500);
-        }
+        display.addBootItem(prName, true);
+        display.setBootStatus("Connecting printer...");
+        labelPrinter.connect();
     } else {
-        display.showMessage("No Printer", "Continuing...");
-        delay(500);
+        display.addBootItem("Printer", false);
     }
 
     // Device config (loads from NVS)
@@ -1020,10 +1178,11 @@ void setup() {
     apiClient.setCapabilities(caps);
 
     // Try WiFi if configured
+    display.setBootStatus("Connecting WiFi...");
     if (apiClient.connectWiFi()) {
         wifiEverConnected = true;
-        display.showMessage("WiFi Connected", WiFi.localIP().toString().c_str());
-        delay(1000);
+        display.addBootItem("WiFi", true);
+        delay(500);
 
         // Check if we need to pair with the backend
         if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
@@ -1033,6 +1192,18 @@ void setup() {
         // Start WiFi AP + captive portal provisioning
         startProvisioning();
     }
+
+    // Menu action callbacks — set flags for main loop to handle
+    // (LVGL event callbacks run on lv_timer_handler stack, can't do heavy work)
+#ifdef BOARD_SCAN_TOUCH
+    display.onMenuFormatSd  = []() { menuActionPending = MENU_FORMAT_SD; };
+    display.onMenuWifiSetup = []() { menuActionPending = MENU_WIFI_SETUP; };
+    display.onMenuTareScale = []() { menuActionPending = MENU_TARE_SCALE; };
+    display.onMenuRawScale   = []() { menuActionPending = MENU_RAW_SCALE; };
+    display.onMenuRawSensors = []() { menuActionPending = MENU_RAW_SENSORS; };
+    display.onMenuCalibrate  = []() { menuActionPending = MENU_CALIBRATE; };
+    display.onMenuReboot    = []() { menuActionPending = MENU_REBOOT; };
+#endif
 
     // OTA updates
     otaBegin();
@@ -1058,10 +1229,107 @@ void loop() {
     // LVGL tick — must run frequently for rendering + animations
     display.tick();
 
+    // Process deferred menu actions (set by LVGL event callbacks)
+#ifdef BOARD_SCAN_TOUCH
+    if (menuActionPending != MENU_NONE) {
+        MenuAction action = menuActionPending;
+        menuActionPending = MENU_NONE;
+        switch (action) {
+            case MENU_FORMAT_SD:
+                if (sdCard.isConnected()) {
+                    display.showMessage("Formatting...", "Please wait");
+                    sdCard.format();
+                    display.showMessage("SD Formatted", "Scan log cleared");
+                    delay(1500);
+                } else {
+                    display.showMessage("No SD Card", "Insert card and reboot");
+                    delay(1500);
+                }
+                break;
+            case MENU_WIFI_SETUP:
+                startProvisioning();
+                break;
+            case MENU_TARE_SCALE:
+                if (scale.isConnected()) {
+                    display.showMessage("Taring...", "Keep platform empty");
+                    scale.pauseTask();
+                    delay(200);
+                    scale.tare();
+                    scale.resumeTask();
+                    display.showMessage("Tared!", "Scale zeroed");
+                    delay(1000);
+                }
+                break;
+            case MENU_RAW_SCALE:
+                // Enter raw scale mode — loop will continuously update
+                display.showRawScale(weightSnap.weight,
+                    (double)scale.getLastRawAdc(),
+                    scale.getScaleFactor(), weightSnap.stable);
+                break;
+            case MENU_RAW_SENSORS:
+                // Enter raw sensors mode — loop will continuously update
+                display.showRawSensors("Loading...");
+                break;
+            case MENU_CALIBRATE: {
+                if (!scale.isConnected()) {
+                    display.showMessage("No Scale", "Scale not detected");
+                    delay(1500);
+                    break;
+                }
+                // Step 1: Remove weight
+                display.showCalibrate("Remove all weight", "Then tap screen...");
+                display.touchSubmitRequested = false;
+                while (!display.touchSubmitRequested) {
+                    display.tick();
+                    delay(10);
+                }
+                // Step 2: Tare
+                display.showCalibrate("Taring...", "Hold still");
+                scale.pauseTask();
+                delay(500);
+                scale.tare();
+                // Step 3: Place known weight
+                display.showCalibrate("Place 100g weight", "Then tap screen...");
+                display.touchSubmitRequested = false;
+                while (!display.touchSubmitRequested) {
+                    display.tick();
+                    delay(10);
+                }
+                // Step 4: Calculate
+                display.showCalibrate("Measuring...", "Hold still");
+                delay(500);
+                double raw = scale.getValueForCalibration(20);
+                float factor = (float)(raw / 100.0);
+                scale.setScale(factor);
+                scale.resumeTask();
+                // Save to NVS
+                Preferences prefs;
+                prefs.begin("cal", false);
+                prefs.putFloat("factor", factor);
+                prefs.end();
+                char msg[48];
+                snprintf(msg, sizeof(msg), "Factor: %.4f", factor);
+                display.showCalibrate("Calibrated!", msg);
+                Serial.printf("Calibration: %.4f (saved)\n", factor);
+                delay(2000);
+                // Return to normal — showMessage sets SCR_MESSAGE, next update() rebuilds
+                display.showMessage("Done", "Tap Back to return");
+                break;
+            }
+            case MENU_REBOOT:
+                display.showMessage("Rebooting...", "");
+                delay(500);
+                ESP.restart();
+                break;
+            default: break;
+        }
+    }
+#endif
+
     // Snapshot weight once per loop (avoids repeated mutex acquisitions)
     snapshotWeight();
 
-    // NFC polling (main loop, not a separate task)
+    // NFC polling (dedicated I2C bus — Wire1)
     pollNfc();
 
     // Captive portal processing (must run frequently when AP is active)
@@ -1111,16 +1379,128 @@ void loop() {
         }
     }
 
-    // Scan state machine (skip while pairing)
-    if (!pairingActive) {
+    // Scan state machine (skip while pairing or in menu)
+    if (!pairingActive && !display.isMenuActive()) {
         updateScanState();
     }
 
-    // Display + LED (throttled, skip while in setup mode or pairing — screen is showing code)
-    if (!provisioner.isActive() && !pairingActive && now - lastDisplayUpdate >= 100) {
+    // Display + LED (throttled, skip while in setup mode, pairing, or menu)
+    if (!provisioner.isActive() && !pairingActive && !display.isMenuActive() && now - lastDisplayUpdate >= 100) {
         lastDisplayUpdate = now;
         updateDisplayAndLed();
     }
+
+#ifdef BOARD_SCAN_TOUCH
+    // Live sensor screens — continuous update
+    if (display.isMenuActive() && now - lastDisplayUpdate >= 200) {
+        lastDisplayUpdate = now;
+
+        // Raw scale screen (no-op if not on SCR_RAW_SCALE)
+        display.showRawScale(weightSnap.weight,
+            scale.isConnected() ? (double)scale.getLastRawAdc() : 0,
+            scale.getScaleFactor(), weightSnap.stable);
+
+        // Raw sensors screen — use cached data, read one sensor per frame
+        // to avoid blocking touch. Static cache persists between frames.
+        static char sensorBuf[512];
+        static DistanceData cachedDist = {};
+        static ColorData cachedColor = {};
+        static EnvData cachedEnv = {};
+        static uint8_t sensorReadSlot = 0;
+
+        // Read one sensor per frame (round-robin) to keep loop responsive
+        switch (sensorReadSlot) {
+            case 0:
+                if (distanceSensor.isConnected()) distanceSensor.read(cachedDist);
+                break;
+            case 1:
+                if (colorSensor.isConnected()) colorSensor.read(cachedColor);
+                break;
+            case 2:
+                if (envSensor.isConnected()) envSensor.read(cachedEnv);
+                break;
+        }
+        sensorReadSlot = (sensorReadSlot + 1) % 3;
+
+        // Build display string from cached values
+        {
+            int pos = 0;
+
+            // Weight (non-blocking)
+            if (scale.isConnected())
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                    "Weight: %.2fg %s\n  Raw: %ld  Cal: %.4f\n",
+                    weightSnap.weight, weightSnap.stable ? "[STABLE]" : "",
+                    scale.getLastRawAdc(), scale.getScaleFactor());
+            else
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Weight: --\n");
+
+            // TOF (cached)
+            if (distanceSensor.isConnected()) {
+                if (cachedDist.valid)
+                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                        "TOF: %.0fmm (obj: %.0fmm)\n", cachedDist.distanceMm, cachedDist.objectHeightMm);
+                else
+                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "TOF: waiting...\n");
+            } else {
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "TOF: --\n");
+            }
+
+            // Color (cached)
+            if (colorSensor.isConnected() && cachedColor.valid) {
+                switch (cachedColor.sensorType) {
+                    case COLOR_AS7341:
+                    case COLOR_AS7343:
+                        pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                            "Color: %s\n  415:%u 445:%u 480:%u 515:%u\n  555:%u 590:%u 630:%u 680:%u\n  Clr:%u NIR:%u\n",
+                            cachedColor.sensorType == COLOR_AS7343 ? "AS7343" : "AS7341",
+                            cachedColor.f1_415nm, cachedColor.f2_445nm, cachedColor.f3_480nm, cachedColor.f4_515nm,
+                            cachedColor.f5_555nm, cachedColor.f6_590nm, cachedColor.f7_630nm, cachedColor.f8_680nm,
+                            cachedColor.clear, cachedColor.nir);
+                        break;
+                    case COLOR_OPT4048:
+                        pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                            "Color: OPT4048\n  X:%.1f Y:%.1f Z:%.1f Lux:%.0f\n",
+                            cachedColor.cie_x, cachedColor.cie_y, cachedColor.cie_z, cachedColor.opt_lux);
+                        break;
+                    case COLOR_TCS34725:
+                        pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                            "Color: TCS34725\n  R:%u G:%u B:%u C:%u\n  CCT:%uK Lux:%u\n",
+                            cachedColor.rgbc_r, cachedColor.rgbc_g, cachedColor.rgbc_b, cachedColor.rgbc_c,
+                            cachedColor.colorTemp, cachedColor.lux);
+                        break;
+                    default: break;
+                }
+            } else if (colorSensor.isConnected()) {
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Color: waiting...\n");
+            } else {
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Color: --\n");
+            }
+
+            // Environment (cached)
+            if (envSensor.isConnected()) {
+                if (cachedEnv.valid)
+                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                        "Env: %.1fC %.0f%%RH%s\n",
+                        cachedEnv.temperatureC, cachedEnv.humidity,
+                        cachedEnv.pressureHPa > 0 ? String(" " + String((int)cachedEnv.pressureHPa) + "hPa").c_str() : "");
+                else
+                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Env: waiting...\n");
+            } else {
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Env: --\n");
+            }
+
+            // NFC (non-blocking check)
+            if (nfcScanner.isConnected())
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: %s\n",
+                    nfcScanner.isTagPresent() ? nfcScanner.getUidString() : "no tag");
+            else
+                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: --\n");
+
+            display.showRawSensors(sensorBuf);
+        }
+    }
+#endif
 
     // Periodic serial status line
     if (now - lastSerialStatus >= deviceConfig.statusInterval()) {

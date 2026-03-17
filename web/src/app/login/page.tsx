@@ -32,7 +32,7 @@ export default function LoginPage() {
       if (result.error) {
         setError(result.error.message ?? "Sign in failed");
       } else {
-        router.push("/dashboard");
+        router.push("/locations");
         router.refresh();
       }
     } catch (e) {
@@ -50,7 +50,7 @@ export default function LoginPage() {
       if (result.error) {
         setError(result.error.message ?? "Sign up failed");
       } else {
-        router.push("/dashboard");
+        router.push("/locations");
         router.refresh();
       }
     } catch (e) {
@@ -182,7 +182,7 @@ export default function LoginPage() {
               disabled={loading}
               onClick={() => {
                 setLoading(true);
-                authClient.signIn.social({ provider: "microsoft-entra-id", callbackURL: "/dashboard" });
+                authClient.signIn.social({ provider: "microsoft-entra-id", callbackURL: "/locations" });
               }}
               sx={{ textTransform: "none" }}
             >
@@ -194,7 +194,7 @@ export default function LoginPage() {
               disabled={loading}
               onClick={() => {
                 setLoading(true);
-                authClient.signIn.social({ provider: "github", callbackURL: "/dashboard" });
+                authClient.signIn.social({ provider: "github", callbackURL: "/locations" });
               }}
               sx={{ textTransform: "none" }}
             >

@@ -423,15 +423,17 @@ export function LocationDialog({
                 </Grid>
               )}
 
-              {/* ── NFC tag — only show for zone and rack (useful), hide for sub-items ── */}
-              {(level === "zone" || level === "rack") && (
+              {/* ── Shortcode / prefix for address generation ── */}
+              {level === "zone" && (
                 <Grid size={{ xs: 12 }}>
                   <TextField
-                    label="NFC Tag ID (optional)"
+                    label="Shortcode (optional)"
                     value={nfcTagId}
                     onChange={(e) => setNfcTagId(e.target.value)}
                     size="small"
                     fullWidth
+                    placeholder='e.g. "OF" → OF-A-1-2-3'
+                    helperText="Used as a prefix when generating slot addresses"
                   />
                 </Grid>
               )}

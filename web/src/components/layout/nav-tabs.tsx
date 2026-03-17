@@ -5,7 +5,7 @@ import Link from "next/link";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Box from "@mui/material/Box";
-import DashboardIcon from "@mui/icons-material/Dashboard";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import HistoryIcon from "@mui/icons-material/History";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
@@ -16,12 +16,12 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: <DashboardIcon fontSize="small" /> },
+  { href: "/locations", label: "Dashboard", icon: <WarehouseIcon fontSize="small" /> },
   { href: "/scan", label: "Scan", icon: <QrCodeScannerIcon fontSize="small" /> },
   { href: "/spools", label: "Spools", icon: <CircleOutlinedIcon fontSize="small" /> },
-  { href: "/locations", label: "Locations", icon: <WarehouseIcon fontSize="small" /> },
   { href: "/catalog", label: "Catalog", icon: <MenuBookIcon fontSize="small" /> },
   { href: "/hardware", label: "Hardware", icon: <MemoryIcon fontSize="small" /> },
+  { href: "/dashboard", label: "Reporting", icon: <AssessmentIcon fontSize="small" /> },
   { href: "/audit", label: "Audit Log", icon: <HistoryIcon fontSize="small" /> },
   { href: "/submissions", label: "Submissions", icon: <SendIcon fontSize="small" /> },
   { href: "/settings", label: "Settings", icon: <SettingsIcon fontSize="small" /> },
@@ -30,7 +30,7 @@ const navItems = [
 function resolveTab(pathname: string): number {
   for (let i = navItems.length - 1; i >= 0; i--) {
     const { href } = navItems[i];
-    if (href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href)) return i;
+    if (href === "/locations" ? pathname === "/locations" : pathname.startsWith(href)) return i;
   }
   return 0;
 }
