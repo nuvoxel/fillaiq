@@ -38,7 +38,8 @@ public:
     void showQrCode(const char* data, const char* label = nullptr);
     void setSensorFlags(uint8_t flags);
     void showMenu();
-    bool isMenuActive() const { return _currentScreen == SCR_MENU || _currentScreen == SCR_RAW_SCALE || _currentScreen == SCR_RAW_SENSORS || _currentScreen == SCR_CALIBRATE; }
+    bool isMenuActive() const { return _currentScreen == SCR_MENU || _currentScreen == SCR_RAW_SENSORS || _currentScreen == SCR_CALIBRATE; }
+    bool isRawSensorsScreen() const { return _currentScreen == SCR_RAW_SENSORS; }
 
     // Touch-to-submit flag — set by LVGL event, consumed by main loop
     volatile bool touchSubmitRequested = false;
@@ -47,13 +48,11 @@ public:
     void (*onMenuFormatSd)() = nullptr;
     void (*onMenuWifiSetup)() = nullptr;
     void (*onMenuTareScale)() = nullptr;
-    void (*onMenuRawScale)() = nullptr;
     void (*onMenuRawSensors)() = nullptr;
     void (*onMenuCalibrate)() = nullptr;
     void (*onMenuReboot)() = nullptr;
 
-    // Raw scale screen — updated by main loop
-    void showRawScale(float weight, double rawAdc, float factor, bool stable);
+    // Raw sensors screen — updated by main loop
     void showRawSensors(const char* text);  // Pre-formatted multi-line sensor dump
     void showCalibrate(const char* step, const char* detail = nullptr);
 
@@ -71,7 +70,7 @@ private:
     bool _forceRedraw = true;
 
     // Current screen type (for knowing when to rebuild)
-    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_BOOT, SCR_PAIRING, SCR_QR, SCR_MENU, SCR_RAW_SCALE, SCR_RAW_SENSORS, SCR_CALIBRATE };
+    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_BOOT, SCR_PAIRING, SCR_QR, SCR_MENU, SCR_RAW_SENSORS, SCR_CALIBRATE };
     ScreenMode _currentScreen = SCR_NONE;
 
     // LVGL objects — persistent across updates
@@ -107,11 +106,6 @@ private:
     lv_obj_t* _bootList = nullptr;
     lv_obj_t* _bootStatus = nullptr;
     uint8_t   _bootCount = 0;
-
-    // Raw scale screen
-    lv_obj_t* _rawWeightLabel = nullptr;
-    lv_obj_t* _rawAdcLabel = nullptr;
-    lv_obj_t* _rawFactorLabel = nullptr;
 
     // Raw sensors screen
     lv_obj_t* _rawSensorsLabel = nullptr;

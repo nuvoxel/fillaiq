@@ -62,7 +62,7 @@ uint8_t authFailCount = 0;
 
 // Menu action flags (set by LVGL callbacks, processed in main loop)
 #ifdef BOARD_SCAN_TOUCH
-enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT };
+enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT };
 volatile MenuAction menuActionPending = MENU_NONE;
 #endif
 
@@ -1616,7 +1616,6 @@ void setup() {
     display.onMenuFormatSd  = []() { menuActionPending = MENU_FORMAT_SD; };
     display.onMenuWifiSetup = []() { menuActionPending = MENU_WIFI_SETUP; };
     display.onMenuTareScale = []() { menuActionPending = MENU_TARE_SCALE; };
-    display.onMenuRawScale   = []() { menuActionPending = MENU_RAW_SCALE; };
     display.onMenuRawSensors = []() { menuActionPending = MENU_RAW_SENSORS; };
     display.onMenuCalibrate  = []() { menuActionPending = MENU_CALIBRATE; };
     display.onMenuReboot    = []() { menuActionPending = MENU_REBOOT; };
@@ -1729,12 +1728,6 @@ void loop() {
                     display.showMessage("Tared!", "Scale zeroed");
                     delay(1000);
                 }
-                break;
-            case MENU_RAW_SCALE:
-                // Enter raw scale mode -- loop will continuously update
-                display.showRawScale(weightSnap.weight,
-                    (double)scale.getLastRawAdc(),
-                    scale.getScaleFactor(), weightSnap.stable);
                 break;
             case MENU_RAW_SENSORS:
                 // Enter raw sensors mode -- loop will continuously update
@@ -1929,13 +1922,8 @@ void loop() {
     if (display.isMenuActive() && now - lastDisplayUpdate >= 200) {
         lastDisplayUpdate = now;
 
-        // Raw scale screen (no-op if not on SCR_RAW_SCALE)
-        display.showRawScale(weightSnap.weight,
-            scale.isConnected() ? (double)scale.getLastRawAdc() : 0,
-            scale.getScaleFactor(), weightSnap.stable);
-
-        // Raw sensors screen -- use cached data, read one sensor per frame
-        // to avoid blocking touch. Static cache persists between frames.
+        // Raw sensors screen — only update if on that screen
+        if (display.isRawSensorsScreen()) {
         static char sensorBuf[512];
         static DistanceData cachedDist = {};
         static ColorData cachedColor = {};
@@ -2037,6 +2025,7 @@ void loop() {
 
             display.showRawSensors(sensorBuf);
         }
+        } // isRawSensorsScreen
     }
 #endif
 

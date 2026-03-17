@@ -335,10 +335,9 @@ void Display::onMenuItemClick(lv_event_t* e) {
         case 0: if (display.onMenuFormatSd)  display.onMenuFormatSd();  break;
         case 1: if (display.onMenuWifiSetup) display.onMenuWifiSetup(); break;
         case 2: if (display.onMenuTareScale) display.onMenuTareScale(); break;
-        case 3: if (display.onMenuRawScale)   display.onMenuRawScale();   break;
-        case 4: if (display.onMenuRawSensors) display.onMenuRawSensors(); break;
-        case 5: if (display.onMenuCalibrate) display.onMenuCalibrate(); break;
-        case 6: if (display.onMenuReboot)    display.onMenuReboot();    break;
+        case 3: if (display.onMenuRawSensors) display.onMenuRawSensors(); break;
+        case 4: if (display.onMenuCalibrate) display.onMenuCalibrate(); break;
+        case 5: if (display.onMenuReboot)    display.onMenuReboot();    break;
     }
 }
 
@@ -784,14 +783,12 @@ void Display::buildMenuScreen() {
                 onMenuItemClick, (void*)(intptr_t)1);
     makeMenuBtn(list, LV_SYMBOL_REFRESH, "Tare Scale",
                 onMenuItemClick, (void*)(intptr_t)2);
-    makeMenuBtn(list, LV_SYMBOL_SETTINGS, "Raw Scale",
-                onMenuItemClick, (void*)(intptr_t)3);
     makeMenuBtn(list, LV_SYMBOL_EYE_OPEN, "Raw Sensors",
-                onMenuItemClick, (void*)(intptr_t)4);
+                onMenuItemClick, (void*)(intptr_t)3);
     makeMenuBtn(list, LV_SYMBOL_EDIT, "Calibrate Scale",
-                onMenuItemClick, (void*)(intptr_t)5);
+                onMenuItemClick, (void*)(intptr_t)4);
     makeMenuBtn(list, LV_SYMBOL_POWER, "Reboot",
-                onMenuItemClick, (void*)(intptr_t)6);
+                onMenuItemClick, (void*)(intptr_t)5);
 
     // Device info line
     char info[64];
@@ -816,69 +813,6 @@ void Display::buildMenuScreen() {
     lv_obj_center(backLbl);
 
     lv_refr_now(NULL);
-}
-
-// ── Raw Scale Screen ─────────────────────────────────────────
-
-void Display::showRawScale(float weight, double rawAdc, float factor, bool stable) {
-    if (!_ready) return;
-
-    if (_currentScreen != SCR_RAW_SCALE) {
-        // First call — build the screen
-        clearScreen();
-        _currentScreen = SCR_RAW_SCALE;
-
-        makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
-                  LV_ALIGN_TOP_LEFT, 12, 12, "Raw Scale");
-
-        lv_obj_t* div = lv_obj_create(_screen);
-        lv_obj_remove_style_all(div);
-        lv_obj_set_size(div, _screenW - 24, 1);
-        lv_obj_set_style_bg_color(div, gray, 0);
-        lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
-        lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 40);
-
-        _rawWeightLabel = lv_label_create(_screen);
-        lv_obj_set_style_text_font(_rawWeightLabel, &lv_font_montserrat_28, 0);
-        lv_obj_set_style_text_color(_rawWeightLabel, lv_color_hex(WHITE_HEX), 0);
-        lv_obj_align(_rawWeightLabel, LV_ALIGN_TOP_LEFT, 16, 52);
-
-        _rawAdcLabel = lv_label_create(_screen);
-        lv_obj_set_style_text_font(_rawAdcLabel, &lv_font_montserrat_16, 0);
-        lv_obj_set_style_text_color(_rawAdcLabel, grayLight, 0);
-        lv_obj_align(_rawAdcLabel, LV_ALIGN_TOP_LEFT, 16, 90);
-
-        _rawFactorLabel = lv_label_create(_screen);
-        lv_obj_set_style_text_font(_rawFactorLabel, &lv_font_montserrat_14, 0);
-        lv_obj_set_style_text_color(_rawFactorLabel, gray, 0);
-        lv_obj_align(_rawFactorLabel, LV_ALIGN_TOP_LEFT, 16, 116);
-
-        // Back button
-        lv_obj_t* backBtn = lv_btn_create(_screen);
-        lv_obj_remove_style_all(backBtn);
-        lv_obj_set_size(backBtn, 60, 36);
-        lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
-        lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
-        lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(backBtn, 6, 0);
-        lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
-        lv_obj_t* backLbl = lv_label_create(backBtn);
-        lv_label_set_text(backLbl, LV_SYMBOL_LEFT " Back");
-        lv_obj_set_style_text_font(backLbl, &lv_font_montserrat_14, 0);
-        lv_obj_set_style_text_color(backLbl, lv_color_hex(WHITE_HEX), 0);
-        lv_obj_center(backLbl);
-    }
-
-    // Update values
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f g %s", weight, stable ? "STABLE" : "");
-    lv_label_set_text(_rawWeightLabel, buf);
-
-    snprintf(buf, sizeof(buf), "Raw ADC: %.0f", rawAdc);
-    lv_label_set_text(_rawAdcLabel, buf);
-
-    snprintf(buf, sizeof(buf), "Factor: %.4f", factor);
-    lv_label_set_text(_rawFactorLabel, buf);
 }
 
 // ── Raw Sensors Screen ───────────────────────────────────────
