@@ -30,15 +30,19 @@
 #include <BLEScan.h>
 
 // ============================================================
-// Filla IQ — FillaScan Firmware
+// Filla IQ -- FillaScan Firmware
 //
-// Architecture:
-//   Core 0: Main loop — state machine, display, LED, serial, WiFi, API
-//   Core 1: Weight task — continuous HX711 reading
+// Architecture (ESP32-S3 dual-core):
+//   Core 1 (Arduino loop): UI, display, LVGL, I2C sensors, state machine
+//   Core 0 (NFC task):     PN5180 SPI polling -- dedicated HSPI bus
+//   Core 0 (Network task): WiFi, HTTP API, OTA -- all blocking network I/O
+//   Core 0 (Weight task):  HX711 bit-bang only (NAU7802 polled on Core 1)
 //
-// Sensors: HX711 (weight), PN532 (NFC), VL53L1X (TOF), AS7341 (color)
-// Connectivity: WiFi + BLE provisioning
-// API: POST /api/v1/scan with all sensor data
+// Bus ownership:
+//   Wire (I2C):    Core 1 only (touch, NAU7802, TOF, color, env)
+//   nfcSPI (HSPI): NFC task only (PN5180)
+//   WiFi/HTTP:     Network task only
+//   Display/LVGL:  Core 1 only
 // ============================================================
 
 static Preferences prefs;
@@ -52,7 +56,7 @@ bool pairingActive = false;
 unsigned long lastPairingPoll = 0;
 #define PAIRING_POLL_INTERVAL_MS  5000
 
-// Auth failure tracking — only unpair after consecutive failures
+// Auth failure tracking -- only unpair after consecutive failures
 uint8_t authFailCount = 0;
 #define AUTH_FAIL_THRESHOLD  3
 
@@ -62,7 +66,303 @@ enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU
 volatile MenuAction menuActionPending = MENU_NONE;
 #endif
 
-// ── Scan State Machine ────────────────────────────────────────────────────────
+// ============================================================
+// FreeRTOS Shared State
+// ============================================================
+
+// -- NFC Task Result (written by NFC task, read by main loop) --
+struct NfcTaskResult {
+    SemaphoreHandle_t mutex;
+    bool tagPresent;
+    bool tagIsNew;          // set true when new tag detected, cleared by main loop
+    uint8_t uid[NFC_UID_MAX_LEN];
+    uint8_t uidLen;
+    TagData tagData;
+    unsigned long lastSeen;
+    bool hasData;           // tagData is valid
+    bool connected;         // NFC reader detected
+    String uidString;       // cached UID string
+};
+
+static NfcTaskResult nfcResult;
+
+// -- Network Work Queue --
+enum NetworkWorkType : uint8_t {
+    NET_POST_SCAN,
+    NET_CHECK_OTA,
+    NET_POLL_PAIRING,
+    NET_POST_ENV,
+    NET_WIFI_CONNECT,
+    NET_POLL_RESULT,
+};
+
+struct NetworkWorkItem {
+    NetworkWorkType type;
+    // For NET_POLL_RESULT: scan ID is read from shared state
+};
+
+#define NET_QUEUE_SIZE 8
+static QueueHandle_t networkQueue;
+
+// -- Shared scan data for network task (protected by mutex) --
+struct SharedScanData {
+    SemaphoreHandle_t mutex;
+
+    // Input: main loop writes before enqueueing NET_POST_SCAN
+    ScanResult scanResult;
+    TagData tagData;
+    bool hasTagData;
+
+    // Output: network task writes after API response
+    ScanResponse response;
+    ApiStatus lastStatus;
+    bool responseReady;     // new response available
+    bool postInFlight;      // a post is currently being processed
+
+    // For NET_POLL_RESULT
+    char pollScanId[64];
+    ScanResponse pollResponse;
+    ApiStatus pollStatus;
+    bool pollReady;
+    bool pollInFlight;
+
+    // For NET_POLL_PAIRING
+    bool pairingPollResult;
+    ApiStatus pairingPollStatus;
+    bool pairingPollReady;
+
+    // WiFi connect result
+    bool wifiConnectResult;
+    bool wifiConnectReady;
+
+    // For NET_POST_ENV: env data written by main loop before enqueue
+    EnvData envData;
+};
+
+static SharedScanData sharedScan;
+
+// -- OTA progress flag (set by network task, read by main loop) --
+static volatile bool otaRunning = false;
+
+// Task handles
+static TaskHandle_t nfcTaskHandle = nullptr;
+static TaskHandle_t networkTaskHandle = nullptr;
+
+// ============================================================
+// NFC Task (Core 0, Priority 2, 8KB stack)
+// ============================================================
+// Owns the HSPI bus (PN5180). Calls pollNfc() which uses nfcScanner.poll().
+// Writes results into nfcResult protected by mutex.
+
+static void nfcTask(void* param) {
+    Serial.println("[NFC Task] Started on core " + String(xPortGetCoreID()));
+
+    for (;;) {
+        // Poll NFC reader (this accesses HSPI only)
+        nfcScanner.poll();
+
+        // Copy results to shared struct
+        if (xSemaphoreTake(nfcResult.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            bool wasPresent = nfcResult.tagPresent;
+            uint8_t oldUid[NFC_UID_MAX_LEN];
+            uint8_t oldUidLen = nfcResult.uidLen;
+            memcpy(oldUid, nfcResult.uid, NFC_UID_MAX_LEN);
+
+            nfcResult.tagPresent = nfcScanner.isTagPresent();
+            nfcResult.connected = nfcScanner.isConnected();
+
+            if (nfcResult.tagPresent) {
+                uint8_t uid[NFC_UID_MAX_LEN];
+                uint8_t uidLen;
+                nfcScanner.getUid(uid, &uidLen);
+
+                // Detect new tag
+                bool isNew = !wasPresent ||
+                    uidLen != oldUidLen ||
+                    memcmp(uid, oldUid, uidLen) != 0;
+
+                memcpy(nfcResult.uid, uid, uidLen);
+                nfcResult.uidLen = uidLen;
+                nfcResult.lastSeen = millis();
+                nfcResult.uidString = nfcScanner.getUidString();
+
+                if (isNew) {
+                    nfcResult.tagIsNew = true;
+                }
+
+                if (nfcScanner.hasTagData()) {
+                    nfcResult.tagData = nfcScanner.getTagData();
+                    nfcResult.hasData = true;
+                }
+            } else {
+                // Tag removed
+                if (wasPresent) {
+                    nfcResult.tagPresent = false;
+                    nfcResult.hasData = false;
+                    nfcResult.uidLen = 0;
+                    nfcResult.uidString = "";
+                }
+            }
+
+            xSemaphoreGive(nfcResult.mutex);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(NFC_POLL_INTERVAL_MS));
+    }
+}
+
+// ============================================================
+// Network Task (Core 0, Priority 1, 8KB stack)
+// ============================================================
+// Owns all WiFi/HTTP operations. Receives work items from main loop via queue.
+// Also runs periodic WiFi reconnect and OTA checks on its own timers.
+
+static void networkTask(void* param) {
+    Serial.println("[Net Task] Started on core " + String(xPortGetCoreID()));
+
+    unsigned long lastWifiAttempt = 0;
+    unsigned long lastOtaCheck = millis();
+    unsigned long lastEnvReport = 0;
+    bool wifiEverConnected_net = false;
+
+    for (;;) {
+        // Process queued work items (non-blocking peek with short timeout)
+        NetworkWorkItem item;
+        if (xQueueReceive(networkQueue, &item, pdMS_TO_TICKS(100)) == pdTRUE) {
+            switch (item.type) {
+
+            case NET_POST_SCAN: {
+                ScanResult scanCopy;
+                TagData tagCopy;
+                bool hasTag;
+
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    scanCopy = sharedScan.scanResult;
+                    tagCopy = sharedScan.tagData;
+                    hasTag = sharedScan.hasTagData;
+                    xSemaphoreGive(sharedScan.mutex);
+                } else {
+                    break;
+                }
+
+                const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
+                ScanResponse resp;
+                ApiStatus status = apiClient.postScan(scanCopy, tagPtr, resp);
+
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    sharedScan.response = resp;
+                    sharedScan.lastStatus = status;
+                    sharedScan.responseReady = true;
+                    sharedScan.postInFlight = false;
+                    xSemaphoreGive(sharedScan.mutex);
+                }
+                break;
+            }
+
+            case NET_POLL_RESULT: {
+                char scanId[64];
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    strncpy(scanId, sharedScan.pollScanId, sizeof(scanId));
+                    xSemaphoreGive(sharedScan.mutex);
+                } else {
+                    break;
+                }
+
+                if (scanId[0] == '\0') break;
+
+                ScanResponse pollResp;
+                ApiStatus status = apiClient.pollResult(scanId, pollResp);
+
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    sharedScan.pollResponse = pollResp;
+                    sharedScan.pollStatus = status;
+                    sharedScan.pollReady = true;
+                    sharedScan.pollInFlight = false;
+                    xSemaphoreGive(sharedScan.mutex);
+                }
+                break;
+            }
+
+            case NET_POLL_PAIRING: {
+                bool paired = false;
+                ApiStatus status = apiClient.pollPairingStatus(paired);
+
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    sharedScan.pairingPollResult = paired;
+                    sharedScan.pairingPollStatus = status;
+                    sharedScan.pairingPollReady = true;
+                    xSemaphoreGive(sharedScan.mutex);
+                }
+                break;
+            }
+
+            case NET_POST_ENV: {
+                EnvData env;
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    env = sharedScan.envData;
+                    xSemaphoreGive(sharedScan.mutex);
+                } else {
+                    break;
+                }
+                if (env.valid) {
+                    apiClient.postEnvironment(env);
+                }
+                break;
+            }
+
+            case NET_WIFI_CONNECT: {
+                bool result = apiClient.connectWiFi();
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    sharedScan.wifiConnectResult = result;
+                    sharedScan.wifiConnectReady = true;
+                    xSemaphoreGive(sharedScan.mutex);
+                }
+                if (result) wifiEverConnected_net = true;
+                break;
+            }
+
+            case NET_CHECK_OTA: {
+                otaRunning = true;
+                otaLoop();
+                otaRunning = false;
+                break;
+            }
+
+            } // switch
+        }
+
+        // Periodic: WiFi reconnect (every 30s if disconnected)
+        {
+            unsigned long now = millis();
+            if (!apiClient.isWiFiConnected() && wifiEverConnected_net &&
+                now - lastWifiAttempt >= WIFI_RETRY_INTERVAL_MS) {
+                lastWifiAttempt = now;
+                if (apiClient.connectWiFi()) {
+                    wifiEverConnected_net = true;
+                }
+            }
+        }
+
+        // Periodic: OTA check (every 5 min after first 30s)
+        {
+            unsigned long now = millis();
+            if (!otaRunning && apiClient.isWiFiConnected() && apiClient.isPaired() &&
+                now - lastOtaCheck >= deviceConfig.otaCheckInterval()) {
+                lastOtaCheck = now;
+                otaRunning = true;
+                otaLoop();
+                otaRunning = false;
+            }
+        }
+
+        // Note: Environmental reporting is enqueued by the main loop
+        // (sensor reads require I2C which is only safe on Core 1)
+    }
+}
+
+// ============================================================
+// Scan State Machine
+// ============================================================
 
 ScanState scanState = SCAN_IDLE;
 ScanResult currentScan;
@@ -79,7 +379,7 @@ void enterState(ScanState newState) {
     stateEnteredAt = millis();
 }
 
-// ── Calibration State ─────────────────────────────────────────────────────────
+// -- Calibration State --
 
 enum CalState { CAL_NONE, CAL_WAIT_EMPTY, CAL_WAIT_WEIGHT };
 CalState calState = CAL_NONE;
@@ -98,27 +398,25 @@ float loadCalibration() {
     return f;
 }
 
-// ── WiFi Management ───────────────────────────────────────────────────────────
+// -- WiFi Management (enqueues to network task) --
 
-unsigned long lastWifiAttempt = 0;
 bool wifiEverConnected = false;
 
 void tryWifiConnect() {
     if (apiClient.isWiFiConnected()) return;
-    unsigned long now = millis();
-    if (wifiEverConnected && now - lastWifiAttempt < WIFI_RETRY_INTERVAL_MS) return;
-    lastWifiAttempt = now;
-
-    if (apiClient.connectWiFi()) {
-        wifiEverConnected = true;
-        // Auto-start pairing if needed
-        if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
-            startPairing();
-        }
+    // Don't spam -- the network task handles periodic reconnect
+    // But if wifi was never connected, enqueue a connect request
+    if (!wifiEverConnected) {
+        static unsigned long lastEnqueue = 0;
+        unsigned long now = millis();
+        if (now - lastEnqueue < WIFI_RETRY_INTERVAL_MS) return;
+        lastEnqueue = now;
+        NetworkWorkItem item = { NET_WIFI_CONNECT };
+        xQueueSend(networkQueue, &item, 0);
     }
 }
 
-// ── Captive Portal Provisioning Check ─────────────────────────────────────────
+// -- Captive Portal Provisioning Check --
 
 void checkProvisioning() {
     if (!provisioner.hasNewCredentials()) return;
@@ -135,7 +433,7 @@ void checkProvisioning() {
 
     apiClient.setCredentials(ssid, pass);
 
-    // Try connecting
+    // Try connecting (blocking -- acceptable during provisioning flow)
     if (apiClient.connectWiFi()) {
         wifiEverConnected = true;
         display.showMessage("WiFi Connected!", WiFi.localIP().toString().c_str());
@@ -173,14 +471,16 @@ void startPairing() {
     char code[12] = {0};
     display.showMessage("Pairing...", "Contacting server");
 
+    // This is a blocking HTTP call -- acceptable during setup flow
+    // (only called from setup() or user-initiated actions)
     ApiStatus status = apiClient.requestPairingCode(code, sizeof(code));
 
     if (status == API_OK && apiClient.isPaired()) {
-        // Server recognized device as already paired — token refreshed
+        // Server recognized device as already paired -- token refreshed
         display.showMessage("Paired!", "Ready to scan");
         delay(1000);
     } else if (status == API_OK && code[0] != '\0') {
-        // New pairing — show code on display
+        // New pairing -- show code on display
         pairingActive = true;
         lastPairingPoll = millis();
 
@@ -193,7 +493,7 @@ void startPairing() {
     }
 }
 
-// ── Per-loop weight snapshot (avoid repeated mutex acquisitions) ─────────────
+// -- Per-loop weight snapshot (avoid repeated mutex acquisitions) --
 
 struct WeightSnapshot {
     float weight;
@@ -208,7 +508,43 @@ void snapshotWeight() {
     weightSnap.stable = scale.isStable();
 }
 
-// ── Scan State Machine Logic ──────────────────────────────────────────────────
+// -- NFC snapshot (read from shared NfcTaskResult, used by state machine) --
+
+struct NfcSnapshot {
+    bool tagPresent;
+    bool tagIsNew;
+    uint8_t uid[NFC_UID_MAX_LEN];
+    uint8_t uidLen;
+    bool hasData;
+    TagData tagData;
+    String uidString;
+    bool connected;
+};
+static NfcSnapshot nfcSnap;
+
+void snapshotNfc() {
+    if (xSemaphoreTake(nfcResult.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        nfcSnap.tagPresent = nfcResult.tagPresent;
+        nfcSnap.tagIsNew = nfcResult.tagIsNew;
+        memcpy(nfcSnap.uid, nfcResult.uid, NFC_UID_MAX_LEN);
+        nfcSnap.uidLen = nfcResult.uidLen;
+        nfcSnap.hasData = nfcResult.hasData;
+        nfcSnap.connected = nfcResult.connected;
+        nfcSnap.uidString = nfcResult.uidString;
+        if (nfcResult.hasData) {
+            nfcSnap.tagData = nfcResult.tagData;
+        }
+        // Clear the "new" flag after main loop consumes it
+        if (nfcResult.tagIsNew) {
+            nfcResult.tagIsNew = false;
+        }
+        xSemaphoreGive(nfcResult.mutex);
+    }
+}
+
+// ============================================================
+// Scan State Machine Logic
+// ============================================================
 
 void updateScanState() {
     float w = weightSnap.weight;
@@ -250,20 +586,16 @@ void updateScanState() {
         currentScan.weight.stable = weightSnap.stable;
         currentScan.weight.valid = true;
 
-        // NFC
-        currentScan.nfcPresent = nfcScanner.isTagPresent();
+        // NFC (from snapshot -- thread-safe)
+        currentScan.nfcPresent = nfcSnap.tagPresent;
         if (currentScan.nfcPresent) {
-            String uid = nfcScanner.getUidString();
-            strncpy(currentScan.nfcUid, uid.c_str(), sizeof(currentScan.nfcUid) - 1);
-            uint8_t uidBuf[7];
-            uint8_t uidLen;
-            nfcScanner.getUid(uidBuf, &uidLen);
-            currentScan.nfcUidLen = uidLen;
-            currentScan.nfcTagType = nfcScanner.getTagData().type;
+            strncpy(currentScan.nfcUid, nfcSnap.uidString.c_str(), sizeof(currentScan.nfcUid) - 1);
+            currentScan.nfcUidLen = nfcSnap.uidLen;
+            currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
         }
 
         // Wait until weight is stable and NFC read is complete (or timeout)
-        bool nfcDone = !nfcScanner.isTagPresent() || nfcScanner.hasTagData();
+        bool nfcDone = !nfcSnap.tagPresent || nfcSnap.hasData;
         bool ready = weightSnap.stable && (nfcDone || elapsed > 5000);
 
         if (ready) {
@@ -279,7 +611,7 @@ void updateScanState() {
         }
 
         if (!apiClient.isWiFiConnected()) {
-            // No WiFi — can't identify without server
+            // No WiFi -- can't identify without server
             display.update(SCAN_NEEDS_INPUT, currentScan.weight.grams, true,
                           currentScan.nfcUid, nullptr, nullptr, nullptr);
             backlight.needsInput();
@@ -288,39 +620,69 @@ void updateScanState() {
         }
 
         if (now - lastApiPost < API_POST_DEBOUNCE_MS) break;
-        lastApiPost = now;
 
-        const TagData* tagPtr = nfcScanner.hasTagData() ? &nfcScanner.getTagData() : nullptr;
-        ApiStatus status = apiClient.postScan(currentScan, tagPtr, lastResponse);
+        // Check if a previous post response is ready
+        bool responseReady = false;
+        bool postInFlight = false;
+        if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            responseReady = sharedScan.responseReady;
+            postInFlight = sharedScan.postInFlight;
+            if (responseReady) {
+                lastResponse = sharedScan.response;
+                ApiStatus status = sharedScan.lastStatus;
+                sharedScan.responseReady = false;
+                xSemaphoreGive(sharedScan.mutex);
 
-        if (status == API_OK) {
-            authFailCount = 0;
-            Serial.printf("[API] Scan posted: id=%s identified=%d\n",
-                         lastResponse.scanId, lastResponse.identified);
+                // Process the response
+                lastApiPost = now;
+                if (status == API_OK) {
+                    authFailCount = 0;
+                    Serial.printf("[API] Scan posted: id=%s identified=%d\n",
+                                 lastResponse.scanId, lastResponse.identified);
 
 #ifdef BOARD_SCAN_TOUCH
-            if (audio.isConnected()) audio.playSubmitBeep();
+                    if (audio.isConnected()) audio.playSubmitBeep();
 #endif
 
-            if (lastResponse.identified) {
-                enterState(SCAN_IDENTIFIED);
-            } else if (lastResponse.needsCamera) {
-                enterState(SCAN_NEEDS_INPUT);
+                    if (lastResponse.identified) {
+                        enterState(SCAN_IDENTIFIED);
+                    } else if (lastResponse.needsCamera) {
+                        enterState(SCAN_NEEDS_INPUT);
+                    } else {
+                        enterState(SCAN_AWAITING_RESULT);
+                    }
+                } else if (status == API_AUTH_FAILED) {
+                    authFailCount++;
+                    Serial.printf("[API] Auth failed (%d/%d)\n", authFailCount, AUTH_FAIL_THRESHOLD);
+                    if (authFailCount >= AUTH_FAIL_THRESHOLD) {
+                        Serial.println("[API] Too many auth failures -- unpairing. Use 'pair' to re-pair.");
+                        apiClient.unpair();
+                        authFailCount = 0;
+                    }
+                    enterState(SCAN_IDLE);
+                } else {
+                    Serial.printf("[API] Post failed: %d\n", status);
+                    enterState(SCAN_NEEDS_INPUT);
+                }
+            } else if (!postInFlight) {
+                // No response yet and no post in flight -- enqueue one
+                sharedScan.scanResult = currentScan;
+                if (nfcSnap.hasData) {
+                    sharedScan.tagData = nfcSnap.tagData;
+                    sharedScan.hasTagData = true;
+                } else {
+                    sharedScan.hasTagData = false;
+                }
+                sharedScan.postInFlight = true;
+                sharedScan.responseReady = false;
+                xSemaphoreGive(sharedScan.mutex);
+
+                lastApiPost = now;
+                NetworkWorkItem item = { NET_POST_SCAN };
+                xQueueSend(networkQueue, &item, 0);
             } else {
-                enterState(SCAN_AWAITING_RESULT);
+                xSemaphoreGive(sharedScan.mutex);
             }
-        } else if (status == API_AUTH_FAILED) {
-            authFailCount++;
-            Serial.printf("[API] Auth failed (%d/%d)\n", authFailCount, AUTH_FAIL_THRESHOLD);
-            if (authFailCount >= AUTH_FAIL_THRESHOLD) {
-                Serial.println("[API] Too many auth failures — unpairing. Use 'pair' to re-pair.");
-                apiClient.unpair();
-                authFailCount = 0;
-            }
-            enterState(SCAN_IDLE);
-        } else {
-            Serial.printf("[API] Post failed: %d\n", status);
-            enterState(SCAN_NEEDS_INPUT);
         }
         break;
     }
@@ -331,27 +693,45 @@ void updateScanState() {
             break;
         }
 
-        if (now - lastApiPoll >= API_POLL_INTERVAL_MS && lastResponse.scanId[0]) {
-            lastApiPoll = now;
-            ScanResponse pollResp;
-            ApiStatus status = apiClient.pollResult(lastResponse.scanId, pollResp);
-            if (status == API_OK) {
-                authFailCount = 0;
-                if (pollResp.identified) {
-                    lastResponse = pollResp;
-                    enterState(SCAN_IDENTIFIED);
-                } else if (pollResp.needsCamera) {
-                    enterState(SCAN_NEEDS_INPUT);
-                }
-            } else if (status == API_AUTH_FAILED) {
-                authFailCount++;
-                Serial.printf("[API] Auth failed during poll (%d/%d)\n", authFailCount, AUTH_FAIL_THRESHOLD);
-                if (authFailCount >= AUTH_FAIL_THRESHOLD) {
-                    Serial.println("[API] Too many auth failures — unpairing.");
-                    apiClient.unpair();
+        // Check for poll response
+        if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            if (sharedScan.pollReady) {
+                ScanResponse pollResp = sharedScan.pollResponse;
+                ApiStatus status = sharedScan.pollStatus;
+                sharedScan.pollReady = false;
+                xSemaphoreGive(sharedScan.mutex);
+
+                if (status == API_OK) {
                     authFailCount = 0;
+                    if (pollResp.identified) {
+                        lastResponse = pollResp;
+                        enterState(SCAN_IDENTIFIED);
+                    } else if (pollResp.needsCamera) {
+                        enterState(SCAN_NEEDS_INPUT);
+                    }
+                } else if (status == API_AUTH_FAILED) {
+                    authFailCount++;
+                    Serial.printf("[API] Auth failed during poll (%d/%d)\n", authFailCount, AUTH_FAIL_THRESHOLD);
+                    if (authFailCount >= AUTH_FAIL_THRESHOLD) {
+                        Serial.println("[API] Too many auth failures -- unpairing.");
+                        apiClient.unpair();
+                        authFailCount = 0;
+                    }
+                    enterState(SCAN_IDLE);
                 }
-                enterState(SCAN_IDLE);
+            } else if (!sharedScan.pollInFlight &&
+                       now - lastApiPoll >= API_POLL_INTERVAL_MS && lastResponse.scanId[0]) {
+                // Enqueue a poll request
+                strncpy(sharedScan.pollScanId, lastResponse.scanId, sizeof(sharedScan.pollScanId));
+                sharedScan.pollInFlight = true;
+                sharedScan.pollReady = false;
+                xSemaphoreGive(sharedScan.mutex);
+
+                lastApiPoll = now;
+                NetworkWorkItem item = { NET_POLL_RESULT };
+                xQueueSend(networkQueue, &item, 0);
+            } else {
+                xSemaphoreGive(sharedScan.mutex);
             }
         }
 
@@ -408,20 +788,21 @@ void updateScanState() {
     }
 }
 
-// ── Display + LED Update ──────────────────────────────────────────────────────
+// ============================================================
+// Display + LED Update
+// ============================================================
 
 void updateDisplayAndLed() {
     float w = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
     bool stable = weightSnap.stable;
 
-    // Cache NFC UID — persist after tag removal until spool is lifted
+    // Cache NFC UID -- persist after tag removal until spool is lifted
     static char uidBuf[32];
     static bool hasUid = false;
 
-    // Update cache when tag is present
-    if (nfcScanner.isTagPresent()) {
-        String uidStr = nfcScanner.getUidString();
-        strncpy(uidBuf, uidStr.c_str(), sizeof(uidBuf) - 1);
+    // Update cache when tag is present (from NFC snapshot)
+    if (nfcSnap.tagPresent && nfcSnap.uidString.length() > 0) {
+        strncpy(uidBuf, nfcSnap.uidString.c_str(), sizeof(uidBuf) - 1);
         uidBuf[sizeof(uidBuf) - 1] = '\0';
         hasUid = true;
     }
@@ -498,7 +879,9 @@ void updateDisplayAndLed() {
     backlight.update();
 }
 
-// ── Serial Commands ───────────────────────────────────────────────────────────
+// ============================================================
+// Serial Commands
+// ============================================================
 
 void printHelp() {
     Serial.println("Commands:");
@@ -540,6 +923,13 @@ void printStatus() {
         deviceIdentity.isProvisioned() ? "yes" : "no");
     Serial.println("========================================");
 
+    // Architecture info
+    Serial.println("\n  Tasks");
+    Serial.printf("    NFC task:  core 0, %s\n", nfcTaskHandle ? "running" : "not started");
+    Serial.printf("    Net task:  core 0, %s\n", networkTaskHandle ? "running" : "not started");
+    Serial.printf("    Weight:    %s\n", scale.isTaskRunning() ? "task (core 0)" : "main loop poll");
+    Serial.printf("    Free heap: %u bytes\n", ESP.getFreeHeap());
+
     // Network
     Serial.println("\n  Network");
     if (apiClient.isWiFiConnected()) {
@@ -566,7 +956,7 @@ void printStatus() {
     } else {
         Serial.println("    Scale:  --");
     }
-    Serial.printf("    NFC:    %s\n", nfcScanner.isConnected() ? "PN532" : "--");
+    Serial.printf("    NFC:    %s\n", nfcSnap.connected ? "PN5180" : "--");
     Serial.printf("    TOF:    %s\n", distanceSensor.isConnected() ? "VL53L1X" : "--");
     {
         const char* colorNames[] = {"--", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
@@ -626,10 +1016,10 @@ void printScanDetails() {
     float w = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
     Serial.printf("  Weight: %.1fg %s\n", w, weightSnap.stable ? "STABLE" : "unstable");
 
-    if (nfcScanner.isTagPresent()) {
-        Serial.printf("  NFC: %s", nfcScanner.getUidString().c_str());
-        if (nfcScanner.hasTagData()) {
-            const TagData& td = nfcScanner.getTagData();
+    if (nfcSnap.tagPresent) {
+        Serial.printf("  NFC: %s", nfcSnap.uidString.c_str());
+        if (nfcSnap.hasData) {
+            const TagData& td = nfcSnap.tagData;
             if (td.type == TAG_MIFARE_CLASSIC)
                 Serial.printf("  (MIFARE, %d sectors)", td.sectors_read);
             else
@@ -733,7 +1123,17 @@ void handleSerial() {
         printScanDetails();
     }
     else if (line == "nfc") {
-        nfcScanner.printStatus();
+        // Print NFC status from snapshot (thread-safe)
+        Serial.println("=== NFC ===");
+        Serial.printf("  Connected: %s\n", nfcSnap.connected ? "YES" : "no");
+        Serial.printf("  Tag: %s\n", nfcSnap.tagPresent ? nfcSnap.uidString.c_str() : "none");
+        if (nfcSnap.tagPresent && nfcSnap.hasData) {
+            const TagData& td = nfcSnap.tagData;
+            Serial.printf("  Tag data: %d %s\n",
+                td.type == TAG_MIFARE_CLASSIC ? td.sectors_read : td.pages_read,
+                td.type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
+        }
+        Serial.printf("  Task: %s (core 0)\n", nfcTaskHandle ? "running" : "not started");
     }
     else if (line == "i2c") {
         Serial.print("I2C:");
@@ -807,7 +1207,9 @@ void handleSerial() {
             String pass = line.substring(spaceIdx + 1);
             apiClient.setCredentials(ssid.c_str(), pass.c_str());
             Serial.printf("WiFi: %s\n", ssid.c_str());
-            apiClient.connectWiFi();
+            // Enqueue WiFi connect to network task
+            NetworkWorkItem item = { NET_WIFI_CONNECT };
+            xQueueSend(networkQueue, &item, 0);
         } else {
             Serial.println("Usage: wifi <ssid> <password>");
         }
@@ -923,7 +1325,8 @@ void handleSerial() {
     }
     else if (line == "ota") {
         Serial.println("Checking for update...");
-        otaCheckNow();
+        NetworkWorkItem item = { NET_CHECK_OTA };
+        xQueueSend(networkQueue, &item, 0);
     }
 
 #ifdef BOARD_SCAN_TOUCH
@@ -971,10 +1374,10 @@ void setup() {
     Serial.begin(SERIAL_BAUD);
     delay(1000);
     Serial.println("\n========================================");
-    Serial.printf("  Filla IQ — FillaScan v%s (%s)\n", FW_VERSION, FW_CHANNEL);
+    Serial.printf("  Filla IQ -- FillaScan v%s (%s)\n", FW_VERSION, FW_CHANNEL);
     Serial.println("========================================\n");
 
-    // Display + backlight first — show boot screen immediately
+    // Display + backlight first -- show boot screen immediately
     backlight.begin();
     backlight.color(0, 0, 255);  // Blue = booting
     display.begin();
@@ -1005,7 +1408,7 @@ void setup() {
     Wire.setTimeOut(50);
     Serial.printf("  I2C bus: SDA=%d SCL=%d\n", I2C_SDA, I2C_SCL); Serial.flush();
 
-    // Touch init first — reset FT6336G so it releases SDA before we scan
+    // Touch init first -- reset FT6336G so it releases SDA before we scan
 #ifdef BOARD_SCAN_TOUCH
     display.setBootStatus("Touch init...");
     touchInput.begin();
@@ -1031,14 +1434,14 @@ void setup() {
         if (err == 0) { Serial.printf(" 0x%02X", knownAddrs[i]); Serial.flush(); }
     }
     Serial.println(); Serial.flush();
-    // Keep short timeout during sensor detection — restored after init
+    // Keep short timeout during sensor detection -- restored after init
     Wire.setTimeOut(100);
 
     // Hardware-rooted device identity (eFuse HMAC)
     display.setBootStatus("Identity...");
     deviceIdentity.begin();
 
-    // NFC reader (dedicated I2C bus — Wire1)
+    // NFC reader (SPI init happens in begin() -- still on main thread during setup)
     display.setBootStatus("NFC init...");
     initNfc();
     display.addBootItem("NFC", nfcScanner.isConnected());
@@ -1075,7 +1478,7 @@ void setup() {
     if (scale.isConnected()) {
         scale.tare();
 #ifdef BOARD_SCAN_TOUCH
-        // NAU7802 uses I2C — poll in main loop to avoid I2C bus contention
+        // NAU7802 uses I2C -- poll in main loop to avoid I2C bus contention
         // (HX711 needs dedicated task for bit-banged GPIO timing)
         if (scale.getDriverType() != WEIGHT_HX711) {
             Serial.println("  Weight: polling in main loop (I2C)");
@@ -1162,11 +1565,11 @@ void setup() {
         caps.sdCard.set(sdCard.getChipName(), "SDMMC");
     if (audio.isConnected())
         caps.audio.set("ES8311", "I2S", ES8311_ADDR);
-    // Battery ADC — always present on touch board
+    // Battery ADC -- always present on touch board
     caps.battery.set("ADC", "GPIO", 0, BATTERY_ADC_PIN);
 #endif
 
-    // Label printer — BLE scan
+    // Label printer -- BLE scan
     display.setBootStatus("Scanning BLE printer...");
     labelPrinter.begin();
     if (labelPrinter.scan(5000)) {
@@ -1207,7 +1610,7 @@ void setup() {
         startProvisioning();
     }
 
-    // Menu action callbacks — set flags for main loop to handle
+    // Menu action callbacks -- set flags for main loop to handle
     // (LVGL event callbacks run on lv_timer_handler stack, can't do heavy work)
 #ifdef BOARD_SCAN_TOUCH
     display.onMenuFormatSd  = []() { menuActionPending = MENU_FORMAT_SD; };
@@ -1219,8 +1622,60 @@ void setup() {
     display.onMenuReboot    = []() { menuActionPending = MENU_REBOOT; };
 #endif
 
-    // OTA updates
+    // OTA updates (init only -- periodic checks happen in network task)
     otaBegin();
+
+    // ============================================================
+    // Create FreeRTOS shared state and tasks
+    // ============================================================
+
+    // Initialize shared state mutexes
+    nfcResult.mutex = xSemaphoreCreateMutex();
+    nfcResult.tagPresent = false;
+    nfcResult.tagIsNew = false;
+    nfcResult.uidLen = 0;
+    nfcResult.hasData = false;
+    nfcResult.connected = nfcScanner.isConnected();
+
+    sharedScan.mutex = xSemaphoreCreateMutex();
+    sharedScan.responseReady = false;
+    sharedScan.postInFlight = false;
+    sharedScan.pollReady = false;
+    sharedScan.pollInFlight = false;
+    sharedScan.pairingPollReady = false;
+    sharedScan.wifiConnectReady = false;
+    memset(sharedScan.pollScanId, 0, sizeof(sharedScan.pollScanId));
+
+    // Create network work queue
+    networkQueue = xQueueCreate(NET_QUEUE_SIZE, sizeof(NetworkWorkItem));
+
+    // Create NFC task on Core 0 (PN5180 uses its own HSPI bus)
+#ifdef BOARD_SCAN_TOUCH
+    if (nfcScanner.isConnected()) {
+        xTaskCreatePinnedToCore(
+            nfcTask,            // task function
+            "nfc",              // name
+            8192,               // stack size (bytes)
+            nullptr,            // parameter
+            2,                  // priority (higher than network)
+            &nfcTaskHandle,     // task handle
+            0                   // core 0
+        );
+        Serial.println("  NFC task: started on core 0 (priority 2)");
+    }
+#endif
+
+    // Create network task on Core 0
+    xTaskCreatePinnedToCore(
+        networkTask,        // task function
+        "net",              // name
+        8192,               // stack size (bytes)
+        nullptr,            // parameter
+        1,                  // priority (lower than NFC)
+        &networkTaskHandle, // task handle
+        0                   // core 0
+    );
+    Serial.println("  Net task: started on core 0 (priority 1)");
 
     Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
     backlight.idle();
@@ -1230,17 +1685,18 @@ void setup() {
 }
 
 // ============================================================
-// Main Loop (Core 0)
+// Main Loop (Core 1 -- Arduino default)
 // ============================================================
+// UI only. No blocking operations. No NFC SPI. No HTTP.
+// I2C sensors (NAU7802, TOF, color, env) are read here.
 
 static unsigned long lastDisplayUpdate = 0;
 static unsigned long lastSerialStatus = 0;
-static unsigned long lastEnvReport = 0;
 
 void loop() {
     unsigned long now = millis();
 
-    // LVGL tick — must run frequently for rendering + animations
+    // LVGL tick -- must run frequently for rendering + animations
     display.tick();
 
     // Process deferred menu actions (set by LVGL event callbacks)
@@ -1275,13 +1731,13 @@ void loop() {
                 }
                 break;
             case MENU_RAW_SCALE:
-                // Enter raw scale mode — loop will continuously update
+                // Enter raw scale mode -- loop will continuously update
                 display.showRawScale(weightSnap.weight,
                     (double)scale.getLastRawAdc(),
                     scale.getScaleFactor(), weightSnap.stable);
                 break;
             case MENU_RAW_SENSORS:
-                // Enter raw sensors mode — loop will continuously update
+                // Enter raw sensors mode -- loop will continuously update
                 display.showRawSensors("Loading...");
                 break;
             case MENU_CALIBRATE: {
@@ -1326,7 +1782,7 @@ void loop() {
                 display.showCalibrate("Calibrated!", msg);
                 Serial.printf("Calibration: %.4f (saved)\n", factor);
                 delay(2000);
-                // Return to normal — showMessage sets SCR_MESSAGE, next update() rebuilds
+                // Return to normal
                 display.showMessage("Done", "Tap Back to return");
                 break;
             }
@@ -1352,53 +1808,108 @@ void loop() {
     // Snapshot weight once per loop (avoids repeated mutex acquisitions)
     snapshotWeight();
 
-    // NFC polling (dedicated I2C bus — Wire1)
+    // Snapshot NFC state from NFC task (thread-safe read)
+    snapshotNfc();
+
+    // NFC polling for DevKitC (PN532 on shared SPI -- no NFC task)
+#ifndef BOARD_SCAN_TOUCH
     pollNfc();
+    // For DevKitC, manually populate nfcSnap from nfcScanner directly
+    nfcSnap.tagPresent = nfcScanner.isTagPresent();
+    nfcSnap.connected = nfcScanner.isConnected();
+    if (nfcSnap.tagPresent) {
+        nfcScanner.getUid(nfcSnap.uid, &nfcSnap.uidLen);
+        nfcSnap.uidString = nfcScanner.getUidString();
+        nfcSnap.hasData = nfcScanner.hasTagData();
+        if (nfcSnap.hasData) {
+            nfcSnap.tagData = nfcScanner.getTagData();
+        }
+    }
+#endif
 
     // Captive portal processing (must run frequently when AP is active)
     provisioner.loop();
 
-    // OTA update check
-    if (!otaInProgress()) {
-        otaLoop();
+    // Skip heavy processing during OTA
+    if (otaRunning) {
+        // Still tick display so OTA progress can be shown
+        return;
     }
 
-    // Skip everything else during OTA
-    if (otaInProgress()) return;
-
     // WiFi management (only when not in setup mode)
+    // Actual connection happens in network task; this just enqueues requests
     if (!provisioner.isActive()) {
         tryWifiConnect();
+    }
+
+    // Check for WiFi connect result from network task
+    if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+        if (sharedScan.wifiConnectReady) {
+            sharedScan.wifiConnectReady = false;
+            if (sharedScan.wifiConnectResult) {
+                wifiEverConnected = true;
+                if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
+                    startPairing();
+                }
+            }
+        }
+        xSemaphoreGive(sharedScan.mutex);
     }
 
     // Captive portal provisioning check
     checkProvisioning();
 
-    // Device pairing poll
+    // Device pairing poll (enqueue to network task)
     if (pairingActive && now - lastPairingPoll >= PAIRING_POLL_INTERVAL_MS) {
         lastPairingPoll = now;
-        bool paired = false;
-        ApiStatus pairStatus = apiClient.pollPairingStatus(paired);
-        if (paired) {
-            pairingActive = false;
-            display.showMessage("Paired!", "Ready to scan");
-            delay(2000);
-        } else if (pairStatus == API_EXPIRED) {
-            // Code expired — request a new one
-            Serial.println("[Pair] Code expired, requesting new code");
-            startPairing();
-        } else if (pairStatus != API_OK) {
-            Serial.printf("[Pair] Poll error: %d\n", pairStatus);
+
+        // Check for pairing poll result
+        bool gotResult = false;
+        if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            if (sharedScan.pairingPollReady) {
+                sharedScan.pairingPollReady = false;
+                gotResult = true;
+                bool paired = sharedScan.pairingPollResult;
+                ApiStatus pairStatus = sharedScan.pairingPollStatus;
+                xSemaphoreGive(sharedScan.mutex);
+
+                if (paired) {
+                    pairingActive = false;
+                    display.showMessage("Paired!", "Ready to scan");
+                    delay(2000);
+                } else if (pairStatus == API_EXPIRED) {
+                    Serial.println("[Pair] Code expired, requesting new code");
+                    startPairing();
+                } else if (pairStatus != API_OK) {
+                    Serial.printf("[Pair] Poll error: %d\n", pairStatus);
+                }
+            } else {
+                xSemaphoreGive(sharedScan.mutex);
+            }
+        }
+
+        // Enqueue next poll if still pairing
+        if (pairingActive && !gotResult) {
+            NetworkWorkItem item = { NET_POLL_PAIRING };
+            xQueueSend(networkQueue, &item, 0);
         }
     }
 
-    // Environmental data reporting (every 5 min)
-    if (envSensor.isConnected() && apiClient.isPaired() && apiClient.isWiFiConnected()
-        && now - lastEnvReport >= deviceConfig.envReportInterval()) {
-        lastEnvReport = now;
-        EnvData env;
-        if (envSensor.read(env)) {
-            apiClient.postEnvironment(env);
+    // Environmental data reporting (read I2C sensor on main loop, enqueue HTTP post)
+    {
+        static unsigned long lastEnvReport = 0;
+        if (envSensor.isConnected() && apiClient.isPaired() && apiClient.isWiFiConnected()
+            && now - lastEnvReport >= deviceConfig.envReportInterval()) {
+            lastEnvReport = now;
+            EnvData env;
+            if (envSensor.read(env)) {
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                    sharedScan.envData = env;
+                    xSemaphoreGive(sharedScan.mutex);
+                    NetworkWorkItem item = { NET_POST_ENV };
+                    xQueueSend(networkQueue, &item, 0);
+                }
+            }
         }
     }
 
@@ -1414,7 +1925,7 @@ void loop() {
     }
 
 #ifdef BOARD_SCAN_TOUCH
-    // Live sensor screens — continuous update
+    // Live sensor screens -- continuous update
     if (display.isMenuActive() && now - lastDisplayUpdate >= 200) {
         lastDisplayUpdate = now;
 
@@ -1423,7 +1934,7 @@ void loop() {
             scale.isConnected() ? (double)scale.getLastRawAdc() : 0,
             scale.getScaleFactor(), weightSnap.stable);
 
-        // Raw sensors screen — use cached data, read one sensor per frame
+        // Raw sensors screen -- use cached data, read one sensor per frame
         // to avoid blocking touch. Static cache persists between frames.
         static char sensorBuf[512];
         static DistanceData cachedDist = {};
@@ -1431,16 +1942,20 @@ void loop() {
         static EnvData cachedEnv = {};
         static uint8_t sensorReadSlot = 0;
 
-        // Read one sensor per frame (round-robin) to keep loop responsive
+        // Read one sensor per frame (round-robin) with LVGL ticks between
+        // to keep touch responsive during slow I2C reads (AS7341 can take 50-100ms)
         switch (sensorReadSlot) {
             case 0:
                 if (distanceSensor.isConnected()) distanceSensor.read(cachedDist);
+                display.tick();
                 break;
             case 1:
                 if (colorSensor.isConnected()) colorSensor.read(cachedColor);
+                display.tick();
                 break;
             case 2:
                 if (envSensor.isConnected()) envSensor.read(cachedEnv);
+                display.tick();
                 break;
         }
         sensorReadSlot = (sensorReadSlot + 1) % 3;
@@ -1513,10 +2028,10 @@ void loop() {
                 pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Env: --\n");
             }
 
-            // NFC (non-blocking check)
-            if (nfcScanner.isConnected())
+            // NFC (from snapshot -- thread-safe)
+            if (nfcSnap.connected)
                 pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: %s\n",
-                    nfcScanner.isTagPresent() ? nfcScanner.getUidString() : "no tag");
+                    nfcSnap.tagPresent ? nfcSnap.uidString.c_str() : "no tag");
             else
                 pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: --\n");
 
@@ -1534,8 +2049,8 @@ void loop() {
         Serial.printf("[%s] W:%.1fg%s",
             scanStateName(scanState), w, weightSnap.stable ? " STABLE" : "");
 
-        if (nfcScanner.isTagPresent()) {
-            Serial.printf(" | NFC:%s", nfcScanner.getUidString().c_str());
+        if (nfcSnap.tagPresent) {
+            Serial.printf(" | NFC:%s", nfcSnap.uidString.c_str());
             if (lastResponse.material[0])
                 Serial.printf(" [%s]", lastResponse.material);
         }

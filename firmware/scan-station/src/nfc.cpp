@@ -147,76 +147,131 @@ static uint8_t activateTag14443(uint8_t *uid) {
 }
 
 // Detect an ISO 15693 tag, returns 8-byte UID (false = no tag)
+// Requires two consecutive successful reads with the same UID to filter noise.
 static bool detectTag15693(uint8_t *uid) {
     // Switch to ISO 15693 RF config
     if (!reader15693.setupRF()) return false;
 
-    memset(uid, 0, 8);
-    ISO15693ErrorCode rc = reader15693.getInventory(uid);
+    // First read
+    uint8_t uid1[8] = {0};
+    ISO15693ErrorCode rc = reader15693.getInventory(uid1);
+    if (rc != ISO15693_EC_OK) {
+        reader14443.setupRF();
+        return false;
+    }
+
+    // Validate UID is not all zeros or all 0xFF
+    bool allZero = true, allFF = true;
+    for (int i = 0; i < 8; i++) {
+        if (uid1[i] != 0x00) allZero = false;
+        if (uid1[i] != 0xFF) allFF = false;
+    }
+    if (allZero || allFF) {
+        reader14443.setupRF();
+        return false;
+    }
+
+    // Second read to confirm (filters noise/ghost detections)
+    delay(5);
+    uint8_t uid2[8] = {0};
+    rc = reader15693.getInventory(uid2);
 
     // Switch back to 14443A regardless
     reader14443.setupRF();
 
     if (rc != ISO15693_EC_OK) return false;
+    if (memcmp(uid1, uid2, 8) != 0) return false;  // UIDs don't match — noise
 
-    // Validate UID is not all zeros or all 0xFF (false positive)
-    bool allZero = true, allFF = true;
-    for (int i = 0; i < 8; i++) {
-        if (uid[i] != 0x00) allZero = false;
-        if (uid[i] != 0xFF) allFF = false;
-    }
-    if (allZero || allFF) return false;
-
+    memcpy(uid, uid1, 8);
     return true;
 }
 
-// Read all MIFARE Classic sectors in one shot.
+// Re-select tag after auth failure or crypto clear
+static bool reselectTag5180() {
+    reader14443.mifareHalt();
+    uint8_t resp[10] = {0};
+    return (reader14443.activateTypeA(resp, 1) >= 4);
+}
+
+// Read all MIFARE Classic sectors in one shot with retry.
 // Tag must be in ACTIVE state (just selected by activateTypeA).
-// After auth failure, halt+WUPA to re-select before trying next sector.
+//
+// Optimizations vs naive approach:
+// - Auth carries over between blocks in same sector (no re-auth per block)
+// - Only re-select tag when auth fails (not after every sector)
+// - Retry failed sectors up to 2 times
+// - Bail immediately on BUSY stuck or tag gone
 static void readAllMifareSectors5180(const uint8_t *uid, uint8_t uidLen,
                                       const BambuKeys &keys, TagData &tagData) {
     const uint8_t defaultKey[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    const int MAX_RETRIES = 2;
 
-    for (uint8_t sector = 0; sector < TagData::NUM_SECTORS; sector++) {
-        // Bail out if PN5180 is stuck
-        if (digitalRead(NFC_BUSY_PIN) == HIGH) {
-            Serial.printf("  [NFC] BUSY stuck at sector %d, aborting\n", sector);
-            break;
-        }
+    for (int pass = 0; pass <= MAX_RETRIES; pass++) {
+        bool anyFailed = false;
 
-        uint8_t firstBlock = sector * 4;
-        bool authed = false;
+        for (uint8_t sector = 0; sector < TagData::NUM_SECTORS; sector++) {
+            // Skip already-read sectors on retry passes
+            if (tagData.sector_ok[sector]) continue;
 
-        // Try Bambu key A
-        authed = reader14443.mifareAuthenticate(firstBlock, 0x60, keys.keyA[sector], uid, uidLen);
-        if (!authed) {
-            // Auth failure halts the tag — re-select and try default key
-            reader14443.mifareHalt();
-            uint8_t resp[10] = {0};
-            if (reader14443.activateTypeA(resp, 1) < 4) break;  // tag gone
-            authed = reader14443.mifareAuthenticate(firstBlock, 0x60, defaultKey, uid, uidLen);
-        }
-
-        if (authed) {
-            for (uint8_t b = 0; b < 3; b++) {
-                reader14443.mifareBlockRead(firstBlock + b, tagData.sector_data[sector][b]);
+            // Bail if PN5180 is stuck
+            if (digitalRead(NFC_BUSY_PIN) == HIGH) {
+                resetPN5180();
+                if (!reselectTag5180()) goto done;
+                continue;
             }
-            tagData.sector_ok[sector] = true;
-            tagData.sectors_read++;
 
-            // Clear crypto mode after each sector to prevent PN5180 stuck state
-            reader14443.writeRegisterWithAndMask(0x00, 0xFFFFFFBF);
-            // Re-select tag for next sector (crypto clear drops the tag session)
-            reader14443.mifareHalt();
-            uint8_t resp[10] = {0};
-            if (reader14443.activateTypeA(resp, 1) < 4) break;
-        } else {
-            // Re-select for next sector attempt
-            reader14443.mifareHalt();
-            uint8_t resp[10] = {0};
-            if (reader14443.activateTypeA(resp, 1) < 4) break;  // tag gone
+            uint8_t firstBlock = sector * 4;
+
+            // Try Bambu key A first
+            bool authed = reader14443.mifareAuthenticate(firstBlock, 0x60,
+                keys.keyA[sector], uid, uidLen);
+
+            if (!authed) {
+                // Auth failure — re-select and try default key
+                if (!reselectTag5180()) goto done;
+                authed = reader14443.mifareAuthenticate(firstBlock, 0x60,
+                    defaultKey, uid, uidLen);
+            }
+
+            if (authed) {
+                // Read 3 data blocks (block 3 is the trailer, skip it)
+                bool allOk = true;
+                for (uint8_t b = 0; b < 3; b++) {
+                    if (!reader14443.mifareBlockRead(firstBlock + b,
+                            tagData.sector_data[sector][b])) {
+                        allOk = false;
+                        break;
+                    }
+                }
+
+                if (allOk) {
+                    tagData.sector_ok[sector] = true;
+                    tagData.sectors_read++;
+                } else {
+                    anyFailed = true;
+                    // Read error — re-select for next sector
+                    if (!reselectTag5180()) goto done;
+                }
+                // Note: do NOT re-select after successful read — auth carries
+                // into the next mifareAuthenticate call. The PN5180 handles
+                // the crypto state transition internally.
+            } else {
+                anyFailed = true;
+                // Both keys failed — re-select for next sector
+                if (!reselectTag5180()) goto done;
+            }
         }
+
+        // All sectors read or no failures to retry
+        if (!anyFailed || tagData.sectors_read >= TagData::NUM_SECTORS) break;
+
+        // Re-select tag for retry pass
+        if (!reselectTag5180()) break;
     }
+
+done:
+    // Clean up crypto state
+    reader14443.writeRegisterWithAndMask(SYSTEM_CONFIG, SYSTEM_CONFIG_CLEAR_CRYPTO_MASK);
     tagData.valid = (tagData.sectors_read > 0);
 }
 

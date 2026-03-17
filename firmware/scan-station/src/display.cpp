@@ -3,6 +3,7 @@
 #include <lvgl.h>
 #include <qrcode.h>
 #include "api_client.h"
+#include "mui_icons.h"
 
 // LVGL native display drivers
 #include "src/drivers/display/lcd/lv_lcd_generic_mipi.h"
@@ -241,8 +242,18 @@ static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, lv_color_t c
 
 // ── Status Bar ───────────────────────────────────────────────
 
+// Helper: create a tinted 16x16 icon image in a flex container.
+static lv_obj_t* makeIcon(lv_obj_t* parent, const lv_image_dsc_t* dsc, lv_color_t tint) {
+    lv_obj_t* img = lv_image_create(parent);
+    lv_image_set_src(img, dsc);
+    lv_obj_set_style_image_recolor(img, tint, 0);
+    lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+    return img;
+}
+
 lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
-    // Sensor indicators on the left
+    // ── Sensor icons (left side) ─────────────────────────────
+    // One icon per detected sensor, displayed in fixed order.
     if (_sensorFlags) {
         lv_obj_t* sensorBar = lv_obj_create(parent);
         lv_obj_remove_style_all(sensorBar);
@@ -250,54 +261,39 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
         lv_obj_align(sensorBar, LV_ALIGN_TOP_LEFT, 8, 10);
         lv_obj_set_flex_flow(sensorBar, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(sensorBar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(sensorBar, 6, 0);
+        lv_obj_set_style_pad_column(sensorBar, 4, 0);
 
-        struct { uint8_t flag; const char* name; } sensors[] = {
-            { SENSOR_NFC,   "NFC" },
-            { SENSOR_SCALE, "W" },
-            { SENSOR_TOF,   "D" },
-            { SENSOR_COLOR, "C" },
-            { SENSOR_ENV,   "E" },
-            { SENSOR_SD,    "SD" },
-            { SENSOR_AUDIO, LV_SYMBOL_AUDIO },
+        struct { uint8_t flag; const lv_image_dsc_t* dsc; } sensors[] = {
+            { SENSOR_NFC,   &icon_nfc   },
+            { SENSOR_SCALE, &icon_scale },
+            { SENSOR_TOF,   &icon_tof   },
+            { SENSOR_COLOR, &icon_color },
+            { SENSOR_ENV,   &icon_env   },
+            { SENSOR_SD,    &icon_sd    },
+            { SENSOR_AUDIO, &icon_audio },
         };
         for (auto& s : sensors) {
             if (_sensorFlags & s.flag) {
-                lv_obj_t* lbl = lv_label_create(sensorBar);
-                lv_obj_remove_style_all(lbl);
-                lv_label_set_text(lbl, s.name);
-                lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
-                lv_obj_set_style_text_color(lbl, green, 0);
+                makeIcon(sensorBar, s.dsc, green);
             }
         }
     }
 
-    // Connectivity icons on the right
+    // ── Connectivity icons (right side) ──────────────────────
+    // Displayed right-to-left via ROW_REVERSE: printer, paired, wifi.
     lv_obj_t* bar = lv_obj_create(parent);
     lv_obj_remove_style_all(bar);
-    lv_obj_set_size(bar, 100, 20);
-    lv_obj_align(bar, LV_ALIGN_TOP_RIGHT, -8, 8);
+    lv_obj_set_size(bar, LV_SIZE_CONTENT, 16);
+    lv_obj_align(bar, LV_ALIGN_TOP_RIGHT, -8, 10);
     lv_obj_set_flex_flow(bar, LV_FLEX_FLOW_ROW_REVERSE);
     lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(bar, 6, 0);
+    lv_obj_set_style_pad_column(bar, 4, 0);
 
-    _iconWifi = lv_label_create(bar);
-    lv_obj_remove_style_all(_iconWifi);
-    lv_label_set_text(_iconWifi, LV_SYMBOL_WIFI);
-    lv_obj_set_style_text_font(_iconWifi, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
+    _iconWifi = makeIcon(bar, &icon_wifi, (icons & ICON_WIFI) ? green : grayLight);
 
-    _iconPaired = lv_label_create(bar);
-    lv_obj_remove_style_all(_iconPaired);
-    lv_label_set_text(_iconPaired, LV_SYMBOL_LOOP);
-    lv_obj_set_style_text_font(_iconPaired, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
+    _iconPaired = makeIcon(bar, &icon_paired, (icons & ICON_PAIRED) ? green : grayLight);
 
-    _iconPrinter = lv_label_create(bar);
-    lv_obj_remove_style_all(_iconPrinter);
-    lv_label_set_text(_iconPrinter, "PRN");
-    lv_obj_set_style_text_font(_iconPrinter, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
+    _iconPrinter = makeIcon(bar, &icon_printer, (icons & ICON_PRINTER) ? green : grayLight);
     if (!(icons & ICON_PRINTER)) lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
 
     return bar;
@@ -309,11 +305,11 @@ void Display::setSensorFlags(uint8_t flags) {
 
 void Display::updateStatusIcons(uint8_t icons) {
     if (_iconWifi)
-        lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
+        lv_obj_set_style_image_recolor(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
     if (_iconPaired)
-        lv_obj_set_style_text_color(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
+        lv_obj_set_style_image_recolor(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
     if (_iconPrinter) {
-        lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
+        lv_obj_set_style_image_recolor(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
         if (icons & ICON_PRINTER) lv_obj_clear_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
     }
