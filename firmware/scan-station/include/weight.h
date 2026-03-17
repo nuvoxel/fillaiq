@@ -24,6 +24,8 @@ public:
 
     void tare(uint8_t samples = WEIGHT_TARE_SAMPLES);
     void setScale(float factor);
+    void pollOnce();  // Single read cycle — call from main loop when not using task
+    bool isTaskRunning() const { return _running; }
 
     // Thread-safe reads (called from main loop)
     float getWeight();

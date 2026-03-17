@@ -5,18 +5,18 @@
 #include "filament_data.h"
 
 // ============================================================
-// Filla IQ — Scan Station Single PN532 NFC Reader
-// IRQ-driven detection via GPIO 7 (NFC_IRQ_PIN).
-// PN532 runs startPassiveTargetIDDetection() autonomously;
-// GPIO interrupt signals when a card is found, freeing the
-// SPI bus between detections.
+// Filla IQ — FillaScan NFC Reader
+// Touch board: PN5180 on dedicated SPI bus (HSPI)
+//   - ISO 14443A (MIFARE Classic, NTAG) + ISO 15693 (ICODE SLIX)
+// DevKitC: PN532 on shared SPI bus
+//   - ISO 14443A only
 // ============================================================
 
-#define NFC_UID_MAX_LEN  7
+#define NFC_UID_MAX_LEN  8  // ISO 15693 UIDs are 8 bytes
 
 enum NfcState : uint8_t {
-    NFC_IDLE,          // Not listening (e.g. during init)
-    NFC_LISTENING,     // Detection command sent, waiting for IRQ
+    NFC_IDLE,          // Not initialized or error
+    NFC_LISTENING,     // Polling for tags
     NFC_READING,       // Tag found, doing incremental sector/page reads
     NFC_PRESENT,       // Read complete, monitoring for removal
 };
@@ -57,7 +57,6 @@ private:
     void _startRead();
     void _continueRead();
     void _finishRead();
-    void _startListening();
 
     TagData      _tagData;
     TagState     _tag;

@@ -1,5 +1,7 @@
 #include "bambu_tag.h"
+#ifndef BOARD_SCAN_TOUCH
 #include <Adafruit_PN532.h>
+#endif
 #include "mbedtls/md.h"
 
 // ============================================================
@@ -86,7 +88,8 @@ void bambuDeriveKeys(const uint8_t uid[4], BambuKeys &keys) {
     }
 }
 
-// ==================== MIFARE Helpers ====================
+// ==================== MIFARE Helpers (PN532 only) ====================
+#ifndef BOARD_SCAN_TOUCH
 
 // Re-select tag after auth failure (tag goes to HALT state)
 static bool reselectTag(Adafruit_PN532 &reader) {
@@ -192,6 +195,8 @@ void readNtagRaw(Adafruit_PN532 &reader, TagData &out) {
 
     out.valid = (out.pages_read > 0);
 }
+
+#endif // !BOARD_SCAN_TOUCH
 
 // Bambu-specific NFC parsing removed — now handled server-side.
 // See web/src/lib/services/nfc-parser.ts

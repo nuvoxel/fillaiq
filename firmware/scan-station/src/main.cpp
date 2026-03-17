@@ -1074,7 +1074,16 @@ void setup() {
     display.addBootItem(scale.isConnected() ? scale.getChipName() : "Scale", scale.isConnected());
     if (scale.isConnected()) {
         scale.tare();
-        scale.startTask(0, 2);  // Weight task on Core 0, loop() on Core 1
+#ifdef BOARD_SCAN_TOUCH
+        // NAU7802 uses I2C — poll in main loop to avoid I2C bus contention
+        // (HX711 needs dedicated task for bit-banged GPIO timing)
+        if (scale.getDriverType() != WEIGHT_HX711) {
+            Serial.println("  Weight: polling in main loop (I2C)");
+        } else
+#endif
+        {
+            scale.startTask(0, 2);  // Weight task on Core 0
+        }
     }
 
     // SD card
@@ -1108,8 +1117,13 @@ void setup() {
 
     // Build hardware manifest from detected sensors
     DeviceCapabilities caps;
-    if (nfcScanner.isConnected())
+    if (nfcScanner.isConnected()) {
+#ifdef BOARD_SCAN_TOUCH
+        caps.nfc.set("PN5180", "SPI", 0, NFC_SPI_NSS);
+#else
         caps.nfc.set("PN532", "SPI", 0, NFC_CS_PIN);
+#endif
+    }
     if (scale.isConnected()) {
         if (scale.getDriverType() == WEIGHT_NAU7802)
             caps.scale.set("NAU7802", "I2C", NAU7802_ADDR);
@@ -1325,6 +1339,15 @@ void loop() {
         }
     }
 #endif
+
+    // Weight: poll NAU7802 inline if not using dedicated task (I2C thread safety)
+    if (scale.isConnected() && !scale.isTaskRunning()) {
+        static unsigned long lastWeightPoll = 0;
+        if (now - lastWeightPoll >= WEIGHT_READ_INTERVAL_MS) {
+            lastWeightPoll = now;
+            scale.pollOnce();
+        }
+    }
 
     // Snapshot weight once per loop (avoids repeated mutex acquisitions)
     snapshotWeight();

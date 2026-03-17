@@ -1,50 +1,31 @@
 #include "nfc.h"
 #include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_PN532.h>
 #include "bambu_tag.h"
 
 // Global instance
 NfcScanner nfcScanner;
 
-// PN532 reader — SPI mode (DevKitC) or dedicated I2C bus (touch board)
 #ifdef BOARD_SCAN_TOUCH
-static Adafruit_PN532 reader(NFC_IRQ_PIN, -1, &Wire1);  // Dedicated I2C bus (Wire1)
-#else
-static Adafruit_PN532 reader(NFC_CS_PIN, &SPI);          // SPI mode
-#endif
+// ── PN5180 on dedicated SPI bus (HSPI/SPI3) ──
+#include <PN5180ISO14443.h>
+#include <PN5180ISO15693.h>
 
-// Shared packet buffer (global in Adafruit_PN532.cpp)
+static SPIClass nfcSPI(HSPI);
+static PN5180ISO14443 reader14443(NFC_SPI_NSS, NFC_BUSY_PIN, NFC_RST_PIN, &nfcSPI);
+static PN5180ISO15693 reader15693(NFC_SPI_NSS, NFC_BUSY_PIN, NFC_RST_PIN, &nfcSPI);
+
+#else
+// ── PN532 on shared SPI bus (DevKitC) ──
+#include <Adafruit_PN532.h>
+static Adafruit_PN532 reader(NFC_CS_PIN, &SPI);
 extern byte pn532_packetbuffer[];
+#endif
 
 // Cached Bambu keys for incremental MIFARE reading
 static BambuKeys cachedKeys;
 
-// --- IRQ flag (set by GPIO ISR, cleared by poll) ---
-static volatile bool irqFired = false;
-
-static void IRAM_ATTR nfcIrqISR() {
-    irqFired = true;
-}
-
-// Presence check interval — how often to re-start detection
-// to confirm the tag is still on the reader
+// Presence check interval
 #define PRESENCE_CHECK_MS 500
-
-// Set 106kbps Type A analog settings for maximum read range
-static void setMaxRxGain(Adafruit_PN532 &r) {
-    pn532_packetbuffer[0]  = 0x32;
-    pn532_packetbuffer[1]  = 0x0D;
-    pn532_packetbuffer[2]  = 0x79;
-    pn532_packetbuffer[3]  = 0xFF;
-    pn532_packetbuffer[4]  = 0x3F;
-    pn532_packetbuffer[5]  = 0x11;
-    pn532_packetbuffer[6]  = 0x41;
-    pn532_packetbuffer[7]  = 0x85;
-    pn532_packetbuffer[8]  = 0x61;
-    pn532_packetbuffer[9]  = 0x6F;
-    r.sendCommandCheckAck(pn532_packetbuffer, 10, 100);
-}
 
 // ==================== Init ====================
 
@@ -55,90 +36,206 @@ void NfcScanner::begin() {
     _nextSector = 0xFF;
     _nextPage = 0xFF;
 
-    // Configure IRQ pin
-    if (NFC_IRQ_PIN >= 0) pinMode(NFC_IRQ_PIN, INPUT_PULLUP);
+#ifdef BOARD_SCAN_TOUCH
+    // Init dedicated SPI bus for PN5180
+    Serial.printf("  NFC pins: SCK=%d MOSI=%d MISO=%d NSS=%d BUSY=%d\n",
+        NFC_SPI_SCK, NFC_SPI_MOSI, NFC_SPI_MISO, NFC_SPI_NSS, NFC_BUSY_PIN);
 
-#ifndef BOARD_SCAN_TOUCH
-    // Deassert TFT CS (shared SPI bus — SPI mode only)
+    nfcSPI.begin(NFC_SPI_SCK, NFC_SPI_MISO, NFC_SPI_MOSI, -1);
+
+    // Check BUSY pin state before init
+    pinMode(NFC_BUSY_PIN, INPUT);
+    Serial.printf("  NFC BUSY pin state: %s\n", digitalRead(NFC_BUSY_PIN) ? "HIGH" : "LOW");
+
+    reader14443.begin();
+    delay(100);
+
+    Serial.printf("  NFC BUSY after begin: %s\n", digitalRead(NFC_BUSY_PIN) ? "HIGH" : "LOW");
+
+    // Try reset
+    Serial.println("  NFC: resetting PN5180...");
+    reader14443.reset();
+    Serial.printf("  NFC BUSY after reset: %s\n", digitalRead(NFC_BUSY_PIN) ? "HIGH" : "LOW");
+
+    // Read firmware version to verify communication
+    uint8_t fwVersion[2] = {0, 0};
+    reader14443.readEEprom(FIRMWARE_VERSION, fwVersion, 2);
+    Serial.printf("  NFC FW raw bytes: 0x%02X 0x%02X\n", fwVersion[0], fwVersion[1]);
+
+    if (fwVersion[0] == 0xFF && fwVersion[1] == 0xFF) {
+        Serial.println("  NFC: PN5180 not detected (MISO reads 0xFF — not connected?)");
+        return;
+    }
+    if (fwVersion[0] == 0 && fwVersion[1] == 0) {
+        Serial.println("  NFC: PN5180 not detected (SPI)");
+        return;
+    }
+
+    uint8_t prodVersion[2];
+    reader14443.readEEprom(PRODUCT_VERSION, prodVersion, 2);
+    Serial.printf("  NFC: PN5180 fw=%d.%d prod=%d.%d (SCK=%d MOSI=%d MISO=%d NSS=%d)\n",
+        fwVersion[1], fwVersion[0], prodVersion[1], prodVersion[0],
+        NFC_SPI_SCK, NFC_SPI_MOSI, NFC_SPI_MISO, NFC_SPI_NSS);
+
+    // Setup RF for ISO 14443A (MIFARE/NTAG)
+    Serial.println("  NFC: setting up RF...");
+    if (reader14443.setupRF()) {
+        Serial.println("  NFC: RF ON — ready");
+        _connected = true;
+        _state = NFC_LISTENING;
+    } else {
+        Serial.println("  NFC: RF setup failed (antenna issue?)");
+        _connected = true;  // SPI works, RF might recover
+        _state = NFC_LISTENING;
+    }
+
+#else
+    // PN532 SPI init (DevKitC variant)
     pinMode(TFT_CS_PIN, OUTPUT);
     digitalWrite(TFT_CS_PIN, HIGH);
-#endif
 
-    // Hardware reset the PN532
     if (NFC_RST_PIN >= 0) {
         pinMode(NFC_RST_PIN, OUTPUT);
         digitalWrite(NFC_RST_PIN, LOW);
         delay(100);
         digitalWrite(NFC_RST_PIN, HIGH);
-        delay(500);  // PN532 needs generous time after reset
-        Serial.printf("  NFC: hardware reset via GPIO%d\n", NFC_RST_PIN);
+        delay(500);
     }
-
-    // Init dedicated I2C bus for PN532 (separate from main sensor bus)
-#ifdef BOARD_SCAN_TOUCH
-    Wire1.begin(NFC_I2C_SDA, NFC_I2C_SCL, 100000);
-    Wire1.setTimeOut(100);
-
-    // Quick I2C address probe before full init (avoids 30s+ of error spam)
-    Wire1.beginTransmission(0x24);  // PN532 I2C address
-    if (Wire1.endTransmission() != 0) {
-        Serial.println("  NFC: not detected (I2C addr 0x24 no response on Wire1)");
-        return;
-    }
-#endif
 
     reader.begin();
     delay(100);
 
-    // Retry with increasing delays (PN532 can be slow after hardware reset)
-    int maxAttempts = (NFC_RST_PIN >= 0) ? 5 : 2;  // Fewer retries if no reset pin
-    uint32_t ver = 0;
-    for (int attempt = 0; attempt < maxAttempts && !ver; attempt++) {
-        ver = reader.getFirmwareVersion();
-        if (!ver) delay(200 * (attempt + 1));
-    }
-
+    uint32_t ver = reader.getFirmwareVersion();
     if (ver) {
-        uint8_t ic  = (ver >> 24) & 0xFF;
-        uint8_t maj = (ver >> 16) & 0xFF;
-        uint8_t min = (ver >> 8)  & 0xFF;
-#ifdef BOARD_SCAN_TOUCH
-        Serial.printf("  NFC: PN5%02X v%d.%d (I2C, IRQ=GPIO%d)\n",
-            ic, maj, min, NFC_IRQ_PIN);
-#else
         Serial.printf("  NFC: PN5%02X v%d.%d (CS=GPIO%d, IRQ=GPIO%d)\n",
-            ic, maj, min, NFC_CS_PIN, NFC_IRQ_PIN);
-#endif
-
+            (ver >> 24) & 0xFF, (ver >> 16) & 0xFF, (ver >> 8) & 0xFF,
+            NFC_CS_PIN, NFC_IRQ_PIN);
         reader.SAMConfig();
         reader.setPassiveActivationRetries(0xFF);
-        setMaxRxGain(reader);
         _connected = true;
-
-        // Attach interrupt and start listening
-        attachInterrupt(digitalPinToInterrupt(NFC_IRQ_PIN), nfcIrqISR, FALLING);
-        _startListening();
     } else {
-#ifdef BOARD_SCAN_TOUCH
-        Serial.println("  NFC: not detected (I2C)");
-#else
         Serial.printf("  NFC: not detected (CS=GPIO%d)\n", NFC_CS_PIN);
+    }
 #endif
-    }
 }
 
-// ==================== IRQ-driven Listening ====================
+// ==================== Tag Detection (PN5180) ====================
 
-void NfcScanner::_startListening() {
-    irqFired = false;
-    if (reader.startPassiveTargetIDDetection(PN532_MIFARE_ISO14443A)) {
-        _state = NFC_LISTENING;
-        _listenStartTime = millis();
-    } else {
-        // Command failed — retry next poll cycle
-        _state = NFC_IDLE;
-    }
+#ifdef BOARD_SCAN_TOUCH
+
+// Hardware reset PN5180 to recover from stuck states
+static void resetPN5180() {
+    reader14443.reset();
+    reader14443.setupRF();
 }
+
+// Detect and activate a 14443A tag, returns UID length (0 = no tag)
+static uint8_t activateTag14443(uint8_t *uid) {
+    // Quick check: if BUSY is HIGH, PN5180 is stuck — reset it
+    if (digitalRead(NFC_BUSY_PIN) == HIGH) {
+        resetPN5180();
+        if (digitalRead(NFC_BUSY_PIN) == HIGH) return 0;
+    }
+
+    uint8_t response[10] = {0};
+    int8_t result = reader14443.activateTypeA(response, 1);  // WUPA
+    if (result >= 4 && result <= 7) {
+        memcpy(uid, response + 3, result);
+        return (uint8_t)result;
+    }
+    return 0;
+}
+
+// Detect an ISO 15693 tag, returns 8-byte UID (false = no tag)
+static bool detectTag15693(uint8_t *uid) {
+    // Switch to ISO 15693 RF config
+    if (!reader15693.setupRF()) return false;
+
+    memset(uid, 0, 8);
+    ISO15693ErrorCode rc = reader15693.getInventory(uid);
+
+    // Switch back to 14443A regardless
+    reader14443.setupRF();
+
+    if (rc != ISO15693_EC_OK) return false;
+
+    // Validate UID is not all zeros or all 0xFF (false positive)
+    bool allZero = true, allFF = true;
+    for (int i = 0; i < 8; i++) {
+        if (uid[i] != 0x00) allZero = false;
+        if (uid[i] != 0xFF) allFF = false;
+    }
+    if (allZero || allFF) return false;
+
+    return true;
+}
+
+// Read all MIFARE Classic sectors in one shot.
+// Tag must be in ACTIVE state (just selected by activateTypeA).
+// After auth failure, halt+WUPA to re-select before trying next sector.
+static void readAllMifareSectors5180(const uint8_t *uid, uint8_t uidLen,
+                                      const BambuKeys &keys, TagData &tagData) {
+    const uint8_t defaultKey[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+    for (uint8_t sector = 0; sector < TagData::NUM_SECTORS; sector++) {
+        // Bail out if PN5180 is stuck
+        if (digitalRead(NFC_BUSY_PIN) == HIGH) {
+            Serial.printf("  [NFC] BUSY stuck at sector %d, aborting\n", sector);
+            break;
+        }
+
+        uint8_t firstBlock = sector * 4;
+        bool authed = false;
+
+        // Try Bambu key A
+        authed = reader14443.mifareAuthenticate(firstBlock, 0x60, keys.keyA[sector], uid, uidLen);
+        if (!authed) {
+            // Auth failure halts the tag — re-select and try default key
+            reader14443.mifareHalt();
+            uint8_t resp[10] = {0};
+            if (reader14443.activateTypeA(resp, 1) < 4) break;  // tag gone
+            authed = reader14443.mifareAuthenticate(firstBlock, 0x60, defaultKey, uid, uidLen);
+        }
+
+        if (authed) {
+            for (uint8_t b = 0; b < 3; b++) {
+                reader14443.mifareBlockRead(firstBlock + b, tagData.sector_data[sector][b]);
+            }
+            tagData.sector_ok[sector] = true;
+            tagData.sectors_read++;
+
+            // Clear crypto mode after each sector to prevent PN5180 stuck state
+            reader14443.writeRegisterWithAndMask(0x00, 0xFFFFFFBF);
+            // Re-select tag for next sector (crypto clear drops the tag session)
+            reader14443.mifareHalt();
+            uint8_t resp[10] = {0};
+            if (reader14443.activateTypeA(resp, 1) < 4) break;
+        } else {
+            // Re-select for next sector attempt
+            reader14443.mifareHalt();
+            uint8_t resp[10] = {0};
+            if (reader14443.activateTypeA(resp, 1) < 4) break;  // tag gone
+        }
+    }
+    tagData.valid = (tagData.sectors_read > 0);
+}
+
+// Read all NTAG pages in one shot.
+// Tag must be in ACTIVE state.
+static void readAllNtagPages5180(TagData &tagData) {
+    for (uint8_t page = 0; page < TagData::MAX_PAGES; page++) {
+        uint8_t buf[16];  // PN5180 reads 16 bytes
+        if (reader14443.mifareBlockRead(page, buf)) {
+            memcpy(tagData.page_data[page], buf, 4);
+            tagData.pages_read = page + 1;
+        } else {
+            break;
+        }
+    }
+    tagData.valid = (tagData.pages_read > 0);
+}
+
+#endif // BOARD_SCAN_TOUCH
 
 // ==================== Incremental Read Helpers ====================
 
@@ -162,11 +259,12 @@ void NfcScanner::_startRead() {
 }
 
 void NfcScanner::_continueRead() {
+#ifndef BOARD_SCAN_TOUCH
+    // PN532: use existing bambu_tag.cpp helpers
     if (_tagData.type == TAG_MIFARE_CLASSIC && _nextSector < TagData::NUM_SECTORS) {
         uint8_t count = SECTORS_PER_POLL;
-        if (_nextSector + count > TagData::NUM_SECTORS) {
+        if (_nextSector + count > TagData::NUM_SECTORS)
             count = TagData::NUM_SECTORS - _nextSector;
-        }
         readMifareClassicSectors(reader, _tag.uid, _tag.uid_len,
                                   cachedKeys, _nextSector, count, _tagData);
         _nextSector += count;
@@ -198,6 +296,7 @@ void NfcScanner::_continueRead() {
             _nextPage += PAGES_PER_POLL;
         }
     }
+#endif
 }
 
 void NfcScanner::_finishRead() {
@@ -206,14 +305,11 @@ void NfcScanner::_finishRead() {
         _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
         _tagData.type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
 
-    // Raw data captured — parsing happens server-side
-
-    // Read complete — switch to presence monitoring
     _state = NFC_PRESENT;
     _presenceCheckTime = millis();
 }
 
-// ==================== Polling (IRQ-driven) ====================
+// ==================== Polling ====================
 
 void NfcScanner::poll() {
     if (!_connected) return;
@@ -222,55 +318,106 @@ void NfcScanner::poll() {
 
     switch (_state) {
         case NFC_IDLE:
-            // Retry starting detection
-            _startListening();
-            break;
-
         case NFC_LISTENING: {
-            // Check if IRQ fired (tag detected)
-            if (irqFired) {
-                irqFired = false;
+#ifdef BOARD_SCAN_TOUCH
+            // PN5180: detect and read tag in one shot
+            uint8_t uid[NFC_UID_MAX_LEN] = {0};
+            uint8_t uid_len = activateTag14443(uid);
 
-                uint8_t uid[NFC_UID_MAX_LEN] = {0};
-                uint8_t uid_len = 0;
-                bool found = reader.readDetectedPassiveTargetID(uid, &uid_len);
+            if (uid_len > 0) {
+                bool is_new = !_tag.present ||
+                    uid_len != _tag.uid_len ||
+                    memcmp(uid, _tag.uid, uid_len) != 0;
 
-                if (found && uid_len > 0) {
-                    bool is_new = !_tag.present ||
-                        uid_len != _tag.uid_len ||
-                        memcmp(uid, _tag.uid, uid_len) != 0;
+                memcpy(_tag.uid, uid, uid_len);
+                _tag.uid_len = uid_len;
+                _tag.last_seen = now;
+                _tag.was_present = _tag.present;
+                _tag.present = true;
 
-                    memcpy(_tag.uid, uid, uid_len);
-                    _tag.uid_len = uid_len;
+                if (is_new) {
+                    // Tag is ACTIVE right now — read everything immediately
+                    _tagData.clear();
+                    memcpy(_tagData.uid, uid, uid_len);
+                    _tagData.uid_len = uid_len;
+
+                    if (uid_len == 4) {
+                        _tagData.type = TAG_MIFARE_CLASSIC;
+                        BambuKeys keys;
+                        bambuDeriveKeys(uid, keys);
+                        Serial.printf("Scan: MIFARE Classic %02X:%02X:%02X:%02X — reading all sectors...\n",
+                            uid[0], uid[1], uid[2], uid[3]);
+                        readAllMifareSectors5180(uid, uid_len, keys, _tagData);
+                    } else if (uid_len == 7) {
+                        _tagData.type = TAG_NTAG;
+                        Serial.printf("Scan: NTAG %02X:%02X:%02X:%02X:%02X:%02X:%02X — reading pages...\n",
+                            uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6]);
+                        readAllNtagPages5180(_tagData);
+                    }
+
+                    Serial.printf("Scan: %s %s — %d %s read\n",
+                        tagTypeName(_tagData.type), getUidString().c_str(),
+                        _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
+                        _tagData.type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
+                }
+
+                _state = NFC_PRESENT;
+                _presenceCheckTime = now;
+
+                // Halt tag; only reset if stuck
+                reader14443.mifareHalt();
+                // Disable crypto mode (bit 6) after MIFARE Classic to prevent stuck state
+                reader14443.writeRegisterWithAndMask(0x00, 0xFFFFFFBF);
+                if (digitalRead(NFC_BUSY_PIN) == HIGH) resetPN5180();
+            } else if (!_tag.present || (now - _tag.last_seen >= NFC_TIMEOUT_MS)) {
+                // No 14443A tag — try ISO 15693 every 2 seconds (RF switch is expensive)
+                static unsigned long last15693Poll = 0;
+                if (now - last15693Poll < 2000) break;
+                last15693Poll = now;
+
+                uint8_t uid15693[8] = {0};
+                if (detectTag15693(uid15693)) {
+                    bool is_new = !_tag.present || _tag.uid_len != 8 ||
+                        memcmp(_tag.uid, uid15693, 8) != 0;
+
+                    memcpy(_tag.uid, uid15693, 8);
+                    _tag.uid_len = 8;
                     _tag.last_seen = now;
                     _tag.was_present = _tag.present;
                     _tag.present = true;
 
                     if (is_new) {
-                        _startRead();
-                        _state = NFC_READING;
-                    } else {
-                        // Same tag still present — keep monitoring
-                        _state = NFC_PRESENT;
-                        _presenceCheckTime = now;
+                        _tagData.clear();
+                        memcpy(_tagData.uid, uid15693, 8);
+                        _tagData.uid_len = 8;
+                        _tagData.type = TAG_NTAG;  // Treat as generic for now
+                        _tagData.valid = true;
+                        Serial.printf("Scan: ISO15693 tag %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
+                            uid15693[7], uid15693[6], uid15693[5], uid15693[4],
+                            uid15693[3], uid15693[2], uid15693[1], uid15693[0]);
                     }
-                } else {
-                    // IRQ fired but no valid read — restart
-                    _startListening();
+
+                    _state = NFC_PRESENT;
+                    _presenceCheckTime = now;
+                    // Switch back to 14443A for next poll
+                    reader14443.setupRF();
+                } else if (_tag.present && now - _tag.last_seen >= NFC_TIMEOUT_MS) {
+                    _tag.present = false;
+                    _tagData.clear();
+                    Serial.println("Scan: tag removed");
                 }
             }
-            // No timeout needed — PN532 listens indefinitely until a card appears
+#else
+            // PN532: handled by IRQ or serial polling (not implemented here for DevKitC)
+#endif
             break;
         }
 
         case NFC_READING: {
-            // Continue incremental sector/page reads
             bool reading = (_nextSector != 0xFF || _nextPage != 0xFF);
             if (reading) {
                 _continueRead();
-                // _finishRead() transitions to NFC_PRESENT when done
             } else {
-                // Shouldn't happen, but recover
                 _state = NFC_PRESENT;
                 _presenceCheckTime = now;
             }
@@ -278,22 +425,9 @@ void NfcScanner::poll() {
         }
 
         case NFC_PRESENT: {
-            // Tag is on the reader, periodically check if it's still there
             if (now - _presenceCheckTime >= PRESENCE_CHECK_MS) {
                 _presenceCheckTime = now;
-                // Restart detection — if tag is still present, IRQ fires quickly
-                _startListening();
-            }
-
-            // If we're listening (presence re-check started) and no IRQ within timeout
-            if (_state == NFC_LISTENING && _tag.present &&
-                now - _tag.last_seen >= NFC_TIMEOUT_MS) {
-                _tag.present = false;
-                _tagData.clear();
-                _nextSector = 0xFF;
-                _nextPage = 0xFF;
-                Serial.println("Scan: tag removed");
-                // Already listening for next tag
+                _state = NFC_LISTENING;  // Go back to check for card
             }
             break;
         }
@@ -312,14 +446,12 @@ void NfcScanner::getUid(uint8_t* buf, uint8_t* len) {
 
 String NfcScanner::getUidString() {
     if (_tag.uid_len == 0) return "none";
-    // Use cached string if UID hasn't changed
-    static char cachedUid[22];
+    static char cachedUid[26];  // 8 bytes * 3 chars + null
     static uint8_t cachedLen = 0;
-    static uint8_t cachedBytes[7];
+    static uint8_t cachedBytes[NFC_UID_MAX_LEN];  // 8 bytes for ISO 15693
     if (_tag.uid_len == cachedLen && memcmp(_tag.uid, cachedBytes, cachedLen) == 0) {
         return String(cachedUid);
     }
-    // Rebuild cache
     int pos = 0;
     for (uint8_t i = 0; i < _tag.uid_len; i++) {
         if (i > 0) cachedUid[pos++] = ':';
@@ -341,14 +473,15 @@ void NfcScanner::printStatus() {
     Serial.printf("  Connected: %s\n", _connected ? "YES" : "no");
     if (_connected) {
         const char* stateNames[] = {"IDLE", "LISTENING", "READING", "PRESENT"};
-        Serial.printf("  State: %s (IRQ-driven, GPIO%d)\n", stateNames[_state], NFC_IRQ_PIN);
+#ifdef BOARD_SCAN_TOUCH
+        Serial.printf("  State: %s (PN5180 SPI, NSS=%d BUSY=%d)\n",
+            stateNames[_state], NFC_SPI_NSS, NFC_BUSY_PIN);
+#else
+        Serial.printf("  State: %s (PN532 SPI, CS=%d)\n", stateNames[_state], NFC_CS_PIN);
+#endif
         Serial.printf("  Tag: %s\n", _tag.present ? getUidString().c_str() : "none");
         if (_tag.present) {
             Serial.printf("  Last seen: %lums ago\n", millis() - _tag.last_seen);
-            bool reading = (_nextSector != 0xFF || _nextPage != 0xFF);
-            if (reading) {
-                Serial.printf("  Reading in progress...\n");
-            }
             if (_tagData.valid) {
                 Serial.printf("  Tag data: %d %s\n",
                     _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
@@ -363,7 +496,7 @@ void NfcScanner::printStatus() {
 static unsigned long lastNfcPoll = 0;
 
 void initNfc() {
-    Serial.println("Initializing NFC reader (IRQ mode)...");
+    Serial.println("Initializing NFC reader...");
     nfcScanner.begin();
 }
 

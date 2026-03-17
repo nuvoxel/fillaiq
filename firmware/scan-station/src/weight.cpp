@@ -81,6 +81,20 @@ void ScaleDriver::startTask(int core, int priority) {
     Serial.printf("  Weight task on Core %d (%s)\n", core, getChipName());
 }
 
+void ScaleDriver::pollOnce() {
+    if (!_connected || _pauseDepth > 0) return;
+    long raw = 0;
+    bool gotReading = false;
+    if (_driverType == WEIGHT_NAU7802 && _nau.available()) {
+        raw = _nau.getReading();
+        gotReading = true;
+    } else if (_driverType == WEIGHT_HX711 && _hx.is_ready()) {
+        raw = _hx.read();
+        gotReading = true;
+    }
+    if (gotReading) processReading(raw);
+}
+
 void ScaleDriver::taskFunc(void* param) {
     ScaleDriver* self = (ScaleDriver*)param;
     while (true) {

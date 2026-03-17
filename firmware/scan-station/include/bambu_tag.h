@@ -9,8 +9,6 @@
 // Raw data is sent to the server for parsing (Bambu, Creality, etc.)
 // ============================================================
 
-class Adafruit_PN532;
-
 // Derived MIFARE sector keys (16 sectors × 6 bytes each)
 struct BambuKeys {
     uint8_t keyA[16][6];
@@ -21,7 +19,10 @@ struct BambuKeys {
 // Uses HKDF-SHA256 with Bambu Lab's master key.
 void bambuDeriveKeys(const uint8_t uid[4], BambuKeys &keys);
 
-// --- Generic tag reading (raw data capture for web service) ---
+// --- Generic tag reading (PN532 only — PN5180 handles reading in nfc.cpp) ---
+#ifndef BOARD_SCAN_TOUCH
+
+class Adafruit_PN532;
 
 // Read a range of sectors into TagData. Tag must be selected, keys pre-derived.
 void readMifareClassicSectors(Adafruit_PN532 &reader, const uint8_t *uid, uint8_t uidLen,
@@ -34,3 +35,5 @@ void readMifareClassicRaw(Adafruit_PN532 &reader, const uint8_t *uid, uint8_t ui
 
 // Read all pages of an NTAG/Ultralight tag into TagData.
 void readNtagRaw(Adafruit_PN532 &reader, TagData &out);
+
+#endif // !BOARD_SCAN_TOUCH

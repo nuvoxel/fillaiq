@@ -42,20 +42,18 @@
 #define I2C_SDA         16
 #define I2C_SCL         15
 
-// PN532 NFC reader (dedicated I2C bus — Wire1 on UART pins)
-#define NFC_CS_PIN      -1   // Not used in I2C mode
-#define NFC_IRQ_PIN     14   // Expansion pin (not currently wired)
-#define NFC_RST_PIN     -1   // No reset pin available
-#define NFC_I2C_SDA     44   // Dedicated I2C bus (Wire1) for PN532
-#define NFC_I2C_SCL     43   // (avoids blocking main I2C bus)
+// PN5180 NFC reader (dedicated SPI bus — HSPI/SPI3)
+#define NFC_SPI_SCK     14   // Expansion pin (clean)
+#define NFC_SPI_MOSI     2   // Expansion pin (clean)
+#define NFC_SPI_MISO     3   // Expansion pin (clean)
+#define NFC_BUSY_PIN    43   // UART TXD (100R only, no MOSFET)
+#define NFC_SPI_NSS     44   // UART RXD (100R + Q5, ESP drives as output)
+#define NFC_RST_PIN     21   // Freed from LED ring
 
-// WS2812B LED Ring (external, expansion connector)
-#define LED_PIN         21   // Expansion pin
+// WS2812B LED Ring (wired to onboard RGB GPIO, frees IO21 for NFC RST)
+#define LED_PIN         42   // Onboard RGB pin — ring DIN soldered to same pad
 #define LED_SKIP         0
 #define LED_COUNT       24
-
-// Onboard RGB LED (WS2812B single pixel)
-#define ONBOARD_RGB_PIN 42
 
 // SD Card (SDMMC 4-bit mode)
 #define SD_CLK_PIN      38
