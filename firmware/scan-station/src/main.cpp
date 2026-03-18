@@ -753,27 +753,27 @@ void updateDisplayAndLed() {
             nfcInfo = nfcInfoBuf;
         }
 
-        // Build color info string — show computed hex color, not sensor name
+        // Build color info string + RGB values for swatch
         static char colorInfoBuf[48];
         const char* colorInfo = nullptr;
+        uint8_t cR = 0, cG = 0, cB = 0;
         if (colorSensor.isConnected() && cachedColor.valid) {
             if (cachedColor.sensorType == COLOR_TCS34725 && cachedColor.rgbc_c > 0) {
-                uint8_t r = (uint8_t)min(255.0f, cachedColor.rgbc_r * 255.0f / cachedColor.rgbc_c);
-                uint8_t g = (uint8_t)min(255.0f, cachedColor.rgbc_g * 255.0f / cachedColor.rgbc_c);
-                uint8_t b = (uint8_t)min(255.0f, cachedColor.rgbc_b * 255.0f / cachedColor.rgbc_c);
-                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "#%02X%02X%02X %uK", r, g, b, cachedColor.colorTemp);
+                cR = (uint8_t)min(255.0f, cachedColor.rgbc_r * 255.0f / cachedColor.rgbc_c);
+                cG = (uint8_t)min(255.0f, cachedColor.rgbc_g * 255.0f / cachedColor.rgbc_c);
+                cB = (uint8_t)min(255.0f, cachedColor.rgbc_b * 255.0f / cachedColor.rgbc_c);
+                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "#%02X%02X%02X %uK", cR, cG, cB, cachedColor.colorTemp);
             } else if (cachedColor.sensorType == COLOR_OPT4048) {
                 snprintf(colorInfoBuf, sizeof(colorInfoBuf), "%.0f lux", cachedColor.opt_lux);
             } else if (cachedColor.sensorType == COLOR_AS7341 || cachedColor.sensorType == COLOR_AS7343) {
-                // Approximate RGB from spectral: R~630nm, G~555nm, B~480nm
                 uint16_t mx = cachedColor.f3_480nm;
                 if (cachedColor.f5_555nm > mx) mx = cachedColor.f5_555nm;
                 if (cachedColor.f7_630nm > mx) mx = cachedColor.f7_630nm;
                 if (mx == 0) mx = 1;
-                uint8_t r = (uint8_t)(cachedColor.f7_630nm * 255 / mx);
-                uint8_t g = (uint8_t)(cachedColor.f5_555nm * 255 / mx);
-                uint8_t b = (uint8_t)(cachedColor.f3_480nm * 255 / mx);
-                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "#%02X%02X%02X", r, g, b);
+                cR = (uint8_t)(cachedColor.f7_630nm * 255 / mx);
+                cG = (uint8_t)(cachedColor.f5_555nm * 255 / mx);
+                cB = (uint8_t)(cachedColor.f3_480nm * 255 / mx);
+                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "#%02X%02X%02X", cR, cG, cB);
             } else {
                 const char* names[] = {"?", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
                 snprintf(colorInfoBuf, sizeof(colorInfoBuf), "%s", names[cachedColor.sensorType]);
@@ -795,11 +795,8 @@ void updateDisplayAndLed() {
             pressureHPa = cachedEnv.pressureHPa;
         }
 
-        // Scan button enabled when weight > threshold OR NFC tag present
-        bool scanEnabled = (w > OBJECT_PRESENT_THRESHOLD) || nfcSnap.tagPresent;
-
-        display.updateDashboard(w, stable, nfcInfo, colorInfo, distMm,
-                                 tempC, humidity, pressureHPa, scanEnabled);
+        display.updateDashboard(w, stable, nfcInfo, colorInfo, cR, cG, cB,
+                                 distMm, tempC, humidity, pressureHPa, true);
     } else {
         // For SCAN_SUBMITTING or SCAN_RESULT, just update the display state
         const ScanResponse* serverData = lastResponse.scanId[0] ? &lastResponse : nullptr;

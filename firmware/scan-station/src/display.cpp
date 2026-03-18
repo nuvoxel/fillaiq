@@ -3,7 +3,7 @@
 #include <lvgl.h>
 #include <qrcode.h>
 #include "api_client.h"
-#include "mui_icons.h"
+// Icons use LVGL built-in Font Awesome symbols (LV_SYMBOL_*)
 
 // LVGL native display drivers
 #include "src/drivers/display/lcd/lv_lcd_generic_mipi.h"
@@ -242,13 +242,13 @@ static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, lv_color_t c
 
 // ── Status Bar ───────────────────────────────────────────────
 
-// Helper: create a tinted 16x16 icon image in a flex container.
-static lv_obj_t* makeIcon(lv_obj_t* parent, const lv_image_dsc_t* dsc, lv_color_t tint) {
-    lv_obj_t* img = lv_image_create(parent);
-    lv_image_set_src(img, dsc);
-    lv_obj_set_style_image_recolor(img, tint, 0);
-    lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
-    return img;
+// Helper: create a Font Awesome symbol label in a flex container.
+static lv_obj_t* makeSymbol(lv_obj_t* parent, const char* symbol, lv_color_t color) {
+    lv_obj_t* lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, symbol);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl, color, 0);
+    return lbl;
 }
 
 lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
@@ -263,18 +263,18 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
         lv_obj_set_flex_align(sensorBar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(sensorBar, 4, 0);
 
-        struct { uint8_t flag; const lv_image_dsc_t* dsc; } sensors[] = {
-            { SENSOR_NFC,   &icon_nfc   },
-            { SENSOR_SCALE, &icon_scale },
-            { SENSOR_TOF,   &icon_tof   },
-            { SENSOR_COLOR, &icon_color },
-            { SENSOR_ENV,   &icon_env   },
-            { SENSOR_SD,    &icon_sd    },
-            { SENSOR_AUDIO, &icon_audio },
+        struct { uint8_t flag; const char* symbol; } sensors[] = {
+            { SENSOR_NFC,   LV_SYMBOL_BLUETOOTH },
+            { SENSOR_SCALE, LV_SYMBOL_BARS      },
+            { SENSOR_TOF,   LV_SYMBOL_GPS       },
+            { SENSOR_COLOR, LV_SYMBOL_TINT      },
+            { SENSOR_ENV,   LV_SYMBOL_CHARGE    },
+            { SENSOR_SD,    LV_SYMBOL_SD_CARD   },
+            { SENSOR_AUDIO, LV_SYMBOL_AUDIO     },
         };
         for (auto& s : sensors) {
             if (_sensorFlags & s.flag) {
-                makeIcon(sensorBar, s.dsc, green);
+                makeSymbol(sensorBar, s.symbol, green);
             }
         }
     }
@@ -289,11 +289,11 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
     lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(bar, 4, 0);
 
-    _iconWifi = makeIcon(bar, &icon_wifi, (icons & ICON_WIFI) ? green : grayLight);
+    _iconWifi = makeSymbol(bar, LV_SYMBOL_WIFI, (icons & ICON_WIFI) ? green : grayLight);
 
-    _iconPaired = makeIcon(bar, &icon_paired, (icons & ICON_PAIRED) ? green : grayLight);
+    _iconPaired = makeSymbol(bar, LV_SYMBOL_OK, (icons & ICON_PAIRED) ? green : grayLight);
 
-    _iconPrinter = makeIcon(bar, &icon_printer, (icons & ICON_PRINTER) ? green : grayLight);
+    _iconPrinter = makeSymbol(bar, LV_SYMBOL_EJECT, (icons & ICON_PRINTER) ? green : grayLight);
     if (!(icons & ICON_PRINTER)) lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
 
     return bar;
@@ -305,11 +305,11 @@ void Display::setSensorFlags(uint8_t flags) {
 
 void Display::updateStatusIcons(uint8_t icons) {
     if (_iconWifi)
-        lv_obj_set_style_image_recolor(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
+        lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
     if (_iconPaired)
-        lv_obj_set_style_image_recolor(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
+        lv_obj_set_style_text_color(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
     if (_iconPrinter) {
-        lv_obj_set_style_image_recolor(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
+        lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
         if (icons & ICON_PRINTER) lv_obj_clear_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
     }
@@ -456,13 +456,24 @@ void Display::buildDashboardScreen(uint8_t icons) {
     lv_obj_align(_dashNfcLabel, LV_ALIGN_TOP_LEFT, 12, 88);
     lv_label_set_text(_dashNfcLabel, "NFC: --");
 
+    // Color swatch (small square)
+    _dashColorSwatch = lv_obj_create(_screen);
+    lv_obj_remove_style_all(_dashColorSwatch);
+    lv_obj_set_size(_dashColorSwatch, 14, 14);
+    lv_obj_set_style_bg_color(_dashColorSwatch, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_opa(_dashColorSwatch, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_dashColorSwatch, 3, 0);
+    lv_obj_set_style_border_color(_dashColorSwatch, gray, 0);
+    lv_obj_set_style_border_width(_dashColorSwatch, 1, 0);
+    lv_obj_align(_dashColorSwatch, LV_ALIGN_TOP_LEFT, 12, 107);
+
     _dashColorLabel = lv_label_create(_screen);
     lv_obj_set_style_text_font(_dashColorLabel, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(_dashColorLabel, grayLight, 0);
-    lv_obj_set_width(_dashColorLabel, _screenW / 2 - 16);
+    lv_obj_set_width(_dashColorLabel, _screenW / 2 - 34);
     lv_label_set_long_mode(_dashColorLabel, LV_LABEL_LONG_CLIP);
-    lv_obj_align(_dashColorLabel, LV_ALIGN_TOP_LEFT, 12, 106);
-    lv_label_set_text(_dashColorLabel, "Color: --");
+    lv_obj_align(_dashColorLabel, LV_ALIGN_TOP_LEFT, 30, 106);
+    lv_label_set_text(_dashColorLabel, "--");
 
     _dashTofLabel = lv_label_create(_screen);
     lv_obj_set_style_text_font(_dashTofLabel, &lv_font_montserrat_12, 0);
@@ -516,7 +527,7 @@ void Display::buildDashboardScreen(uint8_t icons) {
 
 void Display::updateDashboard(float weight, bool stable,
                                const char* nfcInfo,
-                               const char* colorInfo,
+                               const char* colorInfo, uint8_t colorR, uint8_t colorG, uint8_t colorB,
                                float distMm,
                                float tempC, float humidity, float pressureHPa,
                                bool scanEnabled) {
@@ -544,12 +555,18 @@ void Display::updateDashboard(float weight, bool stable,
             lv_label_set_text(_dashNfcLabel, "NFC: no tag");
     }
 
-    // Color
+    // Color swatch + label
+    if (_dashColorSwatch) {
+        if (colorInfo)
+            lv_obj_set_style_bg_color(_dashColorSwatch, lv_color_make(colorR, colorG, colorB), 0);
+        else
+            lv_obj_set_style_bg_color(_dashColorSwatch, lv_color_hex(0x333333), 0);
+    }
     if (_dashColorLabel) {
         if (colorInfo)
             lv_label_set_text(_dashColorLabel, colorInfo);
         else
-            lv_label_set_text(_dashColorLabel, "Color: --");
+            lv_label_set_text(_dashColorLabel, "--");
     }
 
     // TOF

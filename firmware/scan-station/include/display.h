@@ -69,7 +69,7 @@ public:
     // Live dashboard — update sensor values in-place without rebuilding screen
     void updateDashboard(float weight, bool stable,
                          const char* nfcInfo,
-                         const char* colorInfo,
+                         const char* colorInfo, uint8_t colorR, uint8_t colorG, uint8_t colorB,
                          float distMm,
                          float tempC, float humidity, float pressureHPa,
                          bool scanEnabled);
@@ -143,6 +143,7 @@ private:
     lv_obj_t* _dashWeightStatus = nullptr;
     lv_obj_t* _dashNfcLabel = nullptr;
     lv_obj_t* _dashColorLabel = nullptr;
+    lv_obj_t* _dashColorSwatch = nullptr;
     lv_obj_t* _dashTofLabel = nullptr;
     lv_obj_t* _dashEnvLabel = nullptr;
     lv_obj_t* _dashScanBtn = nullptr;
