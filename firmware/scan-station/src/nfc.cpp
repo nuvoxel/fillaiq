@@ -416,6 +416,15 @@ void NfcScanner::poll() {
                         readAllNtagPages5180(_tagData);
                     }
 
+                    // Ghost filter: only accept the tag if we read at least one block
+                    if (!_tagData.valid) {
+                        // No data read — ghost detection from EMI noise
+                        _tag.present = false;
+                        _tag.uid_len = 0;
+                        _tagData.clear();
+                        break;
+                    }
+
                     Serial.printf("Scan: %s %s — %d %s read\n",
                         tagTypeName(_tagData.type), getUidString().c_str(),
                         _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
