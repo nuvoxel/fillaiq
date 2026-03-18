@@ -731,27 +731,53 @@ void updateDisplayAndLed() {
         }
         dashSensorSlot = (dashSensorSlot + 1) % 3;
 
-        // Build NFC info string
-        static char nfcInfoBuf[64];
+        // Build NFC info string — show reading progress
+        static char nfcInfoBuf[80];
         const char* nfcInfo = nullptr;
         if (nfcSnap.tagPresent && nfcSnap.uidString.length() > 0) {
-            if (nfcSnap.hasData) {
+            if (nfcSnap.hasData && nfcSnap.tagData.valid) {
                 const TagData& td = nfcSnap.tagData;
                 const char* typeName = tagTypeName(td.type);
-                snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "%s %s",
-                         typeName, nfcSnap.uidString.c_str());
+                if (td.type == TAG_MIFARE_CLASSIC)
+                    snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "%s %d/%d sec",
+                             typeName, td.sectors_read, TagData::NUM_SECTORS);
+                else if (td.type == TAG_ISO15693)
+                    snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "%s %d blk",
+                             typeName, td.pages_read);
+                else
+                    snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "%s %d pg",
+                             typeName, td.pages_read);
             } else {
-                snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "NFC: %s", nfcSnap.uidString.c_str());
+                snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "NFC: reading...");
             }
             nfcInfo = nfcInfoBuf;
         }
 
-        // Build color info string
-        static char colorInfoBuf[32];
+        // Build color info string — show computed hex color, not sensor name
+        static char colorInfoBuf[48];
         const char* colorInfo = nullptr;
         if (colorSensor.isConnected() && cachedColor.valid) {
-            const char* names[] = {"?", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
-            snprintf(colorInfoBuf, sizeof(colorInfoBuf), "Color: %s", names[cachedColor.sensorType]);
+            if (cachedColor.sensorType == COLOR_TCS34725 && cachedColor.rgbc_c > 0) {
+                uint8_t r = (uint8_t)min(255.0f, cachedColor.rgbc_r * 255.0f / cachedColor.rgbc_c);
+                uint8_t g = (uint8_t)min(255.0f, cachedColor.rgbc_g * 255.0f / cachedColor.rgbc_c);
+                uint8_t b = (uint8_t)min(255.0f, cachedColor.rgbc_b * 255.0f / cachedColor.rgbc_c);
+                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "#%02X%02X%02X %uK", r, g, b, cachedColor.colorTemp);
+            } else if (cachedColor.sensorType == COLOR_OPT4048) {
+                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "%.0f lux", cachedColor.opt_lux);
+            } else if (cachedColor.sensorType == COLOR_AS7341 || cachedColor.sensorType == COLOR_AS7343) {
+                // Approximate RGB from spectral: R~630nm, G~555nm, B~480nm
+                uint16_t mx = cachedColor.f3_480nm;
+                if (cachedColor.f5_555nm > mx) mx = cachedColor.f5_555nm;
+                if (cachedColor.f7_630nm > mx) mx = cachedColor.f7_630nm;
+                if (mx == 0) mx = 1;
+                uint8_t r = (uint8_t)(cachedColor.f7_630nm * 255 / mx);
+                uint8_t g = (uint8_t)(cachedColor.f5_555nm * 255 / mx);
+                uint8_t b = (uint8_t)(cachedColor.f3_480nm * 255 / mx);
+                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "#%02X%02X%02X", r, g, b);
+            } else {
+                const char* names[] = {"?", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
+                snprintf(colorInfoBuf, sizeof(colorInfoBuf), "%s", names[cachedColor.sensorType]);
+            }
             colorInfo = colorInfoBuf;
         }
 
