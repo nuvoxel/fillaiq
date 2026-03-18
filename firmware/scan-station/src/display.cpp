@@ -711,9 +711,13 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                 if (qrResult == 0) break;
             }
             if (qrResult == 0) {
-                int scale = 2;
+                // Size QR to fill available height (below divider, above Done button)
+                int availH = _screenH - 48 - 58 - 16; // top content - done btn - padding
+                int maxSize = min(availH, _screenW / 2); // don't exceed half width
+                int scale = maxSize / (qrcode.size + 4); // +4 for quiet zone
+                if (scale < 2) scale = 2;
                 int qrPx = qrcode.size * scale;
-                int margin = scale;
+                int margin = scale * 2;
                 int totalSize = qrPx + margin * 2;
 
                 lv_obj_t* qrBg = lv_obj_create(_screen);
@@ -721,12 +725,11 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                 lv_obj_set_size(qrBg, totalSize, totalSize);
                 lv_obj_set_style_bg_color(qrBg, white, 0);
                 lv_obj_set_style_bg_opa(qrBg, LV_OPA_COVER, 0);
-                lv_obj_set_style_radius(qrBg, 2, 0);
-                lv_obj_align(qrBg, LV_ALIGN_TOP_RIGHT, -12, 48);
+                lv_obj_set_style_radius(qrBg, 4, 0);
+                lv_obj_align(qrBg, LV_ALIGN_TOP_RIGHT, -8, 48);
 
-                lv_canvas_t* canvas;
                 lv_obj_t* canvasObj = lv_canvas_create(qrBg);
-                static uint8_t canvasBuf[100 * 100]; // max QR size
+                static uint8_t canvasBuf[150 * 150]; // enough for larger QR
                 memset(canvasBuf, 0xFF, sizeof(canvasBuf));
                 lv_canvas_set_buffer(canvasObj, canvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
                 lv_obj_align(canvasObj, LV_ALIGN_CENTER, 0, 0);
