@@ -364,8 +364,8 @@ export function LabelDesigner() {
                       primary={tmpl.name}
                       secondary={
                         tmpl.widthMm && tmpl.heightMm
-                          ? `${tmpl.widthMm}\u00d7${tmpl.heightMm}mm \u2022 ${tmpl.labelFormat.replace(/_/g, " ")}`
-                          : tmpl.labelFormat.replace(/_/g, " ")
+                          ? `${tmpl.widthMm}\u00d7${tmpl.heightMm}mm`
+                          : "No size set"
                       }
                       primaryTypographyProps={{
                         variant: "body2",
@@ -472,24 +472,6 @@ export function LabelDesigner() {
                 value={editor.name}
                 onChange={(e) => updateField("name", e.target.value)}
               />
-
-              {/* Format */}
-              <FormControl size="small" fullWidth>
-                <InputLabel>Output Format</InputLabel>
-                <Select
-                  label="Output Format"
-                  value={editor.labelFormat}
-                  onChange={(e) =>
-                    updateField("labelFormat", e.target.value as LabelFormat)
-                  }
-                >
-                  {FORMAT_OPTIONS.map((f) => (
-                    <MenuItem key={f.value} value={f.value}>
-                      {f.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
 
               {/* Size presets */}
               <Box>
