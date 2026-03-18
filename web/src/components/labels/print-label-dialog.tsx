@@ -152,7 +152,7 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
   const previewUrl = useMemo(() => {
     if (!selectedTemplate || !previewItem) return null;
     const params = new URLSearchParams();
-    params.set("format", "bmp");
+    params.set("format", "png");
     params.set("width", "384");
     params.set("dpi", "203");
     params.set("templateId", selectedTemplate);

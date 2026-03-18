@@ -5,10 +5,8 @@ import { labelTemplates, printJobs } from "@/db/schema/user-library";
 import { products } from "@/db/schema/central-catalog";
 import { scanStations, scanSessions } from "@/db/schema/scan-stations";
 import { eq, and, isNotNull } from "drizzle-orm";
-import {
-  renderLabelBitmap,
-  convertBitmapToBmp,
-} from "@/lib/services/label-renderer";
+import { renderLabelBitmap } from "@/lib/services/label-renderer";
+import sharp from "sharp";
 import { getSession } from "@/lib/actions/auth";
 
 /**
@@ -28,13 +26,13 @@ import { getSession } from "@/lib/actions/auth";
  *   width      - printer width in dots (default: 384)
  *   dpi        - printer DPI (default: 203)
  *   jobId      - optional print job ID (marks it as "printing")
- *   format     - output format: "raw" (default) or "bmp"
+ *   format     - output format: "raw" (default) or "png"
  *
  * Auth: X-Device-Token header (device pairing) OR browser session cookie
  *
  * Response (format=raw): application/octet-stream with raw 1-bit bitmap
  *   Headers: X-Label-Width, X-Label-Height, X-Bytes-Per-Row
- * Response (format=bmp): image/bmp
+ * Response (format=png): image/png
  */
 export async function GET(request: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────────────
@@ -282,12 +280,25 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Return response ───────────────────────────────────────────────────
-  if (format === "bmp") {
-    const bmpFile = convertBitmapToBmp(bitmap, widthPx, heightPx, bytesPerRow);
-    return new Response(new Uint8Array(bmpFile), {
+  if (format === "png") {
+    // Convert 1-bit packed bitmap to 8-bit grayscale for sharp
+    const pixels = Buffer.alloc(widthPx * heightPx);
+    for (let y = 0; y < heightPx; y++) {
+      for (let x = 0; x < widthPx; x++) {
+        const byteIdx = y * bytesPerRow + Math.floor(x / 8);
+        const bitIdx = 7 - (x % 8);
+        const isBlack = (bitmap[byteIdx] >> bitIdx) & 1;
+        pixels[y * widthPx + x] = isBlack ? 0 : 255;
+      }
+    }
+    const png = await sharp(pixels, {
+      raw: { width: widthPx, height: heightPx, channels: 1 },
+    }).png().toBuffer();
+
+    return new Response(new Uint8Array(png), {
       status: 200,
       headers: {
-        "Content-Type": "image/bmp",
+        "Content-Type": "image/png",
         "Cache-Control": "no-store",
       },
     });
