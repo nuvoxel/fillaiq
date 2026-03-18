@@ -165,9 +165,12 @@ async function upsertPrinterFromHeartbeat(
   const model = printer.model || printer.usbProduct || "Unknown";
   const bleAddr = printer.bleAddr || null;
   const usbId = printer.usbId || null; // "0493:B002"
-  const bleName = printer.bleName || printer.deviceName || null; // BLE advertised name from runtime state
+  const bleName = printer.bleName || printer.deviceName || null;
+  const bleServiceUUIDs = printer.bleServiceUUIDs || null; // Comma-separated advertised UUIDs
+  const bleNamePrefix = printer.bleNamePrefix || null;
 
   // 1. Try to find existing hardware model by identifiers
+  // Priority: USB VID:PID > BLE advertised service UUID > BLE name prefix
   let hardwareModelId: string | null = null;
 
   const identifierConditions = [];
@@ -179,11 +182,25 @@ async function upsertPrinterFromHeartbeat(
       )
     );
   }
-  if (bleName) {
+  // Match by advertised BLE service UUIDs (e.g. 0xAF30 identifies M120 family)
+  if (bleServiceUUIDs) {
+    for (const uuid of bleServiceUUIDs.split(",")) {
+      const trimmed = uuid.trim();
+      if (trimmed) {
+        identifierConditions.push(
+          and(
+            eq(hardwareIdentifiers.identifierType, "ble_service_uuid"),
+            eq(hardwareIdentifiers.value, trimmed)
+          )
+        );
+      }
+    }
+  }
+  if (bleNamePrefix) {
     identifierConditions.push(
       and(
         eq(hardwareIdentifiers.identifierType, "ble_name_prefix"),
-        eq(hardwareIdentifiers.value, bleName)
+        eq(hardwareIdentifiers.value, bleNamePrefix)
       )
     );
   }

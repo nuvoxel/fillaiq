@@ -461,6 +461,8 @@ String ApiClient::buildCapabilitiesJson() const {
         // Runtime state from the actual printer connection
         const auto& ps = labelPrinter.getState();
         if (ps.deviceName[0]) p["bleName"] = ps.deviceName;
+        if (ps.namePrefix[0]) p["bleNamePrefix"] = ps.namePrefix;
+        if (ps.serviceUUIDs[0]) p["bleServiceUUIDs"] = ps.serviceUUIDs;
         p["battery"] = ps.batteryPercent;
         p["paperLoaded"] = ps.paperLoaded;
         p["coverClosed"] = ps.coverClosed;

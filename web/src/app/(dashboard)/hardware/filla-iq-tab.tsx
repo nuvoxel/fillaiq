@@ -33,7 +33,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import InfoIcon from "@mui/icons-material/Info";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
-import { listMyPrinters, listMyPrintJobs, cancelPrintJob, cancelAllPendingPrintJobs } from "@/lib/actions/user-library";
+import { listMyPrinters, listMyPrintJobs, cancelPrintJob, cancelAllPendingPrintJobs, clearCompletedPrintJobs } from "@/lib/actions/user-library";
 import CloseIcon from "@mui/icons-material/Close";
 import BatteryFullIcon from "@mui/icons-material/BatteryFull";
 import Battery5BarIcon from "@mui/icons-material/Battery5Bar";
@@ -626,7 +626,7 @@ function PrinterCard({
           <Typography variant="caption" fontWeight={600} color="text.secondary">
             Print Queue
           </Typography>
-          {activeJobs.length > 0 && (
+          {allJobs.length > 0 && (
             <Button size="small" color="error" onClick={onClearAll} disabled={isPending} sx={{ fontSize: "0.7rem", minWidth: 0, py: 0 }}>
               Clear All
             </Button>
@@ -854,6 +854,7 @@ export function FillaIqTab() {
                   onClearAll={() => {
                     startTransition(async () => {
                       await cancelAllPendingPrintJobs();
+                      await clearCompletedPrintJobs();
                       fetchStations();
                     });
                   }}

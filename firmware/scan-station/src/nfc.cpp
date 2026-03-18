@@ -129,41 +129,34 @@ static void resetPN5180() {
     reader14443.setupRF();
 }
 
-// Watchdog: reset PN5180 after consecutive failures
-static uint8_t consecutiveFailures = 0;
-#define NFC_WATCHDOG_THRESHOLD 20  // ~5 seconds at 250ms poll
+// Watchdog: reset PN5180 only when BUSY pin is stuck HIGH (real SPI/hardware issue).
+// Negative returns from activateTypeA are normal RF noise when no tag is present.
+static uint8_t busyStuckCount = 0;
+#define NFC_BUSY_STUCK_THRESHOLD 5  // 5 consecutive BUSY-HIGH polls before hard reset
 
 // Detect and activate a 14443A tag, returns UID length (0 = no tag)
 static uint8_t activateTag14443(uint8_t *uid) {
-    // Quick check: if BUSY is HIGH, PN5180 is stuck — reset it
+    // Watchdog: if BUSY is HIGH, PN5180 is stuck — reset it
     if (digitalRead(NFC_BUSY_PIN) == HIGH) {
-        consecutiveFailures++;
-        if (consecutiveFailures >= NFC_WATCHDOG_THRESHOLD) {
-            Serial.println("[NFC] Watchdog: hard reset");
-            consecutiveFailures = 0;
+        busyStuckCount++;
+        if (busyStuckCount >= NFC_BUSY_STUCK_THRESHOLD) {
+            Serial.println("[NFC] Watchdog: BUSY stuck HIGH — hard reset");
+            busyStuckCount = 0;
         }
         resetPN5180();
         if (digitalRead(NFC_BUSY_PIN) == HIGH) return 0;
+    } else {
+        busyStuckCount = 0;
     }
 
     uint8_t response[10] = {0};
     int8_t result = reader14443.activateTypeA(response, 1);  // WUPA
     if (result >= 4 && result <= 7) {
-        consecutiveFailures = 0;  // success — reset watchdog
         memcpy(uid, response + 3, result);
         return (uint8_t)result;
     }
 
-    // activateTypeA returned 0 or negative — not necessarily a failure
-    // (no tag present is normal). Only count as failure if result < 0
-    if (result < 0) {
-        consecutiveFailures++;
-        if (consecutiveFailures >= NFC_WATCHDOG_THRESHOLD) {
-            Serial.println("[NFC] Watchdog: reset after repeated errors");
-            resetPN5180();
-            consecutiveFailures = 0;
-        }
-    }
+    // result <= 0: no tag or RF noise — both normal, not a failure
     return 0;
 }
 

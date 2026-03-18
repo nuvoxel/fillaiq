@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, and, desc, getTableColumns, type SQL } from "drizzle-orm";
+import { eq, and, desc, inArray, getTableColumns, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   users,
@@ -1015,6 +1015,25 @@ export async function cancelAllPendingPrintJobs(): Promise<ActionResult<number>>
         and(
           eq(printJobs.userId, guard.data.userId),
           eq(printJobs.status, "pending")
+        )
+      )
+      .returning({ id: printJobs.id });
+    return ok(rows.length);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+export async function clearCompletedPrintJobs(): Promise<ActionResult<number>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const rows = await db
+      .delete(printJobs)
+      .where(
+        and(
+          eq(printJobs.userId, guard.data.userId),
+          inArray(printJobs.status, ["done", "cancelled", "failed"])
         )
       )
       .returning({ id: printJobs.id });

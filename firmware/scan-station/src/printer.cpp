@@ -123,9 +123,43 @@ bool LabelPrinter::scan(uint32_t timeoutMs) {
         strncpy(_state.bleAddr,
                 pTargetDevice->getAddress().toString().c_str(),
                 sizeof(_state.bleAddr) - 1);
+
+        // Extract name prefix (letters before first digit run ≥ 4 chars — likely serial)
+        // e.g. "Q244E54L5250035" → "Q244E54L", "M120_1234" → "M120"
+        const char* n = _state.deviceName;
+        int prefixEnd = 0;
+        for (int i = 0; n[i]; i++) {
+            // Count consecutive digits from this position
+            int digits = 0;
+            for (int j = i; n[j] && isdigit(n[j]); j++) digits++;
+            if (digits >= 4) { prefixEnd = i; break; }
+            prefixEnd = i + 1;
+        }
+        if (prefixEnd > 0 && prefixEnd < (int)sizeof(_state.namePrefix)) {
+            strncpy(_state.namePrefix, n, prefixEnd);
+            _state.namePrefix[prefixEnd] = '\0';
+        }
+
+        // Capture advertised service UUIDs
+        _state.serviceUUIDs[0] = '\0';
+        if (pTargetDevice->haveServiceUUID()) {
+            int count = pTargetDevice->getServiceUUIDCount();
+            int pos = 0;
+            for (int i = 0; i < count && pos < (int)sizeof(_state.serviceUUIDs) - 40; i++) {
+                if (i > 0) _state.serviceUUIDs[pos++] = ',';
+                String uuid = pTargetDevice->getServiceUUID(i).toString().c_str();
+                strncpy(_state.serviceUUIDs + pos, uuid.c_str(), sizeof(_state.serviceUUIDs) - pos - 1);
+                pos += uuid.length();
+            }
+        }
+
         _state.status = PRINTER_DISCONNECTED;
         Serial.printf("[Printer] Selected: %s  %s  RSSI:%d\n",
             _state.deviceName, _state.bleAddr, bestRSSI);
+        if (_state.namePrefix[0])
+            Serial.printf("[Printer]   Name prefix: %s\n", _state.namePrefix);
+        if (_state.serviceUUIDs[0])
+            Serial.printf("[Printer]   Adv services: %s\n", _state.serviceUUIDs);
         return true;
     }
 
@@ -185,6 +219,47 @@ bool LabelPrinter::connect() {
     _state.status = PRINTER_READY;
     _state.transport = TRANSPORT_BLE;
     Serial.printf("[Printer] Connected to %s\n", _state.deviceName);
+
+    // Dump all GATT services and characteristics for discovery
+    auto* services = pClient->getServices();
+    if (services) {
+        Serial.println("[Printer] GATT services:");
+        for (auto& kv : *services) {
+            BLERemoteService* svc = kv.second;
+            Serial.printf("[Printer]   Service: %s\n", svc->getUUID().toString().c_str());
+            auto* chars = svc->getCharacteristics();
+            if (chars) {
+                for (auto& ckv : *chars) {
+                    BLERemoteCharacteristic* ch = ckv.second;
+                    String propStr;
+                    if (ch->canRead()) propStr += "READ ";
+                    if (ch->canWrite()) propStr += "WRITE ";
+                    if (ch->canWriteNoResponse()) propStr += "WR_NR ";
+                    if (ch->canNotify()) propStr += "NOTIFY ";
+                    if (ch->canIndicate()) propStr += "INDICATE ";
+                    Serial.printf("[Printer]     Char: %s [%s]\n",
+                        ch->getUUID().toString().c_str(), propStr.c_str());
+
+                    // Read standard BLE characteristics (skip vendor 0xFF00 service — those use proprietary protocol)
+                    if (ch->canRead() && svc->getUUID().toString().find("ff00") == std::string::npos) {
+                        std::string val = ch->readValue();
+                        if (val.length() > 0 && val.length() < 64) {
+                            bool printable = true;
+                            for (char c : val) if (c < 0x20 || c > 0x7e) { printable = false; break; }
+                            if (printable) {
+                                Serial.printf("[Printer]       Value: \"%s\"\n", val.c_str());
+                            } else {
+                                Serial.printf("[Printer]       Value (%d bytes):", val.length());
+                                for (size_t i = 0; i < val.length(); i++)
+                                    Serial.printf(" %02X", (uint8_t)val[i]);
+                                Serial.println();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Query printer info after connect
     queryInfo();

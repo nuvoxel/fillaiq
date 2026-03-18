@@ -156,6 +156,19 @@ static volatile bool otaRunning = false;
 static TaskHandle_t nfcTaskHandle = nullptr;
 static TaskHandle_t networkTaskHandle = nullptr;
 
+// Pause NFC task during calibration, tare, settings, etc.
+// Uses a cooperative flag — the task checks it each loop and sleeps if set.
+// Network task is NOT paused (runs on core 0, doesn't touch I2C).
+static volatile bool nfcPaused = false;
+
+static void suspendBackgroundTasks() {
+    nfcPaused = true;
+}
+
+static void resumeBackgroundTasks() {
+    nfcPaused = false;
+}
+
 // ============================================================
 // NFC Task (Core 0, Priority 2, 8KB stack)
 // ============================================================
@@ -166,6 +179,12 @@ static void nfcTask(void* param) {
     Serial.println("[NFC Task] Started on core " + String(xPortGetCoreID()));
 
     for (;;) {
+        // Cooperative pause — sleep while menu/calibration is active
+        if (nfcPaused) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+
         // Poll NFC reader (this accesses HSPI only)
         nfcScanner.poll();
 
@@ -331,7 +350,7 @@ static void networkTask(void* param) {
 
             case NET_CHECK_OTA: {
                 otaRunning = true;
-                otaLoop();
+                otaCheckNow();
                 otaRunning = false;
                 break;
             }
@@ -1808,6 +1827,8 @@ void setup() {
 
     Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
     backlight.idle();
+    Serial.printf("  Heap: %u free, %u min | PSRAM: %u free\n",
+        ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
     enterState(SCAN_IDLE);
 
     Serial.println("\nReady. Type 'help' for commands.\n");
@@ -1833,6 +1854,9 @@ void loop() {
     if (menuActionPending != MENU_NONE) {
         MenuAction action = menuActionPending;
         menuActionPending = MENU_NONE;
+        // Suspend NFC + network tasks during menu actions for UI responsiveness
+        suspendBackgroundTasks();
+
         switch (action) {
             case MENU_FORMAT_SD:
                 if (sdCard.isConnected()) {
@@ -1846,6 +1870,7 @@ void loop() {
                 }
                 break;
             case MENU_WIFI_SETUP:
+                resumeBackgroundTasks();  // WiFi setup needs network task
                 startProvisioning();
                 break;
             case MENU_TARE_SCALE:
@@ -1916,6 +1941,11 @@ void loop() {
                 break;
             default: break;
         }
+    }
+
+    // Resume background tasks when menu is exited (Back button pressed)
+    if (nfcPaused && !display.isMenuActive()) {
+        resumeBackgroundTasks();
     }
 #endif
 

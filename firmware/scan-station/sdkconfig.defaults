@@ -1,0 +1,14 @@
+# ESP-IDF sdkconfig overrides for FillaScan (BOARD_SCAN_TOUCH)
+#
+# NOTE: Arduino-ESP32 uses precompiled ESP-IDF libraries. These values
+# are NOT automatically applied. The corresponding sdkconfig.h must be
+# patched in the PlatformIO framework package:
+#
+#   ~/.platformio/packages/framework-arduinoespressif32/
+#     tools/sdk/esp32s3/qio_opi/include/sdkconfig.h
+#
+# If `pio pkg update` overwrites the patch, re-apply these values.
+
+# BLE BTU task stack: default 4352 causes stack overflow during
+# BLE GATT service discovery (retrieveDescriptors). Doubled to 8192.
+CONFIG_BT_BTU_TASK_STACK_SIZE=8192

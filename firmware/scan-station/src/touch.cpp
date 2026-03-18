@@ -23,7 +23,7 @@ void TouchDriver::begin() {
     digitalWrite(TOUCH_RST, HIGH);
     delay(300);
 
-    // INT pin as input
+    // INT pin as input — FT6336G pulls LOW when touch is active
     pinMode(TOUCH_INT, INPUT);
 
     // Probe I2C

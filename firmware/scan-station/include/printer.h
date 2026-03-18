@@ -53,6 +53,8 @@ struct PrinterState {
     PrinterTransport transport = TRANSPORT_NONE;
     char deviceName[32] = {0};
     char bleAddr[18] = {0};
+    char namePrefix[16] = {0};     // Model prefix extracted from BLE name
+    char serviceUUIDs[128] = {0};  // Comma-separated advertised service UUIDs
     bool paperLoaded = true;
     bool coverClosed = true;
     bool overheating = false;

@@ -40,18 +40,22 @@ void otaCheckNow() {
         return;
     }
 
-    Serial.println("[OTA] Checking for updates...");
+    Serial.printf("[OTA] Checking... Heap: %u PSRAM: %u\n", ESP.getFreeHeap(), ESP.getFreePsram());
 
     // Build check URL
     String url = String(apiClient.getApiUrl()) + "/api/v1/firmware/check";
     url += "?version=" + String(FW_VERSION);
     url += "&sku=" + String(FW_SKU);
+    Serial.printf("[OTA] URL: %s\n", url.c_str());
 
     WiFiClientSecure secClient;
     secClient.setInsecure();
+    secClient.setTimeout(API_TIMEOUT_MS);
+    Serial.printf("[OTA] TLS client created. Heap: %u\n", ESP.getFreeHeap());
 
     HTTPClient http;
     http.begin(secClient, url);
+    Serial.println("[OTA] HTTP begin done, adding headers...");
     if (apiClient.getDeviceToken()[0] != '\0') {
         http.addHeader("X-Device-Token", apiClient.getDeviceToken());
     }
@@ -66,12 +70,12 @@ void otaCheckNow() {
     {
         String capsJson = apiClient.buildCapabilitiesJson();
 
-        // Augment with live printer state
+        // Augment with live printer state (merge into existing printer object)
         if (labelPrinter.isConnected()) {
             JsonDocument capsDoc;
             deserializeJson(capsDoc, capsJson);
             const auto& ps = labelPrinter.getState();
-            JsonObject p = capsDoc["printer"].to<JsonObject>();
+            JsonObject p = capsDoc["printer"];
             p["transport"] = "BLE";
             if (ps.infoQueried) {
                 p["battery"] = ps.batteryPercent;
@@ -87,8 +91,10 @@ void otaCheckNow() {
         http.addHeader("X-Capabilities", capsJson);
     }
     http.setTimeout(API_TIMEOUT_MS);
+    Serial.printf("[OTA] Sending GET... Heap: %u\n", ESP.getFreeHeap());
 
     int httpCode = http.GET();
+    Serial.printf("[OTA] Response: %d Heap: %u\n", httpCode, ESP.getFreeHeap());
 
     if (httpCode != 200) {
         Serial.printf("[OTA] Check failed: HTTP %d\n", httpCode);
