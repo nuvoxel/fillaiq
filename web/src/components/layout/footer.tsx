@@ -16,7 +16,7 @@ export function Footer() {
       }}
     >
       <Typography variant="caption" color="text.secondary">
-        &copy; {new Date().getFullYear()} FillaIQ &middot; v{process.env.NEXT_PUBLIC_APP_VERSION || "dev"}
+        &copy; {new Date().getFullYear()} FillaIQ &middot; {(process.env.NEXT_PUBLIC_APP_VERSION || "dev").slice(0, 7)}
       </Typography>
     </Box>
   );
