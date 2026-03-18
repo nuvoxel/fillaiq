@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -104,6 +105,8 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
 
   const isBatch = items.length > 1;
 
@@ -112,6 +115,8 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
     setError(null);
     setSuccess(false);
     setSending(false);
+    setPreviewError(false);
+    setPreviewLoading(true);
 
     (async () => {
       setLoading(true);
@@ -142,6 +147,37 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
   const template = templates.find((t) => t.id === selectedTemplate);
   const settings = template ? templateToSettings(template) : null;
   const previewItem = items[0] ?? {};
+
+  // Build a server-rendered BMP preview URL from the first item's data
+  const previewUrl = useMemo(() => {
+    if (!selectedTemplate || !previewItem) return null;
+    const params = new URLSearchParams();
+    params.set("format", "bmp");
+    params.set("width", "384");
+    params.set("dpi", "203");
+    params.set("templateId", selectedTemplate);
+    if (previewItem.brand) params.set("brand", previewItem.brand);
+    if (previewItem.material) params.set("material", previewItem.material);
+    if (previewItem.color) params.set("colorHex", previewItem.color);
+    if (previewItem.nozzleTemp) {
+      // nozzleTemp may be "215°C" or "200-220°C" — parse out numbers
+      const tempMatch = previewItem.nozzleTemp.match(/(\d+)\s*[-–]\s*(\d+)/);
+      if (tempMatch) {
+        params.set("nozzleTempMin", tempMatch[1]);
+        params.set("nozzleTempMax", tempMatch[2]);
+      } else {
+        const single = previewItem.nozzleTemp.match(/(\d+)/);
+        if (single) params.set("nozzleTempMin", single[1]);
+      }
+    }
+    if (previewItem.bedTemp) {
+      const bedMatch = previewItem.bedTemp.match(/(\d+)/);
+      if (bedMatch) params.set("bedTemp", bedMatch[1]);
+    }
+    if (previewItem.weight) params.set("weight", previewItem.weight);
+    if (previewItem.location) params.set("location", previewItem.location);
+    return `/api/v1/label/render?${params.toString()}`;
+  }, [selectedTemplate, previewItem]);
 
   const handlePrint = async () => {
     setError(null);
@@ -265,11 +301,49 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
                   >
                     Preview
                   </Typography>
-                  <LabelPreview
-                    settings={settings}
-                    data={previewItem as LabelPreviewData}
-                    maxWidth={350}
-                  />
+                  {previewUrl && !previewError ? (
+                    <Box sx={{ position: "relative", textAlign: "center" }}>
+                      {previewLoading && (
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 1,
+                          }}
+                        >
+                          <CircularProgress size={24} />
+                        </Box>
+                      )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={previewUrl}
+                        alt="Label preview"
+                        onLoad={() => setPreviewLoading(false)}
+                        onError={() => {
+                          setPreviewLoading(false);
+                          setPreviewError(true);
+                        }}
+                        style={{
+                          maxWidth: "100%",
+                          imageRendering: "pixelated",
+                          border: "1px solid #ccc",
+                          borderRadius: 4,
+                          opacity: previewLoading ? 0.3 : 1,
+                          transition: "opacity 0.2s",
+                        }}
+                      />
+                    </Box>
+                  ) : (
+                    /* Fall back to CSS preview if BMP fails */
+                    <LabelPreview
+                      settings={settings}
+                      data={previewItem as LabelPreviewData}
+                      maxWidth={350}
+                    />
+                  )}
                 </Box>
               )}
 

@@ -451,3 +451,71 @@ export function renderLabelBitmap(
     bytesPerRow: bmp.bytesPerRow,
   };
 }
+
+/**
+ * Convert a 1-bit packed bitmap (MSB first) to a BMP file.
+ *
+ * BMP 1-bit format is natively supported by all browsers, so this needs
+ * zero external dependencies. The color table maps 0 = white, 1 = black
+ * to match the thermal printer convention (1 = print = black).
+ *
+ * BMP rows are stored bottom-to-top and padded to 4-byte boundaries.
+ */
+export function convertBitmapToBmp(
+  bitmap: Buffer,
+  widthPx: number,
+  heightPx: number,
+  bytesPerRow: number
+): Buffer {
+  // BMP row stride: must be a multiple of 4 bytes
+  const bmpRowStride = Math.ceil(widthPx / 8);
+  const bmpRowPadded = Math.ceil(bmpRowStride / 4) * 4;
+  const pixelDataSize = bmpRowPadded * heightPx;
+
+  // File structure sizes
+  const fileHeaderSize = 14;
+  const dibHeaderSize = 40;
+  const colorTableSize = 8; // 2 colors x 4 bytes (BGRA)
+  const pixelDataOffset = fileHeaderSize + dibHeaderSize + colorTableSize;
+  const fileSize = pixelDataOffset + pixelDataSize;
+
+  const buf = Buffer.alloc(fileSize, 0);
+
+  // ── BMP File Header (14 bytes) ──
+  buf.write("BM", 0); // signature
+  buf.writeUInt32LE(fileSize, 2); // file size
+  buf.writeUInt32LE(0, 6); // reserved
+  buf.writeUInt32LE(pixelDataOffset, 10); // pixel data offset
+
+  // ── DIB Header (BITMAPINFOHEADER, 40 bytes) ──
+  buf.writeUInt32LE(dibHeaderSize, 14); // header size
+  buf.writeInt32LE(widthPx, 18); // width
+  buf.writeInt32LE(heightPx, 22); // height (positive = bottom-up)
+  buf.writeUInt16LE(1, 26); // color planes
+  buf.writeUInt16LE(1, 28); // bits per pixel
+  buf.writeUInt32LE(0, 30); // compression (none)
+  buf.writeUInt32LE(pixelDataSize, 34); // image size
+  buf.writeInt32LE(3780, 38); // x pixels per meter (~96 dpi)
+  buf.writeInt32LE(3780, 42); // y pixels per meter
+  buf.writeUInt32LE(2, 46); // colors used
+  buf.writeUInt32LE(2, 50); // important colors
+
+  // ── Color Table (2 entries, BGRA) ──
+  // Index 0 = white (pixel value 0 = no print)
+  buf.writeUInt32LE(0x00ffffff, 54); // BGRA white
+  // Index 1 = black (pixel value 1 = print)
+  buf.writeUInt32LE(0x00000000, 58); // BGRA black
+
+  // ── Pixel Data (bottom-up) ──
+  for (let y = 0; y < heightPx; y++) {
+    // BMP stores rows bottom-to-top
+    const bmpRow = heightPx - 1 - y;
+    const srcOffset = y * bytesPerRow;
+    const dstOffset = pixelDataOffset + bmpRow * bmpRowPadded;
+    // Copy the row bytes (source bytesPerRow may differ from bmpRowStride)
+    const copyLen = Math.min(bytesPerRow, bmpRowStride);
+    bitmap.copy(buf, dstOffset, srcOffset, srcOffset + copyLen);
+  }
+
+  return buf;
+}

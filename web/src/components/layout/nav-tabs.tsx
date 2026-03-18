@@ -22,8 +22,6 @@ const navItems = [
   { href: "/catalog", label: "Catalog", icon: <MenuBookIcon fontSize="small" /> },
   { href: "/hardware", label: "Hardware", icon: <MemoryIcon fontSize="small" /> },
   { href: "/dashboard", label: "Reporting", icon: <AssessmentIcon fontSize="small" /> },
-  { href: "/audit", label: "Audit Log", icon: <HistoryIcon fontSize="small" /> },
-  { href: "/submissions", label: "Submissions", icon: <SendIcon fontSize="small" /> },
   { href: "/settings", label: "Settings", icon: <SettingsIcon fontSize="small" /> },
 ];
 

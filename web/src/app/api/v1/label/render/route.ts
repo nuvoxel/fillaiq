@@ -5,62 +5,84 @@ import { labelTemplates, printJobs } from "@/db/schema/user-library";
 import { products } from "@/db/schema/central-catalog";
 import { scanStations, scanSessions } from "@/db/schema/scan-stations";
 import { eq, and, isNotNull } from "drizzle-orm";
-import { renderLabelBitmap } from "@/lib/services/label-renderer";
+import {
+  renderLabelBitmap,
+  convertBitmapToBmp,
+} from "@/lib/services/label-renderer";
+import { getSession } from "@/lib/actions/auth";
 
 /**
  * GET /api/v1/label/render
  *
- * Renders a label as a 1-bit packed bitmap suitable for direct streaming
- * to a thermal printer (Phomemo M120 or similar).
+ * Renders a label as a bitmap. Supports two output formats:
+ *   - `raw` (default): 1-bit packed bitmap for direct streaming to thermal printers
+ *   - `bmp`: Windows BMP image for browser preview (`<img>` tag)
  *
- * Query parameters:
- *   sessionId  - scan session ID (to fetch product data)
+ * Data source (one of):
+ *   - `sessionId` query param: fetches product data from a scan session
+ *   - Direct query params: `brand`, `material`, `colorHex`, `colorName`,
+ *     `nozzleTempMin`, `nozzleTempMax`, `bedTemp`, `weight`, `location`
+ *
+ * Other query parameters:
  *   templateId - label template ID (optional; uses user default if omitted)
  *   width      - printer width in dots (default: 384)
  *   dpi        - printer DPI (default: 203)
  *   jobId      - optional print job ID (marks it as "printing")
+ *   format     - output format: "raw" (default) or "bmp"
  *
- * Auth: X-Device-Token header (device pairing) or X-API-Key
+ * Auth: X-Device-Token header (device pairing) OR browser session cookie
  *
- * Response: application/octet-stream with raw 1-bit bitmap
+ * Response (format=raw): application/octet-stream with raw 1-bit bitmap
  *   Headers: X-Label-Width, X-Label-Height, X-Bytes-Per-Row
+ * Response (format=bmp): image/bmp
  */
 export async function GET(request: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────────────
+  // Try device token auth first, then fall back to session cookie auth
   const deviceToken = request.headers.get("x-device-token");
-  if (!deviceToken) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  let userId: string | null = null;
 
-  const [station] = await db
-    .select()
-    .from(scanStations)
-    .where(
-      and(
-        eq(scanStations.deviceToken, deviceToken),
-        isNotNull(scanStations.userId)
-      )
-    );
+  if (deviceToken) {
+    // Device auth path
+    const [station] = await db
+      .select()
+      .from(scanStations)
+      .where(
+        and(
+          eq(scanStations.deviceToken, deviceToken),
+          isNotNull(scanStations.userId)
+        )
+      );
 
-  if (!station) {
-    return NextResponse.json(
-      { error: "Invalid token or device not paired" },
-      { status: 401 }
-    );
-  }
-
-  // Verify hardware identity
-  const deviceSecret = request.headers.get("x-device-secret");
-  if (station.deviceSecret && deviceSecret) {
-    const secretHash = createHash("sha256")
-      .update(deviceSecret)
-      .digest("hex");
-    if (station.deviceSecret !== secretHash) {
+    if (!station) {
       return NextResponse.json(
-        { error: "Device identity mismatch" },
-        { status: 403 }
+        { error: "Invalid token or device not paired" },
+        { status: 401 }
       );
     }
+
+    // Verify hardware identity
+    const deviceSecret = request.headers.get("x-device-secret");
+    if (station.deviceSecret && deviceSecret) {
+      const secretHash = createHash("sha256")
+        .update(deviceSecret)
+        .digest("hex");
+      if (station.deviceSecret !== secretHash) {
+        return NextResponse.json(
+          { error: "Device identity mismatch" },
+          { status: 403 }
+        );
+      }
+    }
+
+    userId = station.userId;
+  } else {
+    // Session cookie auth path (browser preview)
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    userId = session.userId;
   }
 
   // ── Parse params ──────────────────────────────────────────────────────
@@ -70,28 +92,9 @@ export async function GET(request: NextRequest) {
   const widthDots = parseInt(url.searchParams.get("width") ?? "384", 10);
   const dpi = parseInt(url.searchParams.get("dpi") ?? "203", 10);
   const jobId = url.searchParams.get("jobId");
+  const format = url.searchParams.get("format") ?? "raw";
 
-  if (!sessionId) {
-    return NextResponse.json(
-      { error: "sessionId is required" },
-      { status: 400 }
-    );
-  }
-
-  // ── Fetch session + product data ──────────────────────────────────────
-  const [session] = await db
-    .select()
-    .from(scanSessions)
-    .where(eq(scanSessions.id, sessionId));
-
-  if (!session) {
-    return NextResponse.json(
-      { error: "Session not found" },
-      { status: 404 }
-    );
-  }
-
-  // Get product info if matched
+  // ── Build label data ────────────────────────────────────────────────
   let brandName: string | null = null;
   let materialName: string | null = null;
   let productName: string | null = null;
@@ -100,42 +103,94 @@ export async function GET(request: NextRequest) {
   let nozzleTempMin: number | null = null;
   let nozzleTempMax: number | null = null;
   let bedTemp: number | null = null;
+  let weightStr: string | null = null;
+  let location: string | null = null;
 
-  if (session.matchedProductId) {
-    const productRow = await db.query.products.findFirst({
-      where: eq(products.id, session.matchedProductId),
-      with: { brand: true, material: true },
-    });
+  if (sessionId) {
+    // ── Fetch session + product data ────────────────────────────────
+    const [session] = await db
+      .select()
+      .from(scanSessions)
+      .where(eq(scanSessions.id, sessionId));
 
-    if (productRow) {
-      const p = productRow as Record<string, any>;
-      brandName = productRow.brand?.name ?? null;
-      materialName = productRow.material?.name ?? null;
-      productName = productRow.name;
-      colorHex = productRow.colorHex;
-      colorName = productRow.colorName;
-      nozzleTempMin = p.nozzleTempMin ?? null;
-      nozzleTempMax = p.nozzleTempMax ?? null;
-      bedTemp = p.bedTempMin ?? null;
+    if (!session) {
+      return NextResponse.json(
+        { error: "Session not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get product info if matched
+    if (session.matchedProductId) {
+      const productRow = await db.query.products.findFirst({
+        where: eq(products.id, session.matchedProductId),
+        with: { brand: true, material: true },
+      });
+
+      if (productRow) {
+        const p = productRow as Record<string, any>;
+        brandName = productRow.brand?.name ?? null;
+        materialName = productRow.material?.name ?? null;
+        productName = productRow.name;
+        colorHex = productRow.colorHex;
+        colorName = productRow.colorName;
+        nozzleTempMin = p.nozzleTempMin ?? null;
+        nozzleTempMax = p.nozzleTempMax ?? null;
+        bedTemp = p.bedTempMin ?? null;
+      }
+    }
+
+    // Fall back to NFC parsed data
+    const nfcParsed = session.nfcParsedData as Record<string, any> | null;
+    if (nfcParsed) {
+      if (!brandName && nfcParsed.brandName) brandName = nfcParsed.brandName;
+      if (!materialName && nfcParsed.material)
+        materialName = nfcParsed.material;
+      if (!productName && nfcParsed.name) productName = nfcParsed.name;
+      if (!colorHex && nfcParsed.colorHex) colorHex = nfcParsed.colorHex;
+      if (nozzleTempMin === null && nfcParsed.nozzleTempMin)
+        nozzleTempMin = nfcParsed.nozzleTempMin;
+      if (nozzleTempMax === null && nfcParsed.nozzleTempMax)
+        nozzleTempMax = nfcParsed.nozzleTempMax;
+      if (bedTemp === null && nfcParsed.bedTemp) bedTemp = nfcParsed.bedTemp;
+    }
+
+    // Color from session best
+    if (!colorHex && session.bestColorHex) colorHex = session.bestColorHex;
+
+    // Weight from session
+    if (session.bestWeightG) {
+      weightStr = `${Math.round(session.bestWeightG)}g`;
+    }
+  } else {
+    // ── Direct query params ─────────────────────────────────────────
+    brandName = url.searchParams.get("brand");
+    materialName = url.searchParams.get("material");
+    colorHex = url.searchParams.get("colorHex");
+    colorName = url.searchParams.get("colorName");
+    nozzleTempMin = url.searchParams.get("nozzleTempMin")
+      ? parseInt(url.searchParams.get("nozzleTempMin")!, 10)
+      : null;
+    nozzleTempMax = url.searchParams.get("nozzleTempMax")
+      ? parseInt(url.searchParams.get("nozzleTempMax")!, 10)
+      : null;
+    bedTemp = url.searchParams.get("bedTemp")
+      ? parseInt(url.searchParams.get("bedTemp")!, 10)
+      : null;
+    weightStr = url.searchParams.get("weight");
+    location = url.searchParams.get("location");
+
+    // Must have at least some data for a direct render
+    if (!brandName && !materialName && !weightStr) {
+      return NextResponse.json(
+        {
+          error:
+            "Provide sessionId or at least one of: brand, material, weight",
+        },
+        { status: 400 }
+      );
     }
   }
-
-  // Fall back to NFC parsed data
-  const nfcParsed = session.nfcParsedData as Record<string, any> | null;
-  if (nfcParsed) {
-    if (!brandName && nfcParsed.brandName) brandName = nfcParsed.brandName;
-    if (!materialName && nfcParsed.material) materialName = nfcParsed.material;
-    if (!productName && nfcParsed.name) productName = nfcParsed.name;
-    if (!colorHex && nfcParsed.colorHex) colorHex = nfcParsed.colorHex;
-    if (nozzleTempMin === null && nfcParsed.nozzleTempMin)
-      nozzleTempMin = nfcParsed.nozzleTempMin;
-    if (nozzleTempMax === null && nfcParsed.nozzleTempMax)
-      nozzleTempMax = nfcParsed.nozzleTempMax;
-    if (bedTemp === null && nfcParsed.bedTemp) bedTemp = nfcParsed.bedTemp;
-  }
-
-  // Color from session best
-  if (!colorHex && session.bestColorHex) colorHex = session.bestColorHex;
 
   // ── Fetch template ────────────────────────────────────────────────────
   let template;
@@ -147,24 +202,24 @@ export async function GET(request: NextRequest) {
   }
 
   // Fall back to user's default template
-  if (!template && station.userId) {
+  if (!template && userId) {
     [template] = await db
       .select()
       .from(labelTemplates)
       .where(
         and(
-          eq(labelTemplates.userId, station.userId),
+          eq(labelTemplates.userId, userId),
           eq(labelTemplates.isDefault, true)
         )
       );
   }
 
   // Fall back to first template
-  if (!template && station.userId) {
+  if (!template && userId) {
     [template] = await db
       .select()
       .from(labelTemplates)
-      .where(eq(labelTemplates.userId, station.userId));
+      .where(eq(labelTemplates.userId, userId));
   }
 
   // ── Build label data ──────────────────────────────────────────────────
@@ -177,9 +232,8 @@ export async function GET(request: NextRequest) {
     nozzleTempMin: nozzleTempMin ?? undefined,
     nozzleTempMax: nozzleTempMax ?? undefined,
     bedTemp: bedTemp ?? undefined,
-    weight: session.bestWeightG
-      ? `${Math.round(session.bestWeightG)}g`
-      : undefined,
+    weight: weightStr ?? undefined,
+    location: location ?? undefined,
   };
 
   const settings = template
@@ -227,7 +281,19 @@ export async function GET(request: NextRequest) {
       .catch(() => {});
   }
 
-  // ── Return bitmap ─────────────────────────────────────────────────────
+  // ── Return response ───────────────────────────────────────────────────
+  if (format === "bmp") {
+    const bmpFile = convertBitmapToBmp(bitmap, widthPx, heightPx, bytesPerRow);
+    return new Response(new Uint8Array(bmpFile), {
+      status: 200,
+      headers: {
+        "Content-Type": "image/bmp",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  // Default: raw bitmap
   return new Response(new Uint8Array(bitmap), {
     status: 200,
     headers: {

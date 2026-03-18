@@ -186,6 +186,13 @@ export default async function DashboardPage() {
                 Recent Activity
               </Typography>
               <AuditFeed items={auditItems} />
+              <Box sx={{ mt: 2, textAlign: "center" }}>
+                <Link href="/dashboard?tab=audit" style={{ textDecoration: "none" }}>
+                  <Typography variant="body2" color="primary">
+                    View full audit log →
+                  </Typography>
+                </Link>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
