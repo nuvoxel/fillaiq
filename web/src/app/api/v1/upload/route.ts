@@ -14,13 +14,19 @@ const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
  *
  * Upload an image file. Returns the public URL path.
  * Query params:
- *   - category: "hardware" | "brands" (determines subdirectory)
+ *   - category: "hardware" | "brands" | "scans" (determines subdirectory)
+ *
+ * The "scans" category allows unauthenticated uploads (public phone enrichment flow).
  */
 export async function POST(request: NextRequest) {
-  // Auth check
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const category = request.nextUrl.searchParams.get("category") || "general";
+
+  // Auth check — skip for "scans" category (public enrichment flow)
+  if (category !== "scans") {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   const formData = await request.formData();
@@ -43,8 +49,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const category = request.nextUrl.searchParams.get("category") || "general";
-  const validCategories = ["hardware", "brands", "general"];
+  const validCategories = ["hardware", "brands", "scans", "general"];
   const safeCategory = validCategories.includes(category) ? category : "general";
 
   // Generate unique filename

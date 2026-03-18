@@ -699,12 +699,53 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                                    LV_ALIGN_TOP_LEFT, 90, 55, wStr);
 
         _resultDetail = makeLabel(_screen, &lv_font_montserrat_14, gray,
-                                   LV_ALIGN_TOP_LEFT, 90, 88, "Add details on web/phone");
+                                   LV_ALIGN_TOP_LEFT, 90, 88, "Scan QR to add details");
 
-        // Show session URL if available
+        // Show QR code for session URL
         if (sessionUrl && sessionUrl[0]) {
-            makeLabel(_screen, &lv_font_montserrat_12, grayLight,
-                      LV_ALIGN_TOP_LEFT, 12, 120, sessionUrl);
+            QRCode qrcode;
+            uint8_t qrcodeData[512];
+            int8_t qrResult = -1;
+            for (uint8_t ver = 4; ver <= 8; ver++) {
+                qrResult = qrcode_initText(&qrcode, qrcodeData, ver, ECC_LOW, sessionUrl);
+                if (qrResult == 0) break;
+            }
+            if (qrResult == 0) {
+                int scale = 2;
+                int qrPx = qrcode.size * scale;
+                int margin = scale;
+                int totalSize = qrPx + margin * 2;
+
+                lv_obj_t* qrBg = lv_obj_create(_screen);
+                lv_obj_remove_style_all(qrBg);
+                lv_obj_set_size(qrBg, totalSize, totalSize);
+                lv_obj_set_style_bg_color(qrBg, white, 0);
+                lv_obj_set_style_bg_opa(qrBg, LV_OPA_COVER, 0);
+                lv_obj_set_style_radius(qrBg, 2, 0);
+                lv_obj_align(qrBg, LV_ALIGN_TOP_RIGHT, -12, 48);
+
+                lv_canvas_t* canvas;
+                lv_obj_t* canvasObj = lv_canvas_create(qrBg);
+                static uint8_t canvasBuf[100 * 100]; // max QR size
+                memset(canvasBuf, 0xFF, sizeof(canvasBuf));
+                lv_canvas_set_buffer(canvasObj, canvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
+                lv_obj_align(canvasObj, LV_ALIGN_CENTER, 0, 0);
+
+                // Draw QR modules
+                for (uint8_t y = 0; y < qrcode.size; y++) {
+                    for (uint8_t x = 0; x < qrcode.size; x++) {
+                        if (qrcode_getModule(&qrcode, x, y)) {
+                            for (int sy = 0; sy < scale; sy++) {
+                                for (int sx = 0; sx < scale; sx++) {
+                                    lv_canvas_set_px(canvasObj, margin + x * scale + sx,
+                                                     margin + y * scale + sy,
+                                                     lv_color_black(), LV_OPA_COVER);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

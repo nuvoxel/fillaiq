@@ -801,8 +801,19 @@ void updateDisplayAndLed() {
         // For SCAN_SUBMITTING or SCAN_RESULT, just update the display state
         const ScanResponse* serverData = lastResponse.scanId[0] ? &lastResponse : nullptr;
 
+        // Build session URL for QR code
+        static char sessionUrl[128] = {0};
+        if (scanState == SCAN_RESULT && lastResponse.sessionId[0]) {
+            snprintf(sessionUrl, sizeof(sessionUrl), "%s/scan/%s",
+                     apiClient.getApiUrl(), lastResponse.sessionId);
+        }
+
         // Only transition screen on state change
-        display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
+        if (scanState == SCAN_RESULT && sessionUrl[0]) {
+            display.showResult(serverData, w, sessionUrl);
+        } else {
+            display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
+        }
     }
 
     // LED backlight based on state (only change mode on state transitions)
