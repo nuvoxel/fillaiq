@@ -16,7 +16,7 @@ import { LabelTemplatesCard } from "@/components/settings/label-templates-card";
 import { OrganizationCard } from "@/components/settings/organization-card";
 import { ProfileCard } from "@/components/settings/profile-card";
 import { ApiKeysCard } from "@/components/settings/api-keys-card";
-import { PrintJobsCard } from "@/components/settings/print-jobs-card";
+// Print jobs moved to Hardware > Printers tab
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -78,9 +78,6 @@ export default async function SettingsPage() {
 
         {/* Label Templates */}
         <LabelTemplatesCard />
-
-        {/* Print Jobs */}
-        <PrintJobsCard />
 
         {/* API Keys */}
         <ApiKeysCard initialApiKeys={apiKeys} />
