@@ -178,13 +178,15 @@ export async function GET(request: NextRequest) {
     weightStr = url.searchParams.get("weight");
     location = url.searchParams.get("location");
 
-    // If no data provided, render a sample label
+    // If no spool data provided, render a slot/location label
     if (!brandName && !materialName && !weightStr) {
-      brandName = "Sample Brand";
-      materialName = "PLA";
-      weightStr = "1000";
-      colorName = "White";
-      colorHex = "#FFFFFF";
+      if (location) {
+        brandName = location;
+        materialName = "EMPTY";
+      } else {
+        brandName = "Unassigned";
+        materialName = "Scan to assign";
+      }
     }
   }
 
