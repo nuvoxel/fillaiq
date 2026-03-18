@@ -178,15 +178,13 @@ export async function GET(request: NextRequest) {
     weightStr = url.searchParams.get("weight");
     location = url.searchParams.get("location");
 
-    // Must have at least some data for a direct render
+    // If no data provided, render a sample label
     if (!brandName && !materialName && !weightStr) {
-      return NextResponse.json(
-        {
-          error:
-            "Provide sessionId or at least one of: brand, material, weight",
-        },
-        { status: 400 }
-      );
+      brandName = "Sample Brand";
+      materialName = "PLA";
+      weightStr = "1000";
+      colorName = "White";
+      colorHex = "#FFFFFF";
     }
   }
 
