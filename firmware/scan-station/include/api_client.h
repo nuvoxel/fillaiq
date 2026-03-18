@@ -138,6 +138,11 @@ public:
     ApiStatus pollResult(const char* scanId, ScanResponse& response);
     void postEnvironment(const struct EnvData& env);
 
+    // Label printing — downloads rendered bitmap from server
+    // Returns true on success. Caller must free *bitmapOut with free().
+    bool downloadLabelBitmap(const char* sessionId, int printerWidth, int printerDpi,
+                             uint8_t** bitmapOut, int* widthOut, int* heightOut, int* bytesPerRowOut);
+
     // Device pairing
     ApiStatus requestPairingCode(char* codeOut, size_t codeLen);
     ApiStatus pollPairingStatus(bool& paired);

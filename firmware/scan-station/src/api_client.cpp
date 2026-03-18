@@ -640,6 +640,92 @@ void ApiClient::saveConfig() {
     prefs.end();
 }
 
+bool ApiClient::downloadLabelBitmap(const char* sessionId, int printerWidth, int printerDpi,
+                                     uint8_t** bitmapOut, int* widthOut, int* heightOut, int* bytesPerRowOut) {
+    if (!sessionId || sessionId[0] == '\0') return false;
+
+    char url[384];
+    snprintf(url, sizeof(url),
+        "%s/api/v1/label/render?sessionId=%s&width=%d&dpi=%d",
+        _apiUrl, sessionId, printerWidth, printerDpi);
+
+    Serial.printf("[Label] GET %s\n", url);
+
+    HTTPClient http;
+    http.begin(getSecureClient(), url);
+    addAuthHeaders(http, _deviceToken, _apiKey);
+    http.setTimeout(API_TIMEOUT_MS);
+
+    // Collect response headers
+    const char* headerKeys[] = { "X-Label-Width", "X-Label-Height", "X-Bytes-Per-Row" };
+    http.collectHeaders(headerKeys, 3);
+
+    int httpCode = http.GET();
+
+    if (httpCode != 200) {
+        Serial.printf("[Label] HTTP %d\n", httpCode);
+        http.end();
+        return false;
+    }
+
+    // Read dimensions from headers
+    int labelW = http.header("X-Label-Width").toInt();
+    int labelH = http.header("X-Label-Height").toInt();
+    int bpr = http.header("X-Bytes-Per-Row").toInt();
+
+    // Fallback calculation
+    int contentLen = http.getSize();
+    if (bpr <= 0) bpr = (printerWidth + 7) / 8;
+    if (labelH <= 0 && contentLen > 0) labelH = contentLen / bpr;
+    if (labelW <= 0) labelW = printerWidth;
+
+    int totalBytes = bpr * labelH;
+    if (totalBytes <= 0 || totalBytes > 100000) {
+        Serial.printf("[Label] Bad size: %dx%d = %d bytes\n", labelW, labelH, totalBytes);
+        http.end();
+        return false;
+    }
+
+    uint8_t* bitmap = (uint8_t*)malloc(totalBytes);
+    if (!bitmap) {
+        Serial.println("[Label] Out of memory");
+        http.end();
+        return false;
+    }
+
+    // Read bitmap data
+    WiFiClient* stream = http.getStreamPtr();
+    int bytesRead = 0;
+    unsigned long readStart = millis();
+    while (bytesRead < totalBytes && (millis() - readStart) < 15000) {
+        int avail = stream->available();
+        if (avail > 0) {
+            int toRead = min(avail, totalBytes - bytesRead);
+            int got = stream->readBytes(bitmap + bytesRead, toRead);
+            bytesRead += got;
+        } else if (!stream->connected()) {
+            break;
+        } else {
+            delay(10);
+        }
+    }
+    http.end();
+
+    if (bytesRead < totalBytes) {
+        Serial.printf("[Label] Incomplete: %d/%d bytes\n", bytesRead, totalBytes);
+        free(bitmap);
+        return false;
+    }
+
+    Serial.printf("[Label] Downloaded %dx%d bitmap (%d bytes)\n", labelW, labelH, totalBytes);
+
+    *bitmapOut = bitmap;
+    *widthOut = labelW;
+    *heightOut = labelH;
+    *bytesPerRowOut = bpr;
+    return true;
+}
+
 void ApiClient::printStatus() {
     Serial.println("=== API Client ===");
     Serial.printf("  WiFi: %s (%s)\n",

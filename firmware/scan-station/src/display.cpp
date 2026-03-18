@@ -357,6 +357,11 @@ void Display::onDoneBtnClick(lv_event_t* e) {
     display.doneButtonPressed = true;
 }
 
+void Display::onPrintBtnClick(lv_event_t* e) {
+    (void)e;
+    display.printButtonPressed = true;
+}
+
 // ── Idle Screen ──────────────────────────────────────────────
 
 void Display::buildIdleScreen(uint8_t icons) {
@@ -752,12 +757,33 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
         }
     }
 
-    // Done button — return to dashboard
+    // Bottom buttons — Print (left) + Done (right)
 #ifdef BOARD_SCAN_TOUCH
+    int btnGap = 8;
+    int btnH = 50;
+    int btnW = (_screenW - 24 - btnGap) / 2;
+
+    // Print button (left)
+    _resultPrintBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(_resultPrintBtn);
+    lv_obj_set_size(_resultPrintBtn, btnW, btnH);
+    lv_obj_align(_resultPrintBtn, LV_ALIGN_BOTTOM_LEFT, 12, -8);
+    lv_obj_set_style_bg_color(_resultPrintBtn, brandOrange, 0);
+    lv_obj_set_style_bg_opa(_resultPrintBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_resultPrintBtn, 10, 0);
+    lv_obj_add_event_cb(_resultPrintBtn, onPrintBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* printLbl = lv_label_create(_resultPrintBtn);
+    lv_label_set_text(printLbl, LV_SYMBOL_DOWNLOAD " PRINT");
+    lv_obj_set_style_text_font(printLbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(printLbl, white, 0);
+    lv_obj_center(printLbl);
+
+    // Done button (right)
     _resultDoneBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(_resultDoneBtn);
-    lv_obj_set_size(_resultDoneBtn, _screenW - 24, 50);
-    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_size(_resultDoneBtn, btnW, btnH);
+    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_RIGHT, -12, -8);
     lv_obj_set_style_bg_color(_resultDoneBtn, lv_color_hex(0x2A2A2A), 0);
     lv_obj_set_style_bg_opa(_resultDoneBtn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(_resultDoneBtn, 10, 0);
@@ -767,7 +793,7 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
 
     lv_obj_t* doneLbl = lv_label_create(_resultDoneBtn);
     lv_label_set_text(doneLbl, "DONE");
-    lv_obj_set_style_text_font(doneLbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(doneLbl, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(doneLbl, white, 0);
     lv_obj_center(doneLbl);
 #endif

@@ -94,6 +94,7 @@ enum NetworkWorkType : uint8_t {
     NET_POST_ENV,
     NET_WIFI_CONNECT,
     NET_POLL_RESULT,
+    NET_PRINT_LABEL,
 };
 
 struct NetworkWorkItem {
@@ -137,6 +138,13 @@ struct SharedScanData {
 
     // For NET_POST_ENV: env data written by main loop before enqueue
     EnvData envData;
+
+    // For NET_PRINT_LABEL: label bitmap download + print
+    char printSessionId[64];
+    bool printInFlight;
+    bool printDone;
+    bool printSuccess;
+    char printError[64];
 };
 
 static SharedScanData sharedScan;
@@ -325,6 +333,76 @@ static void networkTask(void* param) {
                 otaRunning = true;
                 otaLoop();
                 otaRunning = false;
+                break;
+            }
+
+            case NET_PRINT_LABEL: {
+                // Download label bitmap from server and send to printer
+                char sessionId[64];
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    strncpy(sessionId, sharedScan.printSessionId, sizeof(sessionId));
+                    xSemaphoreGive(sharedScan.mutex);
+                } else {
+                    break;
+                }
+
+                if (sessionId[0] == '\0') {
+                    if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                        sharedScan.printDone = true;
+                        sharedScan.printSuccess = false;
+                        strncpy(sharedScan.printError, "No session", sizeof(sharedScan.printError));
+                        xSemaphoreGive(sharedScan.mutex);
+                    }
+                    break;
+                }
+
+                // Ensure printer is connected
+                if (!labelPrinter.isConnected()) {
+                    Serial.println("[Print] Printer not connected, scanning...");
+                    if (!labelPrinter.scan(5000) || !labelPrinter.connect()) {
+                        if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                            sharedScan.printDone = true;
+                            sharedScan.printSuccess = false;
+                            strncpy(sharedScan.printError, "Printer not found", sizeof(sharedScan.printError));
+                            xSemaphoreGive(sharedScan.mutex);
+                        }
+                        break;
+                    }
+                }
+
+                // Download bitmap via ApiClient
+                uint8_t* bitmap = nullptr;
+                int labelWidth = 0, labelHeight = 0, bytesPerRow = 0;
+                bool downloaded = apiClient.downloadLabelBitmap(
+                    sessionId, PRINTER_DOTS_PER_LINE, PRINTER_DPI,
+                    &bitmap, &labelWidth, &labelHeight, &bytesPerRow);
+
+                if (!downloaded || !bitmap) {
+                    if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                        sharedScan.printDone = true;
+                        sharedScan.printSuccess = false;
+                        strncpy(sharedScan.printError, "Download failed", sizeof(sharedScan.printError));
+                        xSemaphoreGive(sharedScan.mutex);
+                    }
+                    break;
+                }
+
+                // Send to printer
+                bool ok = labelPrinter.printRaster(bitmap, bytesPerRow, labelHeight);
+                free(bitmap);
+
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    sharedScan.printDone = true;
+                    sharedScan.printSuccess = ok;
+                    if (!ok) {
+                        strncpy(sharedScan.printError, "Print failed", sizeof(sharedScan.printError));
+                    } else {
+                        sharedScan.printError[0] = '\0';
+                    }
+                    xSemaphoreGive(sharedScan.mutex);
+                }
+
+                Serial.printf("[Print] %s\n", ok ? "Success" : "Failed");
                 break;
             }
 
@@ -673,11 +751,56 @@ void updateScanState() {
     }
 
     case SCAN_RESULT: {
-        // Wait for user tap "Done" or 30s timeout
+        // Wait for user tap "Done" or "Print", or 30s timeout
 #ifdef BOARD_SCAN_TOUCH
         if (display.doneButtonPressed) {
             display.doneButtonPressed = false;
             enterState(SCAN_IDLE);
+        }
+
+        // Handle print button — enqueue label download+print to network task
+        if (display.printButtonPressed) {
+            display.printButtonPressed = false;
+
+            if (lastResponse.sessionId[0] != '\0' && apiClient.isWiFiConnected()) {
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    if (!sharedScan.printInFlight) {
+                        strncpy(sharedScan.printSessionId, lastResponse.sessionId,
+                                sizeof(sharedScan.printSessionId));
+                        sharedScan.printInFlight = true;
+                        sharedScan.printDone = false;
+                        sharedScan.printSuccess = false;
+                        sharedScan.printError[0] = '\0';
+                        xSemaphoreGive(sharedScan.mutex);
+
+                        NetworkWorkItem item = { NET_PRINT_LABEL };
+                        xQueueSend(networkQueue, &item, 0);
+                        Serial.println("[Print] Label print job enqueued");
+                    } else {
+                        xSemaphoreGive(sharedScan.mutex);
+                        Serial.println("[Print] Already printing");
+                    }
+                }
+            } else {
+                Serial.println("[Print] No session or no WiFi");
+            }
+        }
+
+        // Check for print completion
+        if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            if (sharedScan.printDone) {
+                sharedScan.printDone = false;
+                sharedScan.printInFlight = false;
+                if (sharedScan.printSuccess) {
+                    Serial.println("[Print] Label printed successfully");
+#ifdef BOARD_SCAN_TOUCH
+                    if (audio.isConnected()) audio.playSuccessBeep();
+#endif
+                } else {
+                    Serial.printf("[Print] Error: %s\n", sharedScan.printError);
+                }
+            }
+            xSemaphoreGive(sharedScan.mutex);
         }
 #endif
         if (elapsed > 30000) {

@@ -51,6 +51,9 @@ public:
     // Done button pressed — set by LVGL event on result screen
     volatile bool doneButtonPressed = false;
 
+    // Print button pressed — set by LVGL event on result screen
+    volatile bool printButtonPressed = false;
+
     // Menu action callbacks (set by main.cpp)
     void (*onMenuFormatSd)() = nullptr;
     void (*onMenuWifiSetup)() = nullptr;
@@ -155,6 +158,7 @@ private:
     lv_obj_t* _resultWeight = nullptr;
     lv_obj_t* _resultDetail = nullptr;
     lv_obj_t* _resultDoneBtn = nullptr;
+    lv_obj_t* _resultPrintBtn = nullptr;
 
     void buildDashboardScreen(uint8_t icons);
     void buildResultScreen(const ScanResponse* resp, float weight, const char* sessionUrl, uint8_t icons);
@@ -174,6 +178,7 @@ private:
     static void onSubmitTap(lv_event_t* e);
     static void onScanBtnClick(lv_event_t* e);
     static void onDoneBtnClick(lv_event_t* e);
+    static void onPrintBtnClick(lv_event_t* e);
 };
 
 extern Display display;
