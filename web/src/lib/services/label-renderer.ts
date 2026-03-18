@@ -1,3 +1,5 @@
+import QRCode from "qrcode";
+
 /**
  * Server-side label bitmap renderer for thermal printers.
  *
@@ -324,6 +326,7 @@ export type LabelData = {
   bedTemp?: number;
   weight?: string;
   location?: string;
+  qrUrl?: string;
 };
 
 export type LabelSettings = {
@@ -440,8 +443,52 @@ export function renderLabelBitmap(
     curY += 7 * smallScale + 4;
   }
 
+  // ── QR Code (bottom-right) ──────────────────────────────────────────
+  if (settings.showQrCode && data.qrUrl) {
+    try {
+      const qrMatrix = QRCode.create(data.qrUrl, { errorCorrectionLevel: "L" });
+      const modules = qrMatrix.modules;
+      const qrSize = modules.size;
+
+      const maxQrPx = Math.min(
+        Math.round(heightDots * 0.4),
+        Math.round(widthDots * 0.3)
+      );
+      const qrScale = Math.max(1, Math.floor(maxQrPx / (qrSize + 4)));
+      const qrPx = qrSize * qrScale;
+      const qrMargin = qrScale * 2;
+      const qrTotal = qrPx + qrMargin * 2;
+
+      const qrX = widthDots - qrTotal - marginX;
+      const qrY = heightDots - qrTotal - marginY;
+
+      // Clear QR area to white
+      for (let py = qrY; py < qrY + qrTotal && py < heightDots; py++) {
+        for (let px = qrX; px < qrX + qrTotal && px < widthDots; px++) {
+          const byteIdx = py * bmp.bytesPerRow + Math.floor(px / 8);
+          const bitIdx = 7 - (px % 8);
+          bmp.data[byteIdx] &= ~(1 << bitIdx);
+        }
+      }
+
+      // Draw QR modules
+      for (let my = 0; my < qrSize; my++) {
+        for (let mx = 0; mx < qrSize; mx++) {
+          if (modules.get(mx, my)) {
+            for (let sy = 0; sy < qrScale; sy++) {
+              for (let sx = 0; sx < qrScale; sx++) {
+                setPixel(bmp, qrX + qrMargin + mx * qrScale + sx, qrY + qrMargin + my * qrScale + sy);
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // QR generation failed — skip
+    }
+  }
+
   // ── Bottom border ─────────────────────────────────────────────────────
-  // Draw a thin border around the whole label for cut alignment
   drawRect(bmp, 0, 0, widthDots, heightDots, 1);
 
   return {

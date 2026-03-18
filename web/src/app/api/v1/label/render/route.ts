@@ -221,6 +221,12 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Build label data ──────────────────────────────────────────────────
+  // Build QR URL for spool/session page
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.fillaiq.com";
+  const qrUrl = sessionId
+    ? `${baseUrl}/scan/${sessionId}`
+    : undefined;
+
   const labelData = {
     brand: brandName ?? undefined,
     material: materialName ?? undefined,
@@ -232,6 +238,7 @@ export async function GET(request: NextRequest) {
     bedTemp: bedTemp ?? undefined,
     weight: weightStr ?? undefined,
     location: location ?? undefined,
+    qrUrl,
   };
 
   const settings = template
@@ -256,7 +263,7 @@ export async function GET(request: NextRequest) {
         showColor: false,
         showColorSwatch: true,
         showTemps: true,
-        showQrCode: false,
+        showQrCode: true,
         showWeight: true,
         showLocation: false,
         showPrice: false,
