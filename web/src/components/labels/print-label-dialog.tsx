@@ -148,7 +148,7 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
   const settings = template ? templateToSettings(template) : null;
   const previewItem = items[0] ?? {};
 
-  // Build a server-rendered BMP preview URL from the first item's data
+  // Build a server-rendered PNG preview URL from the first item's data
   const previewUrl = useMemo(() => {
     if (!selectedTemplate || !previewItem) return null;
     const params = new URLSearchParams();
