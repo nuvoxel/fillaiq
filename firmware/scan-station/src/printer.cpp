@@ -220,7 +220,12 @@ bool LabelPrinter::connect() {
     _state.transport = TRANSPORT_BLE;
     Serial.printf("[Printer] Connected to %s\n", _state.deviceName);
 
+    // Query printer info first (while pWriteChar/pNotifyChar are valid)
+    queryInfo();
+
     // Dump all GATT services and characteristics for discovery
+    // Note: getServices() may re-discover and invalidate char pointers,
+    // so we do this after queryInfo and re-acquire pointers afterward.
     auto* services = pClient->getServices();
     if (services) {
         Serial.println("[Printer] GATT services:");
@@ -240,7 +245,7 @@ bool LabelPrinter::connect() {
                     Serial.printf("[Printer]     Char: %s [%s]\n",
                         ch->getUUID().toString().c_str(), propStr.c_str());
 
-                    // Read standard BLE characteristics (skip vendor 0xFF00 service — those use proprietary protocol)
+                    // Read standard BLE characteristics (skip vendor 0xFF00 service)
                     if (ch->canRead() && svc->getUUID().toString().find("ff00") == std::string::npos) {
                         std::string val = ch->readValue();
                         if (val.length() > 0 && val.length() < 64) {
@@ -261,8 +266,12 @@ bool LabelPrinter::connect() {
         }
     }
 
-    // Query printer info after connect
-    queryInfo();
+    // Re-acquire char pointers (getServices() may have invalidated them)
+    pWriteChar = pService->getCharacteristic(BLEUUID(PRINTER_WRITE_CHAR_UUID));
+    pNotifyChar = pService->getCharacteristic(BLEUUID(PRINTER_NOTIFY_CHAR_UUID));
+    if (pNotifyChar && pNotifyChar->canNotify()) {
+        pNotifyChar->registerForNotify(staticNotifyCallback);
+    }
 
     return true;
 }
