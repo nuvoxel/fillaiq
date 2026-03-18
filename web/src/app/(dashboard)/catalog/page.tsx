@@ -21,11 +21,12 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { PageHeader } from "@/components/layout/page-header";
-import { listBrands, removeBrand, listMaterials, removeMaterial, listProducts } from "@/lib/actions/central-catalog";
+import { listBrands, removeBrand, listMaterials, removeMaterial, listProducts, removeProduct } from "@/lib/actions/central-catalog";
 import { listHardwareModels, removeHardwareModel } from "@/lib/actions/hardware-catalog";
 import { HardwareModelDialog } from "@/components/hardware/hardware-model-dialog";
 import { BrandDialog } from "@/components/catalog/brand-dialog";
 import { MaterialDialog } from "@/components/catalog/material-dialog";
+import { ProductDialog } from "@/components/catalog/product-dialog";
 import { hardwareCategoryLabels } from "@/components/hardware/enum-labels";
 import UsbIcon from "@mui/icons-material/Usb";
 import BluetoothIcon from "@mui/icons-material/Bluetooth";
@@ -282,6 +283,8 @@ export default function CatalogPage() {
   const [editingBrand, setEditingBrand] = useState<any>(null);
   const [materialDialogOpen, setMaterialDialogOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<any>(null);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const handleDeleteHardware = async (id: string) => {
@@ -304,6 +307,14 @@ export default function CatalogPage() {
     if (!confirm("Delete this material?")) return;
     setDeleting(id);
     await removeMaterial(id);
+    setDeleting(null);
+    load();
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm("Delete this product?")) return;
+    setDeleting(id);
+    await removeProduct(id);
     setDeleting(null);
     load();
   };
@@ -444,8 +455,46 @@ export default function CatalogPage() {
     ),
   };
 
+  const productActionsColumn: GridColDef = {
+    field: "actions",
+    headerName: "",
+    width: 90,
+    sortable: false,
+    filterable: false,
+    disableColumnMenu: true,
+    renderCell: (params) => (
+      <Box sx={{ display: "flex", gap: 0.25 }}>
+        <Tooltip title="Edit">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingProduct(params.row);
+              setProductDialogOpen(true);
+            }}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Delete">
+          <IconButton
+            size="small"
+            color="error"
+            disabled={deleting === params.row.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteProduct(params.row.id);
+            }}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    ),
+  };
+
   const rows = tab === 0 ? brands : tab === 1 ? materials : tab === 2 ? products : hardwareModelsData;
-  const cols = tab === 0 ? [...brandColumns, brandActionsColumn] : tab === 1 ? [...materialColumns, materialActionsColumn] : tab === 2 ? productColumns : [...hardwareColumns, hwActionsColumn];
+  const cols = tab === 0 ? [...brandColumns, brandActionsColumn] : tab === 1 ? [...materialColumns, materialActionsColumn] : tab === 2 ? [...productColumns, productActionsColumn] : [...hardwareColumns, hwActionsColumn];
 
   return (
     <div>
@@ -460,6 +509,10 @@ export default function CatalogPage() {
           ) : tab === 1 ? (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingMaterial(null); setMaterialDialogOpen(true); }}>
               Add Material
+            </Button>
+          ) : tab === 2 ? (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingProduct(null); setProductDialogOpen(true); }}>
+              Add Product
             </Button>
           ) : tab === 3 ? (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingHardware(null); setHardwareDialogOpen(true); }}>
@@ -553,6 +606,13 @@ export default function CatalogPage() {
         onClose={() => { setMaterialDialogOpen(false); setEditingMaterial(null); }}
         onSaved={load}
         existing={editingMaterial}
+      />
+
+      <ProductDialog
+        open={productDialogOpen}
+        onClose={() => { setProductDialogOpen(false); setEditingProduct(null); }}
+        onSaved={load}
+        existing={editingProduct}
       />
 
       <HardwareModelDialog

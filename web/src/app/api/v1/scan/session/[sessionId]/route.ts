@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { scanSessions, scanEvents } from "@/db/schema/scan-stations";
 import { brands, materials, products } from "@/db/schema/central-catalog";
 import { eq } from "drizzle-orm";
+import { getSession } from "@/lib/actions/auth";
 
 /**
  * GET /api/v1/scan/session/[sessionId]
@@ -112,6 +113,40 @@ export async function PATCH(
   const [updated] = await db
     .update(scanSessions)
     .set(updates)
+    .where(eq(scanSessions.id, sessionId))
+    .returning();
+
+  return NextResponse.json({ session: updated });
+}
+
+/**
+ * DELETE /api/v1/scan/session/[sessionId]
+ *
+ * Authenticated endpoint — soft-deletes (archives) a scan session by setting status to 'abandoned'.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> }
+) {
+  const { sessionId } = await params;
+
+  const ctx = await getSession();
+  if (!ctx) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const [session] = await db
+    .select()
+    .from(scanSessions)
+    .where(eq(scanSessions.id, sessionId));
+
+  if (!session) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+
+  const [updated] = await db
+    .update(scanSessions)
+    .set({ status: "abandoned", updatedAt: new Date() })
     .where(eq(scanSessions.id, sessionId))
     .returning();
 
