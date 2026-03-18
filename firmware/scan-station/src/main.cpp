@@ -2017,11 +2017,29 @@ void loop() {
             }
 
             // NFC (from snapshot -- thread-safe)
-            if (nfcSnap.connected)
-                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: %s\n",
-                    nfcSnap.tagPresent ? nfcSnap.uidString.c_str() : "no tag");
-            else
+            if (nfcSnap.connected) {
+                if (nfcSnap.tagPresent) {
+                    const TagData& td = nfcSnap.tagData;
+                    const char* typeName = nfcSnap.hasData ? tagTypeName(td.type) : "?";
+                    if (td.type == TAG_MIFARE_CLASSIC)
+                        pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                            "NFC: %s %s\n %d/%d sectors\n",
+                            typeName, nfcSnap.uidString.c_str(),
+                            td.sectors_read, TagData::NUM_SECTORS);
+                    else if (td.type == TAG_ISO15693)
+                        pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                            "NFC: %s %s\n %d blocks\n",
+                            typeName, nfcSnap.uidString.c_str(), td.pages_read);
+                    else
+                        pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
+                            "NFC: %s %s\n %d pages\n",
+                            typeName, nfcSnap.uidString.c_str(), td.pages_read);
+                } else {
+                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: no tag\n");
+                }
+            } else {
                 pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: --\n");
+            }
 
             display.showRawSensors(sensorBuf);
         }

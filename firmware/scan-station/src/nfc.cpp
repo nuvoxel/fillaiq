@@ -146,8 +146,10 @@ static uint8_t activateTag14443(uint8_t *uid) {
     return 0;
 }
 
-// Detect an ISO 15693 tag, returns 8-byte UID (false = no tag)
+// Detect an ISO 15693 tag, returns 8-byte UID (false = no tag).
 // Requires two consecutive successful reads with the same UID to filter noise.
+// NOTE: Leaves RF in 15693 mode on success so caller can read blocks before switching back.
+// On failure, switches back to 14443A.
 static bool detectTag15693(uint8_t *uid) {
     // Switch to ISO 15693 RF config
     if (!reader15693.setupRF()) return false;
@@ -176,13 +178,17 @@ static bool detectTag15693(uint8_t *uid) {
     uint8_t uid2[8] = {0};
     rc = reader15693.getInventory(uid2);
 
-    // Switch back to 14443A regardless
-    reader14443.setupRF();
-
-    if (rc != ISO15693_EC_OK) return false;
-    if (memcmp(uid1, uid2, 8) != 0) return false;  // UIDs don't match — noise
+    if (rc != ISO15693_EC_OK) {
+        reader14443.setupRF();
+        return false;
+    }
+    if (memcmp(uid1, uid2, 8) != 0) {
+        reader14443.setupRF();
+        return false;  // UIDs don't match — noise
+    }
 
     memcpy(uid, uid1, 8);
+    // Leave RF in 15693 mode — caller reads blocks then switches back
     return true;
 }
 
@@ -358,7 +364,7 @@ void NfcScanner::_finishRead() {
     Serial.printf("Scan: %s tag %s (%d %s read)\n",
         tagTypeName(_tagData.type), getUidString().c_str(),
         _tagData.type == TAG_MIFARE_CLASSIC ? _tagData.sectors_read : _tagData.pages_read,
-        _tagData.type == TAG_MIFARE_CLASSIC ? "sectors" : "pages");
+        _tagData.type == TAG_MIFARE_CLASSIC ? "sectors" : (_tagData.type == TAG_ISO15693 ? "blocks" : "pages"));
 
     _state = NFC_PRESENT;
     _presenceCheckTime = millis();
@@ -424,11 +430,24 @@ void NfcScanner::poll() {
                 // Disable crypto mode (bit 6) after MIFARE Classic to prevent stuck state
                 reader14443.writeRegisterWithAndMask(0x00, 0xFFFFFFBF);
                 if (digitalRead(NFC_BUSY_PIN) == HIGH) resetPN5180();
-            } else if (!_tag.present || (now - _tag.last_seen >= NFC_TIMEOUT_MS)) {
+            } else {
                 // No 14443A tag — try ISO 15693 every 2 seconds (RF switch is expensive)
                 static unsigned long last15693Poll = 0;
-                if (now - last15693Poll < 2000) break;
+                static bool just_polled_15693 = false;
+                if (now - last15693Poll < 2000) {
+                    // Between 15693 polls: only report removal if we aren't about
+                    // to do a 15693 check AND the timeout has elapsed.
+                    // Grace period: NFC_TIMEOUT_MS + 2500ms to cover the 15693 poll gap.
+                    if (_tag.present && !just_polled_15693 &&
+                        now - _tag.last_seen >= NFC_TIMEOUT_MS + 2500) {
+                        _tag.present = false;
+                        _tagData.clear();
+                        Serial.println("Scan: tag removed");
+                    }
+                    break;
+                }
                 last15693Poll = now;
+                just_polled_15693 = true;
 
                 uint8_t uid15693[8] = {0};
                 if (detectTag15693(uid15693)) {
@@ -445,21 +464,38 @@ void NfcScanner::poll() {
                         _tagData.clear();
                         memcpy(_tagData.uid, uid15693, 8);
                         _tagData.uid_len = 8;
-                        _tagData.type = TAG_NTAG;  // Treat as generic for now
-                        _tagData.valid = true;
-                        Serial.printf("Scan: ISO15693 tag %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
+                        _tagData.type = TAG_ISO15693;
+                        Serial.printf("Scan: ISO15693 tag %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X — reading blocks...\n",
                             uid15693[7], uid15693[6], uid15693[5], uid15693[4],
                             uid15693[3], uid15693[2], uid15693[1], uid15693[0]);
+
+                        // Read data blocks while 15693 RF config is still active
+                        uint8_t blockSize = 0, numBlocks = 0;
+                        reader15693.getSystemInfo(uid15693, &blockSize, &numBlocks);
+                        for (uint8_t b = 0; b < numBlocks && b < TagData::MAX_PAGES; b++) {
+                            uint8_t blockData[32]; // max block size
+                            if (reader15693.readSingleBlock(uid15693, b, blockData, blockSize) == ISO15693_EC_OK) {
+                                memcpy(_tagData.page_data[b], blockData, min(blockSize, (uint8_t)4));
+                                _tagData.pages_read = b + 1;
+                            }
+                        }
+                        _tagData.valid = (_tagData.pages_read > 0);
+
+                        Serial.printf("Scan: ISO15693 %s — %d blocks read (blockSize=%d)\n",
+                            getUidString().c_str(), _tagData.pages_read, blockSize);
                     }
 
                     _state = NFC_PRESENT;
                     _presenceCheckTime = now;
                     // Switch back to 14443A for next poll
                     reader14443.setupRF();
-                } else if (_tag.present && now - _tag.last_seen >= NFC_TIMEOUT_MS) {
-                    _tag.present = false;
-                    _tagData.clear();
-                    Serial.println("Scan: tag removed");
+                } else {
+                    just_polled_15693 = false;  // 15693 found nothing
+                    if (_tag.present && now - _tag.last_seen >= NFC_TIMEOUT_MS) {
+                        _tag.present = false;
+                        _tagData.clear();
+                        Serial.println("Scan: tag removed");
+                    }
                 }
             }
 #else

@@ -13,12 +13,14 @@ enum TagType : uint8_t {
     TAG_UNKNOWN = 0,
     TAG_MIFARE_CLASSIC,    // 4-byte UID, sector-based (Bambu, Creality, etc.)
     TAG_NTAG,              // 7-byte UID, page-based (NTAG213/215/216, Ultralight)
+    TAG_ISO15693,          // 8-byte UID, block-based (ICODE SLIX, etc.)
 };
 
 inline const char* tagTypeName(TagType t) {
     switch (t) {
         case TAG_MIFARE_CLASSIC: return "MIFARE Classic";
         case TAG_NTAG:           return "NTAG";
+        case TAG_ISO15693:       return "ISO15693";
         default:                 return "Unknown";
     }
 }
@@ -26,7 +28,7 @@ inline const char* tagTypeName(TagType t) {
 // --- Raw Tag Data (sent to web service for identification/parsing) ---
 struct TagData {
     TagType  type;
-    uint8_t  uid[7];
+    uint8_t  uid[8];    // 8 bytes for ISO 15693 UIDs
     uint8_t  uid_len;
     bool     valid;         // At least some data was read
 
