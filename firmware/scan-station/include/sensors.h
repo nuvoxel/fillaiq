@@ -110,26 +110,16 @@ struct TurntableData {
 
 // --- Scan Station State Machine ---
 enum ScanState : uint8_t {
-    SCAN_IDLE = 0,          // Nothing on platform
-    SCAN_DETECTED,          // Object detected (weight threshold crossed)
-    SCAN_READING,           // Reading sensors (NFC, color, height)
-    SCAN_ROTATING,          // Turntable rotating for multi-angle scan
-    SCAN_POSTING,           // Sending data to server
-    SCAN_AWAITING_RESULT,   // Waiting for server identification
-    SCAN_IDENTIFIED,        // Object identified (green LED)
-    SCAN_NEEDS_INPUT,       // Needs user camera/input (yellow LED)
+    SCAN_IDLE = 0,          // Live sensor dashboard with Scan button
+    SCAN_SUBMITTING,        // POSTing scan data to server
+    SCAN_RESULT,            // Showing result (identified or needs enrichment)
 };
 
 inline const char* scanStateName(ScanState s) {
     switch (s) {
         case SCAN_IDLE:             return "Idle";
-        case SCAN_DETECTED:         return "Detected";
-        case SCAN_READING:          return "Reading sensors...";
-        case SCAN_ROTATING:         return "Rotating...";
-        case SCAN_POSTING:          return "Posting to server...";
-        case SCAN_AWAITING_RESULT:  return "Awaiting result...";
-        case SCAN_IDENTIFIED:       return "Identified";
-        case SCAN_NEEDS_INPUT:      return "Needs input";
+        case SCAN_SUBMITTING:       return "Submitting...";
+        case SCAN_RESULT:           return "Result";
         default:                    return "???";
     }
 }

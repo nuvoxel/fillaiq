@@ -346,6 +346,17 @@ void Display::onSubmitTap(lv_event_t* e) {
     display.touchSubmitRequested = true;
 }
 
+void Display::onScanBtnClick(lv_event_t* e) {
+    (void)e;
+    display.scanButtonPressed = true;
+    if (display.onScanButtonPressed) display.onScanButtonPressed();
+}
+
+void Display::onDoneBtnClick(lv_event_t* e) {
+    (void)e;
+    display.doneButtonPressed = true;
+}
+
 // ── Idle Screen ──────────────────────────────────────────────
 
 void Display::buildIdleScreen(uint8_t icons) {
@@ -392,6 +403,324 @@ void Display::buildIdleScreen(uint8_t icons) {
 
     _idleSubtitle = makeLabel(_screen, &lv_font_montserrat_14, gray,
                               LV_ALIGN_CENTER, 0, 50, "Place item on platform");
+}
+
+// ── Dashboard Screen (Live Sensor Display + Scan Button) ─────
+
+void Display::buildDashboardScreen(uint8_t icons) {
+    clearScreen();
+    _currentScreen = SCR_IDLE;
+
+    createStatusBar(_screen, icons);
+
+    // Settings gear button (top-right area, below status bar)
+#ifdef BOARD_SCAN_TOUCH
+    lv_obj_t* gearBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(gearBtn);
+    lv_obj_set_size(gearBtn, 36, 36);
+    lv_obj_align(gearBtn, LV_ALIGN_TOP_RIGHT, -6, 30);
+    lv_obj_set_style_bg_color(gearBtn, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_opa(gearBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(gearBtn, 8, 0);
+    lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* gearIcon = lv_label_create(gearBtn);
+    lv_label_set_text(gearIcon, LV_SYMBOL_SETTINGS);
+    lv_obj_set_style_text_font(gearIcon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(gearIcon, grayLight, 0);
+    lv_obj_center(gearIcon);
+#endif
+
+    // Weight — large display at top
+    _dashWeightLabel = makeLabel(_screen, &lv_font_montserrat_28, white,
+                                 LV_ALIGN_TOP_LEFT, 12, 34, "--");
+    _dashWeightStatus = makeLabel(_screen, &lv_font_montserrat_12, gray,
+                                  LV_ALIGN_TOP_LEFT, 12, 66, "");
+
+    // Divider after weight
+    lv_obj_t* div1 = lv_obj_create(_screen);
+    lv_obj_remove_style_all(div1);
+    lv_obj_set_size(div1, _screenW - 24, 1);
+    lv_obj_set_style_bg_color(div1, gray, 0);
+    lv_obj_set_style_bg_opa(div1, LV_OPA_30, 0);
+    lv_obj_align(div1, LV_ALIGN_TOP_LEFT, 12, 82);
+
+    // Sensor rows — compact, two columns
+    // Left column: NFC, Color
+    // Right column: TOF, Env
+    _dashNfcLabel = lv_label_create(_screen);
+    lv_obj_set_style_text_font(_dashNfcLabel, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashNfcLabel, grayLight, 0);
+    lv_obj_set_width(_dashNfcLabel, _screenW / 2 - 16);
+    lv_label_set_long_mode(_dashNfcLabel, LV_LABEL_LONG_CLIP);
+    lv_obj_align(_dashNfcLabel, LV_ALIGN_TOP_LEFT, 12, 88);
+    lv_label_set_text(_dashNfcLabel, "NFC: --");
+
+    _dashColorLabel = lv_label_create(_screen);
+    lv_obj_set_style_text_font(_dashColorLabel, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashColorLabel, grayLight, 0);
+    lv_obj_set_width(_dashColorLabel, _screenW / 2 - 16);
+    lv_label_set_long_mode(_dashColorLabel, LV_LABEL_LONG_CLIP);
+    lv_obj_align(_dashColorLabel, LV_ALIGN_TOP_LEFT, 12, 106);
+    lv_label_set_text(_dashColorLabel, "Color: --");
+
+    _dashTofLabel = lv_label_create(_screen);
+    lv_obj_set_style_text_font(_dashTofLabel, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashTofLabel, grayLight, 0);
+    lv_obj_set_width(_dashTofLabel, _screenW / 2 - 16);
+    lv_label_set_long_mode(_dashTofLabel, LV_LABEL_LONG_CLIP);
+    lv_obj_align(_dashTofLabel, LV_ALIGN_TOP_LEFT, _screenW / 2 + 4, 88);
+    lv_label_set_text(_dashTofLabel, "TOF: --");
+
+    _dashEnvLabel = lv_label_create(_screen);
+    lv_obj_set_style_text_font(_dashEnvLabel, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashEnvLabel, grayLight, 0);
+    lv_obj_set_width(_dashEnvLabel, _screenW / 2 - 16);
+    lv_label_set_long_mode(_dashEnvLabel, LV_LABEL_LONG_CLIP);
+    lv_obj_align(_dashEnvLabel, LV_ALIGN_TOP_LEFT, _screenW / 2 + 4, 106);
+    lv_label_set_text(_dashEnvLabel, "Env: --");
+
+    // Divider before scan button
+    lv_obj_t* div2 = lv_obj_create(_screen);
+    lv_obj_remove_style_all(div2);
+    lv_obj_set_size(div2, _screenW - 24, 1);
+    lv_obj_set_style_bg_color(div2, gray, 0);
+    lv_obj_set_style_bg_opa(div2, LV_OPA_30, 0);
+    lv_obj_align(div2, LV_ALIGN_TOP_LEFT, 12, 126);
+
+    // SCAN button — large, prominent, at bottom
+#ifdef BOARD_SCAN_TOUCH
+    _dashScanBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(_dashScanBtn);
+    lv_obj_set_size(_dashScanBtn, _screenW - 24, 90);
+    lv_obj_align(_dashScanBtn, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_style_bg_color(_dashScanBtn, brandOrange, 0);
+    lv_obj_set_style_bg_opa(_dashScanBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_dashScanBtn, 12, 0);
+    lv_obj_set_style_bg_color(_dashScanBtn, lv_color_hex(0xCC4422), LV_PART_MAIN | LV_STATE_PRESSED);
+    // Disabled style
+    lv_obj_set_style_bg_color(_dashScanBtn, lv_color_hex(0x3A3A3A), LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(_dashScanBtn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_add_event_cb(_dashScanBtn, onScanBtnClick, LV_EVENT_CLICKED, NULL);
+
+    _dashScanBtnLabel = lv_label_create(_dashScanBtn);
+    lv_label_set_text(_dashScanBtnLabel, "SCAN");
+    lv_obj_set_style_text_font(_dashScanBtnLabel, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_text_color(_dashScanBtnLabel, white, 0);
+    lv_obj_center(_dashScanBtnLabel);
+
+    // Start disabled
+    lv_obj_add_state(_dashScanBtn, LV_STATE_DISABLED);
+#endif
+}
+
+void Display::updateDashboard(float weight, bool stable,
+                               const char* nfcInfo,
+                               const char* colorInfo,
+                               float distMm,
+                               float tempC, float humidity, float pressureHPa,
+                               bool scanEnabled) {
+    if (!_ready || _currentScreen != SCR_IDLE) return;
+
+    // Weight
+    if (_dashWeightLabel) {
+        char wStr[24];
+        if (isnan(weight) || weight < 0.5f)
+            snprintf(wStr, sizeof(wStr), "0.0 g");
+        else
+            snprintf(wStr, sizeof(wStr), "%.1f g", weight);
+        lv_label_set_text(_dashWeightLabel, wStr);
+    }
+    if (_dashWeightStatus) {
+        lv_label_set_text(_dashWeightStatus, stable ? "STABLE" : "");
+        lv_obj_set_style_text_color(_dashWeightStatus, stable ? green : gray, 0);
+    }
+
+    // NFC
+    if (_dashNfcLabel) {
+        if (nfcInfo)
+            lv_label_set_text(_dashNfcLabel, nfcInfo);
+        else
+            lv_label_set_text(_dashNfcLabel, "NFC: no tag");
+    }
+
+    // Color
+    if (_dashColorLabel) {
+        if (colorInfo)
+            lv_label_set_text(_dashColorLabel, colorInfo);
+        else
+            lv_label_set_text(_dashColorLabel, "Color: --");
+    }
+
+    // TOF
+    if (_dashTofLabel) {
+        if (distMm >= 0) {
+            char dStr[24];
+            float heightMm = TOF_ARM_HEIGHT_MM - distMm;
+            if (heightMm < 0) heightMm = 0;
+            snprintf(dStr, sizeof(dStr), "H: %.0f mm", heightMm);
+            lv_label_set_text(_dashTofLabel, dStr);
+        } else {
+            lv_label_set_text(_dashTofLabel, "TOF: --");
+        }
+    }
+
+    // Env
+    if (_dashEnvLabel) {
+        if (tempC >= 0) {
+            char eStr[32];
+            if (pressureHPa > 0)
+                snprintf(eStr, sizeof(eStr), "%.0fC %.0f%% %.0fhPa", tempC, humidity, pressureHPa);
+            else
+                snprintf(eStr, sizeof(eStr), "%.0fC %.0f%%RH", tempC, humidity);
+            lv_label_set_text(_dashEnvLabel, eStr);
+        } else {
+            lv_label_set_text(_dashEnvLabel, "Env: --");
+        }
+    }
+
+    // Scan button enable/disable
+#ifdef BOARD_SCAN_TOUCH
+    setScanButtonEnabled(scanEnabled);
+#endif
+}
+
+void Display::setScanButtonEnabled(bool enabled) {
+    if (!_dashScanBtn) return;
+    if (enabled) {
+        lv_obj_clear_state(_dashScanBtn, LV_STATE_DISABLED);
+    } else {
+        lv_obj_add_state(_dashScanBtn, LV_STATE_DISABLED);
+    }
+}
+
+// ── Result Screen ────────────────────────────────────────────
+
+void Display::buildResultScreen(const ScanResponse* resp, float weight, const char* sessionUrl, uint8_t icons) {
+    clearScreen();
+    _currentScreen = SCR_RESULT;
+
+    createStatusBar(_screen, icons);
+
+    if (resp && resp->identified && resp->itemName[0]) {
+        // Identified — show product info
+        const char* title = resp->material[0] ? resp->material : resp->itemType;
+        _resultTitle = makeLabel(_screen, &lv_font_montserrat_20, green,
+                                  LV_ALIGN_TOP_LEFT, 12, 12, title);
+
+        lv_obj_t* divLine = lv_obj_create(_screen);
+        lv_obj_remove_style_all(divLine);
+        lv_obj_set_size(divLine, _screenW - 24, 1);
+        lv_obj_set_style_bg_color(divLine, gray, 0);
+        lv_obj_set_style_bg_opa(divLine, LV_OPA_50, 0);
+        lv_obj_align(divLine, LV_ALIGN_TOP_LEFT, 12, 38);
+
+        // Color swatch
+        bool hasColor = (resp->colorR || resp->colorG || resp->colorB);
+        lv_obj_t* swatch = lv_obj_create(_screen);
+        lv_obj_remove_style_all(swatch);
+        lv_obj_set_size(swatch, 60, 60);
+        lv_obj_set_style_bg_color(swatch, hasColor ? lv_color_make(resp->colorR, resp->colorG, resp->colorB)
+                                                   : lv_color_hex(0x444444), 0);
+        lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(swatch, 8, 0);
+        lv_obj_set_style_border_color(swatch, gray, 0);
+        lv_obj_set_style_border_width(swatch, 1, 0);
+        lv_obj_align(swatch, LV_ALIGN_TOP_LEFT, 15, 48);
+
+        char nameBuf[28];
+        strncpy(nameBuf, resp->itemName, sizeof(nameBuf) - 1);
+        nameBuf[sizeof(nameBuf) - 1] = '\0';
+        _resultName = makeLabel(_screen, &lv_font_montserrat_20, white,
+                                 LV_ALIGN_TOP_LEFT, 90, 48, nameBuf);
+
+        char wStr[16];
+        snprintf(wStr, sizeof(wStr), "%.0f g", weight);
+        _resultWeight = makeLabel(_screen, &lv_font_montserrat_24, white,
+                                   LV_ALIGN_TOP_LEFT, 90, 75, wStr);
+
+        if (resp->nozzleTempMin > 0 || resp->bedTemp > 0) {
+            char tempStr[48];
+            int pos = 0;
+            if (resp->nozzleTempMin > 0)
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos, "%d-%dC", resp->nozzleTempMin, resp->nozzleTempMax);
+            if (resp->bedTemp > 0)
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos, "  Bed %dC", resp->bedTemp);
+            _resultDetail = makeLabel(_screen, &lv_font_montserrat_14, gray,
+                                       LV_ALIGN_TOP_LEFT, 90, 105, tempStr);
+        }
+    } else {
+        // Unknown — needs enrichment
+        _resultTitle = makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
+                                  LV_ALIGN_TOP_LEFT, 12, 12, "Unknown Item");
+
+        lv_obj_t* divLine = lv_obj_create(_screen);
+        lv_obj_remove_style_all(divLine);
+        lv_obj_set_size(divLine, _screenW - 24, 1);
+        lv_obj_set_style_bg_color(divLine, gray, 0);
+        lv_obj_set_style_bg_opa(divLine, LV_OPA_50, 0);
+        lv_obj_align(divLine, LV_ALIGN_TOP_LEFT, 12, 38);
+
+        // Question mark box
+        lv_obj_t* qBox = lv_obj_create(_screen);
+        lv_obj_remove_style_all(qBox);
+        lv_obj_set_size(qBox, 60, 60);
+        lv_obj_set_style_bg_color(qBox, lv_color_hex(0x333355), 0);
+        lv_obj_set_style_bg_opa(qBox, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(qBox, 8, 0);
+        lv_obj_align(qBox, LV_ALIGN_TOP_LEFT, 15, 48);
+
+        lv_obj_t* qMark = lv_label_create(qBox);
+        lv_label_set_text(qMark, "?");
+        lv_obj_set_style_text_font(qMark, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_text_color(qMark, white, 0);
+        lv_obj_center(qMark);
+
+        char wStr[16];
+        snprintf(wStr, sizeof(wStr), "%.1f g", weight);
+        _resultWeight = makeLabel(_screen, &lv_font_montserrat_24, white,
+                                   LV_ALIGN_TOP_LEFT, 90, 55, wStr);
+
+        _resultDetail = makeLabel(_screen, &lv_font_montserrat_14, gray,
+                                   LV_ALIGN_TOP_LEFT, 90, 88, "Add details on web/phone");
+
+        // Show session URL if available
+        if (sessionUrl && sessionUrl[0]) {
+            makeLabel(_screen, &lv_font_montserrat_12, grayLight,
+                      LV_ALIGN_TOP_LEFT, 12, 120, sessionUrl);
+        }
+    }
+
+    // Done button — return to dashboard
+#ifdef BOARD_SCAN_TOUCH
+    _resultDoneBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(_resultDoneBtn);
+    lv_obj_set_size(_resultDoneBtn, _screenW - 24, 50);
+    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_style_bg_color(_resultDoneBtn, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_opa(_resultDoneBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_resultDoneBtn, 10, 0);
+    lv_obj_set_style_border_color(_resultDoneBtn, gray, 0);
+    lv_obj_set_style_border_width(_resultDoneBtn, 1, 0);
+    lv_obj_add_event_cb(_resultDoneBtn, onDoneBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* doneLbl = lv_label_create(_resultDoneBtn);
+    lv_label_set_text(doneLbl, "DONE");
+    lv_obj_set_style_text_font(doneLbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(doneLbl, white, 0);
+    lv_obj_center(doneLbl);
+#endif
+
+    lv_obj_invalidate(lv_screen_active());
+    lv_refr_now(NULL);
+}
+
+void Display::showResult(const ScanResponse* resp, float weight, const char* sessionUrl) {
+    if (!_ready) return;
+
+    uint8_t icons = 0;
+    // Icons will be updated by the next update() call
+    buildResultScreen(resp, weight, sessionUrl, _lastIcons);
 }
 
 // ── Unknown / Scanning Screen ────────────────────────────────
@@ -1059,46 +1388,55 @@ void Display::update(ScanState state, float weight, bool stable,
                      uint8_t statusIcons) {
     if (!_ready) return;
 
-    bool hasIdentified = serverData && serverData->identified && serverData->itemName[0];
-    enum { MODE_IDLE, MODE_UNKNOWN, MODE_SPOOL } mode;
-    if (state == SCAN_IDLE && !hasIdentified) mode = MODE_IDLE;
-    else if (hasIdentified) mode = MODE_SPOOL;
-    else mode = MODE_UNKNOWN;
+    if (isnan(weight) || isinf(weight)) weight = 0.0f;
 
-    ScreenMode targetScreen = (mode == MODE_IDLE) ? SCR_IDLE :
-                              (mode == MODE_SPOOL) ? SCR_IDENTIFIED : SCR_UNKNOWN;
+    // Determine target screen from state
+    ScreenMode targetScreen;
+    switch (state) {
+    case SCAN_IDLE:
+        targetScreen = SCR_IDLE;
+        break;
+    case SCAN_SUBMITTING:
+        targetScreen = SCR_SUBMITTING;
+        break;
+    case SCAN_RESULT:
+        targetScreen = SCR_RESULT;
+        break;
+    default:
+        targetScreen = SCR_IDLE;
+        break;
+    }
 
     bool screenChanged = (targetScreen != _currentScreen);
     bool iconsChanged = (statusIcons != _lastIcons);
 
-    if (isnan(weight) || isinf(weight)) weight = 0.0f;
-
     if (screenChanged) {
-        switch (mode) {
-        case MODE_IDLE:
-            buildIdleScreen(statusIcons);
+        switch (state) {
+        case SCAN_IDLE:
+            buildDashboardScreen(statusIcons);
+            lv_obj_invalidate(lv_screen_active());
+            lv_refr_now(NULL);
             break;
-        case MODE_UNKNOWN:
-            buildUnknownScreen(weight, stable, distance, color, statusIcons);
+        case SCAN_SUBMITTING:
+            // Show submitting message — screen will be replaced by result
+            clearScreen();
+            _currentScreen = SCR_SUBMITTING;
+            createStatusBar(_screen, statusIcons);
+            makeLabel(_screen, &lv_font_montserrat_24, brandOrange,
+                      LV_ALIGN_CENTER, 0, -20, "Submitting...");
+            makeLabel(_screen, &lv_font_montserrat_14, gray,
+                      LV_ALIGN_CENTER, 0, 15, "Sending scan data");
+            lv_obj_invalidate(lv_screen_active());
+            lv_refr_now(NULL);
             break;
-        case MODE_SPOOL:
-            buildIdentifiedScreen(weight, stable, *serverData, distance, statusIcons);
+        case SCAN_RESULT:
+            buildResultScreen(serverData, weight, nullptr, statusIcons);
+            break;
+        default:
             break;
         }
-        lv_obj_invalidate(lv_screen_active());
-        lv_refr_now(NULL);
     } else {
         if (iconsChanged) updateStatusIcons(statusIcons);
-
-        if (mode == MODE_UNKNOWN && _weightLabel) {
-            char wStr[16];
-            snprintf(wStr, sizeof(wStr), "%.1f g", weight);
-            lv_label_set_text(_weightLabel, wStr);
-        }
-        if (mode == MODE_SPOOL && _weightLabel) {
-            char wStr[16];
-            snprintf(wStr, sizeof(wStr), "%.0f g", weight);
-            lv_label_set_text(_weightLabel, wStr);
-        }
+        // Dashboard is updated separately via updateDashboard()
     }
 }

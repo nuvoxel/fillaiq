@@ -40,9 +40,16 @@ public:
     void showMenu();
     bool isMenuActive() const { return _currentScreen == SCR_MENU || _currentScreen == SCR_RAW_SENSORS || _currentScreen == SCR_CALIBRATE; }
     bool isRawSensorsScreen() const { return _currentScreen == SCR_RAW_SENSORS; }
+    bool isDashboardScreen() const { return _currentScreen == SCR_IDLE; }
 
     // Touch-to-submit flag — set by LVGL event, consumed by main loop
     volatile bool touchSubmitRequested = false;
+
+    // Scan button pressed — set by LVGL event, consumed by main loop
+    volatile bool scanButtonPressed = false;
+
+    // Done button pressed — set by LVGL event on result screen
+    volatile bool doneButtonPressed = false;
 
     // Menu action callbacks (set by main.cpp)
     void (*onMenuFormatSd)() = nullptr;
@@ -52,9 +59,26 @@ public:
     void (*onMenuCalibrate)() = nullptr;
     void (*onMenuReboot)() = nullptr;
 
+    // Scan button callback (set by main.cpp)
+    void (*onScanButtonPressed)() = nullptr;
+
     // Raw sensors screen — updated by main loop
     void showRawSensors(const char* text);  // Pre-formatted multi-line sensor dump
     void showCalibrate(const char* step, const char* detail = nullptr);
+
+    // Live dashboard — update sensor values in-place without rebuilding screen
+    void updateDashboard(float weight, bool stable,
+                         const char* nfcInfo,
+                         const char* colorInfo,
+                         float distMm,
+                         float tempC, float humidity, float pressureHPa,
+                         bool scanEnabled);
+
+    // Result screen — show after scan submission
+    void showResult(const ScanResponse* resp, float weight, const char* sessionUrl);
+
+    // Enable/disable the scan button
+    void setScanButtonEnabled(bool enabled);
 
     int screenWidth() const { return _screenW; }
     int screenHeight() const { return _screenH; }
@@ -70,7 +94,7 @@ private:
     bool _forceRedraw = true;
 
     // Current screen type (for knowing when to rebuild)
-    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_BOOT, SCR_PAIRING, SCR_QR, SCR_MENU, SCR_RAW_SENSORS, SCR_CALIBRATE };
+    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_BOOT, SCR_PAIRING, SCR_QR, SCR_MENU, SCR_RAW_SENSORS, SCR_CALIBRATE, SCR_RESULT, SCR_SUBMITTING };
     ScreenMode _currentScreen = SCR_NONE;
 
     // LVGL objects — persistent across updates
@@ -114,6 +138,25 @@ private:
     lv_obj_t* _calStepLabel = nullptr;
     lv_obj_t* _calDetailLabel = nullptr;
 
+    // Dashboard (idle) screen — live sensor labels
+    lv_obj_t* _dashWeightLabel = nullptr;
+    lv_obj_t* _dashWeightStatus = nullptr;
+    lv_obj_t* _dashNfcLabel = nullptr;
+    lv_obj_t* _dashColorLabel = nullptr;
+    lv_obj_t* _dashTofLabel = nullptr;
+    lv_obj_t* _dashEnvLabel = nullptr;
+    lv_obj_t* _dashScanBtn = nullptr;
+    lv_obj_t* _dashScanBtnLabel = nullptr;
+
+    // Result screen
+    lv_obj_t* _resultTitle = nullptr;
+    lv_obj_t* _resultName = nullptr;
+    lv_obj_t* _resultWeight = nullptr;
+    lv_obj_t* _resultDetail = nullptr;
+    lv_obj_t* _resultDoneBtn = nullptr;
+
+    void buildDashboardScreen(uint8_t icons);
+    void buildResultScreen(const ScanResponse* resp, float weight, const char* sessionUrl, uint8_t icons);
     void buildIdleScreen(uint8_t icons);
     void buildUnknownScreen(float weight, bool stable, const DistanceData* dist, const ColorData* color, uint8_t icons);
     void buildIdentifiedScreen(float weight, bool stable, const ScanResponse& resp, const DistanceData* dist, uint8_t icons);
@@ -128,6 +171,8 @@ private:
     static void onMenuItemClick(lv_event_t* e);
     static void onBackBtnClick(lv_event_t* e);
     static void onSubmitTap(lv_event_t* e);
+    static void onScanBtnClick(lv_event_t* e);
+    static void onDoneBtnClick(lv_event_t* e);
 };
 
 extern Display display;

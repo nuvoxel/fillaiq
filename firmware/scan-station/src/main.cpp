@@ -369,8 +369,6 @@ ScanResult currentScan;
 ScanResponse lastResponse;
 unsigned long stateEnteredAt = 0;
 unsigned long lastApiPost = 0;
-unsigned long lastApiPoll = 0;
-bool objectWasPresent = false;
 
 void enterState(ScanState newState) {
     if (newState == scanState) return;
@@ -547,75 +545,59 @@ void snapshotNfc() {
 // ============================================================
 
 void updateScanState() {
-    float w = weightSnap.weight;
-    bool weightPresent = w > OBJECT_PRESENT_THRESHOLD;
-    bool weightRemoved = w < OBJECT_REMOVED_THRESHOLD;
     unsigned long now = millis();
     unsigned long elapsed = now - stateEnteredAt;
 
     switch (scanState) {
 
     case SCAN_IDLE:
-        if (weightPresent) {
+        // No auto-transitions. The Scan button press triggers SCAN_SUBMITTING.
+        // For DevKitC (non-touch): serial "scan" command triggers it via handleSerial().
+#ifdef BOARD_SCAN_TOUCH
+        if (display.scanButtonPressed) {
+            display.scanButtonPressed = false;
+            // Snapshot all sensor data
             currentScan.clear_data();
             currentScan.timestamp = now;
-            enterState(SCAN_DETECTED);
+            currentScan.weight.grams = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
+            currentScan.weight.stable = weightSnap.stable;
+            currentScan.weight.valid = true;
+
+            // Copy NFC data from snapshot
+            if (nfcSnap.tagPresent) {
+                currentScan.nfcPresent = true;
+                strncpy(currentScan.nfcUid, nfcSnap.uidString.c_str(), sizeof(currentScan.nfcUid) - 1);
+                currentScan.nfcUidLen = nfcSnap.uidLen;
+                currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
+            }
+
+            // Read color sensor now
+            if (colorSensor.isConnected()) {
+                ColorData color;
+                if (colorSensor.read(color)) {
+                    currentScan.color = color;
+                }
+            }
+
+            // Read TOF
+            if (distanceSensor.isConnected()) {
+                DistanceData dist;
+                if (distanceSensor.read(dist)) {
+                    currentScan.height = dist;
+                }
+            }
+
+            enterState(SCAN_SUBMITTING);
         }
+#endif
         break;
 
-    case SCAN_DETECTED:
-        // Wait for weight to stabilize before reading other sensors
-        if (weightRemoved) {
-            enterState(SCAN_IDLE);
-            break;
-        }
-        if (elapsed >= SCAN_STABILIZE_MS || scale.isStable()) {
-            enterState(SCAN_READING);
-        }
-        break;
-
-    case SCAN_READING: {
-        // Gather all sensor data
-        if (weightRemoved) {
-            enterState(SCAN_IDLE);
-            break;
-        }
-
-        // Weight
-        currentScan.weight.grams = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
-        currentScan.weight.stable = weightSnap.stable;
-        currentScan.weight.valid = true;
-
-        // NFC (from snapshot -- thread-safe)
-        currentScan.nfcPresent = nfcSnap.tagPresent;
-        if (currentScan.nfcPresent) {
-            strncpy(currentScan.nfcUid, nfcSnap.uidString.c_str(), sizeof(currentScan.nfcUid) - 1);
-            currentScan.nfcUidLen = nfcSnap.uidLen;
-            currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
-        }
-
-        // Wait until weight is stable and NFC read is complete (or timeout)
-        bool nfcDone = !nfcSnap.tagPresent || nfcSnap.hasData;
-        bool ready = weightSnap.stable && (nfcDone || elapsed > 5000);
-
-        if (ready) {
-            enterState(SCAN_POSTING);
-        }
-        break;
-    }
-
-    case SCAN_POSTING: {
-        if (weightRemoved) {
-            enterState(SCAN_IDLE);
-            break;
-        }
-
+    case SCAN_SUBMITTING: {
         if (!apiClient.isWiFiConnected()) {
-            // No WiFi -- can't identify without server
-            display.update(SCAN_NEEDS_INPUT, currentScan.weight.grams, true,
-                          currentScan.nfcUid, nullptr, nullptr, nullptr);
-            backlight.needsInput();
-            enterState(SCAN_NEEDS_INPUT);
+            // No WiFi -- show result as unknown
+            Serial.println("[Scan] No WiFi -- showing as unknown");
+            lastResponse = ScanResponse();
+            enterState(SCAN_RESULT);
             break;
         }
 
@@ -633,7 +615,6 @@ void updateScanState() {
                 sharedScan.responseReady = false;
                 xSemaphoreGive(sharedScan.mutex);
 
-                // Process the response
                 lastApiPost = now;
                 if (status == API_OK) {
                     authFailCount = 0;
@@ -641,28 +622,26 @@ void updateScanState() {
                                  lastResponse.scanId, lastResponse.identified);
 
 #ifdef BOARD_SCAN_TOUCH
-                    if (audio.isConnected()) audio.playSubmitBeep();
-#endif
-
                     if (lastResponse.identified) {
-                        enterState(SCAN_IDENTIFIED);
-                    } else if (lastResponse.needsCamera) {
-                        enterState(SCAN_NEEDS_INPUT);
+                        if (audio.isConnected()) audio.playSuccessBeep();
                     } else {
-                        enterState(SCAN_AWAITING_RESULT);
+                        if (audio.isConnected()) audio.playSubmitBeep();
                     }
+                    if (sdCard.isConnected()) sdCard.logScan(currentScan, lastResponse);
+#endif
+                    enterState(SCAN_RESULT);
                 } else if (status == API_AUTH_FAILED) {
                     authFailCount++;
                     Serial.printf("[API] Auth failed (%d/%d)\n", authFailCount, AUTH_FAIL_THRESHOLD);
                     if (authFailCount >= AUTH_FAIL_THRESHOLD) {
-                        Serial.println("[API] Too many auth failures -- unpairing. Use 'pair' to re-pair.");
+                        Serial.println("[API] Too many auth failures -- unpairing.");
                         apiClient.unpair();
                         authFailCount = 0;
                     }
-                    enterState(SCAN_IDLE);
+                    enterState(SCAN_RESULT);  // Show error result
                 } else {
                     Serial.printf("[API] Post failed: %d\n", status);
-                    enterState(SCAN_NEEDS_INPUT);
+                    enterState(SCAN_RESULT);  // Show unknown result
                 }
             } else if (!postInFlight) {
                 // No response yet and no post in flight -- enqueue one
@@ -684,101 +663,26 @@ void updateScanState() {
                 xSemaphoreGive(sharedScan.mutex);
             }
         }
+
+        // Timeout submitting after 15s
+        if (elapsed > 15000) {
+            Serial.println("[Scan] Submit timeout");
+            enterState(SCAN_RESULT);
+        }
         break;
     }
 
-    case SCAN_AWAITING_RESULT: {
-        if (weightRemoved) {
+    case SCAN_RESULT: {
+        // Wait for user tap "Done" or 30s timeout
+#ifdef BOARD_SCAN_TOUCH
+        if (display.doneButtonPressed) {
+            display.doneButtonPressed = false;
             enterState(SCAN_IDLE);
-            break;
         }
-
-        // Check for poll response
-        if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-            if (sharedScan.pollReady) {
-                ScanResponse pollResp = sharedScan.pollResponse;
-                ApiStatus status = sharedScan.pollStatus;
-                sharedScan.pollReady = false;
-                xSemaphoreGive(sharedScan.mutex);
-
-                if (status == API_OK) {
-                    authFailCount = 0;
-                    if (pollResp.identified) {
-                        lastResponse = pollResp;
-                        enterState(SCAN_IDENTIFIED);
-                    } else if (pollResp.needsCamera) {
-                        enterState(SCAN_NEEDS_INPUT);
-                    }
-                } else if (status == API_AUTH_FAILED) {
-                    authFailCount++;
-                    Serial.printf("[API] Auth failed during poll (%d/%d)\n", authFailCount, AUTH_FAIL_THRESHOLD);
-                    if (authFailCount >= AUTH_FAIL_THRESHOLD) {
-                        Serial.println("[API] Too many auth failures -- unpairing.");
-                        apiClient.unpair();
-                        authFailCount = 0;
-                    }
-                    enterState(SCAN_IDLE);
-                }
-            } else if (!sharedScan.pollInFlight &&
-                       now - lastApiPoll >= API_POLL_INTERVAL_MS && lastResponse.scanId[0]) {
-                // Enqueue a poll request
-                strncpy(sharedScan.pollScanId, lastResponse.scanId, sizeof(sharedScan.pollScanId));
-                sharedScan.pollInFlight = true;
-                sharedScan.pollReady = false;
-                xSemaphoreGive(sharedScan.mutex);
-
-                lastApiPoll = now;
-                NetworkWorkItem item = { NET_POLL_RESULT };
-                xQueueSend(networkQueue, &item, 0);
-            } else {
-                xSemaphoreGive(sharedScan.mutex);
-            }
-        }
-
-        // Timeout after 30s
+#endif
         if (elapsed > 30000) {
-            enterState(SCAN_NEEDS_INPUT);
-        }
-        break;
-    }
-
-    case SCAN_IDENTIFIED: {
-        // One-time actions on entering this state
-        static bool identifiedSoundPlayed = false;
-        if (elapsed < 100 && !identifiedSoundPlayed) {
-            identifiedSoundPlayed = true;
-#ifdef BOARD_SCAN_TOUCH
-            if (audio.isConnected()) audio.playSuccessBeep();
-            if (sdCard.isConnected()) sdCard.logScan(currentScan, lastResponse);
-#endif
-        }
-        if (weightRemoved) {
-            identifiedSoundPlayed = false;
             enterState(SCAN_IDLE);
         }
-        break;
-    }
-
-    case SCAN_NEEDS_INPUT: {
-        // Log unidentified scans too
-        static bool needsInputLogged = false;
-        if (elapsed < 100 && !needsInputLogged) {
-            needsInputLogged = true;
-#ifdef BOARD_SCAN_TOUCH
-            if (sdCard.isConnected()) sdCard.logScan(currentScan, lastResponse);
-#endif
-        }
-        if (weightRemoved) {
-            needsInputLogged = false;
-            enterState(SCAN_IDLE);
-        }
-#ifdef BOARD_SCAN_TOUCH
-        // Touch-to-submit: tap the screen to retry posting
-        if (display.touchSubmitRequested) {
-            display.touchSubmitRequested = false;
-            enterState(SCAN_POSTING);
-        }
-#endif
         break;
     }
 
@@ -796,54 +700,93 @@ void updateDisplayAndLed() {
     float w = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
     bool stable = weightSnap.stable;
 
-    // Cache NFC UID -- persist after tag removal until spool is lifted
-    static char uidBuf[32];
-    static bool hasUid = false;
-
-    // Update cache when tag is present (from NFC snapshot)
-    if (nfcSnap.tagPresent && nfcSnap.uidString.length() > 0) {
-        strncpy(uidBuf, nfcSnap.uidString.c_str(), sizeof(uidBuf) - 1);
-        uidBuf[sizeof(uidBuf) - 1] = '\0';
-        hasUid = true;
-    }
-
-    // Clear cache when spool is removed (weight drops)
-    if (scanState == SCAN_IDLE) {
-        hasUid = false;
-    }
-
-    const char* uid = hasUid ? uidBuf : nullptr;
-
-    // Use server response for display (persists until next scan)
-    const ScanResponse* serverData = lastResponse.identified ? &lastResponse : nullptr;
-
-    // TOF distance
-    static DistanceData distData;
-    const DistanceData* dist = nullptr;
-    if (distanceSensor.isConnected() && distanceSensor.read(distData)) {
-        dist = &distData;
-    }
-
-    // Color sensor
-    static ColorData colorData;
-    const ColorData* color = nullptr;
-    if (colorSensor.isConnected() && colorSensor.read(colorData)) {
-        color = &colorData;
-    }
-
     // Build status icon flags
     uint8_t icons = 0;
     if (apiClient.isWiFiConnected()) icons |= ICON_WIFI;
     if (apiClient.isPaired())        icons |= ICON_PAIRED;
     if (labelPrinter.isConnected())  icons |= ICON_PRINTER;
 
-    // Update display
-    display.update(scanState, w, stable, uid, serverData, dist, color, icons);
+    // For SCAN_IDLE: update the live dashboard with current sensor readings
+    if (scanState == SCAN_IDLE) {
+        // Build the dashboard screen if not already showing
+        const ScanResponse* serverData = nullptr;
+        display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
+
+        // Read sensors for dashboard display (round-robin to avoid blocking)
+        static DistanceData cachedDist = {};
+        static ColorData cachedColor = {};
+        static EnvData cachedEnv = {};
+        static uint8_t dashSensorSlot = 0;
+
+        switch (dashSensorSlot) {
+            case 0:
+                if (distanceSensor.isConnected()) distanceSensor.read(cachedDist);
+                break;
+            case 1:
+                if (colorSensor.isConnected()) colorSensor.read(cachedColor);
+                break;
+            case 2:
+                if (envSensor.isConnected()) envSensor.read(cachedEnv);
+                break;
+        }
+        dashSensorSlot = (dashSensorSlot + 1) % 3;
+
+        // Build NFC info string
+        static char nfcInfoBuf[64];
+        const char* nfcInfo = nullptr;
+        if (nfcSnap.tagPresent && nfcSnap.uidString.length() > 0) {
+            if (nfcSnap.hasData) {
+                const TagData& td = nfcSnap.tagData;
+                const char* typeName = tagTypeName(td.type);
+                snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "%s %s",
+                         typeName, nfcSnap.uidString.c_str());
+            } else {
+                snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "NFC: %s", nfcSnap.uidString.c_str());
+            }
+            nfcInfo = nfcInfoBuf;
+        }
+
+        // Build color info string
+        static char colorInfoBuf[32];
+        const char* colorInfo = nullptr;
+        if (colorSensor.isConnected() && cachedColor.valid) {
+            const char* names[] = {"?", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
+            snprintf(colorInfoBuf, sizeof(colorInfoBuf), "Color: %s", names[cachedColor.sensorType]);
+            colorInfo = colorInfoBuf;
+        }
+
+        // TOF distance
+        float distMm = -1;
+        if (distanceSensor.isConnected() && cachedDist.valid) {
+            distMm = cachedDist.distanceMm;
+        }
+
+        // Env data
+        float tempC = -1, humidity = 0, pressureHPa = 0;
+        if (envSensor.isConnected() && cachedEnv.valid) {
+            tempC = cachedEnv.temperatureC;
+            humidity = cachedEnv.humidity;
+            pressureHPa = cachedEnv.pressureHPa;
+        }
+
+        // Scan button enabled when weight > threshold OR NFC tag present
+        bool scanEnabled = (w > OBJECT_PRESENT_THRESHOLD) || nfcSnap.tagPresent;
+
+        display.updateDashboard(w, stable, nfcInfo, colorInfo, distMm,
+                                 tempC, humidity, pressureHPa, scanEnabled);
+    } else {
+        // For SCAN_SUBMITTING or SCAN_RESULT, just update the display state
+        const ScanResponse* serverData = lastResponse.scanId[0] ? &lastResponse : nullptr;
+
+        // Only transition screen on state change
+        display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
+    }
 
     // LED backlight based on state (only change mode on state transitions)
     static ScanState lastLedState = SCAN_IDLE;
     static bool lastLedHadData = false;
-    bool hasDataNow = (serverData != nullptr);
+    const ScanResponse* ledServerData = lastResponse.identified ? &lastResponse : nullptr;
+    bool hasDataNow = (ledServerData != nullptr);
     bool ledStateChanged = (scanState != lastLedState) || (hasDataNow != lastLedHadData);
 
     if (ledStateChanged) {
@@ -853,23 +796,19 @@ void updateDisplayAndLed() {
         case SCAN_IDLE:
             backlight.idle();
             break;
-        case SCAN_DETECTED:
-        case SCAN_READING:
-            backlight.scanning();
-            break;
-        case SCAN_POSTING:
-        case SCAN_AWAITING_RESULT:
+        case SCAN_SUBMITTING:
             backlight.spin(0, 150, 255);
             break;
-        case SCAN_IDENTIFIED:
-            if (serverData && (serverData->colorR || serverData->colorG || serverData->colorB)) {
-                backlight.color(serverData->colorR, serverData->colorG, serverData->colorB);
+        case SCAN_RESULT:
+            if (ledServerData && ledServerData->identified) {
+                if (ledServerData->colorR || ledServerData->colorG || ledServerData->colorB) {
+                    backlight.color(ledServerData->colorR, ledServerData->colorG, ledServerData->colorB);
+                } else {
+                    backlight.success();
+                }
             } else {
-                backlight.success();
+                backlight.needsInput();
             }
-            break;
-        case SCAN_NEEDS_INPUT:
-            backlight.needsInput();
             break;
         default:
             break;
@@ -886,7 +825,7 @@ void updateDisplayAndLed() {
 void printHelp() {
     Serial.println("Commands:");
     Serial.println("  status (s)      Full device status");
-    Serial.println("  scan            Current scan/session details");
+    Serial.println("  scan            Trigger scan (or show details if not idle)");
     Serial.println("  nfc             NFC reader status");
     Serial.println("  i2c             Scan I2C bus");
     Serial.println("  config          Device config (from server)");
@@ -1120,7 +1059,41 @@ void handleSerial() {
         printStatus();
     }
     else if (line == "scan") {
-        printScanDetails();
+        if (scanState == SCAN_IDLE) {
+            // Trigger a scan (same as pressing the Scan button on touch)
+            unsigned long now = millis();
+            currentScan.clear_data();
+            currentScan.timestamp = now;
+            currentScan.weight.grams = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
+            currentScan.weight.stable = weightSnap.stable;
+            currentScan.weight.valid = true;
+
+            if (nfcSnap.tagPresent) {
+                currentScan.nfcPresent = true;
+                strncpy(currentScan.nfcUid, nfcSnap.uidString.c_str(), sizeof(currentScan.nfcUid) - 1);
+                currentScan.nfcUidLen = nfcSnap.uidLen;
+                currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
+            }
+
+            if (colorSensor.isConnected()) {
+                ColorData color;
+                if (colorSensor.read(color)) {
+                    currentScan.color = color;
+                }
+            }
+
+            if (distanceSensor.isConnected()) {
+                DistanceData dist;
+                if (distanceSensor.read(dist)) {
+                    currentScan.height = dist;
+                }
+            }
+
+            Serial.println("[Scan] Triggered from serial");
+            enterState(SCAN_SUBMITTING);
+        } else {
+            printScanDetails();
+        }
     }
     else if (line == "nfc") {
         // Print NFC status from snapshot (thread-safe)

@@ -286,7 +286,7 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
                     free(hexBuf);
                 }
                 nfc["sectorsRead"] = tagData->sectors_read;
-            } else if (tagData->type == TAG_NTAG) {
+            } else if (tagData->type == TAG_ISO15693 || tagData->type == TAG_NTAG) {
                 int hexLen = tagData->pages_read * 4 * 2;
                 char* hexBuf = (char*)malloc(hexLen + 1);
                 if (hexBuf) {
