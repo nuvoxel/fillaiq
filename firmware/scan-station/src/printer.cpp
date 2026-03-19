@@ -220,58 +220,8 @@ bool LabelPrinter::connect() {
     _state.transport = TRANSPORT_BLE;
     Serial.printf("[Printer] Connected to %s\n", _state.deviceName);
 
-    // Query printer info first (while pWriteChar/pNotifyChar are valid)
+    // Query printer info (battery, firmware, serial, paper, cover)
     queryInfo();
-
-    // Dump all GATT services and characteristics for discovery
-    // Note: getServices() may re-discover and invalidate char pointers,
-    // so we do this after queryInfo and re-acquire pointers afterward.
-    auto* services = pClient->getServices();
-    if (services) {
-        Serial.println("[Printer] GATT services:");
-        for (auto& kv : *services) {
-            BLERemoteService* svc = kv.second;
-            Serial.printf("[Printer]   Service: %s\n", svc->getUUID().toString().c_str());
-            auto* chars = svc->getCharacteristics();
-            if (chars) {
-                for (auto& ckv : *chars) {
-                    BLERemoteCharacteristic* ch = ckv.second;
-                    String propStr;
-                    if (ch->canRead()) propStr += "READ ";
-                    if (ch->canWrite()) propStr += "WRITE ";
-                    if (ch->canWriteNoResponse()) propStr += "WR_NR ";
-                    if (ch->canNotify()) propStr += "NOTIFY ";
-                    if (ch->canIndicate()) propStr += "INDICATE ";
-                    Serial.printf("[Printer]     Char: %s [%s]\n",
-                        ch->getUUID().toString().c_str(), propStr.c_str());
-
-                    // Read standard BLE characteristics (skip vendor 0xFF00 service)
-                    if (ch->canRead() && svc->getUUID().toString().find("ff00") == std::string::npos) {
-                        std::string val = ch->readValue();
-                        if (val.length() > 0 && val.length() < 64) {
-                            bool printable = true;
-                            for (char c : val) if (c < 0x20 || c > 0x7e) { printable = false; break; }
-                            if (printable) {
-                                Serial.printf("[Printer]       Value: \"%s\"\n", val.c_str());
-                            } else {
-                                Serial.printf("[Printer]       Value (%d bytes):", val.length());
-                                for (size_t i = 0; i < val.length(); i++)
-                                    Serial.printf(" %02X", (uint8_t)val[i]);
-                                Serial.println();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Re-acquire char pointers (getServices() may have invalidated them)
-    pWriteChar = pService->getCharacteristic(BLEUUID(PRINTER_WRITE_CHAR_UUID));
-    pNotifyChar = pService->getCharacteristic(BLEUUID(PRINTER_NOTIFY_CHAR_UUID));
-    if (pNotifyChar && pNotifyChar->canNotify()) {
-        pNotifyChar->registerForNotify(staticNotifyCallback);
-    }
 
     return true;
 }
