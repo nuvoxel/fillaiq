@@ -83,6 +83,27 @@ void ScaleDriver::startTask(int core, int priority) {
 
 void ScaleDriver::pollOnce() {
     if (!_connected || _pauseDepth > 0) return;
+
+    // NAU7802: periodic AFE recalibration (compensates internal drift + temperature)
+    if (_driverType == WEIGHT_NAU7802) {
+        unsigned long now = millis();
+        if (_afeCalInProgress) {
+            NAU7802_Cal_Status status = _nau.calAFEStatus();
+            if (status != NAU7802_CAL_IN_PROGRESS) {
+                _afeCalInProgress = false;
+                Serial.printf("[Weight] AFE recal %s\n",
+                    status == NAU7802_CAL_SUCCESS ? "OK" : "FAILED");
+            }
+            return;  // Skip readings during calibration
+        }
+        if (now - _lastAfeCal >= NAU7802_AFE_CAL_INTERVAL_MS) {
+            _lastAfeCal = now;
+            _nau.beginCalibrateAFE(NAU7802_CALMOD_INTERNAL);
+            _afeCalInProgress = true;
+            return;
+        }
+    }
+
     long raw = 0;
     bool gotReading = false;
     if (_driverType == WEIGHT_NAU7802 && _nau.available()) {
@@ -101,6 +122,28 @@ void ScaleDriver::taskFunc(void* param) {
         if (self->_pauseDepth > 0) {
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
+        }
+
+        // NAU7802: periodic AFE recalibration
+        if (self->_driverType == WEIGHT_NAU7802) {
+            unsigned long now = millis();
+            if (self->_afeCalInProgress) {
+                NAU7802_Cal_Status status = self->_nau.calAFEStatus();
+                if (status != NAU7802_CAL_IN_PROGRESS) {
+                    self->_afeCalInProgress = false;
+                    Serial.printf("[Weight] AFE recal %s\n",
+                        status == NAU7802_CAL_SUCCESS ? "OK" : "FAILED");
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+                continue;  // Skip readings during calibration
+            }
+            if (now - self->_lastAfeCal >= NAU7802_AFE_CAL_INTERVAL_MS) {
+                self->_lastAfeCal = now;
+                self->_nau.beginCalibrateAFE(NAU7802_CALMOD_INTERNAL);
+                self->_afeCalInProgress = true;
+                vTaskDelay(pdMS_TO_TICKS(50));
+                continue;
+            }
         }
 
         long raw = 0;
@@ -173,14 +216,9 @@ void ScaleDriver::processReading(long raw) {
 }
 
 void ScaleDriver::checkAutoTare() {
-    unsigned long now = millis();
-    float w = _weightRaw;
-
-    if (_isStable && fabs(w) > 3.0f && fabs(w) < 50.0f &&
-        now - _lastAutoTare > 30000) {
-        tare(WEIGHT_TARE_SAMPLES);
-        _lastAutoTare = now;
-    }
+    // Disabled: auto-tare caused confusing UX where lightweight items on the
+    // platform would silently get zeroed. Users should tare manually.
+    (void)0;
 }
 
 // Thread-safe getters

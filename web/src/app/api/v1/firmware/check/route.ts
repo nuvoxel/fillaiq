@@ -25,18 +25,24 @@ type Manifest = {
 };
 
 /**
- * GET /api/v1/firmware/check?version=1.0.0&sku=filla-scan
+ * POST /api/v1/firmware/check
+ * Body: { version, sku, hardwareId, uptime, freeHeap, wifiRssi, capabilities }
  *
  * Called periodically by devices to check for firmware updates.
  * Also serves as a heartbeat — updates station last-seen and telemetry.
- *
- * Routes firmware by device SKU (filla-scan, shelf-station, etc.)
- * and firmware channel (stable, beta, dev).
+ * Capabilities sent in POST body (not headers) to avoid size limits.
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   const deviceToken = request.headers.get("x-device-token");
   if (!deviceToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   // Validate device token
@@ -54,15 +60,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  // Extract params
-  const currentVersion =
-    request.nextUrl.searchParams.get("version") ??
-    request.headers.get("x-firmware-version") ??
-    "0.0.0";
-  const sku =
-    request.nextUrl.searchParams.get("sku") ??
-    request.headers.get("x-device-sku") ??
-    "filla-scan";
+  const currentVersion = body.version ?? "0.0.0";
+  const sku = body.sku ?? "filla-scan";
+  const caps = body.capabilities;
 
   // Update station heartbeat + capabilities
   const updateData: Record<string, any> = {
@@ -74,10 +74,7 @@ export async function GET(request: NextRequest) {
     updatedAt: new Date(),
   };
 
-  // Parse full capabilities JSON from heartbeat
-  const capsHeader = request.headers.get("x-capabilities");
-  if (capsHeader) {
-    const caps = JSON.parse(capsHeader);
+  if (caps) {
     updateData.hasTofSensor = !!caps.tof?.detected;
     updateData.hasColorSensor = !!caps.colorSensor?.detected;
     updateData.hasTurntable = !!caps.turntable;
@@ -94,14 +91,11 @@ export async function GET(request: NextRequest) {
     .where(eq(scanStations.id, station.id));
 
   // Auto-populate printer catalog + instance from heartbeat
-  if (capsHeader) {
-    const caps = JSON.parse(capsHeader);
-    if (caps.printer?.detected && station.userId) {
-      try {
-        await upsertPrinterFromHeartbeat(caps.printer, station.id, station.userId);
-      } catch (e) {
-        console.error("[heartbeat] printer upsert error:", e);
-      }
+  if (caps?.printer?.detected && station.userId) {
+    try {
+      await upsertPrinterFromHeartbeat(caps.printer, station.id, station.userId);
+    } catch (e) {
+      console.error("[heartbeat] printer upsert error:", e);
     }
   }
 

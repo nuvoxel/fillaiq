@@ -236,6 +236,39 @@ bool ColorSensor::_initAS7331() {
     return true;
 }
 
+// ==================== Ambient Baseline ====================
+
+void ColorSensor::calibrateAmbient() {
+    if (!_connected) return;
+    _ambient.clear_data();
+
+    // Take a reading with the empty platform to capture ambient light levels.
+    // This baseline can be sent to the server alongside scan data so it can
+    // subtract ambient contribution from the spectral/color readings.
+    Serial.printf("  Color: measuring ambient baseline (%s)...\n",
+        _type == COLOR_AS7341 ? "AS7341" :
+        _type == COLOR_AS7343 ? "AS7343" :
+        _type == COLOR_OPT4048 ? "OPT4048" :
+        _type == COLOR_TCS34725 ? "TCS34725" : "sensor");
+
+    if (read(_ambient)) {
+        Serial.print("  Color: ambient baseline OK");
+        if (_type == COLOR_AS7341 || _type == COLOR_AS7343) {
+            Serial.printf(" (415nm=%u 555nm=%u 680nm=%u clear=%u)\n",
+                _ambient.f1_415nm, _ambient.f5_555nm, _ambient.f8_680nm, _ambient.clear);
+        } else if (_type == COLOR_OPT4048) {
+            Serial.printf(" (lux=%.0f)\n", _ambient.opt_lux);
+        } else if (_type == COLOR_TCS34725) {
+            Serial.printf(" (R=%u G=%u B=%u C=%u)\n",
+                _ambient.rgbc_r, _ambient.rgbc_g, _ambient.rgbc_b, _ambient.rgbc_c);
+        } else {
+            Serial.println();
+        }
+    } else {
+        Serial.println("  Color: ambient baseline failed");
+    }
+}
+
 // ==================== Read ====================
 
 bool ColorSensor::read(ColorData& data) {
@@ -252,6 +285,168 @@ bool ColorSensor::read(ColorData& data) {
         case COLOR_OPT4048:   return _readOPT4048(data);
         case COLOR_AS7331:    return _readAS7331(data);
         default: return false;
+    }
+}
+
+// ==================== Non-blocking Async Read ====================
+// Splits the slow measurement cycle (100-500ms) into:
+//   startRead()  — trigger hardware integration (~1ms I2C write)
+//   isReady()    — poll status register (~1ms I2C read)
+//   finishRead() — read channel data (~2-5ms I2C read)
+// For fast sensors (OPT4048, TCS34725, BME280-based) the blocking
+// read is <5ms anyway, so startRead() does the full read immediately.
+
+void ColorSensor::startRead() {
+    if (!_connected) return;
+    _asyncActive = false;
+
+    switch (_type) {
+        case COLOR_AS7341:
+            // Adafruit library async: starts SMUX config + integration
+            if (as7341.startReading()) {
+                _asyncActive = true;
+            }
+            break;
+        case COLOR_AS7343:
+            // Trigger measurement: set SP_EN in ENABLE register
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0x80);  // ENABLE
+            Wire.write(0x03);  // PON + SP_EN
+            Wire.endTransmission();
+            _asyncActive = true;
+            break;
+        case COLOR_AS7331:
+            // Trigger one-shot measurement
+            Wire.beginTransmission(AS7331_ADDR);
+            Wire.write(0x00);  // OSR register
+            Wire.write(0x83);  // Start measurement (CMD mode, one-shot)
+            Wire.endTransmission();
+            _asyncActive = true;
+            break;
+        default:
+            // Fast sensors — no async needed, read completes in <5ms
+            break;
+    }
+}
+
+bool ColorSensor::isReady() {
+    if (!_connected) return false;
+    if (!_asyncActive) return true;  // Fast sensor or not started — always ready
+
+    switch (_type) {
+        case COLOR_AS7341:
+            return as7341.checkReadingProgress();
+        case COLOR_AS7343: {
+            // Check STATUS2 register (0xA3) bit 6 (AVALID)
+            uint8_t status = _readDeviceId(AS7341_ADDR, 0xA3);
+            return (status & 0x40) != 0;
+        }
+        case COLOR_AS7331: {
+            // Check if measurement complete — read OSR register bit 0
+            uint8_t osr = _readDeviceId(AS7331_ADDR, 0x00);
+            return (osr & 0x02) == 0;  // BUSY bit clear = done
+        }
+        default:
+            return true;
+    }
+}
+
+bool ColorSensor::finishRead(ColorData& data) {
+    data.clear_data();
+    if (!_connected) return false;
+    data.sensorType = _type;
+
+    if (!_asyncActive) {
+        // Fast sensors — do the full blocking read (it's <5ms)
+        return read(data);
+    }
+
+    _asyncActive = false;
+
+    switch (_type) {
+        case COLOR_AS7341: {
+            // Read channels from hardware (data already captured by ADC)
+            uint16_t buf[12];
+            if (!as7341.getAllChannels(buf)) return false;
+            data.f1_415nm = buf[0];
+            data.f2_445nm = buf[1];
+            data.f3_480nm = buf[2];
+            data.f4_515nm = buf[3];
+            data.f5_555nm = buf[4];
+            data.f6_590nm = buf[5];
+            data.f7_630nm = buf[6];
+            data.f8_680nm = buf[7];
+            data.clear    = buf[8];
+            data.nir      = buf[9];
+            data.channels[0] = buf[0]; data.channels[1] = buf[1];
+            data.channels[2] = buf[2]; data.channels[3] = buf[3];
+            data.channels[4] = buf[4]; data.channels[5] = buf[5];
+            data.channels[6] = buf[6]; data.channels[7] = buf[7];
+            data.channels[8] = buf[8]; data.channels[9] = buf[9];
+            data.channelCount = 10;
+            data.valid = true;
+            return true;
+        }
+        case COLOR_AS7343: {
+            // Read channel data registers (already captured by ADC)
+            uint8_t rawBuf[28];
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0x95);
+            if (Wire.endTransmission() != 0) return false;
+            int bytesRead = 0;
+            while (bytesRead < 28) {
+                int toRead = min(28 - bytesRead, 28);
+                int got = Wire.requestFrom((uint8_t)AS7341_ADDR, (uint8_t)toRead);
+                for (int i = 0; i < got && bytesRead < 28; i++) {
+                    rawBuf[bytesRead++] = Wire.read();
+                }
+                if (got == 0) break;
+            }
+            if (bytesRead < 20) return false;
+            int chIdx = 0;
+            for (int i = 0; i + 1 < bytesRead && chIdx < 14; i += 2) {
+                data.channels[chIdx] = rawBuf[i] | (rawBuf[i + 1] << 8);
+                chIdx++;
+            }
+            data.channelCount = chIdx;
+            if (chIdx >= 10) {
+                data.f1_415nm = data.channels[0];
+                data.f2_445nm = data.channels[1];
+                data.f3_480nm = data.channels[2];
+                data.f4_515nm = data.channels[3];
+                data.f5_555nm = data.channels[4];
+                data.f6_590nm = data.channels[5];
+                data.f7_630nm = data.channels[6];
+                data.f8_680nm = data.channels[7];
+                data.clear    = (chIdx > 12) ? data.channels[12] : 0;
+                data.nir      = (chIdx > 8)  ? data.channels[8]  : 0;
+            }
+            data.valid = true;
+            return true;
+        }
+        case COLOR_AS7331: {
+            // Read result registers
+            Wire.beginTransmission(AS7331_ADDR);
+            Wire.write(0x01);
+            if (Wire.endTransmission() != 0) return false;
+            Wire.requestFrom((uint8_t)AS7331_ADDR, (uint8_t)6);
+            if (Wire.available() < 6) return false;
+            uint16_t rawA = Wire.read() | (Wire.read() << 8);
+            uint16_t rawB = Wire.read() | (Wire.read() << 8);
+            uint16_t rawC = Wire.read() | (Wire.read() << 8);
+            float sensitivity = 0.035f;
+            data.uva = rawA * sensitivity;
+            data.uvb = rawB * sensitivity;
+            data.uvc = rawC * sensitivity;
+            data.channels[0] = rawA;
+            data.channels[1] = rawB;
+            data.channels[2] = rawC;
+            data.channelCount = 3;
+            data.valid = true;
+            return true;
+        }
+        default:
+            return false;
     }
 }
 
@@ -444,6 +639,11 @@ bool ColorSensor::_readOPT4048(ColorData& data) {
         }
     }
 
+    // Populate unified channels array for API payload
+    data.channels[0] = (uint16_t)data.cie_x;
+    data.channels[1] = (uint16_t)data.cie_y;
+    data.channels[2] = (uint16_t)data.cie_z;
+    data.channels[3] = (uint16_t)data.opt_lux;
     data.channelCount = 4;
     data.valid = true;
     return true;

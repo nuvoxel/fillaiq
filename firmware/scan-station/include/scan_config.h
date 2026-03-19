@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.2.0"
 #define FW_SKU     "filla-scan"      // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
@@ -43,11 +43,11 @@
 #define I2C_SCL         15
 
 // PN5180 NFC reader (dedicated SPI bus — HSPI/SPI3)
-#define NFC_SPI_SCK     14   // Expansion pin (clean)
-#define NFC_SPI_MOSI     2   // Expansion pin (clean)
+#define NFC_SPI_SCK     14   // Expansion pin → PN5180 SCK
+#define NFC_SPI_MOSI     2   // Expansion pin → PN5180 MOSI
 #define NFC_SPI_MISO     3   // Expansion pin (clean)
-#define NFC_BUSY_PIN    43   // UART TXD (100R only, no MOSFET)
-#define NFC_SPI_NSS     44   // UART RXD (100R + Q5, ESP drives as output)
+#define NFC_BUSY_PIN    43   // UART RXD (100R series)
+#define NFC_SPI_NSS     44   // UART TXD (100R series)
 #define NFC_RST_PIN     21   // Freed from LED ring
 
 // WS2812B LED Ring (wired to onboard RGB GPIO, frees IO21 for NFC RST)
@@ -160,6 +160,7 @@
 
 // --- Weight ADC (NAU7802 preferred, HX711 fallback) ---
 #define NAU7802_ADDR            0x2A
+#define NAU7802_AFE_CAL_INTERVAL_MS  (5 * 60 * 1000UL)  // Recalibrate AFE every 5 min
 
 // --- Color Sensor I2C Addresses ---
 #define AS7341_ADDR             0x39    // Also AS7343 — differentiated by ID register
@@ -179,7 +180,11 @@
 // --- TOF Sensor ---
 #define VL53L1X_DEFAULT_ADDR    0x29
 #define VL53L1X_ADDR            0x52
+#ifdef BOARD_SCAN_TOUCH
+#define VL53L1X_XSHUT_PIN      -1   // Not wired on touch board (GPIO 42 = LED_PIN)
+#else
 #define VL53L1X_XSHUT_PIN      42
+#endif
 #define TOF_TIMING_BUDGET_MS    50
 #define TOF_ARM_HEIGHT_MM       250.0f
 

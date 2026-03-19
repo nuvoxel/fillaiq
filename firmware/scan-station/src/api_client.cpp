@@ -2,6 +2,8 @@
 #include "device_identity.h"
 #include "environment.h"
 #include "printer.h"
+#include "color.h"
+#include "tls_certs.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -15,7 +17,11 @@ static Preferences prefs;
 static WiFiClientSecure& getSecureClient() {
     static WiFiClientSecure client;
     static bool init = false;
-    if (!init) { client.setInsecure(); client.setTimeout(15); init = true; }
+    if (!init) {
+        client.setCACert(FILLAIQ_ROOT_CA);
+        client.setTimeout(15);
+        init = true;
+    }
     client.stop();  // Ensure clean state for each request
     return client;
 }
@@ -222,6 +228,7 @@ void ApiClient::postEnvironment(const EnvData& env) {
     String url = String(_apiUrl) + "/api/v1/environment";
 
     JsonDocument doc;
+    doc["stationId"] = _stationId;
     doc["temperatureC"] = env.temperatureC;
     doc["humidity"] = env.humidity;
     if (env.pressureHPa > 0) doc["pressureHPa"] = env.pressureHPa;
@@ -250,6 +257,8 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
     JsonDocument doc;
 
     doc["stationId"] = _stationId;
+    doc["firmwareVersion"] = FW_VERSION;
+    doc["sku"] = FW_SKU;
 
     // Weight
     if (scan.weight.valid) {
@@ -350,6 +359,17 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
             c["uva"] = scan.color.uva;
             c["uvb"] = scan.color.uvb;
             c["uvc"] = scan.color.uvc;
+        }
+    }
+
+    // Ambient light baseline (measured at boot with empty platform)
+    if (colorSensor.hasAmbient()) {
+        const ColorData& amb = colorSensor.getAmbient();
+        JsonObject a = doc["colorAmbient"].to<JsonObject>();
+        a["sensor"] = doc["color"]["sensor"];
+        JsonArray ach = a["channels"].to<JsonArray>();
+        for (int i = 0; i < amb.channelCount; i++) {
+            ach.add(amb.channels[i]);
         }
     }
 

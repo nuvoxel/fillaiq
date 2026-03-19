@@ -74,6 +74,10 @@ private:
     // NAU7802 offset (stored separately since library doesn't have get_offset)
     int32_t _nauOffset;
 
+    // NAU7802 periodic AFE recalibration (compensates internal drift + temperature)
+    unsigned long _lastAfeCal = 0;
+    bool _afeCalInProgress = false;
+
     // Last raw ADC value (updated by task, read by UI)
     volatile long _lastRawAdc = 0;
 

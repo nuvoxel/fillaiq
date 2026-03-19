@@ -38,56 +38,115 @@ void NfcScanner::begin() {
 
 #ifdef BOARD_SCAN_TOUCH
     // Init dedicated SPI bus for PN5180
-    Serial.printf("  NFC pins: SCK=%d MOSI=%d MISO=%d NSS=%d BUSY=%d\n",
-        NFC_SPI_SCK, NFC_SPI_MOSI, NFC_SPI_MISO, NFC_SPI_NSS, NFC_BUSY_PIN);
+    Serial.printf("  NFC pins: SCK=%d MOSI=%d MISO=%d NSS=%d BUSY=%d RST=%d\n",
+        NFC_SPI_SCK, NFC_SPI_MOSI, NFC_SPI_MISO, NFC_SPI_NSS, NFC_BUSY_PIN, NFC_RST_PIN);
 
-    nfcSPI.begin(NFC_SPI_SCK, NFC_SPI_MISO, NFC_SPI_MOSI, -1);
-
-    // Check BUSY pin state before init
+    // Step 1: Configure pins before anything else
     pinMode(NFC_BUSY_PIN, INPUT);
-    Serial.printf("  NFC BUSY pin state: %s\n", digitalRead(NFC_BUSY_PIN) ? "HIGH" : "LOW");
+    pinMode(NFC_RST_PIN, OUTPUT);
+    Serial.printf("  [1] Pins configured. BUSY=%d RST=output\n", digitalRead(NFC_BUSY_PIN));
 
+    // Step 2: Init SPI bus
+    nfcSPI.begin(NFC_SPI_SCK, NFC_SPI_MISO, NFC_SPI_MOSI, -1);
+    Serial.printf("  [2] SPI bus started. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
+
+    // Step 3: PN5180 library pin setup (NSS HIGH, BUSY INPUT, RST HIGH)
     reader14443.begin();
+    Serial.printf("  [3] PN5180 begin done. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
     delay(100);
 
-    Serial.printf("  NFC BUSY after begin: %s\n", digitalRead(NFC_BUSY_PIN) ? "HIGH" : "LOW");
+    // Step 4: Hardware reset — pull RST LOW, hold, release, wait generously
+    Serial.println("  [4] Hard reset: RST LOW...");
+    digitalWrite(NFC_RST_PIN, LOW);
+    delay(50);  // Hold reset 50ms (datasheet: min 250ns)
+    Serial.printf("      RST LOW held 50ms. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
 
-    // Try reset
-    Serial.println("  NFC: resetting PN5180...");
-    reader14443.reset();
-    Serial.printf("  NFC BUSY after reset: %s\n", digitalRead(NFC_BUSY_PIN) ? "HIGH" : "LOW");
+    digitalWrite(NFC_RST_PIN, HIGH);
+    Serial.printf("      RST released HIGH. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
+    delay(10);
+    Serial.printf("      +10ms. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
+    delay(50);
+    Serial.printf("      +60ms. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
+    delay(200);
+    Serial.printf("      +260ms. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
 
-    // Read firmware version to verify communication
+    // Step 5: Wait for BUSY LOW (PN5180 ready) — up to 2 seconds
+    unsigned long rstWait = millis();
+    while (digitalRead(NFC_BUSY_PIN) == HIGH && millis() - rstWait < 2000) delay(1);
+    Serial.printf("  [5] BUSY wait done: %s (%lums)\n",
+        digitalRead(NFC_BUSY_PIN) ? "STILL HIGH" : "LOW (ready)", millis() - rstWait);
+
+    // Step 6: Software reset via library
+    Serial.println("  [6] Soft reset...");
+    bool rstOk = reader14443.reset();
+    Serial.printf("      reset() returned %s. BUSY=%d\n", rstOk ? "OK" : "FAIL", digitalRead(NFC_BUSY_PIN));
+    delay(100);
+    Serial.printf("      +100ms. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
+
+    // Step 7: Read firmware version
+    Serial.println("  [7] Reading EEPROM...");
     uint8_t fwVersion[2] = {0, 0};
     reader14443.readEEprom(FIRMWARE_VERSION, fwVersion, 2);
-    Serial.printf("  NFC FW raw bytes: 0x%02X 0x%02X\n", fwVersion[0], fwVersion[1]);
+    Serial.printf("      FW raw: 0x%02X 0x%02X. BUSY=%d\n", fwVersion[0], fwVersion[1], digitalRead(NFC_BUSY_PIN));
 
     if (fwVersion[0] == 0xFF && fwVersion[1] == 0xFF) {
-        Serial.println("  NFC: PN5180 not detected (MISO reads 0xFF — not connected?)");
+        Serial.println("  NFC: PN5180 not detected (MISO 0xFF — not connected?)");
         return;
     }
     if (fwVersion[0] == 0 && fwVersion[1] == 0) {
-        Serial.println("  NFC: PN5180 not detected (SPI)");
+        Serial.println("  NFC: PN5180 not detected (SPI — no response)");
         return;
     }
 
     uint8_t prodVersion[2];
     reader14443.readEEprom(PRODUCT_VERSION, prodVersion, 2);
-    Serial.printf("  NFC: PN5180 fw=%d.%d prod=%d.%d (SCK=%d MOSI=%d MISO=%d NSS=%d)\n",
-        fwVersion[1], fwVersion[0], prodVersion[1], prodVersion[0],
-        NFC_SPI_SCK, NFC_SPI_MOSI, NFC_SPI_MISO, NFC_SPI_NSS);
+    Serial.printf("  NFC: PN5180 fw=%d.%d prod=%d.%d\n",
+        fwVersion[1], fwVersion[0], prodVersion[1], prodVersion[0]);
 
-    // Setup RF for ISO 14443A (MIFARE/NTAG)
-    Serial.println("  NFC: setting up RF...");
-    if (reader14443.setupRF()) {
-        Serial.println("  NFC: RF ON — ready");
-        _connected = true;
-        _state = NFC_LISTENING;
-    } else {
-        Serial.println("  NFC: RF setup failed (antenna issue?)");
-        _connected = true;  // SPI works, RF might recover
-        _state = NFC_LISTENING;
+    // Step 8: Read IRQ and RF status registers
+    uint32_t irqStatus = reader14443.getIRQStatus();
+    uint32_t rfStatus = 0;
+    reader14443.readRegister(RF_STATUS, &rfStatus);
+    Serial.printf("  [8] IRQ=0x%08X RF_STATUS=0x%08X BUSY=%d\n", irqStatus, rfStatus, digitalRead(NFC_BUSY_PIN));
+
+    // Step 9: Clear IRQs, ensure RF off
+    Serial.println("  [9] Clearing IRQs, RF off...");
+    reader14443.clearIRQStatus(0xFFFFFFFF);
+    reader14443.setRF_off();
+    delay(10);
+    Serial.printf("      Done. BUSY=%d\n", digitalRead(NFC_BUSY_PIN));
+
+    // Step 10: Setup RF with retry
+    bool rfOk = false;
+    for (int i = 0; i < 3 && !rfOk; i++) {
+        if (i > 0) {
+            Serial.printf("  [10] RF retry %d/3...\n", i + 1);
+            reader14443.reset();
+            delay(200);
+            reader14443.clearIRQStatus(0xFFFFFFFF);
+            reader14443.setRF_off();
+            delay(10);
+        }
+        Serial.printf("  [10] setupRF attempt %d. BUSY=%d\n", i + 1, digitalRead(NFC_BUSY_PIN));
+        rfOk = reader14443.setupRF();
+        Serial.printf("       result: %s. BUSY=%d\n", rfOk ? "OK" : "FAIL", digitalRead(NFC_BUSY_PIN));
+
+        if (!rfOk) {
+            // Dump register state on failure
+            irqStatus = reader14443.getIRQStatus();
+            reader14443.readRegister(RF_STATUS, &rfStatus);
+            Serial.printf("       IRQ=0x%08X RF_STATUS=0x%08X\n", irqStatus, rfStatus);
+        }
     }
+
+    if (rfOk) {
+        reader14443.readRegister(RF_STATUS, &rfStatus);
+        Serial.printf("  NFC: RF ON — ready (RF_STATUS=0x%08X)\n", rfStatus);
+    } else {
+        Serial.println("  NFC: RF setup failed after 3 attempts");
+    }
+    _connected = true;
+    _state = NFC_LISTENING;
 
 #else
     // PN532 SPI init (DevKitC variant)
@@ -151,6 +210,8 @@ static uint8_t activateTag14443(uint8_t *uid) {
 
     uint8_t response[10] = {0};
     int8_t result = reader14443.activateTypeA(response, 1);  // WUPA
+
+
     if (result >= 4 && result <= 7) {
         memcpy(uid, response + 3, result);
         return (uint8_t)result;
@@ -269,15 +330,10 @@ static void readAllMifareSectors5180(const uint8_t *uid, uint8_t uidLen,
                     tagData.sectors_read++;
                 } else {
                     anyFailed = true;
-                    // Read error — re-select for next sector
                     if (!reselectTag5180()) goto done;
                 }
-                // Note: do NOT re-select after successful read — auth carries
-                // into the next mifareAuthenticate call. The PN5180 handles
-                // the crypto state transition internally.
             } else {
                 anyFailed = true;
-                // Both keys failed — re-select for next sector
                 if (!reselectTag5180()) goto done;
             }
         }
@@ -458,9 +514,6 @@ void NfcScanner::poll() {
                 static unsigned long last15693Poll = 0;
                 static bool just_polled_15693 = false;
                 if (now - last15693Poll < 2000) {
-                    // Between 15693 polls: only report removal if we aren't about
-                    // to do a 15693 check AND the timeout has elapsed.
-                    // Grace period: NFC_TIMEOUT_MS + 2500ms to cover the 15693 poll gap.
                     if (_tag.present && !just_polled_15693 &&
                         now - _tag.last_seen >= NFC_TIMEOUT_MS + 2500) {
                         _tag.present = false;
@@ -492,11 +545,10 @@ void NfcScanner::poll() {
                             uid15693[7], uid15693[6], uid15693[5], uid15693[4],
                             uid15693[3], uid15693[2], uid15693[1], uid15693[0]);
 
-                        // Read data blocks while 15693 RF config is still active
                         uint8_t blockSize = 0, numBlocks = 0;
                         reader15693.getSystemInfo(uid15693, &blockSize, &numBlocks);
                         for (uint8_t b = 0; b < numBlocks && b < TagData::MAX_PAGES; b++) {
-                            uint8_t blockData[32]; // max block size
+                            uint8_t blockData[32];
                             if (reader15693.readSingleBlock(uid15693, b, blockData, blockSize) == ISO15693_EC_OK) {
                                 memcpy(_tagData.page_data[b], blockData, min(blockSize, (uint8_t)4));
                                 _tagData.pages_read = b + 1;
@@ -510,10 +562,9 @@ void NfcScanner::poll() {
 
                     _state = NFC_PRESENT;
                     _presenceCheckTime = now;
-                    // Switch back to 14443A for next poll
                     reader14443.setupRF();
                 } else {
-                    just_polled_15693 = false;  // 15693 found nothing
+                    just_polled_15693 = false;
                     if (_tag.present && now - _tag.last_seen >= NFC_TIMEOUT_MS) {
                         _tag.present = false;
                         _tagData.clear();

@@ -8,6 +8,7 @@ static VL53L1X tof;
 
 void DistanceSensor::begin() {
     _connected = false;
+    _armHeightMm = TOF_ARM_HEIGHT_MM;  // Default until calibrated
 
     tof.setBus(&Wire);
     tof.setTimeout(500);
@@ -22,9 +23,8 @@ void DistanceSensor::begin() {
         _connected = true;
         Serial.printf("  TOF: VL53L1X at 0x%02X\n", VL53L1X_DEFAULT_ADDR);
     } else {
-        // Debug: read model ID register to see what's at 0x29
         Wire.beginTransmission(VL53L1X_DEFAULT_ADDR);
-        Wire.write(0x01);  // Model ID MSB register (0x010F)
+        Wire.write(0x01);
         Wire.write(0x0F);
         Wire.endTransmission(false);
         Wire.requestFrom((uint8_t)VL53L1X_DEFAULT_ADDR, (uint8_t)1);
@@ -37,6 +37,42 @@ void DistanceSensor::begin() {
     }
 }
 
+void DistanceSensor::calibrateBaseline(uint8_t samples) {
+    if (!_connected) return;
+
+    // Take N readings of the empty platform and average them.
+    // Discard invalid readings and outliers.
+    float sum = 0;
+    int good = 0;
+
+    Serial.printf("  TOF: measuring baseline (%d samples)...\n", samples);
+
+    for (uint8_t i = 0; i < samples + 5; i++) {  // Extra attempts for invalid reads
+        // Wait for a fresh reading
+        unsigned long start = millis();
+        while (!tof.dataReady() && millis() - start < 200) delay(5);
+
+        if (!tof.dataReady()) continue;
+
+        float dist = tof.read();
+        if (tof.ranging_data.range_status != VL53L1X::RangeValid) continue;
+        if (dist < 50 || dist > 1000) continue;  // Sanity: 5cm-100cm range
+
+        sum += dist;
+        good++;
+
+        if (good >= samples) break;
+    }
+
+    if (good >= 3) {
+        _armHeightMm = sum / good;
+        Serial.printf("  TOF: baseline %.1fmm (%d readings)\n", _armHeightMm, good);
+    } else {
+        Serial.printf("  TOF: baseline failed (%d valid readings), using default %.0fmm\n",
+            good, _armHeightMm);
+    }
+}
+
 bool DistanceSensor::read(DistanceData& data) {
     data.clear_data();
     if (!_connected) return false;
@@ -46,7 +82,7 @@ bool DistanceSensor::read(DistanceData& data) {
 
         if (tof.ranging_data.range_status == VL53L1X::RangeValid) {
             data.distanceMm = distMm;
-            data.objectHeightMm = TOF_ARM_HEIGHT_MM - distMm;
+            data.objectHeightMm = _armHeightMm - distMm;
             data.valid = true;
             return true;
         }
@@ -61,6 +97,7 @@ void DistanceSensor::printStatus() {
     Serial.println("=== TOF Distance ===");
     Serial.printf("  Connected: %s\n", _connected ? "YES" : "no");
     if (_connected) {
+        Serial.printf("  Arm height: %.1fmm\n", _armHeightMm);
         DistanceData data;
         if (read(data)) {
             Serial.printf("  Distance: %.1fmm, Object height: %.1fmm\n",

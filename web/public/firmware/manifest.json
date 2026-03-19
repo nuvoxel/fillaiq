@@ -3,39 +3,39 @@
     "filla-scan": {
       "channels": {
         "stable": {
-          "version": "1.0.9",
-          "file": "filla-scan-1.0.9.bin",
-          "md5": "",
-          "size": 0,
-          "date": "2026-03-11",
-          "notes": "Rename to FillaScan, remove USB Host code"
+          "version": "1.2.0",
+          "file": "filla-scan-1.2.0.bin",
+          "md5": "b14796f32267ca6fc103188bb0a4e640",
+          "size": 2209760,
+          "date": "2026-03-19",
+          "notes": "TLS cert pinning, async color reads, non-blocking UI, TOF auto-baseline, NAU7802 AFE recal, firmware check POST"
         },
         "beta": {
-          "version": "1.0.9",
-          "file": "filla-scan-1.0.9.bin",
-          "md5": "",
-          "size": 0,
-          "date": "2026-03-11",
-          "notes": "Rename to FillaScan, remove USB Host code"
+          "version": "1.2.0",
+          "file": "filla-scan-1.2.0.bin",
+          "md5": "b14796f32267ca6fc103188bb0a4e640",
+          "size": 2209760,
+          "date": "2026-03-19",
+          "notes": "TLS cert pinning, async color reads, non-blocking UI, TOF auto-baseline, NAU7802 AFE recal, firmware check POST"
         },
         "dev": {
-          "version": "1.0.9",
-          "file": "filla-scan-1.0.9.bin",
-          "md5": "",
-          "size": 0,
-          "date": "2026-03-11",
-          "notes": "Rename to FillaScan, remove USB Host code"
+          "version": "1.2.0",
+          "file": "filla-scan-1.2.0.bin",
+          "md5": "b14796f32267ca6fc103188bb0a4e640",
+          "size": 2209760,
+          "date": "2026-03-19",
+          "notes": "TLS cert pinning, async color reads, non-blocking UI, TOF auto-baseline, NAU7802 AFE recal, firmware check POST"
         }
       }
     },
     "scan-station": {
       "channels": {
         "stable": {
-          "version": "1.0.9",
-          "file": "filla-scan-1.0.9.bin",
-          "md5": "",
-          "size": 0,
-          "date": "2026-03-11",
+          "version": "1.2.0",
+          "file": "filla-scan-1.2.0.bin",
+          "md5": "b14796f32267ca6fc103188bb0a4e640",
+          "size": 2209760,
+          "date": "2026-03-19",
           "notes": "Legacy SKU redirect — devices will update to filla-scan"
         }
       }

@@ -8,6 +8,7 @@
 #include "display.h"
 #include "device_config.h"
 #include "printer.h"
+#include "tls_certs.h"
 
 extern Display display;
 
@@ -44,36 +45,38 @@ void otaCheckNow() {
 
     // Build check URL
     String url = String(apiClient.getApiUrl()) + "/api/v1/firmware/check";
-    url += "?version=" + String(FW_VERSION);
-    url += "&sku=" + String(FW_SKU);
     Serial.printf("[OTA] URL: %s\n", url.c_str());
 
     WiFiClientSecure secClient;
-    secClient.setInsecure();
+    secClient.setCACert(FILLAIQ_ROOT_CA);
     secClient.setTimeout(API_TIMEOUT_MS);
     Serial.printf("[OTA] TLS client created. Heap: %u\n", ESP.getFreeHeap());
 
     HTTPClient http;
     http.begin(secClient, url);
     Serial.println("[OTA] HTTP begin done, adding headers...");
+    http.addHeader("Content-Type", "application/json");
     if (apiClient.getDeviceToken()[0] != '\0') {
         http.addHeader("X-Device-Token", apiClient.getDeviceToken());
     }
-    http.addHeader("X-Firmware-Version", FW_VERSION);
-    http.addHeader("X-Hardware-Id", apiClient.getStationId());
-    http.addHeader("X-Device-SKU", FW_SKU);
-    // Heartbeat data
-    http.addHeader("X-Uptime", String(millis() / 1000));
-    http.addHeader("X-Free-Heap", String(ESP.getFreeHeap()));
-    http.addHeader("X-WiFi-RSSI", String(WiFi.RSSI()));
-    // Send capabilities as JSON header (shared builder)
-    {
-        String capsJson = apiClient.buildCapabilitiesJson();
+    http.setTimeout(API_TIMEOUT_MS);
 
-        // Augment with live printer state (merge into existing printer object)
+    // Build POST body with heartbeat + capabilities (avoids header size limits)
+    JsonDocument doc;
+    doc["version"] = FW_VERSION;
+    doc["sku"] = FW_SKU;
+    doc["hardwareId"] = apiClient.getStationId();
+    doc["uptime"] = millis() / 1000;
+    doc["freeHeap"] = ESP.getFreeHeap();
+    doc["wifiRssi"] = WiFi.RSSI();
+
+    // Capabilities
+    {
+        JsonDocument capsDoc;
+        deserializeJson(capsDoc, apiClient.buildCapabilitiesJson());
+
+        // Augment with live printer state
         if (labelPrinter.isConnected()) {
-            JsonDocument capsDoc;
-            deserializeJson(capsDoc, capsJson);
             const auto& ps = labelPrinter.getState();
             JsonObject p = capsDoc["printer"];
             p["transport"] = "BLE";
@@ -84,16 +87,16 @@ void otaCheckNow() {
             }
             p["paperLoaded"] = ps.paperLoaded;
             p["coverClosed"] = ps.coverClosed;
-            capsJson = "";
-            serializeJson(capsDoc, capsJson);
         }
 
-        http.addHeader("X-Capabilities", capsJson);
+        doc["capabilities"] = capsDoc;
     }
-    http.setTimeout(API_TIMEOUT_MS);
-    Serial.printf("[OTA] Sending GET... Heap: %u\n", ESP.getFreeHeap());
 
-    int httpCode = http.GET();
+    String payload;
+    serializeJson(doc, payload);
+    Serial.printf("[OTA] Sending POST (%d bytes)... Heap: %u\n", payload.length(), ESP.getFreeHeap());
+
+    int httpCode = http.POST(payload);
     Serial.printf("[OTA] Response: %d Heap: %u\n", httpCode, ESP.getFreeHeap());
 
     if (httpCode != 200) {
@@ -105,28 +108,28 @@ void otaCheckNow() {
     String body = http.getString();
     http.end();
 
-    JsonDocument doc;
-    if (deserializeJson(doc, body)) {
+    JsonDocument respDoc;
+    if (deserializeJson(respDoc, body)) {
         Serial.println("[OTA] Parse error");
         return;
     }
 
     // Apply device config if present
-    if (doc.containsKey("deviceConfig")) {
+    if (respDoc.containsKey("deviceConfig")) {
         String configStr;
-        serializeJson(doc["deviceConfig"], configStr);
+        serializeJson(respDoc["deviceConfig"], configStr);
         deviceConfig.applyFromJson(configStr.c_str());
     }
 
-    bool updateAvailable = doc["updateAvailable"] | false;
+    bool updateAvailable = respDoc["updateAvailable"] | false;
     if (!updateAvailable) {
         Serial.println("[OTA] Up to date");
         return;
     }
 
-    const char* newVersion = doc["version"];
-    const char* binUrl = doc["url"];
-    const char* md5 = doc["md5"];
+    const char* newVersion = respDoc["version"];
+    const char* binUrl = respDoc["url"];
+    const char* md5 = respDoc["md5"];
 
     if (!binUrl) {
         Serial.println("[OTA] No binary URL in response");
@@ -154,9 +157,11 @@ void otaCheckNow() {
 
     httpUpdate.rebootOnUpdate(true);
 
-    // Use WiFiClientSecure for HTTPS
+    // Use WiFiClientSecure for HTTPS — Azure Blob Storage uses Microsoft's
+    // own cert chain (DigiCert Baltimore / Microsoft RSA TLS), not our API's
+    // root CA. Binary integrity is verified via MD5 hash from the API response.
     WiFiClientSecure client;
-    client.setInsecure();  // Skip cert validation — MD5 hash verifies integrity
+    client.setInsecure();
 
     // Build URL with MD5 for verification
     String updateUrl = String(binUrl);

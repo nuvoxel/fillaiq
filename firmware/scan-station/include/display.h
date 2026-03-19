@@ -29,7 +29,9 @@ public:
                 const ScanResponse* serverData,
                 const DistanceData* distance,
                 const ColorData* color,
-                uint8_t statusIcons = 0);
+                uint8_t statusIcons = 0,
+                const char* sessionUrl = nullptr,
+                bool hasPrinter = false);
     void showMessage(const char* line1, const char* line2 = nullptr);
     void showBootScreen(const char* version);
     void addBootItem(const char* name, bool found);

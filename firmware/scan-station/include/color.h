@@ -18,7 +18,17 @@
 class ColorSensor {
 public:
     void begin();           // Auto-detect and init
-    bool read(ColorData& data);  // Read into unified struct
+    bool read(ColorData& data);  // Blocking read (for scan trigger)
+
+    // Non-blocking async read (for dashboard — avoids blocking main loop)
+    void startRead();       // Trigger measurement (~1ms I2C write)
+    bool isReady();         // Check if measurement complete (~1ms I2C read)
+    bool finishRead(ColorData& data);  // Read result (~2-5ms I2C read)
+
+    // Ambient light baseline (measured at startup with empty platform)
+    void calibrateAmbient();     // Take ambient reading to subtract from scans
+    const ColorData& getAmbient() const { return _ambient; }
+    bool hasAmbient() const { return _ambient.valid; }
 
     ColorSensorType getType();
     bool isConnected();
@@ -27,6 +37,8 @@ public:
 private:
     ColorSensorType _type;
     bool _connected;
+    bool _asyncActive = false;
+    ColorData _ambient;         // Ambient baseline (empty platform, no object)
 
     bool _initAS7341();
     bool _initAS7343();

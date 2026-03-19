@@ -81,7 +81,7 @@ struct NfcTaskResult {
     unsigned long lastSeen;
     bool hasData;           // tagData is valid
     bool connected;         // NFC reader detected
-    String uidString;       // cached UID string
+    char uidString[26];     // Fixed buffer (no heap alloc): "XX:XX:XX:XX:XX:XX:XX:XX\0"
 };
 
 static NfcTaskResult nfcResult;
@@ -211,7 +211,7 @@ static void nfcTask(void* param) {
                 memcpy(nfcResult.uid, uid, uidLen);
                 nfcResult.uidLen = uidLen;
                 nfcResult.lastSeen = millis();
-                nfcResult.uidString = nfcScanner.getUidString();
+                strncpy(nfcResult.uidString, nfcScanner.getUidString().c_str(), sizeof(nfcResult.uidString) - 1);
 
                 if (isNew) {
                     nfcResult.tagIsNew = true;
@@ -227,7 +227,7 @@ static void nfcTask(void* param) {
                     nfcResult.tagPresent = false;
                     nfcResult.hasData = false;
                     nfcResult.uidLen = 0;
-                    nfcResult.uidString = "";
+                    nfcResult.uidString[0] = '\0';
                 }
             }
 
@@ -612,7 +612,7 @@ struct NfcSnapshot {
     uint8_t uidLen;
     bool hasData;
     TagData tagData;
-    String uidString;
+    char uidString[26];  // Fixed buffer: 8 bytes * 3 chars + null (no heap alloc)
     bool connected;
 };
 static NfcSnapshot nfcSnap;
@@ -625,7 +625,8 @@ void snapshotNfc() {
         nfcSnap.uidLen = nfcResult.uidLen;
         nfcSnap.hasData = nfcResult.hasData;
         nfcSnap.connected = nfcResult.connected;
-        nfcSnap.uidString = nfcResult.uidString;
+        strncpy(nfcSnap.uidString, nfcResult.uidString, sizeof(nfcSnap.uidString) - 1);
+        nfcSnap.uidString[sizeof(nfcSnap.uidString) - 1] = '\0';
         if (nfcResult.hasData) {
             nfcSnap.tagData = nfcResult.tagData;
         }
@@ -635,6 +636,40 @@ void snapshotNfc() {
         }
         xSemaphoreGive(nfcResult.mutex);
     }
+}
+
+// -- Trigger a scan (snapshot sensors + enter SUBMITTING state) --
+
+void triggerScan() {
+    unsigned long now = millis();
+    currentScan.clear_data();
+    currentScan.timestamp = now;
+    currentScan.weight.grams = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
+    currentScan.weight.stable = weightSnap.stable;
+    currentScan.weight.valid = true;
+
+    if (nfcSnap.tagPresent) {
+        currentScan.nfcPresent = true;
+        strncpy(currentScan.nfcUid, nfcSnap.uidString, sizeof(currentScan.nfcUid) - 1);
+        currentScan.nfcUidLen = nfcSnap.uidLen;
+        currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
+    }
+
+    if (colorSensor.isConnected()) {
+        ColorData color;
+        if (colorSensor.read(color)) {
+            currentScan.color = color;
+        }
+    }
+
+    if (distanceSensor.isConnected()) {
+        DistanceData dist;
+        if (distanceSensor.read(dist)) {
+            currentScan.height = dist;
+        }
+    }
+
+    enterState(SCAN_SUBMITTING);
 }
 
 // ============================================================
@@ -653,38 +688,7 @@ void updateScanState() {
 #ifdef BOARD_SCAN_TOUCH
         if (display.scanButtonPressed) {
             display.scanButtonPressed = false;
-            // Snapshot all sensor data
-            currentScan.clear_data();
-            currentScan.timestamp = now;
-            currentScan.weight.grams = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
-            currentScan.weight.stable = weightSnap.stable;
-            currentScan.weight.valid = true;
-
-            // Copy NFC data from snapshot
-            if (nfcSnap.tagPresent) {
-                currentScan.nfcPresent = true;
-                strncpy(currentScan.nfcUid, nfcSnap.uidString.c_str(), sizeof(currentScan.nfcUid) - 1);
-                currentScan.nfcUidLen = nfcSnap.uidLen;
-                currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
-            }
-
-            // Read color sensor now
-            if (colorSensor.isConnected()) {
-                ColorData color;
-                if (colorSensor.read(color)) {
-                    currentScan.color = color;
-                }
-            }
-
-            // Read TOF
-            if (distanceSensor.isConnected()) {
-                DistanceData dist;
-                if (distanceSensor.read(dist)) {
-                    currentScan.height = dist;
-                }
-            }
-
-            enterState(SCAN_SUBMITTING);
+            triggerScan();
         }
 #endif
         break;
@@ -854,29 +858,46 @@ void updateDisplayAndLed() {
         const ScanResponse* serverData = nullptr;
         display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
 
-        // Read sensors for dashboard display (round-robin to avoid blocking)
+        // Non-blocking sensor reads for dashboard.
+        // Color sensor is async (AS7341 integration takes 100-500ms).
+        // TOF is already non-blocking (continuous mode + dataReady()).
+        // Env sensor reads are fast (<15ms) and infrequent.
         static DistanceData cachedDist = {};
         static ColorData cachedColor = {};
         static EnvData cachedEnv = {};
-        static uint8_t dashSensorSlot = 0;
+        enum DashSensorState : uint8_t { DASH_START_COLOR, DASH_WAIT_COLOR, DASH_TOF, DASH_ENV };
+        static DashSensorState dashState = DASH_START_COLOR;
 
-        switch (dashSensorSlot) {
-            case 0:
+        switch (dashState) {
+            case DASH_START_COLOR:
+                if (colorSensor.isConnected()) {
+                    colorSensor.startRead();  // ~1ms I2C write
+                    dashState = DASH_WAIT_COLOR;
+                } else {
+                    dashState = DASH_TOF;
+                }
+                break;
+            case DASH_WAIT_COLOR:
+                if (colorSensor.isReady()) {  // ~1ms I2C status check
+                    colorSensor.finishRead(cachedColor);  // ~2-5ms I2C data read
+                    dashState = DASH_TOF;
+                }
+                // else: still integrating — try again next loop (no blocking)
+                break;
+            case DASH_TOF:
                 if (distanceSensor.isConnected()) distanceSensor.read(cachedDist);
+                dashState = DASH_ENV;
                 break;
-            case 1:
-                if (colorSensor.isConnected()) colorSensor.read(cachedColor);
-                break;
-            case 2:
+            case DASH_ENV:
                 if (envSensor.isConnected()) envSensor.read(cachedEnv);
+                dashState = DASH_START_COLOR;
                 break;
         }
-        dashSensorSlot = (dashSensorSlot + 1) % 3;
 
         // Build NFC info string — show reading progress
         static char nfcInfoBuf[80];
         const char* nfcInfo = nullptr;
-        if (nfcSnap.tagPresent && nfcSnap.uidString.length() > 0) {
+        if (nfcSnap.tagPresent && nfcSnap.uidString[0] != '\0') {
             if (nfcSnap.hasData && nfcSnap.tagData.valid) {
                 const TagData& td = nfcSnap.tagData;
                 const char* typeName = tagTypeName(td.type);
@@ -940,22 +961,19 @@ void updateDisplayAndLed() {
         display.updateDashboard(w, stable, nfcInfo, colorInfo, cR, cG, cB,
                                  distMm, tempC, humidity, pressureHPa, true);
     } else {
-        // For SCAN_SUBMITTING or SCAN_RESULT, just update the display state
+        // For SCAN_SUBMITTING or SCAN_RESULT — only rebuild screen on state change,
+        // not every frame (rebuilding destroys buttons and breaks touch events)
         const ScanResponse* serverData = lastResponse.scanId[0] ? &lastResponse : nullptr;
 
-        // Build session URL for QR code
+        // Build session URL for result screen QR code
         static char sessionUrl[128] = {0};
         if (scanState == SCAN_RESULT && lastResponse.sessionId[0]) {
             snprintf(sessionUrl, sizeof(sessionUrl), "%s/scan/%s",
                      apiClient.getApiUrl(), lastResponse.sessionId);
         }
 
-        // Only transition screen on state change
-        if (scanState == SCAN_RESULT && sessionUrl[0]) {
-            display.showResult(serverData, w, sessionUrl);
-        } else {
-            display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
-        }
+        display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons,
+                       sessionUrl, labelPrinter.isConnected());
     }
 
     // LED backlight based on state (only change mode on state transitions)
@@ -1132,7 +1150,7 @@ void printScanDetails() {
     Serial.printf("  Weight: %.1fg %s\n", w, weightSnap.stable ? "STABLE" : "unstable");
 
     if (nfcSnap.tagPresent) {
-        Serial.printf("  NFC: %s", nfcSnap.uidString.c_str());
+        Serial.printf("  NFC: %s", nfcSnap.uidString);
         if (nfcSnap.hasData) {
             const TagData& td = nfcSnap.tagData;
             if (td.type == TAG_MIFARE_CLASSIC)
@@ -1236,37 +1254,8 @@ void handleSerial() {
     }
     else if (line == "scan") {
         if (scanState == SCAN_IDLE) {
-            // Trigger a scan (same as pressing the Scan button on touch)
-            unsigned long now = millis();
-            currentScan.clear_data();
-            currentScan.timestamp = now;
-            currentScan.weight.grams = weightSnap.stable ? weightSnap.stableWeight : weightSnap.weight;
-            currentScan.weight.stable = weightSnap.stable;
-            currentScan.weight.valid = true;
-
-            if (nfcSnap.tagPresent) {
-                currentScan.nfcPresent = true;
-                strncpy(currentScan.nfcUid, nfcSnap.uidString.c_str(), sizeof(currentScan.nfcUid) - 1);
-                currentScan.nfcUidLen = nfcSnap.uidLen;
-                currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
-            }
-
-            if (colorSensor.isConnected()) {
-                ColorData color;
-                if (colorSensor.read(color)) {
-                    currentScan.color = color;
-                }
-            }
-
-            if (distanceSensor.isConnected()) {
-                DistanceData dist;
-                if (distanceSensor.read(dist)) {
-                    currentScan.height = dist;
-                }
-            }
-
             Serial.println("[Scan] Triggered from serial");
-            enterState(SCAN_SUBMITTING);
+            triggerScan();
         } else {
             printScanDetails();
         }
@@ -1275,7 +1264,7 @@ void handleSerial() {
         // Print NFC status from snapshot (thread-safe)
         Serial.println("=== NFC ===");
         Serial.printf("  Connected: %s\n", nfcSnap.connected ? "YES" : "no");
-        Serial.printf("  Tag: %s\n", nfcSnap.tagPresent ? nfcSnap.uidString.c_str() : "none");
+        Serial.printf("  Tag: %s\n", nfcSnap.tagPresent ? nfcSnap.uidString : "none");
         if (nfcSnap.tagPresent && nfcSnap.hasData) {
             const TagData& td = nfcSnap.tagData;
             Serial.printf("  Tag data: %d %s\n",
@@ -1591,18 +1580,30 @@ void setup() {
     deviceIdentity.begin();
 
     // NFC reader (SPI init happens in begin() -- still on main thread during setup)
+    // Turn off LEDs during NFC init — RF field needs clean power
     display.setBootStatus("NFC init...");
+    backlight.off();
+    delay(50);
     initNfc();
+    backlight.color(0, 0, 255);  // Restore blue
     display.addBootItem("NFC", nfcScanner.isConnected());
 
     // TOF distance sensor
     display.setBootStatus("TOF init...");
     distanceSensor.begin();
+    if (distanceSensor.isConnected()) {
+        display.setBootStatus("TOF baseline...");
+        distanceSensor.calibrateBaseline();
+    }
     display.addBootItem("TOF", distanceSensor.isConnected());
 
     // Color sensor (auto-detect)
     display.setBootStatus("Color init...");
     colorSensor.begin();
+    if (colorSensor.isConnected()) {
+        display.setBootStatus("Color baseline...");
+        colorSensor.calibrateAmbient();
+    }
     {
         const char* colorNames[] = { nullptr, "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331" };
         bool found = colorSensor.isConnected();
@@ -1920,11 +1921,8 @@ void loop() {
                 float factor = (float)(raw / 100.0);
                 scale.setScale(factor);
                 scale.resumeTask();
-                // Save to NVS
-                Preferences prefs;
-                prefs.begin("cal", false);
-                prefs.putFloat("factor", factor);
-                prefs.end();
+                // Save to NVS (same key as serial calibration)
+                saveCalibration(factor);
                 char msg[48];
                 snprintf(msg, sizeof(msg), "Factor: %.4f", factor);
                 display.showCalibrate("Calibrated!", msg);
@@ -1972,7 +1970,8 @@ void loop() {
     nfcSnap.connected = nfcScanner.isConnected();
     if (nfcSnap.tagPresent) {
         nfcScanner.getUid(nfcSnap.uid, &nfcSnap.uidLen);
-        nfcSnap.uidString = nfcScanner.getUidString();
+        strncpy(nfcSnap.uidString, nfcScanner.getUidString().c_str(), sizeof(nfcSnap.uidString) - 1);
+        nfcSnap.uidString[sizeof(nfcSnap.uidString) - 1] = '\0';
         nfcSnap.hasData = nfcScanner.hasTagData();
         if (nfcSnap.hasData) {
             nfcSnap.tagData = nfcScanner.getTagData();
@@ -2184,16 +2183,16 @@ void loop() {
                     if (td.type == TAG_MIFARE_CLASSIC)
                         pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
                             "NFC: %s %s\n %d/%d sectors\n",
-                            typeName, nfcSnap.uidString.c_str(),
+                            typeName, nfcSnap.uidString,
                             td.sectors_read, TagData::NUM_SECTORS);
                     else if (td.type == TAG_ISO15693)
                         pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
                             "NFC: %s %s\n %d blocks\n",
-                            typeName, nfcSnap.uidString.c_str(), td.pages_read);
+                            typeName, nfcSnap.uidString, td.pages_read);
                     else
                         pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
                             "NFC: %s %s\n %d pages\n",
-                            typeName, nfcSnap.uidString.c_str(), td.pages_read);
+                            typeName, nfcSnap.uidString, td.pages_read);
                 } else {
                     pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: no tag\n");
                 }
@@ -2217,18 +2216,13 @@ void loop() {
             scanStateName(scanState), w, weightSnap.stable ? " STABLE" : "");
 
         if (nfcSnap.tagPresent) {
-            Serial.printf(" | NFC:%s", nfcSnap.uidString.c_str());
+            Serial.printf(" | NFC:%s", nfcSnap.uidString);
             if (lastResponse.material[0])
                 Serial.printf(" [%s]", lastResponse.material);
         }
 
         if (lastResponse.identified && lastResponse.itemName[0])
             Serial.printf(" | %s", lastResponse.itemName);
-
-        static EnvData envData;
-        if (envSensor.read(envData)) {
-            Serial.printf(" | %.1fC %.0f%%", envData.temperatureC, envData.humidity);
-        }
 
         Serial.println();
     }

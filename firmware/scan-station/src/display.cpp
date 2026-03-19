@@ -2,7 +2,9 @@
 #include <SPI.h>
 #include <lvgl.h>
 #include <qrcode.h>
+#include <esp_heap_caps.h>
 #include "api_client.h"
+#include "distance.h"
 
 // Custom Font Awesome 6 icon font (14px)
 // Custom FA6 icon font — included directly to avoid linkage issues
@@ -42,6 +44,9 @@ static lv_display_t* lvDisp = nullptr;
 #define GREEN_HEX         0x16A34A
 #define RED_HEX           0xDC2626
 #define WHITE_HEX         0xFFFFFF
+
+// Dynamic QR canvas buffer (freed on screen clear)
+static uint8_t* qrCanvasBuf = nullptr;
 
 static lv_color_t brandOrange;
 static lv_color_t darkBg;
@@ -187,14 +192,27 @@ void Display::begin() {
     lv_st7789_set_gap(lvDisp, 0, 20);  // 1.69" display VRAM offset
 #endif
 
-    // Allocate draw buffers — partial mode, 20 rows at a time
+    // Allocate draw buffers — partial mode, 40 rows at a time
+    // Larger buffers = fewer SPI flush calls per frame = faster rendering
     // 320 = max width (ILI9341 landscape), 2 bytes per pixel (RGB565)
-    #define DRAW_BUF_LINES 20
+    #define DRAW_BUF_LINES 40
     #define DRAW_BUF_SIZE  (320 * DRAW_BUF_LINES * 2)
+#ifdef BOARD_HAS_PSRAM
+    // Use PSRAM for draw buffers to keep SRAM free for stack/heap
+    static uint8_t* buf1 = (uint8_t*)heap_caps_aligned_alloc(4, DRAW_BUF_SIZE, MALLOC_CAP_SPIRAM);
+    static uint8_t* buf2 = (uint8_t*)heap_caps_aligned_alloc(4, DRAW_BUF_SIZE, MALLOC_CAP_SPIRAM);
+#else
     static uint8_t __attribute__((aligned(4))) buf1[DRAW_BUF_SIZE];
     static uint8_t __attribute__((aligned(4))) buf2[DRAW_BUF_SIZE];
-    lv_display_set_buffers(lvDisp, buf1, buf2, sizeof(buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
-    Serial.printf("  LVGL bufs: %d bytes x2 @ %p, %p\n", DRAW_BUF_SIZE, buf1, buf2);
+#endif
+    lv_display_set_buffers(lvDisp, buf1, buf2, DRAW_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    Serial.printf("  LVGL bufs: %d bytes x2 @ %p, %p%s\n", DRAW_BUF_SIZE, buf1, buf2,
+#ifdef BOARD_HAS_PSRAM
+        " (PSRAM)"
+#else
+        ""
+#endif
+    );
     Serial.flush();
 
     // Cache colors (matched to web brand palette)
@@ -231,11 +249,16 @@ void Display::tick() {
 // ── Helpers ──────────────────────────────────────────────────
 
 void Display::clearScreen() {
+    // Free dynamically allocated QR canvas buffer before destroying objects
+    if (qrCanvasBuf) {
+        free(qrCanvasBuf);
+        qrCanvasBuf = nullptr;
+    }
+
     lv_obj_t* scr = lv_screen_active();
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, darkBg, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_invalidate(scr);
 
     _screen = scr;
     _iconWifi = _iconPaired = _iconPrinter = nullptr;
@@ -390,11 +413,11 @@ void Display::buildIdleScreen(uint8_t icons) {
 #ifdef BOARD_SCAN_TOUCH
     lv_obj_t* gearBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(gearBtn);
-    lv_obj_set_size(gearBtn, 40, 40);
-    lv_obj_align(gearBtn, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
+    lv_obj_set_size(gearBtn, 48, 48);
+    lv_obj_align(gearBtn, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
     lv_obj_set_style_bg_color(gearBtn, lv_color_hex(0x333333), 0);
     lv_obj_set_style_bg_opa(gearBtn, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(gearBtn, 8, 0);
+    lv_obj_set_style_radius(gearBtn, 10, 0);
     lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t* gearIcon = lv_label_create(gearBtn);
@@ -435,14 +458,15 @@ void Display::buildDashboardScreen(uint8_t icons) {
     createStatusBar(_screen, icons);
 
     // Settings gear button (top-right area, below status bar)
+    // 48x48 minimum touch target for reliable tap detection
 #ifdef BOARD_SCAN_TOUCH
     lv_obj_t* gearBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(gearBtn);
-    lv_obj_set_size(gearBtn, 36, 36);
-    lv_obj_align(gearBtn, LV_ALIGN_TOP_RIGHT, -6, 30);
+    lv_obj_set_size(gearBtn, 48, 48);
+    lv_obj_align(gearBtn, LV_ALIGN_TOP_RIGHT, -2, 26);
     lv_obj_set_style_bg_color(gearBtn, lv_color_hex(0x2A2A2A), 0);
     lv_obj_set_style_bg_opa(gearBtn, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(gearBtn, 8, 0);
+    lv_obj_set_style_radius(gearBtn, 10, 0);
     lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t* gearIcon = lv_label_create(gearBtn);
@@ -594,7 +618,7 @@ void Display::updateDashboard(float weight, bool stable,
     if (_dashTofLabel) {
         if (distMm >= 0) {
             char dStr[24];
-            float heightMm = TOF_ARM_HEIGHT_MM - distMm;
+            float heightMm = distanceSensor.getArmHeight() - distMm;
             if (heightMm < 0) heightMm = 0;
             snprintf(dStr, sizeof(dStr), "H: %.0f mm", heightMm);
             lv_label_set_text(_dashTofLabel, dStr);
@@ -750,9 +774,14 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                 lv_obj_align(qrBg, LV_ALIGN_TOP_RIGHT, -8, 48);
 
                 lv_obj_t* canvasObj = lv_canvas_create(qrBg);
-                static uint8_t canvasBuf[150 * 150]; // enough for larger QR
-                memset(canvasBuf, 0xFF, sizeof(canvasBuf));
-                lv_canvas_set_buffer(canvasObj, canvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
+                // Allocate QR canvas dynamically (PSRAM preferred) instead of 22.5KB static buffer
+                size_t canvasBufSize = totalSize * totalSize;
+                if (qrCanvasBuf) { free(qrCanvasBuf); qrCanvasBuf = nullptr; }
+                qrCanvasBuf = (uint8_t*)heap_caps_malloc(canvasBufSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (!qrCanvasBuf) qrCanvasBuf = (uint8_t*)malloc(canvasBufSize);  // Fallback to SRAM
+                if (qrCanvasBuf) {
+                memset(qrCanvasBuf, 0xFF, canvasBufSize);
+                lv_canvas_set_buffer(canvasObj, qrCanvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
                 lv_obj_align(canvasObj, LV_ALIGN_CENTER, 0, 0);
 
                 // Draw QR modules
@@ -769,6 +798,7 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                         }
                     }
                 }
+                } // if (qrCanvasBuf)
             }
         }
     }
@@ -814,8 +844,7 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
     lv_obj_center(doneLbl);
 #endif
 
-    lv_obj_invalidate(lv_screen_active());
-    lv_refr_now(NULL);
+    // No lv_refr_now — let lv_timer_handler() handle it on next tick
 }
 
 void Display::showResult(const ScanResponse* resp, float weight, const char* sessionUrl) {
@@ -870,7 +899,7 @@ void Display::buildUnknownScreen(float weight, bool stable,
     _heightLabel = makeLabel(_screen, &lv_font_montserrat_14, gray,
                              LV_ALIGN_TOP_LEFT, 100, 90, "");
     if (dist && dist->valid) {
-        float heightMm = TOF_ARM_HEIGHT_MM - dist->distanceMm;
+        float heightMm = distanceSensor.getArmHeight() - dist->distanceMm;
         if (heightMm < 0) heightMm = 0;
         char hStr[24];
         snprintf(hStr, sizeof(hStr), "H: %.0f mm", heightMm);
@@ -980,7 +1009,7 @@ void Display::buildIdentifiedScreen(float weight, bool stable,
                              LV_ALIGN_TOP_LEFT, 90, 75, wStr);
 
     if (dist && dist->valid) {
-        float spoolW = TOF_ARM_HEIGHT_MM - dist->distanceMm;
+        float spoolW = distanceSensor.getArmHeight() - dist->distanceMm;
         if (spoolW > 0) {
             char sStr[24];
             snprintf(sStr, sizeof(sStr), "W: %.0f mm", spoolW);
@@ -1209,18 +1238,18 @@ void Display::buildMenuScreen() {
     lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(list, 6, 0);
 
-    makeMenuBtn(list, LV_SYMBOL_SD_CARD, "Format SD Card",
-                onMenuItemClick, (void*)(intptr_t)0);
-    makeMenuBtn(list, LV_SYMBOL_WIFI, "WiFi Setup",
-                onMenuItemClick, (void*)(intptr_t)1);
     makeMenuBtn(list, LV_SYMBOL_REFRESH, "Tare Scale",
                 onMenuItemClick, (void*)(intptr_t)2);
     makeMenuBtn(list, LV_SYMBOL_EYE_OPEN, "Raw Sensors",
                 onMenuItemClick, (void*)(intptr_t)3);
+    makeMenuBtn(list, LV_SYMBOL_WIFI, "WiFi Setup",
+                onMenuItemClick, (void*)(intptr_t)1);
     makeMenuBtn(list, LV_SYMBOL_EDIT, "Calibrate Scale",
                 onMenuItemClick, (void*)(intptr_t)4);
     makeMenuBtn(list, LV_SYMBOL_POWER, "Reboot",
                 onMenuItemClick, (void*)(intptr_t)5);
+    makeMenuBtn(list, LV_SYMBOL_SD_CARD, "Format SD Card",
+                onMenuItemClick, (void*)(intptr_t)0);
 
     // Device info line
     char info[64];
@@ -1243,8 +1272,6 @@ void Display::buildMenuScreen() {
     lv_obj_set_style_text_font(backLbl, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(backLbl, lv_color_hex(WHITE_HEX), 0);
     lv_obj_center(backLbl);
-
-    lv_refr_now(NULL);
 }
 
 // ── Raw Sensors Screen ───────────────────────────────────────
@@ -1488,7 +1515,9 @@ void Display::update(ScanState state, float weight, bool stable,
                      const ScanResponse* serverData,
                      const DistanceData* distance,
                      const ColorData* color,
-                     uint8_t statusIcons) {
+                     uint8_t statusIcons,
+                     const char* sessionUrl,
+                     bool hasPrinter) {
     if (!_ready) return;
 
     if (isnan(weight) || isinf(weight)) weight = 0.0f;
@@ -1517,11 +1546,8 @@ void Display::update(ScanState state, float weight, bool stable,
         switch (state) {
         case SCAN_IDLE:
             buildDashboardScreen(statusIcons);
-            lv_obj_invalidate(lv_screen_active());
-            lv_refr_now(NULL);
             break;
         case SCAN_SUBMITTING:
-            // Show submitting message — screen will be replaced by result
             clearScreen();
             _currentScreen = SCR_SUBMITTING;
             createStatusBar(_screen, statusIcons);
@@ -1529,11 +1555,18 @@ void Display::update(ScanState state, float weight, bool stable,
                       LV_ALIGN_CENTER, 0, -20, "Submitting...");
             makeLabel(_screen, &lv_font_montserrat_14, gray,
                       LV_ALIGN_CENTER, 0, 15, "Sending scan data");
-            lv_obj_invalidate(lv_screen_active());
-            lv_refr_now(NULL);
             break;
         case SCAN_RESULT:
-            buildResultScreen(serverData, weight, nullptr, statusIcons);
+            buildResultScreen(serverData, weight, sessionUrl, statusIcons);
+            // Hide print button if no printer connected
+            if (_resultPrintBtn && !hasPrinter) {
+                lv_obj_add_flag(_resultPrintBtn, LV_OBJ_FLAG_HIDDEN);
+                // Make Done button full width when Print is hidden
+                if (_resultDoneBtn) {
+                    lv_obj_set_width(_resultDoneBtn, _screenW - 24);
+                    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_MID, 0, -8);
+                }
+            }
             break;
         default:
             break;
