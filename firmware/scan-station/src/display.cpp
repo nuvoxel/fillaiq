@@ -3,7 +3,23 @@
 #include <lvgl.h>
 #include <qrcode.h>
 #include "api_client.h"
-// Icons use LVGL built-in Font Awesome symbols (LV_SYMBOL_*)
+
+// Custom Font Awesome 6 icon font (14px)
+// Custom FA6 icon font — included directly to avoid linkage issues
+#include "fa_icons_14.cpp"
+
+// FA6 icon codepoints (UTF-8 encoded)
+#define FA_TOWER_BROADCAST  "\xEF\x94\x99"   // 0xF519 — NFC
+#define FA_WEIGHT_SCALE     "\xEF\x89\x8E"   // 0xF24E — Scale
+#define FA_RULER            "\xEF\x95\x85"   // 0xF545 — TOF
+#define FA_PALETTE          "\xEF\x94\xBF"   // 0xF53F — Color
+#define FA_THERMOMETER      "\xEF\x8B\x89"   // 0xF2C9 — Environment
+#define FA_PRINT            "\xEF\x80\xAF"   // 0xF02F — Printer
+#define FA_WIFI             "\xEF\x87\xAB"   // 0xF1EB — WiFi
+#define FA_SD_CARD          "\xEF\x9F\x82"   // 0xF7C2 — SD card
+#define FA_CHECK            "\xEF\x80\x8C"   // 0xF00C — Paired/OK
+#define FA_GEAR             "\xEF\x80\x93"   // 0xF013 — Settings
+#define FA_VOLUME_MUTE      "\xEF\x9A\xA9"   // 0xF6A9 — Audio/Mute
 
 // LVGL native display drivers
 #include "src/drivers/display/lcd/lv_lcd_generic_mipi.h"
@@ -246,7 +262,7 @@ static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, lv_color_t c
 static lv_obj_t* makeSymbol(lv_obj_t* parent, const char* symbol, lv_color_t color) {
     lv_obj_t* lbl = lv_label_create(parent);
     lv_label_set_text(lbl, symbol);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lbl, &fa_icons_14, 0);
     lv_obj_set_style_text_color(lbl, color, 0);
     return lbl;
 }
@@ -264,13 +280,13 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
         lv_obj_set_style_pad_column(sensorBar, 4, 0);
 
         struct { uint8_t flag; const char* symbol; } sensors[] = {
-            { SENSOR_NFC,   LV_SYMBOL_BLUETOOTH },
-            { SENSOR_SCALE, LV_SYMBOL_BARS      },
-            { SENSOR_TOF,   LV_SYMBOL_GPS       },
-            { SENSOR_COLOR, LV_SYMBOL_TINT      },
-            { SENSOR_ENV,   LV_SYMBOL_CHARGE    },
-            { SENSOR_SD,    LV_SYMBOL_SD_CARD   },
-            { SENSOR_AUDIO, LV_SYMBOL_AUDIO     },
+            { SENSOR_NFC,   FA_TOWER_BROADCAST },
+            { SENSOR_SCALE, FA_WEIGHT_SCALE    },
+            { SENSOR_TOF,   FA_RULER           },
+            { SENSOR_COLOR, FA_PALETTE         },
+            { SENSOR_ENV,   FA_THERMOMETER     },
+            { SENSOR_SD,    FA_SD_CARD         },
+            { SENSOR_AUDIO, FA_VOLUME_MUTE     },
         };
         for (auto& s : sensors) {
             if (_sensorFlags & s.flag) {
@@ -289,11 +305,11 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
     lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(bar, 4, 0);
 
-    _iconWifi = makeSymbol(bar, LV_SYMBOL_WIFI, (icons & ICON_WIFI) ? green : grayLight);
+    _iconWifi = makeSymbol(bar, FA_WIFI, (icons & ICON_WIFI) ? green : grayLight);
 
-    _iconPaired = makeSymbol(bar, LV_SYMBOL_OK, (icons & ICON_PAIRED) ? green : grayLight);
+    _iconPaired = makeSymbol(bar, FA_CHECK, (icons & ICON_PAIRED) ? green : grayLight);
 
-    _iconPrinter = makeSymbol(bar, LV_SYMBOL_EJECT, (icons & ICON_PRINTER) ? green : grayLight);
+    _iconPrinter = makeSymbol(bar, FA_PRINT, (icons & ICON_PRINTER) ? green : grayLight);
     if (!(icons & ICON_PRINTER)) lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
 
     return bar;
@@ -382,8 +398,8 @@ void Display::buildIdleScreen(uint8_t icons) {
     lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t* gearIcon = lv_label_create(gearBtn);
-    lv_label_set_text(gearIcon, LV_SYMBOL_SETTINGS);
-    lv_obj_set_style_text_font(gearIcon, &lv_font_montserrat_20, 0);
+    lv_label_set_text(gearIcon, FA_GEAR);
+    lv_obj_set_style_text_font(gearIcon, &fa_icons_14, 0);
     lv_obj_set_style_text_color(gearIcon, grayLight, 0);
     lv_obj_center(gearIcon);
 #endif
