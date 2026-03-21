@@ -1838,9 +1838,14 @@ void setup() {
         display.addBootItem("WiFi", true);
         delay(500);
 
-        // Check if we need to pair with the backend
-        if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
-            startPairing();
+        // Verify existing pairing or start new pairing
+        if (apiClient.hasApiUrl()) {
+            if (apiClient.isPaired()) {
+                apiClient.verifyPairing();
+            }
+            if (!apiClient.isPaired()) {
+                startPairing();
+            }
         }
     } else {
         // Start WiFi AP + captive portal provisioning

@@ -640,15 +640,17 @@ bool ApiClient::verifyPairing() {
     if (!isWiFiConnected() || !isPaired()) return false;
     if (_deviceToken[0] == '\0') return false;
 
-    // Use firmware check endpoint as a lightweight auth probe
-    String url = String(_apiUrl) + "/api/v1/firmware/check?channel=" + FW_CHANNEL + "&version=" + FW_VERSION;
+    // POST to firmware check endpoint — it validates the device token
+    String url = String(_apiUrl) + "/api/v1/firmware/check";
+    String payload = "{\"version\":\"" + String(FW_VERSION) + "\",\"sku\":\"" + String(FW_SKU) + "\"}";
 
     HTTPClient http;
     http.begin(getSecureClient(), url);
+    http.addHeader("Content-Type", "application/json");
     addAuthHeaders(http, _deviceToken, _apiKey);
     http.setTimeout(API_TIMEOUT_MS);
 
-    int httpCode = http.GET();
+    int httpCode = http.POST(payload);
     http.end();
 
     if (httpCode == 401 || httpCode == 403) {
