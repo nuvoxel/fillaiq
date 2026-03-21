@@ -5,1485 +5,236 @@ import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
+import CardActionArea from "@mui/material/CardActionArea";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import TextField from "@mui/material/TextField";
-import Stepper from "@mui/material/Stepper";
-import Step from "@mui/material/Step";
-import StepLabel from "@mui/material/StepLabel";
-import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import CircularProgress from "@mui/material/CircularProgress";
-import Autocomplete from "@mui/material/Autocomplete";
 import Stack from "@mui/material/Stack";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
-import SearchIcon from "@mui/icons-material/Search";
-import PlaceIcon from "@mui/icons-material/Place";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import PrintIcon from "@mui/icons-material/Print";
-import NfcIcon from "@mui/icons-material/Nfc";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import ColorLensIcon from "@mui/icons-material/ColorLens";
-import TextFieldsIcon from "@mui/icons-material/TextFields";
-import SensorsIcon from "@mui/icons-material/Sensors";
-import HistoryIcon from "@mui/icons-material/History";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import ScaleIcon from "@mui/icons-material/Scale";
-import CardActionArea from "@mui/material/CardActionArea";
-import FiberNewIcon from "@mui/icons-material/FiberNew";
-import CloseIcon from "@mui/icons-material/Close";
 import Skeleton from "@mui/material/Skeleton";
-import List from "@mui/material/List";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
-import ListItemIcon from "@mui/material/ListItemIcon";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import ScaleIcon from "@mui/icons-material/Scale";
+import NfcIcon from "@mui/icons-material/Nfc";
+import ThermostatIcon from "@mui/icons-material/Thermostat";
 import { PageHeader } from "@/components/layout/page-header";
-import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
-import { ColorCapture, type CapturedColor } from "@/components/scan/color-capture";
-import { ProductCard } from "@/components/scan/product-card";
-import { SlotPicker } from "@/components/scan/slot-picker";
 import {
-  StationPanel,
-  type StationScanData,
-} from "@/components/scan/station-panel";
-import {
-  lookupProductByBarcode,
-  searchProducts,
-  createIntakeItem,
   listMyScanSessions,
   abandonSession,
 } from "@/lib/actions/scan";
-import {
-  PrintLabelDialog,
-  type PrintLabelItem,
-} from "@/components/labels/print-label-dialog";
-
-const STEPS = ["Identify", "Details", "Location", "Done"];
-
-const PACKAGE_TYPES = [
-  { value: "spool", label: "Spool" },
-  { value: "box", label: "Box" },
-  { value: "bottle", label: "Bottle" },
-  { value: "bag", label: "Bag" },
-  { value: "cartridge", label: "Cartridge" },
-  { value: "other", label: "Other" },
-] as const;
-
-type PackageType = (typeof PACKAGE_TYPES)[number]["value"];
-
-type ProductMatch = {
-  match: string;
-  product: any;
-  brand: any;
-};
 
 export default function ScanPage() {
   const router = useRouter();
-
-  // ── Workflow state ──────────────────────────────────────────────────────────
-  const [activeStep, setActiveStep] = useState(0);
-  const [showCamera, setShowCamera] = useState(false);
-  const [showColorCapture, setShowColorCapture] = useState(false);
-
-  // ── Station ─────────────────────────────────────────────────────────────────
-  const [pairedStation, setPairedStation] = useState<any>(null);
-  const [stationData, setStationData] = useState<StationScanData | null>(null);
-
-  // ── Identification ──────────────────────────────────────────────────────────
-  const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
-  const [barcode, setBarcode] = useState<{
-    value: string;
-    format: string;
-  } | null>(null);
-  const [productMatch, setProductMatch] = useState<ProductMatch | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [lookingUp, setLookingUp] = useState(false);
-
-  // ── Package type ─────────────────────────────────────────────────────────
-  const [packageType, setPackageType] = useState<PackageType | null>(null);
-
-  // ── Color (phone camera) ──────────────────────────────────────────────────
-  const [phoneColor, setPhoneColor] = useState<CapturedColor | null>(null);
-
-  // ── OCR ─────────────────────────────────────────────────────────────────────
-  const [ocrText, setOcrText] = useState<string | null>(null);
-  const [ocrRunning, setOcrRunning] = useState(false);
-
-  // ── Details ─────────────────────────────────────────────────────────────────
-  const [notes, setNotes] = useState("");
-  const [initialWeight, setInitialWeight] = useState("");
-
-  // ── Location ────────────────────────────────────────────────────────────────
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  const [selectedSlotAddress, setSelectedSlotAddress] = useState("");
-
-  // ── Sessions ────────────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<any[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [sessionMode, setSessionMode] = useState<"pick" | "active" | null>(null);
-
-  // ── Result ──────────────────────────────────────────────────────────────────
-  const [intakeResult, setIntakeResult] = useState<any>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showPrintDialog, setShowPrintDialog] = useState(false);
-
-  // ── Load sessions when station changes ────────────────────────────────────
-
-  const loadSessions = useCallback(async (stationId: string) => {
-    setSessionsLoading(true);
-    const result = await listMyScanSessions({ stationId, limit: 20, includeRecent: true });
-    if (result.data) {
-      setSessions(result.data);
-      // If there are active sessions, show the picker
-      const active = result.data.filter((s: any) => s.status === "active");
-      if (active.length > 0 && !selectedSessionId) {
-        setSessionMode("pick");
-      }
-    }
-    setSessionsLoading(false);
-  }, [selectedSessionId]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (pairedStation?.id) {
-      loadSessions(pairedStation.id);
-    } else {
-      setSessions([]);
-      setSessionMode(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pairedStation?.id]);
-
-  const handleSelectSession = useCallback(
-    (session: any) => {
-      setSelectedSessionId(session.id);
-      setSessionMode("active");
-
-      // Pre-fill data from the session
-      if (session.bestWeightG != null) {
-        setInitialWeight(session.bestWeightG.toFixed(1));
+    let mounted = true;
+    (async () => {
+      const result = await listMyScanSessions({ limit: 20, includeRecent: true });
+      if (mounted && result.data) {
+        setSessions(result.data);
       }
-
-      // If session has a matched product, look it up
-      if (session.matchedProductId && session.productName) {
-        setProductMatch({
-          match: session.matchMethod ?? "session",
-          product: {
-            id: session.matchedProductId,
-            name: session.productName,
-          },
-          brand: session.brandName ? { name: session.brandName } : null,
-        });
-      }
-
-      // Pre-fill NFC data
-      if (session.nfcUid) {
-        setStationData((prev) => ({
-          scanEventId: prev?.scanEventId ?? "",
-          sessionId: session.id,
-          weightG: session.bestWeightG ?? prev?.weightG ?? null,
-          weightStable: prev?.weightStable ?? null,
-          nfcPresent: true,
-          nfcUid: session.nfcUid,
-          nfcTagType: prev?.nfcTagType ?? null,
-          nfcTagFormat: session.nfcTagFormat ?? null,
-          nfcParsedData: session.nfcParsedData as Record<string, any> | null,
-          colorHex: session.bestColorHex ?? prev?.colorHex ?? null,
-          colorLabL: session.bestColorLabL ?? prev?.colorLabL ?? null,
-          colorLabA: session.bestColorLabA ?? prev?.colorLabA ?? null,
-          colorLabB: session.bestColorLabB ?? prev?.colorLabB ?? null,
-          spectralData: session.bestSpectralData ?? prev?.spectralData ?? null,
-          heightMm: session.bestHeightMm ?? prev?.heightMm ?? null,
-          autoProduct: prev?.autoProduct ?? null,
-        }));
-      }
-    },
-    []
-  );
-
-  const handleNewSession = useCallback(() => {
-    setSelectedSessionId(null);
-    setSessionMode("active");
+      if (mounted) setLoading(false);
+    })();
+    return () => { mounted = false; };
   }, []);
 
-  const handleAbandonSession = useCallback(
+  const handleAbandon = useCallback(
     async (sessionId: string) => {
       await abandonSession(sessionId);
-      if (pairedStation?.id) {
-        loadSessions(pairedStation.id);
-      }
-      if (selectedSessionId === sessionId) {
-        setSelectedSessionId(null);
-        setSessionMode("pick");
-      }
-    },
-    [pairedStation?.id, selectedSessionId, loadSessions]
-  );
-
-  // ── Station scan received ───────────────────────────────────────────────────
-
-  const handleStationScan = useCallback(
-    (data: StationScanData) => {
-      setStationData(data);
-
-      // If station provides a session and we haven't picked one yet, auto-select it
-      if (data.sessionId && !selectedSessionId && sessionMode !== "pick") {
-        setSelectedSessionId(data.sessionId);
-        setSessionMode("active");
-      }
-
-      // Pre-fill weight from station if we don't have one yet
-      if (data.weightG != null && data.weightStable && !initialWeight) {
-        setInitialWeight(data.weightG.toFixed(1));
-      }
-
-      // If station auto-identified a product via NFC, apply it
-      if (data.autoProduct && !productMatch) {
-        setProductMatch({
-          match: "nfc",
-          product: data.autoProduct.product,
-          brand: data.autoProduct.brand,
-        });
-      }
-    },
-    [initialWeight, productMatch, selectedSessionId, sessionMode]
-  );
-
-  // ── Barcodes detected (phone camera) ──────────────────────────────────────
-
-  const handleCodesDetected = useCallback(
-    async (codes: DetectedCode[]) => {
-      setDetectedCodes(codes);
-      setShowCamera(false);
-
-      // Use first code as primary barcode
-      const primary = codes[0];
-      if (primary) {
-        setBarcode({ value: primary.value, format: primary.format });
-
-        // Try to look up each code until we find a product match
-        setLookingUp(true);
-        setError(null);
-
-        for (const code of codes) {
-          const result = await lookupProductByBarcode(code.value);
-          if (result.data) {
-            setBarcode({ value: code.value, format: code.format });
-            setProductMatch(result.data);
-            setLookingUp(false);
-            setActiveStep(1);
-            return;
-          }
-          if (result.error) {
-            setError(result.error);
-          }
-        }
-
-        setLookingUp(false);
-      }
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     },
     []
   );
 
-  // ── OCR extraction ──────────────────────────────────────────────────────────
-
-  const handleRunOcr = useCallback(async () => {
-    // We need a video frame — reopen camera in a special mode? No, let's
-    // capture from the same flow. We'll use the barcode scanner's last frame
-    // or open a new camera capture for OCR.
-    // For simplicity, open the barcode scanner and after codes are captured,
-    // offer an "Extract Text" button that runs OCR on a new frame.
-    setOcrRunning(true);
-    try {
-      // Capture a frame from the camera
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.playsInline = true;
-      await video.play();
-
-      // Wait a moment for camera to stabilize
-      await new Promise((r) => setTimeout(r, 500));
-
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(video, 0, 0);
-      stream.getTracks().forEach((t) => t.stop());
-
-      // Dynamic import of tesseract.js
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng");
-      const { data } = await worker.recognize(canvas);
-      await worker.terminate();
-
-      const text = data.text.trim();
-      setOcrText(text || null);
-    } catch (e) {
-      console.error("OCR failed:", e);
-      setOcrText(null);
-    } finally {
-      setOcrRunning(false);
-    }
-  }, []);
-
-  // ── Color captured (phone camera) ─────────────────────────────────────────
-
-  const handleColorCaptured = useCallback((color: CapturedColor) => {
-    setPhoneColor(color);
-    setShowColorCapture(false);
-  }, []);
-
-  // ── Manual search ───────────────────────────────────────────────────────────
-
-  const handleSearch = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    setSearching(true);
-    const result = await searchProducts(query);
-    setSearching(false);
-    if (result.data) {
-      setSearchResults(result.data);
-    }
-  }, []);
-
-  const handleSelectSearchResult = (result: any) => {
-    setProductMatch({ match: "search", ...result });
-    setActiveStep(1);
-  };
-
-  // ── Effective color (station takes priority, then phone camera) ───────────
-
-  const effectiveColorHex = stationData?.colorHex ?? phoneColor?.hex;
-
-  // ── Save intake ─────────────────────────────────────────────────────────────
-
-  const handleSaveIntake = async () => {
-    setSaving(true);
-    setError(null);
-
-    // Build notes with extra data
-    const notesParts: string[] = [];
-    if (notes) notesParts.push(notes);
-
-    // Append additional barcodes beyond the primary
-    if (detectedCodes.length > 1) {
-      const extra = detectedCodes
-        .slice(1)
-        .map((c) => `${c.value} (${c.format})`)
-        .join(", ");
-      notesParts.push(`Additional codes: ${extra}`);
-    }
-
-    // Append OCR text
-    if (ocrText) {
-      notesParts.push(`OCR text: ${ocrText}`);
-    }
-
-    const result = await createIntakeItem({
-      productId: productMatch?.product?.id,
-      packageType: packageType ?? undefined,
-      scanEventId: stationData?.scanEventId,
-      sessionId: selectedSessionId ?? stationData?.sessionId ?? undefined,
-      slotId: selectedSlotId ?? undefined,
-      barcodeValue: barcode?.value,
-      barcodeFormat: barcode?.format,
-      nfcUid: stationData?.nfcUid ?? undefined,
-      nfcTagFormat: stationData?.nfcTagFormat ?? undefined,
-      initialWeightG: initialWeight ? parseFloat(initialWeight) : undefined,
-      measuredColorHex: effectiveColorHex ?? undefined,
-      measuredColorLabL: stationData?.colorLabL ?? undefined,
-      measuredColorLabA: stationData?.colorLabA ?? undefined,
-      measuredColorLabB: stationData?.colorLabB ?? undefined,
-      measuredSpectralData: stationData?.spectralData ?? undefined,
-      measuredHeightMm: stationData?.heightMm ?? undefined,
-      notes: notesParts.join("\n") || undefined,
-    });
-
-    setSaving(false);
-
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-
-    setIntakeResult(result.data);
-    setActiveStep(3);
-  };
-
-  // ── Reset for next item ─────────────────────────────────────────────────────
-
-  const handleReset = () => {
-    setActiveStep(0);
-    setShowCamera(false);
-    setShowColorCapture(false);
-    setDetectedCodes([]);
-    setBarcode(null);
-    setProductMatch(null);
-    setSearchQuery("");
-    setSearchResults([]);
-    setPackageType(null);
-    setPhoneColor(null);
-    setOcrText(null);
-    setNotes("");
-    setInitialWeight("");
-    setSelectedSlotId(null);
-    setSelectedSlotAddress("");
-    setIntakeResult(null);
-    setStationData(null);
-    setError(null);
-    setSelectedSessionId(null);
-    // Re-show session picker if there are active sessions
-    if (pairedStation?.id) {
-      loadSessions(pairedStation.id);
-    } else {
-      setSessionMode(null);
-    }
-  };
-
-  // ── Whether we have station providing data ──────────────────────────────────
-
-  const hasStation = pairedStation?.isOnline;
-  const hasStationWeight =
-    stationData?.weightG != null && stationData?.weightStable;
-  const hasStationNfc = stationData?.nfcPresent && stationData?.nfcUid;
+  const activeSessions = sessions.filter((s: any) => s.status === "active");
+  const resolvedSessions = sessions.filter((s: any) => s.status === "resolved");
 
   return (
     <Box>
       <PageHeader
         title="Scan & Intake"
-        description={
-          hasStation
-            ? `Connected to ${pairedStation.name} — place spool on station, then use phone to identify`
-            : "Add spools to your inventory by scanning barcodes or searching the catalog"
-        }
+        description="Add spools to your inventory"
       />
 
-      {/* ── Station Panel (always visible when stations exist) ────────── */}
-      <Box sx={{ mb: 2 }}>
-        <StationPanel
-          onScanData={handleStationScan}
-          onStationChange={setPairedStation}
-        />
-      </Box>
+      {/* ── Start Manual Scan ────────────────────────────────────────── */}
+      <Button
+        variant="outlined"
+        fullWidth
+        size="large"
+        startIcon={<AddCircleOutlineIcon />}
+        onClick={() => router.push("/scan/new")}
+        sx={{ mb: 3, textTransform: "none" }}
+      >
+        Start Manual Scan
+      </Button>
 
-      {/* ── Session Selector ───────────────────────────────────────── */}
-      {sessionMode === "pick" && (
-        <Card variant="outlined" sx={{ mb: 2 }}>
+      {/* ── Loading ──────────────────────────────────────────────────── */}
+      {loading && (
+        <Stack spacing={1.5}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} variant="rounded" height={80} />
+          ))}
+        </Stack>
+      )}
+
+      {/* ── Sessions List ────────────────────────────────────────────── */}
+      {!loading && sessions.length > 0 && (
+        <Stack spacing={1}>
+          {sessions.map((session: any) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              onClick={() => router.push(`/scan/${session.id}`)}
+              onDelete={session.status === "active" ? () => handleAbandon(session.id) : undefined}
+            />
+          ))}
+        </Stack>
+      )}
+
+      {/* ── Empty State ──────────────────────────────────────────────── */}
+      {!loading && sessions.length === 0 && (
+        <Card sx={{ textAlign: "center", py: 6 }}>
           <CardContent>
-            <Typography variant="subtitle2" sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 0.5 }}>
-              <HistoryIcon fontSize="small" />
-              Active Scan Sessions
+            <QrCodeScannerIcon
+              sx={{ fontSize: 48, color: "text.disabled", mb: 2 }}
+            />
+            <Typography variant="h6" gutterBottom>
+              No Recent Scans
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Continue an existing session or start a new one.
+            <Typography variant="body2" color="text.secondary">
+              Start a manual scan or use your scan station to add items to your inventory.
             </Typography>
-
-            {sessionsLoading ? (
-              <Stack spacing={1}>
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <Skeleton key={i} variant="rounded" height={56} />
-                ))}
-              </Stack>
-            ) : (
-              <List disablePadding>
-                {sessions
-                  .filter((s) => s.status === "active")
-                  .map((session) => (
-                    <ListItemButton
-                      key={session.id}
-                      onClick={() => handleSelectSession(session)}
-                      sx={{
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 2,
-                        mb: 1,
-                        "&:hover": { borderColor: "primary.main" },
-                      }}
-                    >
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        {session.bestColorHex ? (
-                          <Box
-                            sx={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: "50%",
-                              bgcolor: session.bestColorHex,
-                              border: 1,
-                              borderColor: "divider",
-                            }}
-                          />
-                        ) : (
-                          <SensorsIcon color="primary" fontSize="small" />
-                        )}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
-                          session.productName
-                            ? `${session.brandName ? session.brandName + " " : ""}${session.productName}`
-                            : session.nfcUid
-                              ? `NFC: ${session.nfcUid.slice(0, 16)}...`
-                              : "Unidentified spool"
-                        }
-                        secondary={
-                          [
-                            session.bestWeightG != null && `${session.bestWeightG.toFixed(0)}g`,
-                            session.matchMethod && `via ${session.matchMethod}`,
-                            `Started ${new Date(session.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")
-                        }
-                        primaryTypographyProps={{ fontWeight: 500, variant: "body2" }}
-                        secondaryTypographyProps={{ variant: "caption" }}
-                      />
-                      <Tooltip title="Abandon session">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAbandonSession(session.id);
-                          }}
-                          sx={{ ml: 1 }}
-                        >
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </ListItemButton>
-                  ))}
-
-                <ListItemButton
-                  onClick={handleNewSession}
-                  sx={{
-                    border: 1,
-                    borderColor: "divider",
-                    borderRadius: 2,
-                    borderStyle: "dashed",
-                    "&:hover": { borderColor: "primary.main" },
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    <FiberNewIcon color="primary" fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Start new session"
-                    primaryTypographyProps={{ fontWeight: 500, variant: "body2", color: "primary.main" }}
-                  />
-                </ListItemButton>
-              </List>
-            )}
           </CardContent>
         </Card>
-      )}
-
-      {/* ── Stepper ───────────────────────────────────────────────────── */}
-      {(sessionMode !== "pick") && (
-      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
-        {STEPS.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-      )}
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════
-          Step 0: IDENTIFY
-          Station provides: NFC (auto-lookup), weight, color, height
-          Phone provides: barcode camera, manual search
-          ══════════════════════════════════════════════════════════════════ */}
-      {activeStep === 0 && sessionMode !== "pick" && (
-        <Stack spacing={2}>
-          {/* Auto-identified via station NFC */}
-          {productMatch?.match === "nfc" && (
-            <Alert severity="success" icon={<NfcIcon />}>
-              <Typography variant="body2" fontWeight={600}>
-                Identified via NFC tag!
-              </Typography>
-            </Alert>
-          )}
-
-          {/* Parsed NFC tag details (Bambu material, color, temps, etc.) */}
-          {stationData?.nfcParsedData && (
-            <Card variant="outlined">
-              <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: "block" }}>
-                  NFC TAG DATA
-                </Typography>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, fontSize: "0.8rem" }}>
-                  {stationData.nfcParsedData.material && (
-                    <Chip label={`Material: ${stationData.nfcParsedData.material}`} size="small" variant="outlined" />
-                  )}
-                  {stationData.nfcParsedData.name && (
-                    <Chip label={stationData.nfcParsedData.name} size="small" variant="outlined" />
-                  )}
-                  {stationData.nfcParsedData.colorHex && (
-                    <Chip
-                      icon={<Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: stationData.nfcParsedData.colorHex, border: "1px solid", borderColor: "divider" }} />}
-                      label={stationData.nfcParsedData.colorHex}
-                      size="small"
-                      variant="outlined"
-                    />
-                  )}
-                  {stationData.nfcParsedData.nozzleTempMin != null && (
-                    <Chip label={`Nozzle: ${stationData.nfcParsedData.nozzleTempMin}-${stationData.nfcParsedData.nozzleTempMax}\u00B0C`} size="small" variant="outlined" />
-                  )}
-                  {stationData.nfcParsedData.bedTemp != null && (
-                    <Chip label={`Bed: ${stationData.nfcParsedData.bedTemp}\u00B0C`} size="small" variant="outlined" />
-                  )}
-                  {stationData.nfcParsedData.spoolNetWeight != null && (
-                    <Chip label={`Net: ${stationData.nfcParsedData.spoolNetWeight}g`} size="small" variant="outlined" />
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
-          )}
-
-          {productMatch && (
-            <>
-              <ProductCard data={productMatch} />
-              <Button
-                variant="contained"
-                endIcon={<ArrowForwardIcon />}
-                onClick={() => setActiveStep(1)}
-              >
-                Confirm &amp; Continue
-              </Button>
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => setProductMatch(null)}
-              >
-                Wrong product? Search again
-              </Button>
-            </>
-          )}
-
-          {/* Phone barcode scanner */}
-          {!productMatch && (
-            <>
-              {showCamera ? (
-                <BarcodeScanner
-                  onDetected={handleCodesDetected}
-                  onClose={() => setShowCamera(false)}
-                />
-              ) : (
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography
-                      variant="subtitle2"
-                      color="text.secondary"
-                      sx={{ mb: 1.5 }}
-                    >
-                      {hasStation
-                        ? "Use your phone to scan the barcode"
-                        : "Scan a barcode to identify"}
-                    </Typography>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      size="large"
-                      startIcon={<QrCodeScannerIcon />}
-                      onClick={() => setShowCamera(true)}
-                    >
-                      Scan Barcode
-                    </Button>
-
-                    {/* Detected codes list */}
-                    {detectedCodes.length > 0 && (
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
-                          DETECTED CODES ({detectedCodes.length})
-                        </Typography>
-                        <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>
-                          {detectedCodes.map((code) => (
-                            <Chip
-                              key={code.value}
-                              label={`${code.value} (${code.format})`}
-                              size="small"
-                              variant="outlined"
-                              color={code.value === barcode?.value ? "primary" : "default"}
-                            />
-                          ))}
-                        </Stack>
-                        {lookingUp && (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                            }}
-                          >
-                            <CircularProgress size={16} />
-                            <Typography variant="body2">
-                              Looking up...
-                            </Typography>
-                          </Box>
-                        )}
-                        {!lookingUp && !productMatch && (
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                          >
-                            No product match found. Try searching below or add as new.
-                          </Typography>
-                        )}
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* OCR: Extract text from label */}
-              {!showCamera && (
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography
-                      variant="subtitle2"
-                      color="text.secondary"
-                      sx={{ mb: 1 }}
-                    >
-                      Extract label text (OCR)
-                    </Typography>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      startIcon={
-                        ocrRunning ? (
-                          <CircularProgress size={16} />
-                        ) : (
-                          <TextFieldsIcon />
-                        )
-                      }
-                      onClick={handleRunOcr}
-                      disabled={ocrRunning}
-                    >
-                      {ocrRunning ? "Reading text..." : "Capture & Read Text"}
-                    </Button>
-                    {ocrText && (
-                      <Alert severity="info" sx={{ mt: 1.5 }}>
-                        <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
-                          EXTRACTED TEXT
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}
-                        >
-                          {ocrText}
-                        </Typography>
-                      </Alert>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Manual catalog search */}
-              {!showCamera && (
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography
-                      variant="subtitle2"
-                      color="text.secondary"
-                      sx={{ mb: 1 }}
-                    >
-                      Or search the catalog
-                    </Typography>
-                    <Autocomplete
-                      freeSolo
-                      options={searchResults}
-                      getOptionLabel={(opt: any) =>
-                        typeof opt === "string"
-                          ? opt
-                          : `${opt.brand?.name ?? ""} ${opt.product.name}`.trim()
-                      }
-                      loading={searching}
-                      inputValue={searchQuery}
-                      onInputChange={(_, val) => {
-                        setSearchQuery(val);
-                        handleSearch(val);
-                      }}
-                      onChange={(_, val) => {
-                        if (val && typeof val !== "string") {
-                          handleSelectSearchResult(val);
-                        }
-                      }}
-                      renderOption={(props, option: any) => {
-                        const { key, ...rest } = props as any;
-                        return (
-                          <Box
-                            component="li"
-                            key={option.product.id}
-                            {...rest}
-                          >
-                            <Box
-                              sx={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: "50%",
-                                bgcolor: option.product.colorHex ?? "#ccc",
-                                border: "1px solid",
-                                borderColor: "divider",
-                                mr: 1.5,
-                                flexShrink: 0,
-                              }}
-                            />
-                            <Box>
-                              <Typography variant="body2" fontWeight={600}>
-                                {option.product.name}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                {option.brand?.name} &middot;{" "}
-                                {option.product.colorName ?? ""}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        );
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          placeholder="Search by name, color, brand..."
-                          slotProps={{
-                            input: {
-                              ...params.InputProps,
-                              startAdornment: (
-                                <SearchIcon color="action" sx={{ mr: 1 }} />
-                              ),
-                            },
-                          }}
-                        />
-                      )}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Skip identification */}
-              {!showCamera && (
-                <Button
-                  variant="outlined"
-                  startIcon={<AddCircleOutlineIcon />}
-                  onClick={() => {
-                    setProductMatch(null);
-                    setActiveStep(1);
-                  }}
-                >
-                  Add without product match
-                </Button>
-              )}
-            </>
-          )}
-        </Stack>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════
-          Step 1: DETAILS
-          Station fills: weight (auto), color, height
-          Phone fills: notes, manual weight override, camera color
-          ══════════════════════════════════════════════════════════════════ */}
-      {activeStep === 1 && (
-        <Stack spacing={2}>
-          {productMatch && <ProductCard data={productMatch} />}
-
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                Details
-              </Typography>
-
-              {/* Package type */}
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                Package type
-              </Typography>
-              <ToggleButtonGroup
-                value={packageType}
-                exclusive
-                onChange={(_, val) => { if (val !== null) setPackageType(val); }}
-                size="small"
-                sx={{ mb: 2, flexWrap: "wrap", gap: 0.5 }}
-              >
-                {PACKAGE_TYPES.map((pt) => (
-                  <ToggleButton key={pt.value} value={pt.value} sx={{ textTransform: "none", px: 1.5 }}>
-                    {pt.label}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-
-              <TextField
-                fullWidth
-                label="Weight (g)"
-                type="number"
-                value={initialWeight}
-                onChange={(e) => setInitialWeight(e.target.value)}
-                placeholder="e.g. 1200"
-                helperText={
-                  hasStationWeight
-                    ? `From station scale: ${stationData!.weightG!.toFixed(1)}g (${stationData!.weightStable ? "stable" : "settling..."})`
-                    : "Total weight including spool. Leave blank if unknown."
-                }
-                sx={{ mb: 2 }}
-                slotProps={{
-                  inputLabel: { shrink: !!initialWeight },
-                }}
-              />
-
-              {/* Color section */}
-              {showColorCapture ? (
-                <Box sx={{ mb: 2 }}>
-                  <ColorCapture
-                    onCapture={handleColorCaptured}
-                    onClose={() => setShowColorCapture(false)}
-                  />
-                </Box>
-              ) : (
-                <>
-                  {/* Station color (takes priority) */}
-                  {stationData?.colorHex && (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1.5,
-                        mb: 2,
-                        p: 1.5,
-                        bgcolor: "action.hover",
-                        borderRadius: 2,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          bgcolor: stationData.colorHex,
-                          border: "2px solid",
-                          borderColor: "divider",
-                        }}
-                      />
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" fontWeight={600}>
-                          Measured color: {stationData.colorHex}
-                        </Typography>
-                        {stationData.colorLabL != null && (
-                          <Typography variant="caption" color="text.secondary">
-                            L*a*b*: {stationData.colorLabL.toFixed(1)},{" "}
-                            {stationData.colorLabA?.toFixed(1)},{" "}
-                            {stationData.colorLabB?.toFixed(1)}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Chip label="station" size="small" variant="outlined" color="success" sx={{ height: 20, fontSize: "0.65rem" }} />
-                    </Box>
-                  )}
-
-                  {/* Phone camera color */}
-                  {phoneColor && (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1.5,
-                        mb: 2,
-                        p: 1.5,
-                        bgcolor: "action.hover",
-                        borderRadius: 2,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          bgcolor: phoneColor.hex,
-                          border: "2px solid",
-                          borderColor: "divider",
-                        }}
-                      />
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" fontWeight={600}>
-                          Camera color: {phoneColor.hex.toUpperCase()}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          RGB({phoneColor.r}, {phoneColor.g}, {phoneColor.b})
-                        </Typography>
-                      </Box>
-                      <Chip label="phone" size="small" variant="outlined" color="info" sx={{ height: 20, fontSize: "0.65rem" }} />
-                    </Box>
-                  )}
-
-                  {/* Capture color button (always available when no station color) */}
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<ColorLensIcon />}
-                    onClick={() => setShowColorCapture(true)}
-                    sx={{ mb: 2 }}
-                  >
-                    {phoneColor ? "Re-capture Color" : "Capture Color"}
-                  </Button>
-                </>
-              )}
-
-              {/* Station height */}
-              {stationData?.heightMm != null && (
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    mb: 2,
-                    p: 1.5,
-                    bgcolor: "action.hover",
-                    borderRadius: 2,
-                  }}
-                >
-                  <Typography variant="body2">
-                    Measured height: <strong>{stationData.heightMm.toFixed(0)}mm</strong>
-                  </Typography>
-                </Box>
-              )}
-
-              {/* OCR text preview (if captured in step 0) */}
-              {ocrText && (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
-                    LABEL TEXT (OCR)
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}
-                  >
-                    {ocrText}
-                  </Typography>
-                </Alert>
-              )}
-
-              <TextField
-                fullWidth
-                label="Notes"
-                multiline
-                rows={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes about this spool..."
-              />
-            </CardContent>
-          </Card>
-
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Button
-              variant="outlined"
-              startIcon={<ArrowBackIcon />}
-              onClick={() => setActiveStep(0)}
-            >
-              Back
-            </Button>
-            <Button
-              variant="contained"
-              endIcon={<ArrowForwardIcon />}
-              onClick={() => setActiveStep(2)}
-              sx={{ flex: 1 }}
-            >
-              Choose Location
-            </Button>
-          </Box>
-        </Stack>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════
-          Step 2: LOCATION
-          ══════════════════════════════════════════════════════════════════ */}
-      {activeStep === 2 && (
-        <Stack spacing={2}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                <PlaceIcon
-                  fontSize="small"
-                  sx={{ verticalAlign: "middle", mr: 0.5 }}
-                />
-                Assign Storage Location
-              </Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mb: 2 }}
-              >
-                Pick a slot or skip to assign later.
-              </Typography>
-
-              <SlotPicker
-                selectedSlotId={selectedSlotId}
-                onSelect={(id, addr) => {
-                  setSelectedSlotId(id);
-                  setSelectedSlotAddress(addr);
-                }}
-              />
-
-              {selectedSlotId && (
-                <Alert severity="success" sx={{ mt: 1 }}>
-                  Selected: <strong>{selectedSlotAddress}</strong>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Summary */}
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Summary
-              </Typography>
-              <Stack spacing={0.5}>
-                <SummaryRow
-                  label="Product"
-                  value={productMatch?.product?.name ?? "Unidentified"}
-                />
-                {productMatch?.brand && (
-                  <SummaryRow label="Brand" value={productMatch.brand.name} />
-                )}
-                {packageType && (
-                  <SummaryRow label="Package" value={packageType} />
-                )}
-                {detectedCodes.length > 0 && (
-                  <SummaryRow
-                    label="Codes"
-                    value={detectedCodes.map((c) => c.value).join(", ")}
-                  />
-                )}
-                {hasStationNfc && (
-                  <SummaryRow
-                    label="NFC"
-                    value={stationData!.nfcUid!}
-                    source="station"
-                  />
-                )}
-                {initialWeight && (
-                  <SummaryRow
-                    label="Weight"
-                    value={`${initialWeight}g`}
-                    source={hasStationWeight ? "station" : undefined}
-                  />
-                )}
-                {effectiveColorHex && (
-                  <SummaryRow
-                    label="Color"
-                    value={effectiveColorHex}
-                    source={stationData?.colorHex ? "station" : "phone"}
-                    swatch={effectiveColorHex}
-                  />
-                )}
-                {stationData?.heightMm != null && (
-                  <SummaryRow
-                    label="Height"
-                    value={`${stationData.heightMm.toFixed(0)}mm`}
-                    source="station"
-                  />
-                )}
-                {ocrText && (
-                  <SummaryRow label="OCR" value={ocrText.slice(0, 60) + (ocrText.length > 60 ? "..." : "")} />
-                )}
-                {selectedSlotAddress && (
-                  <SummaryRow label="Location" value={selectedSlotAddress} />
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Button
-              variant="outlined"
-              startIcon={<ArrowBackIcon />}
-              onClick={() => setActiveStep(1)}
-            >
-              Back
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSaveIntake}
-              disabled={saving}
-              sx={{ flex: 1 }}
-              startIcon={
-                saving ? (
-                  <CircularProgress size={16} />
-                ) : (
-                  <CheckCircleOutlineIcon />
-                )
-              }
-            >
-              {saving ? "Saving..." : "Save to Inventory"}
-            </Button>
-          </Box>
-        </Stack>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════
-          Step 3: DONE
-          ══════════════════════════════════════════════════════════════════ */}
-      {activeStep === 3 && (
-        <Stack spacing={2}>
-          <Alert severity="success" variant="filled">
-            <Typography variant="subtitle1" fontWeight={600}>
-              Item added to inventory!
-            </Typography>
-          </Alert>
-
-          {productMatch && <ProductCard data={productMatch} />}
-
-          {selectedSlotAddress && (
-            <Alert severity="info" icon={<PlaceIcon />}>
-              Place spool at: <strong>{selectedSlotAddress}</strong>
-            </Alert>
-          )}
-
-          {/* Actions (print / write NFC) */}
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Actions
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<PrintIcon />}
-                  onClick={() => setShowPrintDialog(true)}
-                >
-                  Print Label
-                </Button>
-                {hasStation && (
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<NfcIcon />}
-                    disabled
-                  >
-                    Write NFC Tag
-                  </Button>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-
-          <Divider />
-
-          <Button
-            fullWidth
-            variant="contained"
-            size="large"
-            startIcon={<QrCodeScannerIcon />}
-            onClick={handleReset}
-          >
-            Scan Next Item
-          </Button>
-        </Stack>
-      )}
-
-      <PrintLabelDialog
-        open={showPrintDialog}
-        onClose={() => setShowPrintDialog(false)}
-        items={[
-          {
-            brand: productMatch?.product?.brand ?? undefined,
-            material: productMatch?.product?.materialName ?? productMatch?.product?.name ?? undefined,
-            color: effectiveColorHex ?? undefined,
-            nozzleTemp: productMatch?.product?.nozzleTempMin
-              ? `${productMatch.product.nozzleTempMin}-${productMatch.product.nozzleTempMax ?? productMatch.product.nozzleTempMin}°C`
-              : undefined,
-            bedTemp: productMatch?.product?.bedTempMin
-              ? `${productMatch.product.bedTempMin}°C`
-              : undefined,
-            weight: initialWeight ? `${initialWeight}g` : undefined,
-            location: selectedSlotAddress || undefined,
-          },
-        ]}
-      />
-
-      {/* ── Recent Sessions ─────────────────────────────────────────── */}
-      {sessions.length > 0 && (
-        <Box sx={{ mt: 4 }}>
-          <Divider sx={{ mb: 2 }} />
-          <Typography variant="subtitle2" sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 0.5 }}>
-            <HistoryIcon fontSize="small" />
-            Recent Scan Sessions
-          </Typography>
-          <Stack spacing={1.5}>
-            {sessions.map((session: any) => {
-              const isIdentified = !!session.matchedProductId;
-              const isActive = session.status === "active";
-              return (
-                <Card
-                  key={session.id}
-                  variant="outlined"
-                  sx={{
-                    border: isActive ? 2 : 1,
-                    borderColor: isActive ? "warning.main" : "divider",
-                  }}
-                >
-                  <CardActionArea
-                    onClick={() => {
-                      if (isActive) {
-                        handleSelectSession(session);
-                      } else {
-                        router.push(`/scan/${session.id}`);
-                      }
-                    }}
-                  >
-                    <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-                        {isIdentified ? (
-                          <Chip
-                            icon={<CheckCircleIcon />}
-                            label="Identified"
-                            size="small"
-                            color="success"
-                            variant="outlined"
-                          />
-                        ) : (
-                          <Chip
-                            icon={<HelpOutlineIcon />}
-                            label={isActive ? "Active" : "Needs ID"}
-                            size="small"
-                            color="warning"
-                          />
-                        )}
-                        {!isActive && session.status === "resolved" && (
-                          <Chip label="Resolved" size="small" color="success" variant="outlined" />
-                        )}
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
-                          {new Date(session.createdAt).toLocaleString(undefined, {
-                            month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-                          })}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", alignItems: "center" }}>
-                        {session.bestWeightG != null && (
-                          <Chip
-                            icon={<ScaleIcon sx={{ fontSize: "16px !important" }} />}
-                            label={`${session.bestWeightG.toFixed(1)}g`}
-                            size="small"
-                            variant="outlined"
-                          />
-                        )}
-                        {session.bestColorHex && (
-                          <Chip
-                            icon={
-                              <Box
-                                sx={{
-                                  width: 12, height: 12, borderRadius: "50%",
-                                  bgcolor: session.bestColorHex,
-                                  border: 1, borderColor: "divider", flexShrink: 0,
-                                }}
-                              />
-                            }
-                            label={session.bestColorHex}
-                            size="small"
-                            variant="outlined"
-                          />
-                        )}
-                        {session.nfcUid && (
-                          <Chip
-                            icon={<NfcIcon sx={{ fontSize: "16px !important" }} />}
-                            label={session.nfcTagFormat
-                              ? session.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
-                              : "NFC Tag"
-                            }
-                            size="small"
-                            variant="outlined"
-                            color="primary"
-                          />
-                        )}
-                        {session.bestHeightMm != null && (
-                          <Chip label={`${session.bestHeightMm.toFixed(0)}mm`} size="small" variant="outlined" />
-                        )}
-                        {session.productName && (
-                          <Chip
-                            label={`${session.brandName ? session.brandName + " " : ""}${session.productName}`}
-                            size="small"
-                            variant="outlined"
-                            color="secondary"
-                          />
-                        )}
-                      </Box>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              );
-            })}
-          </Stack>
-        </Box>
       )}
     </Box>
   );
 }
 
-// ── Summary row helper ────────────────────────────────────────────────────────
+// ── Session Card ──────────────────────────────────────────────────────────────
 
-function SummaryRow({
-  label,
-  value,
-  source,
-  swatch,
+function SessionCard({
+  session,
+  onClick,
+  onDelete,
 }: {
-  label: string;
-  value: string;
-  source?: "station" | "phone";
-  swatch?: string;
+  session: any;
+  onClick: () => void;
+  onDelete?: () => void;
 }) {
+  const isIdentified = !!session.matchedProductId;
+  const isResolved = session.status === "resolved";
+  const parsed = session.nfcParsedData as Record<string, any> | null;
+
+  // Build a display name from whatever we know — prefer parsed NFC data over raw UID
+  const displayName = isIdentified
+    ? `${session.brandName ? session.brandName + " " : ""}${session.productName}`
+    : parsed?.name
+      ? `${parsed.material ? parsed.material + " — " : ""}${parsed.name}`
+      : parsed?.material
+        ? parsed.material
+        : "Unidentified item";
+
+  // Build a subtitle from parsed NFC details
+  const details: string[] = [];
+  if (session.bestWeightG != null) details.push(`${session.bestWeightG.toFixed(1)}g`);
+  if (session.bestHeightMm != null) details.push(`${session.bestHeightMm.toFixed(0)}mm`);
+  if (parsed?.nozzleTempMin) details.push(`${parsed.nozzleTempMin}–${parsed.nozzleTempMax}°C`);
+  if (session.nfcTagFormat) details.push(session.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()));
+  else if (session.nfcUid) details.push("NFC");
+
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-      <Typography variant="body2" sx={{ minWidth: 70 }}>
-        <strong>{label}:</strong>
-      </Typography>
-      {swatch && (
-        <Box
-          sx={{
-            width: 14,
-            height: 14,
-            borderRadius: "50%",
-            bgcolor: swatch,
-            border: "1px solid",
-            borderColor: "divider",
-          }}
-        />
+    <Card
+      variant="outlined"
+      sx={{
+        position: "relative",
+        opacity: isResolved ? 0.7 : 1,
+      }}
+    >
+      <CardActionArea onClick={onClick}>
+        <CardContent sx={{ py: 1.5, pr: onDelete ? 5 : 2, "&:last-child": { pb: 1.5 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            {/* Color swatch or placeholder */}
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 1.5,
+                bgcolor: session.bestColorHex ?? "grey.200",
+                border: 1,
+                borderColor: "divider",
+                flexShrink: 0,
+              }}
+            />
+
+            {/* Info */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                <Typography variant="body2" fontWeight={600} noWrap>
+                  {displayName}
+                </Typography>
+                {isResolved && (
+                  <Chip icon={<CheckCircleIcon />} label="Done" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: "0.65rem" }} />
+                )}
+              </Box>
+              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.25 }}>
+                {session.bestWeightG != null && (
+                  <Chip icon={<ScaleIcon sx={{ fontSize: "14px !important" }} />} label={`${session.bestWeightG.toFixed(1)}g`} size="small" variant="outlined" sx={{ height: 22, fontSize: "0.7rem" }} />
+                )}
+                {session.bestHeightMm != null && (
+                  <Chip label={`${session.bestHeightMm.toFixed(0)}mm`} size="small" variant="outlined" sx={{ height: 22, fontSize: "0.7rem" }} />
+                )}
+                {parsed?.nozzleTempMin && (
+                  <Chip icon={<ThermostatIcon sx={{ fontSize: "14px !important" }} />} label={`${parsed.nozzleTempMin}–${parsed.nozzleTempMax}°C`} size="small" variant="outlined" sx={{ height: 22, fontSize: "0.7rem" }} />
+                )}
+                {session.nfcUid && session.nfcTagFormat && session.nfcTagFormat !== "unknown" && (
+                  <Chip icon={<NfcIcon sx={{ fontSize: "14px !important" }} />}
+                    label={session.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                    size="small" variant="outlined" color="primary" sx={{ height: 22, fontSize: "0.7rem" }}
+                  />
+                )}
+              </Box>
+            </Box>
+
+            {/* Timestamp */}
+            <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
+              {new Date(session.createdAt).toLocaleString(undefined, {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Typography>
+          </Box>
+        </CardContent>
+      </CardActionArea>
+
+      {onDelete && (
+        <Tooltip title="Delete">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            sx={{
+              position: "absolute",
+              top: "50%",
+              right: 8,
+              transform: "translateY(-50%)",
+              color: "text.disabled",
+              "&:hover": { color: "error.main" },
+            }}
+          >
+            <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
       )}
-      <Typography variant="body2" sx={{ flex: 1 }} noWrap>
-        {value}
-      </Typography>
-      {source && (
-        <Chip
-          label={source}
-          size="small"
-          variant="outlined"
-          color={source === "station" ? "success" : "info"}
-          sx={{ height: 20, fontSize: "0.65rem" }}
-        />
-      )}
-    </Box>
+    </Card>
   );
 }

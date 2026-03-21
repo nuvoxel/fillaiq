@@ -1358,6 +1358,21 @@ void Display::showCalibrate(const char* step, const char* detail) {
         lv_label_set_long_mode(_calDetailLabel, LV_LABEL_LONG_WRAP);
         lv_obj_align(_calDetailLabel, LV_ALIGN_TOP_LEFT, 16, 100);
 
+        // Continue button (proceeds to next calibration step)
+        lv_obj_t* continueBtn = lv_btn_create(_screen);
+        lv_obj_remove_style_all(continueBtn);
+        lv_obj_set_size(continueBtn, _screenW - 24, 44);
+        lv_obj_align(continueBtn, LV_ALIGN_BOTTOM_MID, 0, -48);
+        lv_obj_set_style_bg_color(continueBtn, brandOrange, 0);
+        lv_obj_set_style_bg_opa(continueBtn, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(continueBtn, 8, 0);
+        lv_obj_add_event_cb(continueBtn, onSubmitBtnClick, LV_EVENT_CLICKED, NULL);
+        lv_obj_t* contLbl = lv_label_create(continueBtn);
+        lv_label_set_text(contLbl, "Continue");
+        lv_obj_set_style_text_font(contLbl, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(contLbl, lv_color_hex(WHITE_HEX), 0);
+        lv_obj_center(contLbl);
+
         // Back button (exits calibration)
         lv_obj_t* backBtn = lv_btn_create(_screen);
         lv_obj_remove_style_all(backBtn);

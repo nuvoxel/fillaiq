@@ -180,7 +180,8 @@ export function detectTagFormat(
   pagesRead: number | null
 ): NfcTagFormat {
   // MIFARE Classic with sector data → likely Bambu
-  if (nfcTagType === 0 && sectorsRead && sectorsRead >= 4) {
+  // Firmware enum: TAG_MIFARE_CLASSIC = 1, TAG_NTAG = 2
+  if (nfcTagType === 1 && sectorsRead && sectorsRead >= 4) {
     // Try to parse — if sector 0 has a materialId, it's Bambu
     const parsed = parseBambuRawData(nfcRawData, sectorsRead);
     if (parsed && parsed.materialId) {
@@ -188,10 +189,16 @@ export function detectTagFormat(
     }
   }
 
-  // NTAG/Ultralight
-  if (nfcTagType === 1 && pagesRead) {
+  // NTAG/Ultralight (firmware enum: TAG_NTAG = 2)
+  if (nfcTagType === 2 && pagesRead) {
     // TODO: detect OpenSpool, TigerTag, OpenPrintTag, etc. by parsing NDEF records
     return "ntag";
+  }
+
+  // ISO15693 / ICODE SLIX (firmware enum: TAG_ISO15693 = 3)
+  if (nfcTagType === 3 && pagesRead) {
+    // TODO: parse ICODE SLIX data
+    return "unknown";
   }
 
   return "unknown";
