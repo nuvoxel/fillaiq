@@ -664,9 +664,15 @@ void checkProvisioning() {
         lv_lock(); display.showMessage("WiFi Connected!", WiFi.localIP().toString().c_str()); lv_unlock();
         delay(1000);
 
-        // Start pairing if API URL configured and not yet paired
-        if (apiClient.hasApiUrl() && !apiClient.isPaired()) {
-            startPairing();
+        // Verify existing pairing or start new pairing
+        if (apiClient.hasApiUrl()) {
+            if (apiClient.isPaired()) {
+                // Check server still recognizes our token
+                apiClient.verifyPairing();
+            }
+            if (!apiClient.isPaired()) {
+                startPairing();
+            }
         }
     } else {
         lv_lock(); display.showMessage("WiFi Failed", "Restarting setup..."); lv_unlock();

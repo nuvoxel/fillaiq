@@ -149,6 +149,7 @@ public:
     bool isPaired() const { return _deviceToken[0] != '\0' && _paired; }
     const char* getPairingCode() const { return _pairingCode; }
     void unpair();
+    bool verifyPairing();  // Check token is still valid on server
 
     // Config (stored in NVS)
     void setApiUrl(const char* url);

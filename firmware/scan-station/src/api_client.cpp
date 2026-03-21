@@ -636,6 +636,37 @@ void ApiClient::unpair() {
     Serial.println("[Pair] Device unpaired");
 }
 
+bool ApiClient::verifyPairing() {
+    if (!isWiFiConnected() || !isPaired()) return false;
+    if (_deviceToken[0] == '\0') return false;
+
+    // Use firmware check endpoint as a lightweight auth probe
+    String url = String(_apiUrl) + "/api/v1/firmware/check?channel=" + FW_CHANNEL + "&version=" + FW_VERSION;
+
+    HTTPClient http;
+    http.begin(getSecureClient(), url);
+    addAuthHeaders(http, _deviceToken, _apiKey);
+    http.setTimeout(API_TIMEOUT_MS);
+
+    int httpCode = http.GET();
+    http.end();
+
+    if (httpCode == 401 || httpCode == 403) {
+        Serial.println("[Pair] Token rejected by server — unpairing");
+        unpair();
+        return false;
+    }
+
+    if (httpCode == 200) {
+        Serial.println("[Pair] Token verified OK");
+        return true;
+    }
+
+    // Network error or other — don't unpair, just report
+    Serial.printf("[Pair] Verify returned HTTP %d — skipping\n", httpCode);
+    return true;  // don't unpair on network errors
+}
+
 // ==================== Config Persistence ====================
 
 void ApiClient::loadConfig() {
