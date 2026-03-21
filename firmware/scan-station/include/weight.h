@@ -31,6 +31,7 @@ public:
     float getWeight();
     float getStableWeight();
     bool  isStable();
+    void  getSnapshot(float& weight, float& stableWeight, bool& stable);
     bool  isConnected();
     float getScaleFactor();
     long  getLastRawAdc();   // Non-blocking: last raw ADC from weight task

@@ -1,6 +1,9 @@
 #include "weight.h"
 #include <Wire.h>
 
+// I2C bus mutex — shared with sensor/NFC/touch tasks
+extern SemaphoreHandle_t i2cMutex;
+
 ScaleDriver scale;
 
 const char* ScaleDriver::getChipName() const {
@@ -118,9 +121,18 @@ void ScaleDriver::pollOnce() {
 
 void ScaleDriver::taskFunc(void* param) {
     ScaleDriver* self = (ScaleDriver*)param;
+    bool needI2C = (self->_driverType == WEIGHT_NAU7802);
+
     while (true) {
         if (self->_pauseDepth > 0) {
             vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
+
+        // Acquire I2C mutex for NAU7802 (HX711 uses GPIO, no mutex needed)
+        // Wait up to 150ms — sensor task can hold mutex during slow color reads
+        if (needI2C && (!i2cMutex || xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(150)) != pdTRUE)) {
+            vTaskDelay(pdMS_TO_TICKS(10));  // Short retry, don't sleep full interval
             continue;
         }
 
@@ -134,13 +146,15 @@ void ScaleDriver::taskFunc(void* param) {
                     Serial.printf("[Weight] AFE recal %s\n",
                         status == NAU7802_CAL_SUCCESS ? "OK" : "FAILED");
                 }
+                if (needI2C) xSemaphoreGive(i2cMutex);
                 vTaskDelay(pdMS_TO_TICKS(50));
-                continue;  // Skip readings during calibration
+                continue;
             }
             if (now - self->_lastAfeCal >= NAU7802_AFE_CAL_INTERVAL_MS) {
                 self->_lastAfeCal = now;
                 self->_nau.beginCalibrateAFE(NAU7802_CALMOD_INTERNAL);
                 self->_afeCalInProgress = true;
+                if (needI2C) xSemaphoreGive(i2cMutex);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 continue;
             }
@@ -160,6 +174,8 @@ void ScaleDriver::taskFunc(void* param) {
                 gotReading = true;
             }
         }
+
+        if (needI2C) xSemaphoreGive(i2cMutex);
 
         if (gotReading) {
             self->processReading(raw);
@@ -247,6 +263,15 @@ bool ScaleDriver::isStable() {
         xSemaphoreGive(_mutex);
     }
     return s;
+}
+
+void ScaleDriver::getSnapshot(float& weight, float& stableWeight, bool& stable) {
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(10))) {
+        weight = _weightRaw;
+        stableWeight = _weightStable;
+        stable = _isStable;
+        xSemaphoreGive(_mutex);
+    }
 }
 
 bool ScaleDriver::isConnected() { return _connected; }

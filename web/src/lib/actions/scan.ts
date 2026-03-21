@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, desc, and, or, ilike, gt, gte, isNull } from "drizzle-orm";
+import { eq, ne, desc, and, or, ilike, gt, gte, isNull } from "drizzle-orm";
 import { scanStations, scanEvents, scanSessions } from "@/db/schema/scan-stations";
 import { environmentalReadings } from "@/db/schema/events";
 import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
@@ -328,16 +328,34 @@ export async function listMyScanSessions(params?: {
   stationId?: string;
   status?: string;
   limit?: number;
+  includeRecent?: boolean;
 }) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
 
-  const conditions = [eq(scanSessions.userId, guard.data.userId)];
+  const baseConditions: any[] = [eq(scanSessions.userId, guard.data.userId)];
   if (params?.stationId) {
-    conditions.push(eq(scanSessions.stationId, params.stationId));
+    baseConditions.push(eq(scanSessions.stationId, params.stationId));
   }
+
+  // Exclude abandoned sessions
+  baseConditions.push(ne(scanSessions.status, "abandoned" as any));
+
   if (params?.status) {
-    conditions.push(eq(scanSessions.status, params.status as any));
+    baseConditions.push(eq(scanSessions.status, params.status as any));
+  } else if (params?.includeRecent) {
+    // Show all non-finalized (active) sessions regardless of age,
+    // plus resolved sessions from the last 24h
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    baseConditions.push(
+      or(
+        eq(scanSessions.status, "active" as any),
+        and(
+          eq(scanSessions.status, "resolved" as any),
+          gte(scanSessions.updatedAt, twentyFourHoursAgo)
+        )
+      )
+    );
   }
 
   const rows = await db
@@ -349,7 +367,7 @@ export async function listMyScanSessions(params?: {
     .from(scanSessions)
     .leftJoin(products, eq(scanSessions.matchedProductId, products.id))
     .leftJoin(brands, eq(products.brandId, brands.id))
-    .where(and(...conditions))
+    .where(and(...baseConditions))
     .orderBy(desc(scanSessions.updatedAt))
     .limit(params?.limit ?? 20);
 

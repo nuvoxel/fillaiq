@@ -6,8 +6,9 @@
 
 // ============================================================
 // Filla IQ — FillaScan NFC Reader
-// Touch board: PN5180 on dedicated SPI bus (HSPI)
-//   - ISO 14443A (MIFARE Classic, NTAG) + ISO 15693 (ICODE SLIX)
+// Touch board: PN5180 via RP2040 I2C coprocessor
+//   - Interrupt-driven (LPCD + INT pin)
+//   - ISO 14443A + ISO 15693, no mode switching on ESP32
 // DevKitC: PN532 on shared SPI bus
 //   - ISO 14443A only
 // ============================================================

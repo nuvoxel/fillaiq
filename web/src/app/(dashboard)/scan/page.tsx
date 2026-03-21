@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -31,6 +32,10 @@ import ColorLensIcon from "@mui/icons-material/ColorLens";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
 import SensorsIcon from "@mui/icons-material/Sensors";
 import HistoryIcon from "@mui/icons-material/History";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import ScaleIcon from "@mui/icons-material/Scale";
+import CardActionArea from "@mui/material/CardActionArea";
 import FiberNewIcon from "@mui/icons-material/FiberNew";
 import CloseIcon from "@mui/icons-material/Close";
 import Skeleton from "@mui/material/Skeleton";
@@ -81,6 +86,8 @@ type ProductMatch = {
 };
 
 export default function ScanPage() {
+  const router = useRouter();
+
   // ── Workflow state ──────────────────────────────────────────────────────────
   const [activeStep, setActiveStep] = useState(0);
   const [showCamera, setShowCamera] = useState(false);
@@ -136,7 +143,7 @@ export default function ScanPage() {
 
   const loadSessions = useCallback(async (stationId: string) => {
     setSessionsLoading(true);
-    const result = await listMyScanSessions({ stationId, limit: 10 });
+    const result = await listMyScanSessions({ stationId, limit: 20, includeRecent: true });
     if (result.data) {
       setSessions(result.data);
       // If there are active sessions, show the picker
@@ -1316,6 +1323,121 @@ export default function ScanPage() {
           },
         ]}
       />
+
+      {/* ── Recent Sessions ─────────────────────────────────────────── */}
+      {sessions.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 0.5 }}>
+            <HistoryIcon fontSize="small" />
+            Recent Scan Sessions
+          </Typography>
+          <Stack spacing={1.5}>
+            {sessions.map((session: any) => {
+              const isIdentified = !!session.matchedProductId;
+              const isActive = session.status === "active";
+              return (
+                <Card
+                  key={session.id}
+                  variant="outlined"
+                  sx={{
+                    border: isActive ? 2 : 1,
+                    borderColor: isActive ? "warning.main" : "divider",
+                  }}
+                >
+                  <CardActionArea
+                    onClick={() => {
+                      if (isActive) {
+                        handleSelectSession(session);
+                      } else {
+                        router.push(`/scan/${session.id}`);
+                      }
+                    }}
+                  >
+                    <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+                        {isIdentified ? (
+                          <Chip
+                            icon={<CheckCircleIcon />}
+                            label="Identified"
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                          />
+                        ) : (
+                          <Chip
+                            icon={<HelpOutlineIcon />}
+                            label={isActive ? "Active" : "Needs ID"}
+                            size="small"
+                            color="warning"
+                          />
+                        )}
+                        {!isActive && session.status === "resolved" && (
+                          <Chip label="Resolved" size="small" color="success" variant="outlined" />
+                        )}
+                        <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
+                          {new Date(session.createdAt).toLocaleString(undefined, {
+                            month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                          })}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", alignItems: "center" }}>
+                        {session.bestWeightG != null && (
+                          <Chip
+                            icon={<ScaleIcon sx={{ fontSize: "16px !important" }} />}
+                            label={`${session.bestWeightG.toFixed(1)}g`}
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                        {session.bestColorHex && (
+                          <Chip
+                            icon={
+                              <Box
+                                sx={{
+                                  width: 12, height: 12, borderRadius: "50%",
+                                  bgcolor: session.bestColorHex,
+                                  border: 1, borderColor: "divider", flexShrink: 0,
+                                }}
+                              />
+                            }
+                            label={session.bestColorHex}
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                        {session.nfcUid && (
+                          <Chip
+                            icon={<NfcIcon sx={{ fontSize: "16px !important" }} />}
+                            label={session.nfcTagFormat
+                              ? session.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                              : "NFC Tag"
+                            }
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                          />
+                        )}
+                        {session.bestHeightMm != null && (
+                          <Chip label={`${session.bestHeightMm.toFixed(0)}mm`} size="small" variant="outlined" />
+                        )}
+                        {session.productName && (
+                          <Chip
+                            label={`${session.brandName ? session.brandName + " " : ""}${session.productName}`}
+                            size="small"
+                            variant="outlined"
+                            color="secondary"
+                          />
+                        )}
+                      </Box>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              );
+            })}
+          </Stack>
+        </Box>
+      )}
     </Box>
   );
 }

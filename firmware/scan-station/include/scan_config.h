@@ -42,18 +42,14 @@
 #define I2C_SDA         16
 #define I2C_SCL         15
 
-// PN5180 NFC reader (dedicated SPI bus — HSPI/SPI3)
-#define NFC_SPI_SCK     14   // Expansion pin → PN5180 SCK
-#define NFC_SPI_MOSI     2   // Expansion pin → PN5180 MOSI
-#define NFC_SPI_MISO     3   // Expansion pin (clean)
-#define NFC_BUSY_PIN    43   // UART RXD (100R series)
-#define NFC_SPI_NSS     44   // UART TXD (100R series)
-#define NFC_RST_PIN     21   // Freed from LED ring
+// NFC via Pico I2C coprocessor (PN5180 on Pico SPI)
+// Uses shared I2C bus (SDA=16, SCL=15) + interrupt pin
+#define NFC_PICO_INT_PIN    43   // Pico INT output (active LOW) — UART RXD pad
 
 // WS2812B LED Ring (wired to onboard RGB GPIO, frees IO21 for NFC RST)
 #define LED_PIN         42   // Onboard RGB pin — ring DIN soldered to same pad
-#define LED_SKIP         0
-#define LED_COUNT       24
+#define LED_SKIP         1   // Skip onboard RGB LED (pixel 0); ring starts at pixel 1
+#define LED_COUNT       25   // 1 onboard + 24 ring
 
 // SD Card (SDMMC 4-bit mode)
 #define SD_CLK_PIN      38

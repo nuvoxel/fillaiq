@@ -376,7 +376,9 @@ void Display::onMenuItemClick(lv_event_t* e) {
         case 2: if (display.onMenuTareScale) display.onMenuTareScale(); break;
         case 3: if (display.onMenuRawSensors) display.onMenuRawSensors(); break;
         case 4: if (display.onMenuCalibrate) display.onMenuCalibrate(); break;
-        case 5: if (display.onMenuReboot)    display.onMenuReboot();    break;
+        case 5: if (display.onMenuReboot)      display.onMenuReboot();      break;
+        case 6: if (display.onMenuCheckUpdate) display.onMenuCheckUpdate(); break;
+        case 7: if (display.onMenuBleScan)     display.onMenuBleScan();     break;
     }
 }
 
@@ -1244,8 +1246,12 @@ void Display::buildMenuScreen() {
                 onMenuItemClick, (void*)(intptr_t)3);
     makeMenuBtn(list, LV_SYMBOL_WIFI, "WiFi Setup",
                 onMenuItemClick, (void*)(intptr_t)1);
+    makeMenuBtn(list, LV_SYMBOL_BLUETOOTH, "Scan BLE Devices",
+                onMenuItemClick, (void*)(intptr_t)7);
     makeMenuBtn(list, LV_SYMBOL_EDIT, "Calibrate Scale",
                 onMenuItemClick, (void*)(intptr_t)4);
+    makeMenuBtn(list, LV_SYMBOL_DOWNLOAD, "Check for Update",
+                onMenuItemClick, (void*)(intptr_t)6);
     makeMenuBtn(list, LV_SYMBOL_POWER, "Reboot",
                 onMenuItemClick, (void*)(intptr_t)5);
     makeMenuBtn(list, LV_SYMBOL_SD_CARD, "Format SD Card",

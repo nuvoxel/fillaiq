@@ -67,17 +67,31 @@ bool TouchDriver::read(uint16_t& x, uint16_t& y, bool& pressed) {
     return pressed;
 }
 
+// I2C bus mutex — shared with sensor/weight/NFC tasks
+extern SemaphoreHandle_t i2cMutex;
+
+// Cached touch state — returned on I2C mutex timeout to avoid phantom releases
+static lv_indev_data_t cachedTouchData = { .state = LV_INDEV_STATE_RELEASED };
+
 void TouchDriver::lvglReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
     (void)indev;
-    uint16_t x, y;
-    bool pressed;
 
-    if (touchInput.read(x, y, pressed) && pressed) {
-        data->point.x = x;
-        data->point.y = y;
-        data->state = LV_INDEV_STATE_PRESSED;
+    // Touch shares I2C bus — try-acquire mutex, return cached state if busy.
+    if (i2cMutex && xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        uint16_t x, y;
+        bool pressed;
+        if (touchInput.read(x, y, pressed) && pressed) {
+            data->point.x = x;
+            data->point.y = y;
+            data->state = LV_INDEV_STATE_PRESSED;
+        } else {
+            data->state = LV_INDEV_STATE_RELEASED;
+        }
+        xSemaphoreGive(i2cMutex);
+        cachedTouchData = *data;
     } else {
-        data->state = LV_INDEV_STATE_RELEASED;
+        // Mutex busy — return last known state (prevents phantom releases)
+        *data = cachedTouchData;
     }
 }
 

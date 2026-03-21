@@ -39,13 +39,17 @@
 //   Core 0 (Weight task):  HX711 bit-bang only (NAU7802 polled on Core 1)
 //
 // Bus ownership:
-//   Wire (I2C):    Core 1 only (touch, NAU7802, TOF, color, env)
+//   Wire (I2C):    Shared — guarded by i2cMutex (NAU7802, Pico NFC bridge, TOF, color, env)
 //   nfcSPI (HSPI): NFC task only (PN5180)
 //   WiFi/HTTP:     Network task only
 //   Display/LVGL:  Core 1 only
 // ============================================================
 
 static Preferences prefs;
+
+// Global I2C bus mutex — guards Wire access from multiple cores/tasks
+// (NAU7802 weight on main loop + Pico NFC bridge on NFC task)
+SemaphoreHandle_t i2cMutex = nullptr;
 
 // Forward declarations
 void startProvisioning();
@@ -62,7 +66,7 @@ uint8_t authFailCount = 0;
 
 // Menu action flags (set by LVGL callbacks, processed in main loop)
 #ifdef BOARD_SCAN_TOUCH
-enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT };
+enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT, MENU_CHECK_UPDATE, MENU_BLE_SCAN };
 volatile MenuAction menuActionPending = MENU_NONE;
 #endif
 
@@ -155,19 +159,144 @@ static volatile bool otaRunning = false;
 // Task handles
 static TaskHandle_t nfcTaskHandle = nullptr;
 static TaskHandle_t networkTaskHandle = nullptr;
+#ifdef BOARD_SCAN_TOUCH
+static TaskHandle_t lvglTaskHandle = nullptr;
+static TaskHandle_t sensorTaskHandle = nullptr;
+#endif
 
-// Pause NFC task during calibration, tare, settings, etc.
-// Uses a cooperative flag — the task checks it each loop and sleeps if set.
-// Network task is NOT paused (runs on core 0, doesn't touch I2C).
-static volatile bool nfcPaused = false;
+// Pause background tasks during calibration, tare, settings, etc.
+// Uses a cooperative flag — tasks check it each loop and sleep if set.
+static volatile bool backgroundTasksPaused = false;
 
 static void suspendBackgroundTasks() {
-    nfcPaused = true;
+    backgroundTasksPaused = true;
 }
 
 static void resumeBackgroundTasks() {
-    nfcPaused = false;
+    backgroundTasksPaused = false;
 }
+
+// -- Sensor Cache (written by sensor task, read by main loop) --
+#ifdef BOARD_SCAN_TOUCH
+#include "distance.h"
+#include "color.h"
+#include "environment.h"
+
+struct SensorCache {
+    SemaphoreHandle_t mutex;
+    DistanceData distance;
+    ColorData color;
+    EnvData env;
+};
+static SensorCache sensorCache;
+#endif
+
+// ============================================================
+// ============================================================
+// LVGL Task (Core 1, Priority 5) — Touch Board Only
+// ============================================================
+// Highest priority on Core 1 so UI always preempts sensor reads.
+// Touch input callback runs within lv_timer_handler via LVGL indev.
+
+#ifdef BOARD_SCAN_TOUCH
+static void lvglTask(void* param) {
+    Serial.println("[LVGL Task] Started on core " + String(xPortGetCoreID()));
+    const TickType_t period = pdMS_TO_TICKS(30);  // ~33fps
+    TickType_t lastWake = xTaskGetTickCount();
+
+    for (;;) {
+        lv_lock();
+        lv_timer_handler();
+        lv_unlock();
+        vTaskDelayUntil(&lastWake, period);
+    }
+}
+#endif
+
+// ============================================================
+// Sensor Task (Core 1, Priority 2) — Touch Board Only
+// ============================================================
+// Round-robin I2C reads: TOF, color (async), env.
+// Writes to sensorCache protected by mutex.
+
+#ifdef BOARD_SCAN_TOUCH
+static void sensorTask(void* param) {
+    Serial.println("[Sensor Task] Started on core " + String(xPortGetCoreID()));
+
+    enum SensorSlot : uint8_t { SLOT_START_COLOR, SLOT_WAIT_COLOR, SLOT_TOF, SLOT_ENV };
+    SensorSlot slot = SLOT_START_COLOR;
+
+    for (;;) {
+        if (backgroundTasksPaused) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+
+        // Acquire mutex per-read, release between slots so weight task can get in
+        switch (slot) {
+            case SLOT_START_COLOR:
+                if (colorSensor.isConnected()) {
+                    if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
+                        colorSensor.startRead();  // Quick I2C write (~1ms)
+                        xSemaphoreGive(i2cMutex);
+                        slot = SLOT_WAIT_COLOR;  // Only advance if read started
+                    }
+                    // else: mutex busy, retry next iteration
+                } else {
+                    slot = SLOT_TOF;
+                }
+                break;
+            case SLOT_WAIT_COLOR:
+                if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
+                    if (colorSensor.isReady()) {
+                        ColorData c;
+                        colorSensor.finishRead(c);
+                        xSemaphoreGive(i2cMutex);
+                        if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                            sensorCache.color = c;
+                            xSemaphoreGive(sensorCache.mutex);
+                        }
+                        slot = SLOT_TOF;
+                    } else {
+                        xSemaphoreGive(i2cMutex);
+                        // Still integrating — stay in WAIT_COLOR
+                    }
+                }
+                break;
+            case SLOT_TOF:
+                if (distanceSensor.isConnected()) {
+                    if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
+                        DistanceData d;
+                        bool ok = distanceSensor.read(d);
+                        xSemaphoreGive(i2cMutex);
+                        if (ok && xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                            sensorCache.distance = d;
+                            xSemaphoreGive(sensorCache.mutex);
+                        }
+                    }
+                }
+                slot = SLOT_ENV;
+                break;
+            case SLOT_ENV:
+                if (envSensor.isConnected()) {
+                    if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
+                        EnvData e;
+                        bool ok = envSensor.read(e);
+                        xSemaphoreGive(i2cMutex);
+                        if (ok && xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                            sensorCache.env = e;
+                            xSemaphoreGive(sensorCache.mutex);
+                        }
+                    }
+                }
+                slot = SLOT_START_COLOR;
+                break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));  // Yield between slots
+    }
+}
+#endif
 
 // ============================================================
 // NFC Task (Core 0, Priority 2, 8KB stack)
@@ -180,12 +309,13 @@ static void nfcTask(void* param) {
 
     for (;;) {
         // Cooperative pause — sleep while menu/calibration is active
-        if (nfcPaused) {
+        if (backgroundTasksPaused) {
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
 
-        // Poll NFC reader (this accesses HSPI only)
+        // Poll NFC reader — Pico bridge methods acquire i2cMutex internally,
+        // so INT pin check (digitalRead) doesn't block the I2C bus.
         nfcScanner.poll();
 
         // Copy results to shared struct
@@ -524,14 +654,14 @@ void checkProvisioning() {
 
     // Stop AP and captive portal before switching to STA
     provisioner.stop();
-    display.showMessage("Connecting...", ssid);
+    lv_lock(); display.showMessage("Connecting...", ssid); lv_unlock();
 
     apiClient.setCredentials(ssid, pass);
 
     // Try connecting (blocking -- acceptable during provisioning flow)
     if (apiClient.connectWiFi()) {
         wifiEverConnected = true;
-        display.showMessage("WiFi Connected!", WiFi.localIP().toString().c_str());
+        lv_lock(); display.showMessage("WiFi Connected!", WiFi.localIP().toString().c_str()); lv_unlock();
         delay(1000);
 
         // Start pairing if API URL configured and not yet paired
@@ -539,7 +669,7 @@ void checkProvisioning() {
             startPairing();
         }
     } else {
-        display.showMessage("WiFi Failed", "Restarting setup...");
+        lv_lock(); display.showMessage("WiFi Failed", "Restarting setup..."); lv_unlock();
         delay(2000);
         startProvisioning();
     }
@@ -557,14 +687,14 @@ void startProvisioning() {
     char qrData[128];
     snprintf(qrData, sizeof(qrData), "WIFI:T:WPA;S:%s;P:%s;;",
              apName, PROV_AP_PASSWORD);
-    display.showQrCode(qrData, apName);
+    lv_lock(); display.showQrCode(qrData, apName); lv_unlock();
 
     Serial.printf("[Setup] AP: %s  Pass: %s\n", apName, PROV_AP_PASSWORD);
 }
 
 void startPairing() {
     char code[12] = {0};
-    display.showMessage("Pairing...", "Contacting server");
+    lv_lock(); display.showMessage("Pairing...", "Contacting server"); lv_unlock();
 
     // This is a blocking HTTP call -- acceptable during setup flow
     // (only called from setup() or user-initiated actions)
@@ -572,18 +702,18 @@ void startPairing() {
 
     if (status == API_OK && apiClient.isPaired()) {
         // Server recognized device as already paired -- token refreshed
-        display.showMessage("Paired!", "Ready to scan");
+        lv_lock(); display.showMessage("Paired!", "Ready to scan"); lv_unlock();
         delay(1000);
     } else if (status == API_OK && code[0] != '\0') {
         // New pairing -- show code on display
         pairingActive = true;
         lastPairingPoll = millis();
 
-        display.showPairingCode(code);
+        lv_lock(); display.showPairingCode(code); lv_unlock();
         Serial.printf("[Pair] Enter code on web app: %s\n", code);
     } else {
         Serial.printf("[Pair] Failed: %d\n", status);
-        display.showMessage("Pair Failed", "Check API URL");
+        lv_lock(); display.showMessage("Pair Failed", "Check API URL"); lv_unlock();
         delay(3000);
     }
 }
@@ -598,9 +728,7 @@ struct WeightSnapshot {
 static WeightSnapshot weightSnap;
 
 void snapshotWeight() {
-    weightSnap.weight = scale.getWeight();
-    weightSnap.stableWeight = scale.getStableWeight();
-    weightSnap.stable = scale.isStable();
+    scale.getSnapshot(weightSnap.weight, weightSnap.stableWeight, weightSnap.stable);
 }
 
 // -- NFC snapshot (read from shared NfcTaskResult, used by state machine) --
@@ -638,6 +766,22 @@ void snapshotNfc() {
     }
 }
 
+// -- Sensor snapshot (read from sensor task cache, used by state machine) --
+#ifdef BOARD_SCAN_TOUCH
+static DistanceData cachedDist = {};
+static ColorData cachedColor = {};
+static EnvData cachedEnv = {};
+
+void snapshotSensors() {
+    if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        cachedDist = sensorCache.distance;
+        cachedColor = sensorCache.color;
+        cachedEnv = sensorCache.env;
+        xSemaphoreGive(sensorCache.mutex);
+    }
+}
+#endif
+
 // -- Trigger a scan (snapshot sensors + enter SUBMITTING state) --
 
 void triggerScan() {
@@ -655,19 +799,20 @@ void triggerScan() {
         currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
     }
 
+#ifdef BOARD_SCAN_TOUCH
+    // Use cached sensor data from sensor task (no I2C blocking)
+    if (cachedColor.valid) currentScan.color = cachedColor;
+    if (cachedDist.valid)  currentScan.height = cachedDist;
+#else
     if (colorSensor.isConnected()) {
         ColorData color;
-        if (colorSensor.read(color)) {
-            currentScan.color = color;
-        }
+        if (colorSensor.read(color)) currentScan.color = color;
     }
-
     if (distanceSensor.isConnected()) {
         DistanceData dist;
-        if (distanceSensor.read(dist)) {
-            currentScan.height = dist;
-        }
+        if (distanceSensor.read(dist)) currentScan.height = dist;
     }
+#endif
 
     enterState(SCAN_SUBMITTING);
 }
@@ -856,43 +1001,12 @@ void updateDisplayAndLed() {
     if (scanState == SCAN_IDLE) {
         // Build the dashboard screen if not already showing
         const ScanResponse* serverData = nullptr;
+        lv_lock();
         display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
+        lv_unlock();
 
-        // Non-blocking sensor reads for dashboard.
-        // Color sensor is async (AS7341 integration takes 100-500ms).
-        // TOF is already non-blocking (continuous mode + dataReady()).
-        // Env sensor reads are fast (<15ms) and infrequent.
-        static DistanceData cachedDist = {};
-        static ColorData cachedColor = {};
-        static EnvData cachedEnv = {};
-        enum DashSensorState : uint8_t { DASH_START_COLOR, DASH_WAIT_COLOR, DASH_TOF, DASH_ENV };
-        static DashSensorState dashState = DASH_START_COLOR;
-
-        switch (dashState) {
-            case DASH_START_COLOR:
-                if (colorSensor.isConnected()) {
-                    colorSensor.startRead();  // ~1ms I2C write
-                    dashState = DASH_WAIT_COLOR;
-                } else {
-                    dashState = DASH_TOF;
-                }
-                break;
-            case DASH_WAIT_COLOR:
-                if (colorSensor.isReady()) {  // ~1ms I2C status check
-                    colorSensor.finishRead(cachedColor);  // ~2-5ms I2C data read
-                    dashState = DASH_TOF;
-                }
-                // else: still integrating — try again next loop (no blocking)
-                break;
-            case DASH_TOF:
-                if (distanceSensor.isConnected()) distanceSensor.read(cachedDist);
-                dashState = DASH_ENV;
-                break;
-            case DASH_ENV:
-                if (envSensor.isConnected()) envSensor.read(cachedEnv);
-                dashState = DASH_START_COLOR;
-                break;
-        }
+        // Sensor data comes from sensor task cache (snapshotSensors)
+        // No I2C reads here — dashboard uses cachedDist, cachedColor, cachedEnv
 
         // Build NFC info string — show reading progress
         static char nfcInfoBuf[80];
@@ -958,8 +1072,10 @@ void updateDisplayAndLed() {
             pressureHPa = cachedEnv.pressureHPa;
         }
 
+        lv_lock();
         display.updateDashboard(w, stable, nfcInfo, colorInfo, cR, cG, cB,
                                  distMm, tempC, humidity, pressureHPa, true);
+        lv_unlock();
     } else {
         // For SCAN_SUBMITTING or SCAN_RESULT — only rebuild screen on state change,
         // not every frame (rebuilding destroys buttons and breaks touch events)
@@ -972,44 +1088,11 @@ void updateDisplayAndLed() {
                      apiClient.getApiUrl(), lastResponse.sessionId);
         }
 
+        lv_lock();
         display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons,
                        sessionUrl, labelPrinter.isConnected());
+        lv_unlock();
     }
-
-    // LED backlight based on state (only change mode on state transitions)
-    static ScanState lastLedState = SCAN_IDLE;
-    static bool lastLedHadData = false;
-    const ScanResponse* ledServerData = lastResponse.identified ? &lastResponse : nullptr;
-    bool hasDataNow = (ledServerData != nullptr);
-    bool ledStateChanged = (scanState != lastLedState) || (hasDataNow != lastLedHadData);
-
-    if (ledStateChanged) {
-        lastLedState = scanState;
-        lastLedHadData = hasDataNow;
-        switch (scanState) {
-        case SCAN_IDLE:
-            backlight.idle();
-            break;
-        case SCAN_SUBMITTING:
-            backlight.spin(0, 150, 255);
-            break;
-        case SCAN_RESULT:
-            if (ledServerData && ledServerData->identified) {
-                if (ledServerData->colorR || ledServerData->colorG || ledServerData->colorB) {
-                    backlight.color(ledServerData->colorR, ledServerData->colorG, ledServerData->colorB);
-                } else {
-                    backlight.success();
-                }
-            } else {
-                backlight.needsInput();
-            }
-            break;
-        default:
-            break;
-        }
-    }
-
-    backlight.update();
 }
 
 // ============================================================
@@ -1517,7 +1600,7 @@ void setup() {
 
     // Display + backlight first -- show boot screen immediately
     backlight.begin();
-    backlight.color(0, 0, 255);  // Blue = booting
+    backlight.off();  // LED ring disabled for now
     display.begin();
     display.showBootScreen(FW_VERSION);
 
@@ -1543,8 +1626,10 @@ void setup() {
     delayMicroseconds(5);
 
     Wire.begin(I2C_SDA, I2C_SCL);
+    Wire.setClock(400000);  // 400kHz fast mode — all devices support it
     Wire.setTimeOut(50);
-    Serial.printf("  I2C bus: SDA=%d SCL=%d\n", I2C_SDA, I2C_SCL); Serial.flush();
+    i2cMutex = xSemaphoreCreateMutex();
+    Serial.printf("  I2C bus: SDA=%d SCL=%d @ 400kHz\n", I2C_SDA, I2C_SCL); Serial.flush();
 
     // Touch init first -- reset FT6336G so it releases SDA before we scan
 #ifdef BOARD_SCAN_TOUCH
@@ -1562,7 +1647,7 @@ void setup() {
                                     AS7341_ADDR, TCS34725_ADDR, OPT4048_ADDR,
                                     AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/,
 #ifdef BOARD_SCAN_TOUCH
-                                    0x38 /*FT6336*/, ES8311_ADDR,
+                                    0x38 /*FT6336*/, ES8311_ADDR, 0x55 /*Pico NFC*/,
 #endif
                                     };
     Serial.print("  I2C:"); Serial.flush();
@@ -1585,7 +1670,7 @@ void setup() {
     backlight.off();
     delay(50);
     initNfc();
-    backlight.color(0, 0, 255);  // Restore blue
+    backlight.off();  // LED ring disabled for now
     display.addBootItem("NFC", nfcScanner.isConnected());
 
     // TOF distance sensor
@@ -1628,15 +1713,11 @@ void setup() {
     if (scale.isConnected()) {
         scale.tare();
 #ifdef BOARD_SCAN_TOUCH
-        // NAU7802 uses I2C -- poll in main loop to avoid I2C bus contention
-        // (HX711 needs dedicated task for bit-banged GPIO timing)
-        if (scale.getDriverType() != WEIGHT_HX711) {
-            Serial.println("  Weight: polling in main loop (I2C)");
-        } else
+        // Weight task on Core 1 — NAU7802 I2C guarded by i2cMutex internally
+        scale.startTask(1, 3);  // Core 1, priority 3 (above sensors, below LVGL)
+#else
+        scale.startTask(0, 2);  // DevKitC: Core 0 for HX711 bit-bang
 #endif
-        {
-            scale.startTask(0, 2);  // Weight task on Core 0
-        }
     }
 
     // SD card
@@ -1672,7 +1753,7 @@ void setup() {
     DeviceCapabilities caps;
     if (nfcScanner.isConnected()) {
 #ifdef BOARD_SCAN_TOUCH
-        caps.nfc.set("PN5180", "SPI", 0, NFC_SPI_NSS);
+        caps.nfc.set("PN5180", "I2C", 0x55);
 #else
         caps.nfc.set("PN532", "SPI", 0, NFC_CS_PIN);
 #endif
@@ -1768,7 +1849,9 @@ void setup() {
     display.onMenuTareScale = []() { menuActionPending = MENU_TARE_SCALE; };
     display.onMenuRawSensors = []() { menuActionPending = MENU_RAW_SENSORS; };
     display.onMenuCalibrate  = []() { menuActionPending = MENU_CALIBRATE; };
-    display.onMenuReboot    = []() { menuActionPending = MENU_REBOOT; };
+    display.onMenuReboot       = []() { menuActionPending = MENU_REBOOT; };
+    display.onMenuCheckUpdate  = []() { menuActionPending = MENU_CHECK_UPDATE; };
+    display.onMenuBleScan      = []() { menuActionPending = MENU_BLE_SCAN; };
 #endif
 
     // OTA updates (init only -- periodic checks happen in network task)
@@ -1826,8 +1909,21 @@ void setup() {
     );
     Serial.println("  Net task: started on core 0 (priority 1)");
 
+#ifdef BOARD_SCAN_TOUCH
+    // Sensor task on Core 1 — round-robin I2C reads (TOF, color, env)
+    sensorCache.mutex = xSemaphoreCreateMutex();
+    xTaskCreatePinnedToCore(sensorTask, "sensor", 4096, nullptr,
+        2, &sensorTaskHandle, 1);
+    Serial.println("  Sensor task: started on core 1 (priority 2)");
+
+    // LVGL task on Core 1 — highest priority, UI always responsive
+    xTaskCreatePinnedToCore(lvglTask, "lvgl", 8192, nullptr,
+        5, &lvglTaskHandle, 1);
+    Serial.println("  LVGL task: started on core 1 (priority 5)");
+#endif
+
     Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
-    backlight.idle();
+    backlight.off();  // LED ring disabled for now
     Serial.printf("  Heap: %u free, %u min | PSRAM: %u free\n",
         ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
     enterState(SCAN_IDLE);
@@ -1836,10 +1932,10 @@ void setup() {
 }
 
 // ============================================================
-// Main Loop (Core 1 -- Arduino default)
+// Main Loop (Core 1 -- Arduino default, priority 1)
 // ============================================================
-// UI only. No blocking operations. No NFC SPI. No HTTP.
-// I2C sensors (NAU7802, TOF, color, env) are read here.
+// State machine, display updates (with lv_lock), serial commands.
+// No direct I2C — sensors handled by dedicated tasks.
 
 static unsigned long lastDisplayUpdate = 0;
 static unsigned long lastSerialStatus = 0;
@@ -1847,8 +1943,12 @@ static unsigned long lastSerialStatus = 0;
 void loop() {
     unsigned long now = millis();
 
-    // LVGL tick -- must run frequently for rendering + animations
+#ifdef BOARD_SCAN_TOUCH
+    // LVGL ticking handled by dedicated lvglTask (priority 5)
+#else
+    // DevKitC: no LVGL task, tick inline
     display.tick();
+#endif
 
     // Process deferred menu actions (set by LVGL event callbacks)
 #ifdef BOARD_SCAN_TOUCH
@@ -1861,12 +1961,12 @@ void loop() {
         switch (action) {
             case MENU_FORMAT_SD:
                 if (sdCard.isConnected()) {
-                    display.showMessage("Formatting...", "Please wait");
+                    lv_lock(); display.showMessage("Formatting...", "Please wait"); lv_unlock();
                     sdCard.format();
-                    display.showMessage("SD Formatted", "Scan log cleared");
+                    lv_lock(); display.showMessage("SD Formatted", "Scan log cleared"); lv_unlock();
                     delay(1500);
                 } else {
-                    display.showMessage("No SD Card", "Insert card and reboot");
+                    lv_lock(); display.showMessage("No SD Card", "Insert card and reboot"); lv_unlock();
                     delay(1500);
                 }
                 break;
@@ -1876,48 +1976,55 @@ void loop() {
                 break;
             case MENU_TARE_SCALE:
                 if (scale.isConnected()) {
-                    display.showMessage("Taring...", "Keep platform empty");
+                    lv_lock(); display.showMessage("Taring...", "Keep platform empty"); lv_unlock();
                     scale.pauseTask();
-                    delay(200);
+                    vTaskDelay(pdMS_TO_TICKS(200));
+                    // backgroundTasksPaused + pauseTask() means no other task uses I2C
                     scale.tare();
                     scale.resumeTask();
-                    display.showMessage("Tared!", "Scale zeroed");
-                    delay(1000);
+                    lv_lock(); display.showMessage("Tared!", "Scale zeroed"); lv_unlock();
+                    vTaskDelay(pdMS_TO_TICKS(1000));
                 }
                 break;
             case MENU_RAW_SENSORS:
-                // Enter raw sensors mode -- loop will continuously update
-                display.showRawSensors("Loading...");
+                lv_lock(); display.showRawSensors("Loading..."); lv_unlock();
                 break;
             case MENU_CALIBRATE: {
                 if (!scale.isConnected()) {
-                    display.showMessage("No Scale", "Scale not detected");
+                    lv_lock(); display.showMessage("No Scale", "Scale not detected"); lv_unlock();
                     delay(1500);
                     break;
                 }
                 // Step 1: Remove weight
+                lv_lock();
                 display.showCalibrate("Remove all weight", "Then tap screen...");
+                lv_unlock();
                 display.touchSubmitRequested = false;
                 while (!display.touchSubmitRequested) {
-                    display.tick();
-                    delay(10);
+                    vTaskDelay(pdMS_TO_TICKS(50));
                 }
                 // Step 2: Tare
+                lv_lock();
                 display.showCalibrate("Taring...", "Hold still");
+                lv_unlock();
                 scale.pauseTask();
                 delay(500);
                 scale.tare();
                 // Step 3: Place known weight
+                lv_lock();
                 display.showCalibrate("Place 100g weight", "Then tap screen...");
+                lv_unlock();
                 display.touchSubmitRequested = false;
                 while (!display.touchSubmitRequested) {
-                    display.tick();
-                    delay(10);
+                    vTaskDelay(pdMS_TO_TICKS(50));
                 }
                 // Step 4: Calculate
+                lv_lock();
                 display.showCalibrate("Measuring...", "Hold still");
+                lv_unlock();
                 delay(500);
-                double raw = scale.getValueForCalibration(20);
+                double raw = 0;
+                raw = scale.getValueForCalibration(20);
                 float factor = (float)(raw / 100.0);
                 scale.setScale(factor);
                 scale.resumeTask();
@@ -1925,42 +2032,68 @@ void loop() {
                 saveCalibration(factor);
                 char msg[48];
                 snprintf(msg, sizeof(msg), "Factor: %.4f", factor);
-                display.showCalibrate("Calibrated!", msg);
+                lv_lock(); display.showCalibrate("Calibrated!", msg); lv_unlock();
                 Serial.printf("Calibration: %.4f (saved)\n", factor);
                 delay(2000);
-                // Return to normal
-                display.showMessage("Done", "Tap Back to return");
+                lv_lock(); display.showMessage("Done", "Tap Back to return"); lv_unlock();
                 break;
             }
+            case MENU_CHECK_UPDATE:
+                if (apiClient.isWiFiConnected() && apiClient.isPaired()) {
+                    lv_lock(); display.showMessage("Checking...", "Looking for updates"); lv_unlock();
+                    resumeBackgroundTasks();
+                    NetworkWorkItem item = { NET_CHECK_OTA };
+                    xQueueSend(networkQueue, &item, 0);
+                    delay(2000);
+                } else {
+                    lv_lock(); display.showMessage("No Connection", "WiFi or pairing required"); lv_unlock();
+                    delay(2000);
+                }
+                break;
+            case MENU_BLE_SCAN:
+                lv_lock(); display.showMessage("Scanning BLE...", "Looking for printer"); lv_unlock();
+                resumeBackgroundTasks();
+                if (labelPrinter.scan(8000)) {
+                    char msg[48];
+                    snprintf(msg, sizeof(msg), "Found: %s", labelPrinter.getDeviceName());
+                    lv_lock(); display.showMessage(msg, "Connecting..."); lv_unlock();
+                    labelPrinter.connect();
+                    if (labelPrinter.isConnected()) {
+                        lv_lock(); display.showMessage("Printer Ready", labelPrinter.getDeviceName()); lv_unlock();
+                    } else {
+                        lv_lock(); display.showMessage("Connect Failed", labelPrinter.getDeviceName()); lv_unlock();
+                    }
+                } else {
+                    lv_lock(); display.showMessage("No Printer", "None found nearby"); lv_unlock();
+                }
+                delay(2000);
+                break;
             case MENU_REBOOT:
-                display.showMessage("Rebooting...", "");
-                delay(500);
-                ESP.restart();
+                lv_lock(); display.showMessage("Rebooting...", ""); lv_unlock();
+                Serial.println("Rebooting now...");
+                Serial.flush();
+                vTaskDelay(pdMS_TO_TICKS(100));
+                esp_restart();
                 break;
             default: break;
         }
     }
 
     // Resume background tasks when menu is exited (Back button pressed)
-    if (nfcPaused && !display.isMenuActive()) {
+    if (backgroundTasksPaused && !display.isMenuActive()) {
         resumeBackgroundTasks();
     }
 #endif
 
-    // Weight: poll NAU7802 inline if not using dedicated task (I2C thread safety)
-    if (scale.isConnected() && !scale.isTaskRunning()) {
-        static unsigned long lastWeightPoll = 0;
-        if (now - lastWeightPoll >= WEIGHT_READ_INTERVAL_MS) {
-            lastWeightPoll = now;
-            scale.pollOnce();
-        }
-    }
-
+    // Weight polling handled by weight task (Core 1, priority 3)
     // Snapshot weight once per loop (avoids repeated mutex acquisitions)
     snapshotWeight();
 
     // Snapshot NFC state from NFC task (thread-safe read)
     snapshotNfc();
+#ifdef BOARD_SCAN_TOUCH
+    snapshotSensors();
+#endif
 
     // NFC polling for DevKitC (PN532 on shared SPI -- no NFC task)
 #ifndef BOARD_SCAN_TOUCH
@@ -2027,7 +2160,7 @@ void loop() {
 
                 if (paired) {
                     pairingActive = false;
-                    display.showMessage("Paired!", "Ready to scan");
+                    lv_lock(); display.showMessage("Paired!", "Ready to scan"); lv_unlock();
                     delay(2000);
                 } else if (pairStatus == API_EXPIRED) {
                     Serial.println("[Pair] Code expired, requesting new code");
@@ -2047,12 +2180,22 @@ void loop() {
         }
     }
 
-    // Environmental data reporting (read I2C sensor on main loop, enqueue HTTP post)
+    // Environmental data reporting (uses cached data from sensor task)
     {
         static unsigned long lastEnvReport = 0;
         if (envSensor.isConnected() && apiClient.isPaired() && apiClient.isWiFiConnected()
             && now - lastEnvReport >= deviceConfig.envReportInterval()) {
             lastEnvReport = now;
+#ifdef BOARD_SCAN_TOUCH
+            if (cachedEnv.valid) {
+                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                    sharedScan.envData = cachedEnv;
+                    xSemaphoreGive(sharedScan.mutex);
+                    NetworkWorkItem item = { NET_POST_ENV };
+                    xQueueSend(networkQueue, &item, 0);
+                }
+            }
+#else
             EnvData env;
             if (envSensor.read(env)) {
                 if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
@@ -2062,6 +2205,7 @@ void loop() {
                     xQueueSend(networkQueue, &item, 0);
                 }
             }
+#endif
         }
     }
 
@@ -2081,33 +2225,11 @@ void loop() {
     if (display.isMenuActive() && now - lastDisplayUpdate >= 200) {
         lastDisplayUpdate = now;
 
-        // Raw sensors screen — only update if on that screen
+        // Raw sensors screen — uses cached data from sensor task (no I2C here)
         if (display.isRawSensorsScreen()) {
         static char sensorBuf[512];
-        static DistanceData cachedDist = {};
-        static ColorData cachedColor = {};
-        static EnvData cachedEnv = {};
-        static uint8_t sensorReadSlot = 0;
 
-        // Read one sensor per frame (round-robin) with LVGL ticks between
-        // to keep touch responsive during slow I2C reads (AS7341 can take 50-100ms)
-        switch (sensorReadSlot) {
-            case 0:
-                if (distanceSensor.isConnected()) distanceSensor.read(cachedDist);
-                display.tick();
-                break;
-            case 1:
-                if (colorSensor.isConnected()) colorSensor.read(cachedColor);
-                display.tick();
-                break;
-            case 2:
-                if (envSensor.isConnected()) envSensor.read(cachedEnv);
-                display.tick();
-                break;
-        }
-        sensorReadSlot = (sensorReadSlot + 1) % 3;
-
-        // Build display string from cached values
+        // Build display string from cached values (snapshotSensors already called)
         {
             int pos = 0;
 
@@ -2200,7 +2322,7 @@ void loop() {
                 pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "NFC: --\n");
             }
 
-            display.showRawSensors(sensorBuf);
+            lv_lock(); display.showRawSensors(sensorBuf); lv_unlock();
         }
         } // isRawSensorsScreen
     }

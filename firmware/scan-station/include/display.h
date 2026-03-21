@@ -63,6 +63,8 @@ public:
     void (*onMenuRawSensors)() = nullptr;
     void (*onMenuCalibrate)() = nullptr;
     void (*onMenuReboot)() = nullptr;
+    void (*onMenuCheckUpdate)() = nullptr;
+    void (*onMenuBleScan)() = nullptr;
 
     // Scan button callback (set by main.cpp)
     void (*onScanButtonPressed)() = nullptr;

@@ -23,8 +23,8 @@
 
 // Tick — provided via lv_tick_set_cb(millis) in display.cpp
 
-// OS — none (bare metal, single-thread LVGL)
-#define LV_USE_OS   LV_OS_NONE
+// OS — FreeRTOS (enables lv_lock/lv_unlock for multi-task safety)
+#define LV_USE_OS   LV_OS_FREERTOS
 
 // Drawing
 #define LV_DRAW_BUF_STRIDE_ALIGN    1
