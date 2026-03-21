@@ -1366,7 +1366,7 @@ void Display::showCalibrate(const char* step, const char* detail) {
         lv_obj_set_style_bg_color(continueBtn, brandOrange, 0);
         lv_obj_set_style_bg_opa(continueBtn, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(continueBtn, 8, 0);
-        lv_obj_add_event_cb(continueBtn, onSubmitBtnClick, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(continueBtn, onSubmitTap, LV_EVENT_CLICKED, NULL);
         lv_obj_t* contLbl = lv_label_create(continueBtn);
         lv_label_set_text(contLbl, "Continue");
         lv_obj_set_style_text_font(contLbl, &lv_font_montserrat_16, 0);
