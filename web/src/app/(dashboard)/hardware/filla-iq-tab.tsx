@@ -142,17 +142,27 @@ function SensorRow({ label, sensor }: { label: string; sensor?: SensorDetail }) 
 function StationCard({
   station,
   envData,
+  printers,
+  jobs,
   isPending,
   onChannelChange,
   onRevoke,
   onSaveConfig,
+  onCancelJob,
+  onDeleteJob,
+  onClearAllJobs,
 }: {
   station: Station;
   envData: { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null } | undefined;
+  printers: UserPrinterRow[];
+  jobs: PrintJobRow[];
   isPending: boolean;
   onChannelChange: (id: string, channel: string) => void;
   onRevoke: (id: string, name: string) => void;
   onSaveConfig: (id: string, settings: Record<string, any>) => void;
+  onCancelJob: (id: string) => void;
+  onDeleteJob: (id: string) => void;
+  onClearAllJobs: () => void;
 }) {
   const caps = (station.config as StationConfig)?.capabilities;
   const settings = (station.config as StationConfig)?.deviceSettings ?? {};
@@ -483,6 +493,29 @@ function StationCard({
           </Accordion>
         </>
       )}
+
+      {/* ── Printers under this station ──────────────────────────────── */}
+      {printers.length > 0 && (
+        <Box sx={{ px: 2, pb: 2 }}>
+          <Divider sx={{ mb: 1.5 }} />
+          <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: "block" }}>
+            LABEL PRINTERS
+          </Typography>
+          <Stack spacing={1.5}>
+            {printers.map((p) => (
+              <PrinterCard
+                key={p.id}
+                printer={p}
+                stationOnline={station.isOnline}
+                jobs={jobs}
+                isPending={isPending}
+                onCancelJob={onCancelJob}
+                onClearAll={onClearAllJobs}
+              />
+            ))}
+          </Stack>
+        </Box>
+      )}
     </Paper>
   );
 }
@@ -663,11 +696,11 @@ function PrinterCard({
                 variant="outlined"
                 sx={{ height: 20, textTransform: "capitalize", "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
               />
-              {["pending", "sent", "printing"].includes(job.status) && (
-                <IconButton size="small" onClick={() => onCancelJob(job.id)} disabled={isPending} sx={{ p: 0.25 }}>
-                  <CloseIcon sx={{ fontSize: 14 }} />
+              <Tooltip title={["pending", "sent", "printing"].includes(job.status) ? "Cancel" : "Delete"}>
+                <IconButton size="small" onClick={() => onCancelJob(job.id)} disabled={isPending} sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main" } }}>
+                  <DeleteIcon sx={{ fontSize: 14 }} />
                 </IconButton>
-              )}
+              </Tooltip>
             </Box>
           ))
         )}
@@ -776,12 +809,6 @@ export function FillaIqTab() {
     });
   };
 
-  const stationNameMap = Object.fromEntries(stations.map((s) => [s.id, s.name]));
-  const stationPrinterOnlineMap = Object.fromEntries(stations.map((s) => {
-    const hasPrinter = Boolean((s.config as StationConfig)?.capabilities?.printer?.detected);
-    return [s.id, Boolean(s.isOnline) && hasPrinter];
-  }));
-
   return (
     <>
       {/* ── Scan Stations ── */}
@@ -811,39 +838,61 @@ export function FillaIqTab() {
         </Box>
       ) : (
         <Stack spacing={2}>
-          {stations.map((station) => (
-            <StationCard
-              key={station.id}
-              station={station}
-              envData={envData[station.id]}
-              isPending={isPending}
-              onChannelChange={handleChannelChange}
-              onRevoke={handleRevoke}
-              onSaveConfig={handleSaveConfig}
-            />
-          ))}
+          {stations.map((station) => {
+            const stationPrinters = printers.filter((p) => p.scanStationId === station.id);
+            const stationJobs = printJobs.filter(
+              (j) => !j.stationId || j.stationId === station.id
+            );
+            return (
+              <StationCard
+                key={station.id}
+                station={station}
+                envData={envData[station.id]}
+                printers={stationPrinters}
+                jobs={stationJobs}
+                isPending={isPending}
+                onChannelChange={handleChannelChange}
+                onRevoke={handleRevoke}
+                onSaveConfig={handleSaveConfig}
+                onCancelJob={(id) => {
+                  startTransition(async () => {
+                    await cancelPrintJob(id);
+                    fetchStations();
+                  });
+                }}
+                onDeleteJob={(id) => {
+                  startTransition(async () => {
+                    await cancelPrintJob(id);
+                    fetchStations();
+                  });
+                }}
+                onClearAllJobs={() => {
+                  startTransition(async () => {
+                    await cancelAllPendingPrintJobs();
+                    await clearCompletedPrintJobs();
+                    fetchStations();
+                  });
+                }}
+              />
+            );
+          })}
         </Stack>
       )}
 
-      {/* ── Label Printers ── */}
-      {!loading && printers.length > 0 && (
+      {/* Printers without a station (orphaned) */}
+      {!loading && printers.filter((p) => !p.scanStationId || !stations.find((s) => s.id === p.scanStationId)).length > 0 && (
         <>
-          <Typography variant="h6" fontWeight={600} sx={{ mt: 4, mb: 2 }}>
-            Label Printers
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 3, mb: 1 }}>
+            Unassigned Printers
           </Typography>
           <Stack spacing={2}>
-            {printers.map((p) => {
-              // Jobs for this printer: assigned to its station, or unassigned
-              const printerJobs = printJobs.filter(
-                (j) => !j.stationId || j.stationId === p.scanStationId
-              );
-              return (
+            {printers
+              .filter((p) => !p.scanStationId || !stations.find((s) => s.id === p.scanStationId))
+              .map((p) => (
                 <PrinterCard
                   key={p.id}
                   printer={p}
-                  stationName={p.scanStationId ? stationNameMap[p.scanStationId] : undefined}
-                  stationOnline={p.scanStationId ? stationPrinterOnlineMap[p.scanStationId] : undefined}
-                  jobs={printerJobs}
+                  jobs={printJobs.filter((j) => !j.stationId)}
                   isPending={isPending}
                   onCancelJob={(id) => {
                     startTransition(async () => {
@@ -859,8 +908,7 @@ export function FillaIqTab() {
                     });
                   }}
                 />
-              );
-            })}
+              ))}
           </Stack>
         </>
       )}

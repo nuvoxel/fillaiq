@@ -1402,37 +1402,60 @@ void Display::showPairingCode(const char* code) {
     clearScreen();
     _currentScreen = SCR_PAIRING;
 
-    lv_obj_t* logo = lv_obj_create(_screen);
-    lv_obj_remove_style_all(logo);
-    lv_obj_set_size(logo, 56, 56);
-    lv_obj_set_style_bg_color(logo, brandOrange, 0);
-    lv_obj_set_style_bg_opa(logo, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(logo, 12, 0);
-    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 15);
+    // Title
+    makeLabel(_screen, &lv_font_montserrat_16, white,
+              LV_ALIGN_TOP_MID, 0, 10, "Pair Device");
 
-    lv_obj_t* fLetter = lv_label_create(logo);
-    lv_label_set_text(fLetter, "F");
-    lv_obj_set_style_text_font(fLetter, &lv_font_montserrat_32, 0);
-    lv_obj_set_style_text_color(fLetter, white, 0);
-    lv_obj_center(fLetter);
+    // Generate QR code with pairing URL
+    char qrData[128];
+    snprintf(qrData, sizeof(qrData), "https://fillaiq.com/hardware?pair=%s", code);
 
-    makeLabel(_screen, &lv_font_montserrat_20, white,
-              LV_ALIGN_TOP_MID, 0, 80, "Pair Device");
+    QRCode qrcode;
+    uint8_t qrcodeData[512];
+    int8_t result = -1;
+    for (uint8_t ver = 5; ver <= 8; ver++) {
+        result = qrcode_initText(&qrcode, qrcodeData, ver, ECC_LOW, qrData);
+        if (result == 0) break;
+    }
 
-    lv_obj_t* div = lv_obj_create(_screen);
-    lv_obj_remove_style_all(div);
-    lv_obj_set_size(div, 180, 1);
-    lv_obj_set_style_bg_color(div, gray, 0);
-    lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
-    lv_obj_align(div, LV_ALIGN_TOP_MID, 0, 108);
+    if (result == 0) {
+        int availH = _screenH - 120;
+        int availW = _screenW - 40;
+        int maxPx = min(availH, availW);
+        int scale = maxPx / (qrcode.size + 4);
+        if (scale < 1) scale = 1;
+        int qrPx = qrcode.size * scale;
+        int margin = scale * 2;
+        int totalSize = qrPx + margin * 2;
 
-    _pairCode = makeLabel(_screen, &lv_font_montserrat_36, brandOrange,
-                          LV_ALIGN_CENTER, 0, 0, code);
+        lv_obj_t* qrBg = lv_obj_create(_screen);
+        lv_obj_remove_style_all(qrBg);
+        lv_obj_set_size(qrBg, totalSize, totalSize);
+        lv_obj_set_style_bg_color(qrBg, white, 0);
+        lv_obj_set_style_bg_opa(qrBg, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(qrBg, 4, 0);
+        lv_obj_align(qrBg, LV_ALIGN_TOP_MID, 0, 34);
+
+        for (uint8_t y = 0; y < qrcode.size; y++) {
+            for (uint8_t x = 0; x < qrcode.size; x++) {
+                if (qrcode_getModule(&qrcode, x, y)) {
+                    lv_obj_t* px = lv_obj_create(qrBg);
+                    lv_obj_remove_style_all(px);
+                    lv_obj_set_size(px, scale, scale);
+                    lv_obj_set_pos(px, margin + x * scale, margin + y * scale);
+                    lv_obj_set_style_bg_color(px, lv_color_black(), 0);
+                    lv_obj_set_style_bg_opa(px, LV_OPA_COVER, 0);
+                }
+            }
+        }
+    }
+
+    // Pairing code below QR
+    _pairCode = makeLabel(_screen, &lv_font_montserrat_28, brandOrange,
+                          LV_ALIGN_BOTTOM_MID, 0, -40, code);
 
     makeLabel(_screen, &lv_font_montserrat_12, gray,
-              LV_ALIGN_BOTTOM_MID, 0, -30, "Enter code on dashboard");
-    makeLabel(_screen, &lv_font_montserrat_12, gray,
-              LV_ALIGN_BOTTOM_MID, 0, -12, "fillaiq.com/hardware");
+              LV_ALIGN_BOTTOM_MID, 0, -12, "Scan QR or enter code at fillaiq.com/hardware");
 
     lv_refr_now(NULL);
 }

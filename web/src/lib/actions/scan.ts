@@ -5,7 +5,7 @@ import { eq, ne, desc, and, or, ilike, gt, gte, isNull } from "drizzle-orm";
 import { scanStations, scanEvents, scanSessions } from "@/db/schema/scan-stations";
 import { environmentalReadings } from "@/db/schema/events";
 import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
-import { userItems } from "@/db/schema/user-library";
+import { userItems, userPrinters, printJobs } from "@/db/schema/user-library";
 import { zones, racks, shelves, bays, slots } from "@/db/schema/storage";
 import { requireAuth } from "./auth";
 import { ok, err, type ActionResult } from "./utils";
@@ -102,6 +102,18 @@ export async function revokeDevice(stationId: string) {
     );
 
   if (!station) return err("Station not found");
+
+  // Delete print jobs linked to this station
+  await db.delete(printJobs).where(eq(printJobs.stationId, stationId));
+
+  // Delete label printers linked to this station
+  await db.delete(userPrinters).where(eq(userPrinters.scanStationId, stationId));
+
+  // Abandon active scan sessions
+  await db
+    .update(scanSessions)
+    .set({ status: "abandoned", updatedAt: new Date() })
+    .where(and(eq(scanSessions.stationId, stationId), eq(scanSessions.status, "active")));
 
   // Clear the device token and unlink from user
   await db
