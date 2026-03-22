@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
@@ -728,9 +729,19 @@ export function FillaIqTab() {
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [envData, setEnvData] = useState<Record<string, { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null }>>({});
+  const searchParams = useSearchParams();
   const [pairOpen, setPairOpen] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
   const [pairError, setPairError] = useState("");
+
+  // Auto-open pair dialog if ?pair=CODE is in the URL (from QR code)
+  useEffect(() => {
+    const code = searchParams.get("pair");
+    if (code && code.length >= 4) {
+      setPairingCode(code.toUpperCase());
+      setPairOpen(true);
+    }
+  }, [searchParams]);
 
   const fetchStations = async () => {
     const [stationsResult, printersResult, jobsResult] = await Promise.all([
