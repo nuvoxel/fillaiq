@@ -106,7 +106,7 @@ type Station = {
 
 // ── Small components ─────────────────────────────────────────────────────────
 
-function InfoRow({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
+function InfoRow({ label, value, mono }: { label: string; value?: React.ReactNode; mono?: boolean }) {
   if (!value) return null;
   return (
     <Box sx={{ display: "flex", gap: 1, alignItems: "baseline" }}>
@@ -411,10 +411,12 @@ function StationCard({
                 key={p.id}
                 printer={p}
                 stationOnline={station.isOnline ?? undefined}
+                stationConfig={(station.config as StationConfig) ?? undefined}
                 jobs={jobs}
                 isPending={isPending}
                 onCancelJob={onCancelJob}
                 onClearAll={onClearAllJobs}
+                onSaveSettings={(settings) => onSaveConfig(station.id, settings)}
               />
             ))}
           </Stack>
@@ -457,17 +459,23 @@ const JOB_STATUS_COLOR: Record<string, "default" | "warning" | "success" | "erro
 };
 
 function PrinterCard({
-  printer, stationName, stationOnline, jobs, isPending, onCancelJob, onClearAll,
+  printer, stationName, stationOnline, stationConfig, jobs, isPending, onCancelJob, onClearAll, onSaveSettings,
 }: {
   printer: UserPrinterRow;
   stationName?: string;
   stationOnline?: boolean;
+  stationConfig?: StationConfig;
   jobs: PrintJobRow[];
   isPending: boolean;
   onCancelJob: (id: string) => void;
   onClearAll: () => void;
+  onSaveSettings?: (settings: Record<string, any>) => void;
 }) {
   const isOnline = stationOnline ?? false;
+  const caps = stationConfig?.capabilities?.printer;
+  const settings = stationConfig?.deviceSettings ?? {};
+  const [printerSpeed, setPrinterSpeed] = useState(settings.printerSpeed ?? 3);
+  const [printerDensity, setPrinterDensity] = useState(settings.printerDensity ?? 10);
   const activeJobs = jobs.filter((j) => ["pending", "sent", "printing"].includes(j.status));
   const recentJobs = jobs.filter((j) => !["pending", "sent", "printing"].includes(j.status)).slice(0, 5);
   const allJobs = [...activeJobs, ...recentJobs];
@@ -554,6 +562,81 @@ function PrinterCard({
           <Chip label={`FW ${printer.firmwareVersion}`} size="small" variant="outlined" sx={{ height: 22 }} />
         )}
       </Box>
+      {/* ── Device info + settings ── */}
+      <Accordion disableGutters elevation={0} sx={{ borderTop: 1, borderColor: "divider", "&:before": { display: "none" } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 36, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <SettingsIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+            <Typography variant="caption" fontWeight={600} color="text.secondary">
+              Details & Settings
+            </Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 0 }}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
+                Device Info
+              </Typography>
+              <Stack spacing={0.5}>
+                {printer.modelName && (
+                  <InfoRow label="Model" value={
+                    printer.hardwareModelId
+                      ? <a href={`/catalog/hardware/${printer.hardwareModelId}`} style={{ color: "inherit" }}>{printer.manufacturer ? `${printer.manufacturer} ` : ""}{printer.modelName}</a>
+                      : `${printer.manufacturer ? printer.manufacturer + " " : ""}${printer.modelName}`
+                  } />
+                )}
+                <InfoRow label="Name" value={printer.name} />
+                {caps?.connection && <InfoRow label="Connection" value={caps.connection} />}
+                {caps?.protocol && <InfoRow label="Protocol" value={caps.protocol.toUpperCase()} />}
+                {caps?.dpi && <InfoRow label="Resolution" value={`${caps.dpi} DPI`} />}
+                {caps?.labelWidthMm && caps?.labelHeightMm && (
+                  <InfoRow label="Label Size" value={`${caps.labelWidthMm} x ${caps.labelHeightMm} mm`} />
+                )}
+                {printer.bleAddress && <InfoRow label="BLE Address" value={printer.bleAddress} mono />}
+                {printer.serialNumber && <InfoRow label="Serial" value={printer.serialNumber} mono />}
+              </Stack>
+            </Grid>
+            {onSaveSettings && (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
+                  Print Settings
+                </Typography>
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Print Speed ({printerSpeed})
+                    </Typography>
+                    <Slider
+                      value={printerSpeed}
+                      onChange={(_, v) => setPrinterSpeed(v as number)}
+                      min={1} max={5} step={1} size="small"
+                      marks={[{ value: 1, label: "Slow" }, { value: 3, label: "Normal" }, { value: 5, label: "Fast" }]}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Print Density ({printerDensity})
+                    </Typography>
+                    <Slider
+                      value={printerDensity}
+                      onChange={(_, v) => setPrinterDensity(v as number)}
+                      min={1} max={15} step={1} size="small"
+                      marks={[{ value: 1, label: "Light" }, { value: 8, label: "Normal" }, { value: 15, label: "Dark" }]}
+                    />
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                    <Button size="small" variant="contained" disabled={isPending}
+                      onClick={() => onSaveSettings({ printerSpeed, printerDensity })}>
+                      {isPending ? "Saving..." : "Save Settings"}
+                    </Button>
+                  </Box>
+                </Stack>
+              </Grid>
+            )}
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
       {/* ── Print queue ── */}
       <Box sx={{ borderTop: 1, borderColor: "divider" }}>
         <Box sx={{ px: 2, py: 0.75, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "grey.50" }}>
