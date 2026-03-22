@@ -506,7 +506,7 @@ function StationCard({
               <PrinterCard
                 key={p.id}
                 printer={p}
-                stationOnline={station.isOnline}
+                stationOnline={station.isOnline ?? undefined}
                 jobs={jobs}
                 isPending={isPending}
                 onCancelJob={onCancelJob}
