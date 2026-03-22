@@ -398,103 +398,6 @@ function StationCard({
         </AccordionDetails>
       </Accordion>
 
-      {/* ── Printer sub-device accordion ────────────────────────────── */}
-      {printer?.detected && (
-        <>
-          <Divider />
-          <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <PrintIcon sx={{ fontSize: 18, color: "secondary.main" }} />
-                <Typography variant="body2" fontWeight={500}>
-                  Label Printer
-                </Typography>
-                <Chip
-                  label={printer.model || "Unknown"}
-                  size="small"
-                  color="secondary"
-                  variant="outlined"
-                  sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
-                />
-                <Typography variant="caption" color="text.secondary">
-                  via {printer.connection}
-                </Typography>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                {/* Printer Info */}
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
-                    Device Info
-                  </Typography>
-                  <Stack spacing={0.5}>
-                    <InfoRow label="Model" value={printer.model} />
-                    <InfoRow label="Connection" value={printer.connection} />
-                    <InfoRow label="Protocol" value={printer.protocol?.toUpperCase()} />
-                    <InfoRow label="Resolution" value={printer.dpi ? `${printer.dpi} DPI` : undefined} />
-                    <InfoRow
-                      label="Label Size"
-                      value={printer.labelWidthMm && printer.labelHeightMm
-                        ? `${printer.labelWidthMm} x ${printer.labelHeightMm} mm`
-                        : undefined}
-                    />
-                    <InfoRow label="BLE Address" value={printer.bleAddr} mono />
-                    {printer.usbVid && (
-                      <InfoRow label="USB ID" value={`${printer.usbVid}:${printer.usbPid}`} mono />
-                    )}
-                  </Stack>
-                </Grid>
-
-                {/* Printer Settings */}
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
-                    Print Settings
-                  </Typography>
-                  <Stack spacing={1.5}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Print Speed ({configValues.printerSpeed})
-                      </Typography>
-                      <Slider
-                        value={configValues.printerSpeed}
-                        onChange={(_, v) => setConfigValues(vals => ({ ...vals, printerSpeed: v as number }))}
-                        min={1} max={5} step={1} size="small"
-                        marks={[
-                          { value: 1, label: "Slow" },
-                          { value: 3, label: "Normal" },
-                          { value: 5, label: "Fast" },
-                        ]}
-                      />
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Print Density ({configValues.printerDensity})
-                      </Typography>
-                      <Slider
-                        value={configValues.printerDensity}
-                        onChange={(_, v) => setConfigValues(vals => ({ ...vals, printerDensity: v as number }))}
-                        min={1} max={15} step={1} size="small"
-                        marks={[
-                          { value: 1, label: "Light" },
-                          { value: 8, label: "Normal" },
-                          { value: 15, label: "Dark" },
-                        ]}
-                      />
-                    </Box>
-                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-                      <Button size="small" variant="contained" onClick={handleSave} disabled={isPending}>
-                        {isPending ? "Saving..." : "Save Settings"}
-                      </Button>
-                    </Box>
-                  </Stack>
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        </>
-      )}
-
       {/* ── Printers under this station ──────────────────────────────── */}
       {printers.length > 0 && (
         <Box sx={{ px: 2, pb: 2 }}>
@@ -527,6 +430,8 @@ type UserPrinterRow = {
   id: string;
   name: string;
   hardwareModelId: string | null;
+  modelName: string | null;
+  manufacturer: string | null;
   serialNumber: string | null;
   firmwareVersion: string | null;
   bleAddress: string | null;
@@ -588,19 +493,14 @@ function PrinterCard({
             )}
           </Box>
           <Box sx={{ display: "flex", gap: 2, mt: 0.25, flexWrap: "wrap" }}>
+            {printer.modelName && (
+              <Typography variant="caption" color="text.secondary">
+                {printer.manufacturer ? `${printer.manufacturer} ` : ""}{printer.modelName}
+              </Typography>
+            )}
             {printer.bleAddress && (
               <Typography variant="caption" fontFamily="monospace" color="text.secondary">
                 BLE {printer.bleAddress}
-              </Typography>
-            )}
-            {printer.bleName && (
-              <Typography variant="caption" color="text.secondary">
-                {printer.bleName}
-              </Typography>
-            )}
-            {stationName && (
-              <Typography variant="caption" color="text.secondary">
-                via {stationName}
               </Typography>
             )}
             {printer.lastSeenAt && (

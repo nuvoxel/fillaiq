@@ -18,6 +18,7 @@ import {
   userPrinters,
 } from "@/db/schema/user-library";
 import { products, brands, materials } from "@/db/schema/central-catalog";
+import { hardwareModels } from "@/db/schema/hardware";
 import { scanStations } from "@/db/schema/scan-stations";
 import {
   createCrudActions,
@@ -874,18 +875,25 @@ type UserPrinter = InferSelectModel<typeof userPrinters>;
 
 export async function listMyPrinters(
   params?: PaginationParams
-): Promise<ActionResult<UserPrinter[]>> {
+): Promise<ActionResult<any[]>> {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
   try {
-    const q = db
-      .select()
+    const rows = await db
+      .select({
+        printer: userPrinters,
+        modelName: hardwareModels.model,
+        manufacturer: hardwareModels.manufacturer,
+      })
       .from(userPrinters)
-      .where(eq(userPrinters.userId, guard.data.userId))
-      .$dynamic();
-    if (params?.limit) q.limit(params.limit);
-    if (params?.offset) q.offset(params.offset);
-    return ok(await q);
+      .leftJoin(hardwareModels, eq(userPrinters.hardwareModelId, hardwareModels.id))
+      .where(eq(userPrinters.userId, guard.data.userId));
+
+    return ok(rows.map((r) => ({
+      ...r.printer,
+      modelName: r.modelName,
+      manufacturer: r.manufacturer,
+    })));
   } catch (e) {
     return err((e as Error).message);
   }
