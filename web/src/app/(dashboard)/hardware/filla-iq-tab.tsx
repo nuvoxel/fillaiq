@@ -580,11 +580,7 @@ function PrinterCard({
               </Typography>
               <Stack spacing={0.5}>
                 {printer.modelName && (
-                  <InfoRow label="Model" value={
-                    printer.hardwareModelId
-                      ? <a href={`/catalog/hardware/${printer.hardwareModelId}`} style={{ color: "inherit" }}>{printer.manufacturer ? `${printer.manufacturer} ` : ""}{printer.modelName}</a>
-                      : `${printer.manufacturer ? printer.manufacturer + " " : ""}${printer.modelName}`
-                  } />
+                  <InfoRow label="Model" value={`${printer.manufacturer ? printer.manufacturer + " " : ""}${printer.modelName}`} />
                 )}
                 <InfoRow label="Name" value={printer.name} />
                 {caps?.connection && <InfoRow label="Connection" value={caps.connection} />}
