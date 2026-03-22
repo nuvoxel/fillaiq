@@ -34,7 +34,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import InfoIcon from "@mui/icons-material/Info";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
-import { listMyPrinters, listMyPrintJobs, cancelPrintJob, cancelAllPendingPrintJobs, clearCompletedPrintJobs } from "@/lib/actions/user-library";
+import { listMyPrinters, listMyPrintJobs, cancelPrintJob, deletePrintJob, deletePrinter, cancelAllPendingPrintJobs, clearCompletedPrintJobs } from "@/lib/actions/user-library";
 import CloseIcon from "@mui/icons-material/Close";
 import BatteryFullIcon from "@mui/icons-material/BatteryFull";
 import Battery5BarIcon from "@mui/icons-material/Battery5Bar";
@@ -152,6 +152,7 @@ function StationCard({
   onCancelJob,
   onDeleteJob,
   onClearAllJobs,
+  onDeletePrinter,
 }: {
   station: Station;
   envData: { temperatureC?: number | null; humidity?: number | null; pressureHPa?: number | null } | undefined;
@@ -164,6 +165,7 @@ function StationCard({
   onCancelJob: (id: string) => void;
   onDeleteJob: (id: string) => void;
   onClearAllJobs: () => void;
+  onDeletePrinter: (id: string) => void;
 }) {
   const caps = (station.config as StationConfig)?.capabilities;
   const settings = (station.config as StationConfig)?.deviceSettings ?? {};
@@ -415,8 +417,10 @@ function StationCard({
                 jobs={jobs}
                 isPending={isPending}
                 onCancelJob={onCancelJob}
+                onDeleteJob={onDeleteJob}
                 onClearAll={onClearAllJobs}
                 onSaveSettings={(settings) => onSaveConfig(station.id, settings)}
+                onDelete={() => onDeletePrinter(p.id)}
               />
             ))}
           </Stack>
@@ -459,7 +463,7 @@ const JOB_STATUS_COLOR: Record<string, "default" | "warning" | "success" | "erro
 };
 
 function PrinterCard({
-  printer, stationName, stationOnline, stationConfig, jobs, isPending, onCancelJob, onClearAll, onSaveSettings,
+  printer, stationName, stationOnline, stationConfig, jobs, isPending, onCancelJob, onDeleteJob, onClearAll, onSaveSettings, onDelete,
 }: {
   printer: UserPrinterRow;
   stationName?: string;
@@ -468,8 +472,10 @@ function PrinterCard({
   jobs: PrintJobRow[];
   isPending: boolean;
   onCancelJob: (id: string) => void;
+  onDeleteJob?: (id: string) => void;
   onClearAll: () => void;
   onSaveSettings?: (settings: Record<string, any>) => void;
+  onDelete?: () => void;
 }) {
   const isOnline = stationOnline ?? false;
   const caps = stationConfig?.capabilities?.printer;
@@ -532,6 +538,13 @@ function PrinterCard({
               variant="outlined"
               color={printer.batteryPercent <= 10 ? "error" : printer.batteryPercent <= 25 ? "warning" : "default"}
             />
+          )}
+          {onDelete && (
+            <Tooltip title="Remove printer">
+              <IconButton size="small" onClick={onDelete} disabled={isPending} sx={{ color: "text.disabled", "&:hover": { color: "error.main" } }}>
+                <DeleteIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
           )}
         </Box>
       </Box>
@@ -677,7 +690,14 @@ function PrinterCard({
                 sx={{ height: 20, textTransform: "capitalize", "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
               />
               <Tooltip title={["pending", "sent", "printing"].includes(job.status) ? "Cancel" : "Delete"}>
-                <IconButton size="small" onClick={() => onCancelJob(job.id)} disabled={isPending} sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main" } }}>
+                <IconButton size="small" disabled={isPending} sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main" } }}
+                  onClick={() => {
+                    if (["pending", "sent", "printing"].includes(job.status)) {
+                      onCancelJob(job.id);
+                    } else if (onDeleteJob) {
+                      onDeleteJob(job.id);
+                    }
+                  }}>
                   <DeleteIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
@@ -852,10 +872,17 @@ export function FillaIqTab() {
                 }}
                 onDeleteJob={(id) => {
                   startTransition(async () => {
-                    await cancelPrintJob(id);
+                    await deletePrintJob(id);
                     fetchStations();
                   });
                 }}
+                onDeletePrinter={(id) => {
+                  if (!confirm("Remove this printer? It will reappear next time the station detects it.")) return;
+                  startTransition(async () => {
+                    await deletePrinter(id);
+                    fetchStations();
+                  });
+                }
                 onClearAllJobs={() => {
                   startTransition(async () => {
                     await cancelAllPendingPrintJobs();

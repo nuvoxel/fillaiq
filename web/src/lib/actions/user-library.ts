@@ -1050,3 +1050,37 @@ export async function clearCompletedPrintJobs(): Promise<ActionResult<number>> {
     return err((e as Error).message);
   }
 }
+
+export async function deletePrintJob(id: string): Promise<ActionResult<boolean>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const [existing] = await db.select().from(printJobs).where(eq(printJobs.id, id));
+    if (!existing) return err("Not found");
+    const ownership = assertOwnership(guard.data, existing.userId);
+    if (ownership) return ownership;
+    await db.delete(printJobs).where(eq(printJobs.id, id));
+    return ok(true);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
+export async function deletePrinter(id: string): Promise<ActionResult<boolean>> {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  try {
+    const [existing] = await db.select().from(userPrinters).where(eq(userPrinters.id, id));
+    if (!existing) return err("Not found");
+    const ownership = assertOwnership(guard.data, existing.userId);
+    if (ownership) return ownership;
+    // Delete associated print jobs
+    if (existing.scanStationId) {
+      await db.delete(printJobs).where(eq(printJobs.stationId, existing.scanStationId));
+    }
+    await db.delete(userPrinters).where(eq(userPrinters.id, id));
+    return ok(true);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
