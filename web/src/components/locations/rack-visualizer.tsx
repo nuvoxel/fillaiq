@@ -125,7 +125,7 @@ const SlotSelectionContext = createContext<{
   draggingSlotId: string | null;
   ctxMenuSlotId: string | null;
   ctxMenuPos: { x: number; y: number } | null;
-  openCtxMenu: (slotId: string, x: number, y: number) => void;
+  openCtxMenu: (slotId: string, x: number, y: number, slot?: SlotData, ctx?: string) => void;
   closeCtxMenu: () => void;
 }>({ selectedSlotId: null, onSlotClick: null, onViewItem: null, onEditItem: null, onRemoveItem: null, onMoveItem: null, onPrintSlot: null, onDragMoveItem: null, draggingSlotId: null, ctxMenuSlotId: null, ctxMenuPos: null, openCtxMenu: () => {}, closeCtxMenu: () => {} });
 
@@ -206,7 +206,7 @@ function SlotCell({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    selection.openCtxMenu(slot.id, e.clientX, e.clientY);
+    selection.openCtxMenu(slot.id, e.clientX, e.clientY, slot, context);
   };
 
   const colSpan = slot.colSpan ?? 1;
@@ -584,52 +584,6 @@ function SlotCell({
     </div>
 
     {/* Context menu */}
-    <Menu
-      open={ctxMenuOpen}
-      onClose={selection.closeCtxMenu}
-      anchorReference="anchorPosition"
-      anchorPosition={selection.ctxMenuPos ? { top: selection.ctxMenuPos.y, left: selection.ctxMenuPos.x } : undefined}
-      slotProps={{ paper: { sx: { minWidth: 180 } } }}
-    >
-      {state === "active" && statusData?.userItemId && selection.onViewItem && (
-        <MenuItem onClick={() => { selection.onViewItem!(statusData.userItemId); selection.closeCtxMenu(); }}>
-          <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>View Details</ListItemText>
-        </MenuItem>
-      )}
-      {state === "active" && statusData?.userItemId && selection.onEditItem && (
-        <MenuItem onClick={() => { selection.onEditItem!(statusData.userItemId); selection.closeCtxMenu(); }}>
-          <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Edit Item</ListItemText>
-        </MenuItem>
-      )}
-      {state === "active" && selection.onMoveItem && (
-        <MenuItem onClick={() => { selection.onMoveItem!(slot.id); selection.closeCtxMenu(); }}>
-          <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Move to Another Slot</ListItemText>
-        </MenuItem>
-      )}
-      {state === "active" && selection.onRemoveItem && (
-        <MenuItem onClick={() => { selection.onRemoveItem!(slot.id); selection.closeCtxMenu(); }}>
-          <ListItemIcon><RemoveCircleOutlineIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Remove from Slot</ListItemText>
-        </MenuItem>
-      )}
-      {state === "active" && selection.onPrintSlot && (
-        <Divider key="print-divider" />
-      )}
-      {state === "active" && selection.onPrintSlot && (
-        <MenuItem key="print" onClick={() => { selection.onPrintSlot!(slot, context ?? ""); selection.closeCtxMenu(); }}>
-          <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Print Label</ListItemText>
-        </MenuItem>
-      )}
-      {state === "empty" && (
-        <MenuItem disabled>
-          <ListItemText>Empty slot</ListItemText>
-        </MenuItem>
-      )}
-    </Menu>
     </>
   );
 }
@@ -1648,9 +1602,14 @@ export function RackVisualizer({
   const [ctxMenuSlotId, setCtxMenuSlotId] = useState<string | null>(null);
   const [ctxMenuPos, setCtxMenuPos] = useState<{ x: number; y: number } | null>(null);
 
-  const openCtxMenu = useCallback((slotId: string, x: number, y: number) => {
+  const [ctxMenuSlot, setCtxMenuSlot] = useState<SlotData | null>(null);
+  const [ctxMenuContext, setCtxMenuContext] = useState("");
+
+  const openCtxMenu = useCallback((slotId: string, x: number, y: number, slot?: SlotData, ctx?: string) => {
     setCtxMenuSlotId(slotId);
     setCtxMenuPos({ x, y });
+    if (slot) setCtxMenuSlot(slot);
+    if (ctx !== undefined) setCtxMenuContext(ctx);
   }, []);
 
   const closeCtxMenu = useCallback(() => {
@@ -1721,6 +1680,59 @@ export function RackVisualizer({
         )}
       </Box>
     </SlotSelectionContext.Provider>
+
+    {/* Single context menu for all slots */}
+    <Menu
+      open={ctxMenuSlotId !== null}
+      onClose={closeCtxMenu}
+      anchorReference="anchorPosition"
+      anchorPosition={ctxMenuPos ? { top: ctxMenuPos.y, left: ctxMenuPos.x } : undefined}
+      slotProps={{ paper: { sx: { minWidth: 180 } } }}
+    >
+      {(() => {
+        const st = ctxMenuSlot?.status as any;
+        const isActive = st?.state === "active";
+        return [
+          isActive && st?.userItemId && cb.onViewItem && (
+            <MenuItem key="view" onClick={() => { cb.onViewItem!(st.userItemId); closeCtxMenu(); }}>
+              <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>View Details</ListItemText>
+            </MenuItem>
+          ),
+          isActive && st?.userItemId && cb.onEditItem && (
+            <MenuItem key="edit" onClick={() => { cb.onEditItem!(st.userItemId); closeCtxMenu(); }}>
+              <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Edit Item</ListItemText>
+            </MenuItem>
+          ),
+          isActive && cb.onMoveItem && (
+            <MenuItem key="move" onClick={() => { cb.onMoveItem!(ctxMenuSlotId!); closeCtxMenu(); }}>
+              <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Move to Another Slot</ListItemText>
+            </MenuItem>
+          ),
+          isActive && cb.onRemoveItem && (
+            <MenuItem key="remove" onClick={() => { cb.onRemoveItem!(ctxMenuSlotId!); closeCtxMenu(); }}>
+              <ListItemIcon><RemoveCircleOutlineIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Remove from Slot</ListItemText>
+            </MenuItem>
+          ),
+          isActive && cb.onPrintSlot && <Divider key="divider" />,
+          isActive && cb.onPrintSlot && ctxMenuSlot && (
+            <MenuItem key="print" onClick={() => { cb.onPrintSlot!(ctxMenuSlot, ctxMenuContext); closeCtxMenu(); }}>
+              <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Print Label</ListItemText>
+            </MenuItem>
+          ),
+          !isActive && (
+            <MenuItem key="empty" disabled>
+              <ListItemText>Empty slot</ListItemText>
+            </MenuItem>
+          ),
+        ].filter(Boolean);
+      })()}
+    </Menu>
+
     </DndContext>
   );
 }
