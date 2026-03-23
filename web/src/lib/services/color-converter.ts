@@ -289,15 +289,33 @@ function convertAS7341(data: SpectralPayload): ColorResult | null {
  * We use the actual AS7343 center wavelengths for accurate CIE integration.
  */
 function convertAS7343(data: SpectralPayload): ColorResult | null {
-  // Use actual AS7343 center wavelengths (not the AS7341 field names)
-  const wavelengths = [405, 425, 450, 475, 515, 555, 640, 690];
+  // AS7343 has 14 channels stored in channels[] in wavelength order:
+  //   [0]=F1(405) [1]=F2(425) [2]=FZ(450) [3]=F3(475) [4]=F4(515)
+  //   [5]=F5(550) [6]=FY(555) [7]=FXL(600) [8]=F6(640) [9]=F7(690)
+  //   [10]=F8(745) [11]=NIR(855) [12]=Clear [13]=FD
+  // Use all visible channels (0-10) for CIE integration, skip NIR/Clear/FD
+  const channels = data.channels;
+  if (channels && channels.length >= 11) {
+    const wavelengths = [405, 425, 450, 475, 515, 550, 555, 600, 640, 690, 745];
+    const values = channels.slice(0, 11);
+
+    if (values.every((v) => v === 0)) return null;
+
+    const bands = wavelengths.map((lambda, i) => ({ lambda, value: values[i] }));
+    const xyz = spectralBandsToXYZ(bands);
+    if (!xyz) return null;
+    return xyzToColorResult(xyz.X, xyz.Y, xyz.Z);
+  }
+
+  // Fallback: use named fields (mapped by firmware to AS7341-compatible names)
+  const wavelengths = [405, 425, 450, 515, 555, 600, 640, 690];
   const values = [
     data.f1_415nm ?? 0, // F1 (405nm)
     data.f2_445nm ?? 0, // F2 (425nm)
     data.f3_480nm ?? 0, // FZ (450nm)
-    data.f4_515nm ?? 0, // F3 (475nm)
-    data.f5_555nm ?? 0, // F4 (515nm)
-    data.f6_590nm ?? 0, // FY (555nm)
+    data.f4_515nm ?? 0, // F4 (515nm)
+    data.f5_555nm ?? 0, // FY (555nm)
+    data.f6_590nm ?? 0, // FXL (600nm)
     data.f7_630nm ?? 0, // F6 (640nm)
     data.f8_680nm ?? 0, // F7 (690nm)
   ];

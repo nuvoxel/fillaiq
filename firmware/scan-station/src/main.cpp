@@ -187,6 +187,8 @@ struct SensorCache {
     DistanceData distance;
     ColorData color;
     EnvData env;
+    volatile bool colorReadRequested = false;  // Set true to trigger LED-on color read
+    uint8_t colorLedBrightness = 200;          // LED brightness for color measurement
 };
 static SensorCache sensorCache;
 #endif
@@ -235,8 +237,12 @@ static void sensorTask(void* param) {
         // Acquire mutex per-read, release between slots so weight task can get in
         switch (slot) {
             case SLOT_START_COLOR:
-                if (colorSensor.isConnected()) {
+                // Only read color when scan is requested (LED must be on for accurate reflectance)
+                if (colorSensor.isConnected() && sensorCache.colorReadRequested) {
                     if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
+                        // Turn on LED ring for illumination
+                        backlight.white(sensorCache.colorLedBrightness);
+                        vTaskDelay(pdMS_TO_TICKS(50));  // Let LED stabilize
                         colorSensor.startRead();  // Quick I2C write (~1ms)
                         xSemaphoreGive(i2cMutex);
                         slot = SLOT_WAIT_COLOR;  // Only advance if read started
@@ -252,6 +258,9 @@ static void sensorTask(void* param) {
                         ColorData c;
                         colorSensor.finishRead(c);
                         xSemaphoreGive(i2cMutex);
+                        // Turn LED off after read
+                        backlight.off();
+                        sensorCache.colorReadRequested = false;
                         if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
                             sensorCache.color = c;
                             xSemaphoreGive(sensorCache.mutex);
@@ -839,6 +848,17 @@ void updateScanState() {
 #ifdef BOARD_SCAN_TOUCH
         if (display.scanButtonPressed) {
             display.scanButtonPressed = false;
+            // Request an illuminated color read before scanning
+            if (colorSensor.isConnected() && !sensorCache.colorReadRequested) {
+                sensorCache.colorReadRequested = true;
+                // Wait for the color read to complete (LED on → measure → LED off)
+                unsigned long waitStart = millis();
+                while (sensorCache.colorReadRequested && millis() - waitStart < 2000) {
+                    snapshotSensors();  // Keep reading the cache
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                }
+                snapshotSensors();  // Final snapshot with illuminated color
+            }
             triggerScan();
         }
 #endif
@@ -1606,7 +1626,7 @@ void setup() {
 
     // Display + backlight first -- show boot screen immediately
     backlight.begin();
-    backlight.off();  // LED ring disabled for now
+    backlight.off();
     display.begin();
     display.showBootScreen(FW_VERSION);
 
@@ -1676,7 +1696,7 @@ void setup() {
     backlight.off();
     delay(50);
     initNfc();
-    backlight.off();  // LED ring disabled for now
+    backlight.off();
     display.addBootItem("NFC", nfcScanner.isConnected());
 
     // TOF distance sensor
@@ -1934,7 +1954,7 @@ void setup() {
 #endif
 
     Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
-    backlight.off();  // LED ring disabled for now
+    backlight.off();
     Serial.printf("  Heap: %u free, %u min | PSRAM: %u free\n",
         ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
     enterState(SCAN_IDLE);
