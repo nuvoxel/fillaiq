@@ -45,6 +45,9 @@ public:
     // Online status (also set as last will)
     void publishOnline(bool online);
 
+    // Relay 3D printer status (from local Bambu MQTT)
+    void publishMachineStatus(const char* machineId, const char* json);
+
     // ── Incoming message callbacks ──
     // Set these before calling begin(). They fire on the esp_mqtt task context.
     // Handlers should copy data and signal the main loop (e.g., via queue or flag).

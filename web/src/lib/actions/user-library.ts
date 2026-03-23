@@ -49,9 +49,14 @@ import {
   insertLabelTemplateSchema,
   updateLabelTemplateSchema,
 } from "./schemas";
-import { requireAuth, requireAdmin, assertOwnership } from "./auth";
+import { requireAuth, requireAdmin, assertOwnership, getSession } from "./auth";
 import { emitAuditEvent } from "./audit";
 import { auditActorType } from "./audit-helpers";
+
+export async function checkIsAdmin(): Promise<boolean> {
+  const ctx = await getSession();
+  return ctx?.role === "admin";
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -289,6 +294,24 @@ const machinesCrud = createCrudActions<Machine>({
   updateSchema: updateMachineSchema,
 });
 
+async function pushBambuConfigIfNeeded(machine: Record<string, any>) {
+  if (machine.scanStationId && machine.ipAddress && machine.accessCode) {
+    const [station] = await db
+      .select({ hardwareId: scanStations.hardwareId })
+      .from(scanStations)
+      .where(eq(scanStations.id, machine.scanStationId));
+    if (station) {
+      const { publishBambuConfig } = await import("@/lib/mqtt/publisher");
+      publishBambuConfig(station.hardwareId, {
+        machineId: machine.id,
+        ip: machine.ipAddress,
+        accessCode: machine.accessCode,
+        serialNumber: machine.serialNumber || "",
+      });
+    }
+  }
+}
+
 export async function createMachine(input: unknown) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
@@ -297,6 +320,9 @@ export async function createMachine(input: unknown) {
   const result = await machinesCrud.create({ ...data, userId: guard.data.userId });
   if (result.error === null) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "machine", resourceId: result.data.id });
+    await pushBambuConfigIfNeeded(result.data).catch((e) =>
+      console.error("[Machine] Bambu config push error:", e)
+    );
   }
   return result;
 }
@@ -324,6 +350,9 @@ export async function updateMachine(id: string, input: unknown) {
   const result = await machinesCrud.update(id, input);
   if (result.error === null) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "machine", resourceId: result.data.id });
+    await pushBambuConfigIfNeeded(result.data).catch((e) =>
+      console.error("[Machine] Bambu config push error:", e)
+    );
   }
   return result;
 }

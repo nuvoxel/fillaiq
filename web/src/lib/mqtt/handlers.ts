@@ -7,7 +7,7 @@
  */
 
 import { db } from "@/db";
-import { scanStations } from "@/db/schema";
+import { scanStations, machines } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   processHeartbeat,
@@ -47,10 +47,16 @@ export function handleMqttMessage(topic: string, raw: Buffer): void {
     return;
   }
 
+  // Check for exact match first, then pattern matches
   const handler = handlers[channel];
   if (handler) {
     handler(hardwareId, payload).catch((err) => {
       console.error(`[MQTT] Handler error for ${channel}:`, err);
+    });
+  } else if (channel.startsWith("machine/")) {
+    const machineId = channel.split("/")[1];
+    handleMachineStatus(hardwareId, machineId, payload).catch((err) => {
+      console.error(`[MQTT] Handler error for machine status:`, err);
     });
   } else {
     console.warn(`[MQTT] No handler for channel: ${channel}`);
@@ -181,4 +187,21 @@ async function handleStatus(
   if (!station) return;
 
   await updateOnlineStatus(station.id, !!payload.online);
+}
+
+// ── Machine status (relayed from local printer MQTT) ─────────────────
+
+async function handleMachineStatus(
+  hardwareId: string,
+  machineId: string,
+  payload: Record<string, any>
+): Promise<void> {
+  // Write the full status payload to the machine's liveStatus column
+  await db
+    .update(machines)
+    .set({
+      liveStatus: payload,
+      updatedAt: new Date(),
+    })
+    .where(eq(machines.id, machineId));
 }

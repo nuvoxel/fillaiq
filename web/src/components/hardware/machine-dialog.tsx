@@ -13,7 +13,7 @@ import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { createMachine, updateMachine } from "@/lib/actions/user-library";
+import { createMachine, updateMachine, listMyStations } from "@/lib/actions/user-library";
 import { enumToOptions, machineTypeLabels } from "./enum-labels";
 
 const typeOptions = enumToOptions(machineTypeLabels);
@@ -49,9 +49,20 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   const [spindlePowerW, setSpindlePowerW] = useState("");
   const [laserPowerW, setLaserPowerW] = useState("");
   const [laserWavelengthNm, setLaserWavelengthNm] = useState("");
+  const [scanStationId, setScanStationId] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [stations, setStations] = useState<Array<{ id: string; name: string; hardwareId: string }>>([]);
+
+  useEffect(() => {
+    if (open) {
+      listMyStations().then((r) => {
+        if (r.data) setStations(r.data as any[]);
+      });
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +90,8 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       setSpindlePowerW(existing.spindlePowerW != null ? String(existing.spindlePowerW) : "");
       setLaserPowerW(existing.laserPowerW != null ? String(existing.laserPowerW) : "");
       setLaserWavelengthNm(existing.laserWavelengthNm != null ? String(existing.laserWavelengthNm) : "");
+      setScanStationId(existing.scanStationId ?? "");
+      setAccessCode(existing.accessCode ?? "");
       setNotes(existing.notes ?? "");
     } else {
       setMachineType("fdm");
@@ -104,6 +117,8 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       setSpindlePowerW("");
       setLaserPowerW("");
       setLaserWavelengthNm("");
+      setScanStationId("");
+      setAccessCode("");
       setNotes("");
     }
     setError(null);
@@ -126,6 +141,8 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       firmwareVersion: firmwareVersion || null,
       ipAddress: ipAddress || null,
       mqttTopic: mqttTopic || null,
+      scanStationId: scanStationId || null,
+      accessCode: accessCode || null,
       notes: notes || null,
     };
 
@@ -203,6 +220,38 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
             <TextField label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} size="small" fullWidth />
             <TextField label="MQTT Topic" value={mqttTopic} onChange={(e) => setMqttTopic(e.target.value)} size="small" fullWidth />
           </Stack>
+
+          {/* Network / MQTT bridge — show when IP is entered */}
+          {ipAddress && (
+            <>
+              <Typography variant="subtitle2" fontWeight={600}>MQTT Bridge</Typography>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  select
+                  label="Scan Station (relay)"
+                  value={scanStationId}
+                  onChange={(e) => setScanStationId(e.target.value)}
+                  size="small"
+                  fullWidth
+                  helperText="Station on the same LAN that relays printer status"
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {stations.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name} ({s.hardwareId})</MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="LAN Access Code"
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value)}
+                  size="small"
+                  fullWidth
+                  type="password"
+                  helperText="From printer Network settings"
+                />
+              </Stack>
+            </>
+          )}
 
           {/* FDM / Resin / Multi: build volume & nozzle */}
           {isFdmLike && (

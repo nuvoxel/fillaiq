@@ -160,6 +160,12 @@ export const machines = pgTable("machines", {
   buildVolumeZ: integer("build_volume_z"),
   ipAddress: varchar("ip_address", { length: 45 }),
   mqttTopic: varchar("mqtt_topic", { length: 255 }),
+  // Scan station that relays MQTT for this machine (local network bridge)
+  scanStationId: uuid("scan_station_id"),
+  // LAN access code for Bambu printer MQTT auth
+  accessCode: varchar("access_code", { length: 64 }),
+  // Live status from printer MQTT (temps, progress, AMS, etc.)
+  liveStatus: jsonb("live_status"),
   toolHeadType: varchar("tool_head_type", { length: 50 }),
   nozzleSwapSystem: varchar("nozzle_swap_system", { length: 50 }),
   filamentChangerUnitCount: integer("filament_changer_unit_count"),

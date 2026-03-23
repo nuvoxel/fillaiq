@@ -15,6 +15,9 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { listMyMachines, getMachineWithRelations, removeMachine, createMachine } from "@/lib/actions/user-library";
+import Grid from "@mui/material/Grid";
+import LinearProgress from "@mui/material/LinearProgress";
+import Paper from "@mui/material/Paper";
 import { MachineDialog } from "@/components/hardware/machine-dialog";
 import { useDeleteWithUndo } from "@/components/hardware/use-delete-with-undo";
 import { MachineDetail } from "./machine-detail";
@@ -33,6 +36,7 @@ type Machine = {
   hasFilamentChanger: boolean | null;
   filamentChangerSlotCount: number | null;
   filamentChangerUnitCount: number | null;
+  liveStatus: Record<string, any> | null;
   [key: string]: unknown;
 };
 
@@ -50,6 +54,148 @@ const machineTypeColors: Record<string, "primary" | "secondary" | "warning" | "i
   resin: "info",
   multi: "success",
 };
+
+// ── Live printer status (from Bambu MQTT relay) ─────────────────────────
+
+function stateColor(state: string): "success" | "primary" | "warning" | "error" | "default" {
+  switch (state) {
+    case "RUNNING": return "primary";
+    case "PAUSE": return "warning";
+    case "FINISH": return "success";
+    case "FAILED": return "error";
+    default: return "default";
+  }
+}
+
+function formatTime(minutes: number): string {
+  if (minutes <= 0) return "—";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function TempDisplay({ label, current, target }: { label: string; current: number; target: number }) {
+  const active = target > 0;
+  return (
+    <Box sx={{ textAlign: "center" }}>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="h6" fontWeight={600} color={active ? "primary.main" : "text.primary"}>
+        {Math.round(current)}°C
+      </Typography>
+      {active && (
+        <Typography variant="caption" color="text.secondary">/ {Math.round(target)}°C</Typography>
+      )}
+    </Box>
+  );
+}
+
+function PrinterLiveStatus({ status }: { status: Record<string, any> }) {
+  const s = status;
+  const trays = (s.trays ?? []) as Array<Record<string, any>>;
+  const isPrinting = s.gcodeState === "RUNNING";
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: "grey.50" }}>
+      {/* Header: state + job name */}
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+        <Chip
+          label={s.gcodeState || "UNKNOWN"}
+          size="small"
+          color={stateColor(s.gcodeState)}
+        />
+        {s.subtaskName && (
+          <Typography variant="body2" fontWeight={500} noWrap sx={{ flex: 1 }}>
+            {s.subtaskName}
+          </Typography>
+        )}
+        {s.wifiSignal != null && s.wifiSignal !== 0 && (
+          <Typography variant="caption" color="text.secondary">
+            WiFi: {s.wifiSignal}dBm
+          </Typography>
+        )}
+      </Stack>
+
+      {/* Progress bar (if printing) */}
+      {isPrinting && (
+        <Box sx={{ mb: 2 }}>
+          <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+            <Typography variant="body2" fontWeight={500}>
+              {s.printPercent ?? 0}%
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Layer {s.currentLayer ?? 0} / {s.totalLayers ?? 0}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {formatTime(s.remainingTime ?? 0)} remaining
+            </Typography>
+          </Stack>
+          <LinearProgress
+            variant="determinate"
+            value={s.printPercent ?? 0}
+            sx={{ height: 8, borderRadius: 4 }}
+          />
+        </Box>
+      )}
+
+      {/* Temperatures */}
+      <Stack direction="row" spacing={4} sx={{ mb: 2 }}>
+        <TempDisplay label="Nozzle" current={s.nozzleTemp ?? 0} target={s.nozzleTarget ?? 0} />
+        <TempDisplay label="Bed" current={s.bedTemp ?? 0} target={s.bedTarget ?? 0} />
+        <TempDisplay label="Chamber" current={s.chamberTemp ?? 0} target={0} />
+      </Stack>
+
+      {/* AMS Trays */}
+      {trays.length > 0 && (
+        <>
+          <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: "block" }}>
+            AMS Trays ({s.amsCount ?? 0} unit{(s.amsCount ?? 0) !== 1 ? "s" : ""})
+          </Typography>
+          <Grid container spacing={1}>
+            {trays.map((tray, i) => {
+              const colorHex = tray.color
+                ? `#${(tray.color >>> 8).toString(16).padStart(6, "0")}`
+                : "#ccc";
+              return (
+                <Grid size={{ xs: 6, sm: 3, md: 2 }} key={i}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 1, textAlign: "center", position: "relative" }}
+                  >
+                    <Box
+                      sx={{
+                        width: 24, height: 24, borderRadius: "50%",
+                        bgcolor: colorHex, border: "2px solid", borderColor: "divider",
+                        mx: "auto", mb: 0.5,
+                      }}
+                    />
+                    <Typography variant="caption" fontWeight={600} display="block">
+                      {tray.type || "—"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {tray.remain ?? 0}%
+                    </Typography>
+                    {tray.humidity != null && tray.humidity >= 0 && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {tray.humidity}% RH
+                      </Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </>
+      )}
+
+      {/* Error */}
+      {s.printError > 0 && (
+        <Typography variant="caption" color="error.main" sx={{ mt: 1, display: "block" }}>
+          Error code: {s.printError}
+        </Typography>
+      )}
+    </Paper>
+  );
+}
 
 export function MachinesTab({ refreshKey }: { refreshKey?: number }) {
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -255,6 +401,11 @@ export function MachinesTab({ refreshKey }: { refreshKey?: number }) {
                 <ExpandLessIcon />
               </IconButton>
             </Box>
+            {/* Live printer status from MQTT */}
+            {machines.find((m) => m.id === expandedId)?.liveStatus && (
+              <PrinterLiveStatus status={machines.find((m) => m.id === expandedId)!.liveStatus!} />
+            )}
+
             {details[expandedId] ? (
               <MachineDetail
                 machineId={expandedId}

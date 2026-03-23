@@ -64,6 +64,14 @@ void FillaiqMqtt::publishCalibration(float factor) {
     pub("d", "calibration", payload.c_str(), 1, false);
 }
 
+void FillaiqMqtt::publishMachineStatus(const char* machineId, const char* json) {
+    if (!_client || !_connected) return;
+    char topic[128];
+    snprintf(topic, sizeof(topic), "%s/d/%s/machine/%s",
+             MQTT_TOPIC_PREFIX, _hardwareId, machineId);
+    esp_mqtt_client_publish(_client, topic, json, strlen(json), 0, 0);
+}
+
 void FillaiqMqtt::publishOnline(bool online) {
     JsonDocument doc;
     doc["online"] = online;

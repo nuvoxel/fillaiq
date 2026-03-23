@@ -77,3 +77,17 @@ export function publishPairStatus(
 ): void {
   publish(hardwareId, "pair/status", status);
 }
+
+// ── Bambu printer config push to scan station ────────────────────────
+
+export function publishBambuConfig(
+  hardwareId: string,
+  config: {
+    machineId: string;
+    ip: string;
+    accessCode: string;
+    serialNumber: string;
+  } | null
+): void {
+  publish(hardwareId, "bambu/config", config ?? { machineId: null }, { retain: true });
+}

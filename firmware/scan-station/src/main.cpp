@@ -22,6 +22,7 @@
 #include "device_identity.h"
 #include "printer.h"
 #include "fiq_mqtt.h"
+#include "bambu_mqtt.h"
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #ifdef BOARD_SCAN_TOUCH
@@ -392,6 +393,7 @@ static void networkTask(void* param) {
     unsigned long lastEnvReport = 0;
     unsigned long lastPrintJobPoll = 0;
     unsigned long lastMqttTelemetry = 0;
+    unsigned long lastBambuRelay = 0;
     bool wifiEverConnected_net = false;
     bool mqttStarted = false;
     bool mqttCapsSent = false;
@@ -593,6 +595,35 @@ static void networkTask(void* param) {
         if (apiClient.isWiFiConnected() && apiClient.isPaired() && !mqttStarted) {
             mqttStarted = true;
             Serial.println("[Net] Starting MQTT client...");
+            // Set up incoming message callbacks
+            fillaiqMqtt.onConfig = [](const char* json, int len) {
+                // Parse config — check for Bambu printer settings
+                JsonDocument doc;
+                if (deserializeJson(doc, json, len)) return;
+
+                // Apply device config (brightness, volume, etc.)
+                String configStr;
+                serializeJson(doc, configStr);
+                deviceConfig.applyFromJson(configStr.c_str());
+
+                // Check for Bambu printer config
+                if (doc.containsKey("bambuPrinter")) {
+                    JsonObject bp = doc["bambuPrinter"];
+                    const char* ip = bp["ip"] | "";
+                    const char* code = bp["accessCode"] | "";
+                    const char* serial = bp["serialNumber"] | "";
+                    const char* machId = bp["machineId"] | "";
+
+                    if (ip[0] && code[0]) {
+                        Serial.printf("[Config] Bambu printer: %s (serial: %s)\n", ip, serial);
+                        bambuMqtt.begin(ip, code, serial, machId);
+                    } else if (bambuMqtt.isConnected()) {
+                        // Config cleared — disconnect
+                        bambuMqtt.stop();
+                    }
+                }
+            };
+
             fillaiqMqtt.begin(
                 apiClient.getMqttUrl(),
                 apiClient.getDeviceToken(),
@@ -654,6 +685,20 @@ static void networkTask(void* param) {
         }
 
         // OTA checks + print jobs now arrive via MQTT push — no more HTTP polling
+
+        // Relay Bambu printer status to server (every 5s if connected)
+        #define BAMBU_RELAY_INTERVAL_MS 5000
+        {
+            unsigned long now = millis();
+            if (fillaiqMqtt.isConnected() && bambuMqtt.isConnected() &&
+                bambuMqtt.getStatus().valid &&
+                now - lastBambuRelay >= BAMBU_RELAY_INTERVAL_MS) {
+                lastBambuRelay = now;
+
+                String statusJson = bambuMqtt.toJson();
+                fillaiqMqtt.publishMachineStatus(bambuMqtt.getMachineId(), statusJson.c_str());
+            }
+        }
 
         // Note: Environmental reporting is enqueued by the main loop
         // (sensor reads require I2C which is only safe on Core 1)
