@@ -26,36 +26,32 @@ type ScanSession = typeof scanSessions.$inferSelect;
 export async function findOrCreateSession(
   stationId: string,
   userId: string | null,
-  scanEvent: ScanEvent
+  scanEvent: ScanEvent,
+  forceNew = false
 ): Promise<ScanSession> {
-  const cutoff = new Date(Date.now() - SESSION_TIMEOUT_MS);
-
-  // Look for active session on same station within timeout
+  // Close any existing active session on this station
+  // Each scan button press = new session
   const [existing] = await db
     .select()
     .from(scanSessions)
     .where(
       and(
         eq(scanSessions.stationId, stationId),
-        eq(scanSessions.status, "active"),
-        gte(scanSessions.updatedAt, cutoff)
+        eq(scanSessions.status, "active")
       )
     )
     .orderBy(desc(scanSessions.updatedAt))
     .limit(1);
 
   if (existing) {
-    // If NFC UID changed, close old session and create new
-    if (
-      scanEvent.nfcUid &&
-      existing.nfcUid &&
-      scanEvent.nfcUid !== existing.nfcUid
-    ) {
+    if (forceNew || (scanEvent.nfcUid && existing.nfcUid && scanEvent.nfcUid !== existing.nfcUid)) {
+      // Close old session
       await db
         .update(scanSessions)
         .set({ status: "abandoned", updatedAt: new Date() })
         .where(eq(scanSessions.id, existing.id));
     } else {
+      // Same item still on the station — update existing session
       return existing;
     }
   }

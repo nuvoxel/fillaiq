@@ -187,7 +187,8 @@ export async function POST(request: NextRequest) {
 
   // ── Session management ──────────────────────────────────────────────────
 
-  let session = await findOrCreateSession(station.id, userId, updatedScanEvent);
+  // Each scan POST = new session (user pressed scan button)
+  let session = await findOrCreateSession(station.id, userId, updatedScanEvent, true);
 
   // Link scan event to session
   await db
