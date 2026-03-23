@@ -81,7 +81,32 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
           await Promise.allSettled(
             (rackSummaries as any[]).map(async (rack: any) => {
               const t = await getRackTopology(rack.id);
-              if (t.data) rackTopos.push(t.data as RackTopology);
+              if (t.data) {
+                // Merge item data into slot status for the visualizer
+                const topo = t.data as any;
+                for (const shelf of topo.shelves ?? []) {
+                  for (const bay of shelf.bays ?? []) {
+                    for (const slot of bay.slots ?? []) {
+                      const item = slot.items?.[0];
+                      if (item && item.status === "active") {
+                        slot.status = {
+                          ...(slot.status ?? {}),
+                          state: "active",
+                          colorHex: item.measuredColorHex,
+                          nfcUid: item.nfcUid,
+                          weightStableG: item.currentWeightG,
+                          percentRemaining: item.percentRemaining,
+                          productName: item.product?.name,
+                          brandName: item.product?.brand?.name,
+                          packageType: item.packageType,
+                          initialWeightG: item.initialWeightG,
+                        };
+                      }
+                    }
+                  }
+                }
+                rackTopos.push(topo as RackTopology);
+              }
             })
           );
           zwr.push({ zone, racks: rackTopos });

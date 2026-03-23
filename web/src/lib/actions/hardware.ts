@@ -325,7 +325,17 @@ export async function getRackTopology(id: string) {
             bays: {
               with: {
                 slots: {
-                  with: { status: true },
+                  with: {
+                    status: true,
+                    items: {
+                      limit: 1,
+                      with: {
+                        product: {
+                          with: { brand: true },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },

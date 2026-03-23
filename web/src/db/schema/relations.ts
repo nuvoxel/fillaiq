@@ -424,12 +424,13 @@ export const baysRelations = relations(bays, ({ one, many }) => ({
   bayModule: one(bayModules),
 }));
 
-export const slotsRelations = relations(slots, ({ one }) => ({
+export const slotsRelations = relations(slots, ({ one, many }) => ({
   bay: one(bays, {
     fields: [slots.bayId],
     references: [bays.id],
   }),
   status: one(slotStatus),
+  items: many(userItems),
 }));
 
 export const bayModulesRelations = relations(bayModules, ({ one }) => ({
