@@ -38,6 +38,7 @@ import {
   removeSlot,
 } from "@/lib/actions/hardware";
 import { moveItemToSlot, removeItemFromSlot } from "@/lib/actions/scan";
+import { SpoolDetailPanel } from "@/components/locations/spool-detail-panel";
 import { LocationDialog } from "@/components/locations/location-dialog";
 import {
   PrintLabelDialog,
@@ -62,6 +63,7 @@ const closedPrint: PrintDialogState = { open: false, items: [] };
 export function RackTopologyTab({ editing = false }: { editing?: boolean } = {}) {
   const [zonesWithRacks, setZonesWithRacks] = useState<ZoneWithRacks[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [printDialog, setPrintDialog] = useState<PrintDialogState>(closedPrint);
   const [addDialog, setAddDialog] = useState<{ open: boolean; level: "zone" | "rack"; parentId?: string }>({ open: false, level: "zone" });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; level: "zone" | "rack"; existing?: Record<string, any> | null }>({ open: false, level: "zone" });
@@ -293,15 +295,13 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                             onSlotClick: (slot) => {
                               const st = slot.status as any;
                               if (st?.state === "active" && st.userItemId) {
-                                // TODO: open spool detail dialog
+                                setSelectedItemId((prev) => prev === st.userItemId ? null : st.userItemId);
+                              } else {
+                                setSelectedItemId(null);
                               }
                             },
                             onDragMoveItem: async (itemId, _fromSlotId, toSlotId) => {
                               await moveItemToSlot(itemId, toSlotId);
-                              loadData();
-                            },
-                            onRemoveItem: async (slotId) => {
-                              await removeItemFromSlot(slotId);
                               loadData();
                             },
                             onPrintSlot: (slot, context) => {
@@ -318,6 +318,15 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                             },
                           }}
                         />
+
+                        {/* Spool detail panel below rack */}
+                        {selectedItemId && (
+                          <SpoolDetailPanel
+                            itemId={selectedItemId}
+                            onClose={() => setSelectedItemId(null)}
+                            onUpdate={loadData}
+                          />
+                        )}
                       </Box>
                     )}
                   </Box>
