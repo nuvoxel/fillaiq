@@ -104,31 +104,57 @@ export function parseBambuRawData(
   const result: Partial<BambuParsedData> = { format: "bambu_mifare" };
 
   // Sector 0: Block 1 (variant/material IDs), Block 2 (material type)
+  // Some Bambu tags have variant+materialId in block 1; others have material directly
   if (sectorsRead > 0) {
-    result.variantId = readString(buf, off(0, 1, 0), 8);
-    result.materialId = readString(buf, off(0, 1, 8), 8);
-    result.material = readString(buf, off(0, 2, 0), 16);
+    const block1Str = readString(buf, off(0, 1, 0), 16);
+    const block2Str = readString(buf, off(0, 2, 0), 16);
+
+    // Detect layout: if block 1 contains a hyphenated ID like "A00-D02", it's the variant layout
+    if (block1Str.includes("-")) {
+      // Standard Bambu layout: block 1 = variantId + materialId, block 2 = material name
+      result.variantId = readString(buf, off(0, 1, 0), 8);
+      result.materialId = readString(buf, off(0, 1, 8), 8);
+      result.material = block2Str;
+    } else {
+      // Alternate layout: block 1 = material name directly (no variant/material IDs)
+      result.variantId = "";
+      result.materialId = block1Str; // Use material name as ID fallback
+      result.material = block1Str;
+    }
   }
 
   // Sector 1: Name, color, weight, diameter, temps
+  // Detect if sector 1 block 0 contains ASCII name or binary data
   if (sectorsRead > 1) {
-    result.name = readString(buf, off(1, 0, 0), 16);
+    const s1b0 = readString(buf, off(1, 0, 0), 16);
+    // Check if block 0 looks like ASCII text (a product name)
+    const isName = s1b0.length > 0 && /^[\x20-\x7E]+$/.test(s1b0);
 
-    result.colorR = buf[off(1, 1, 0)];
-    result.colorG = buf[off(1, 1, 1)];
-    result.colorB = buf[off(1, 1, 2)];
-    result.colorA = buf[off(1, 1, 3)];
-    result.colorHex =
-      "#" +
-      result.colorR.toString(16).padStart(2, "0") +
-      result.colorG.toString(16).padStart(2, "0") +
-      result.colorB.toString(16).padStart(2, "0");
+    if (isName) {
+      // Standard layout: block 0 = name, block 1 = color/weight, block 2 = temps
+      result.name = s1b0;
+      result.colorR = buf[off(1, 1, 0)];
+      result.colorG = buf[off(1, 1, 1)];
+      result.colorB = buf[off(1, 1, 2)];
+      result.colorA = buf[off(1, 1, 3)];
+      result.spoolNetWeight = readU16LE(buf, off(1, 1, 4));
+      result.filamentDiameter = readFloatLE(buf, off(1, 1, 8));
+      result.dryingTemp = readU16LE(buf, off(1, 2, 0));
+      result.dryingTime = readU16LE(buf, off(1, 2, 2));
+    } else {
+      // Alternate layout: no name block, binary data starts at block 0
+      result.name = result.material ?? "";
+      // Try to extract color from wherever it might be
+      // In the alternate layout, the data may be shifted
+    }
 
-    result.spoolNetWeight = readU16LE(buf, off(1, 1, 4));
-    result.filamentDiameter = readFloatLE(buf, off(1, 1, 8));
-
-    result.dryingTemp = readU16LE(buf, off(1, 2, 0));
-    result.dryingTime = readU16LE(buf, off(1, 2, 2));
+    if (result.colorR != null) {
+      result.colorHex =
+        "#" +
+        result.colorR.toString(16).padStart(2, "0") +
+        result.colorG!.toString(16).padStart(2, "0") +
+        result.colorB!.toString(16).padStart(2, "0");
+    }
     result.bedTemp = readU16LE(buf, off(1, 2, 6));
     result.nozzleTempMax = readU16LE(buf, off(1, 2, 8));
     result.nozzleTempMin = readU16LE(buf, off(1, 2, 10));
@@ -182,9 +208,9 @@ export function detectTagFormat(
   // MIFARE Classic with sector data → likely Bambu
   // Firmware enum: TAG_MIFARE_CLASSIC = 1, TAG_NTAG = 2
   if (nfcTagType === 1 && sectorsRead && sectorsRead >= 4) {
-    // Try to parse — if sector 0 has a materialId, it's Bambu
+    // Try to parse — if sector 0 has a material name or materialId, it's Bambu
     const parsed = parseBambuRawData(nfcRawData, sectorsRead);
-    if (parsed && parsed.materialId) {
+    if (parsed && (parsed.materialId || parsed.material)) {
       return "bambu_mifare";
     }
   }
