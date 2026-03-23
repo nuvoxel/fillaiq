@@ -1,25 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
-import Chip from "@mui/material/Chip";
-import { getAvailableSlots } from "@/lib/actions/scan";
-
-type SlotOption = {
-  id: string;
-  address: string;
-  label: string | null;
-  zoneName: string;
-  rackName: string;
-  shelfPosition: number;
-  bayPosition: number;
-  slotPosition: number;
-  occupied: boolean;
-  itemColorHex: string | null;
-};
+import Alert from "@mui/material/Alert";
+import { RackVisualizer, type RackVisualizerCallbacks } from "@/components/locations/rack-visualizer";
+import { getStorageTree } from "@/lib/actions/scan";
 
 type Props = {
   selectedSlotId: string | null;
@@ -27,37 +14,15 @@ type Props = {
 };
 
 export function SlotPicker({ selectedSlotId, onSelect }: Props) {
-  const [slots, setSlots] = useState<SlotOption[]>([]);
+  const [tree, setTree] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getAvailableSlots().then((result) => {
-      if (result.data) setSlots(result.data as SlotOption[]);
+    getStorageTree().then((result) => {
+      if (result.data) setTree(result.data);
       setLoading(false);
     });
   }, []);
-
-  // Group slots: zone → rack → shelf → slots
-  const tree = useMemo(() => {
-    const zones: Record<string, {
-      name: string;
-      racks: Record<string, {
-        name: string;
-        shelves: Record<number, SlotOption[]>;
-      }>;
-    }> = {};
-
-    for (const slot of slots) {
-      if (!zones[slot.zoneName]) zones[slot.zoneName] = { name: slot.zoneName, racks: {} };
-      const zone = zones[slot.zoneName];
-      if (!zone.racks[slot.rackName]) zone.racks[slot.rackName] = { name: slot.rackName, shelves: {} };
-      const rack = zone.racks[slot.rackName];
-      if (!rack.shelves[slot.shelfPosition]) rack.shelves[slot.shelfPosition] = [];
-      rack.shelves[slot.shelfPosition].push(slot);
-    }
-
-    return zones;
-  }, [slots]);
 
   if (loading) {
     return (
@@ -67,80 +32,69 @@ export function SlotPicker({ selectedSlotId, onSelect }: Props) {
     );
   }
 
-  if (slots.length === 0) {
+  if (tree.length === 0) {
     return (
       <Box sx={{ py: 2, textAlign: "center" }}>
         <Typography variant="body2" color="text.secondary">
-          No storage slots configured. Add zones and racks in Settings first.
+          No storage configured. Add zones and racks in Settings first.
         </Typography>
       </Box>
     );
   }
 
+  const callbacks: RackVisualizerCallbacks = {
+    onSlotClick: (slot) => {
+      const address = slot.address ?? slot.label ?? `Slot ${slot.position}`;
+      onSelect(slot.id, address);
+    },
+  };
+
   return (
     <Box>
-      {Object.entries(tree).map(([zoneName, zone]) => (
-        <Box key={zoneName} sx={{ mb: 2 }}>
-          <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-            {zoneName}
+      {tree.map((zone: any) => (
+        <Box key={zone.id} sx={{ mb: 2 }}>
+          <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+            {zone.name}
           </Typography>
-          {Object.entries(zone.racks).map(([rackName, rack]) => (
-            <Box key={rackName} sx={{ mb: 1.5, pl: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                {rackName}
+          {zone.racks?.map((rack: any) => (
+            <Box key={rack.id} sx={{ mb: 1.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block", pl: 1 }}>
+                {rack.name}
               </Typography>
-              {Object.entries(rack.shelves)
-                .sort(([a], [b]) => Number(a) - Number(b))
-                .map(([shelfPos, shelfSlots]) => (
-                  <Box key={shelfPos} sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5, pl: 1 }}>
-                    <Typography variant="caption" color="text.disabled" sx={{ width: 24, flexShrink: 0, fontSize: "0.65rem" }}>
-                      S{shelfPos}
-                    </Typography>
-                    <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                      {shelfSlots.map((slot) => {
-                        const isSelected = slot.id === selectedSlotId;
-                        const isEmpty = !slot.occupied;
-                        return (
-                          <Tooltip
-                            key={slot.id}
-                            title={`${slot.address}${slot.label ? ` (${slot.label})` : ""}${slot.occupied ? " — occupied" : " — empty"}`}
-                            arrow
-                          >
-                            <Box
-                              onClick={() => onSelect(slot.id, slot.address)}
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 1,
-                                border: isSelected ? 3 : 1,
-                                borderColor: isSelected ? "primary.main" : "divider",
-                                bgcolor: isSelected
-                                  ? "primary.light"
-                                  : isEmpty
-                                    ? "success.light"
-                                    : slot.itemColorHex ?? "grey.300",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                transition: "all 0.15s",
-                                opacity: slot.occupied && !isSelected ? 0.6 : 1,
-                                "&:hover": {
-                                  borderColor: "primary.main",
-                                  transform: "scale(1.15)",
-                                },
-                              }}
-                            >
-                              <Typography sx={{ fontSize: "0.55rem", fontWeight: 600, color: isSelected ? "primary.contrastText" : isEmpty ? "success.dark" : "white", textShadow: slot.occupied ? "0 0 2px rgba(0,0,0,0.5)" : "none" }}>
-                                {slot.slotPosition}
-                              </Typography>
-                            </Box>
-                          </Tooltip>
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                ))}
+              <RackVisualizer
+                rack={{
+                  id: rack.id,
+                  name: rack.name,
+                  columns: rack.columns,
+                  displayStyle: rack.displayStyle,
+                  shelves: rack.shelves?.map((shelf: any) => ({
+                    id: shelf.id,
+                    position: shelf.position,
+                    label: shelf.label,
+                    displayStyle: shelf.displayStyle,
+                    bays: shelf.bays?.map((bay: any) => ({
+                      id: bay.id,
+                      position: bay.position,
+                      label: bay.label,
+                      displayStyle: bay.displayStyle,
+                      slots: bay.slots?.map((slot: any) => ({
+                        id: slot.id,
+                        position: slot.position,
+                        label: slot.label,
+                        address: slot.address,
+                        nfcTagId: slot.nfcTagId,
+                        status: slot.status,
+                        shape: slot.shape,
+                        colSpan: slot.colSpan,
+                        rowSpan: slot.rowSpan,
+                      })) ?? [],
+                    })) ?? [],
+                  })) ?? [],
+                }}
+                displayStyle={rack.displayStyle ?? "shelf"}
+                callbacks={callbacks}
+                selectedSlotId={selectedSlotId}
+              />
             </Box>
           ))}
         </Box>
@@ -149,15 +103,15 @@ export function SlotPicker({ selectedSlotId, onSelect }: Props) {
       {/* Legend */}
       <Box sx={{ display: "flex", gap: 1.5, mt: 1, pt: 1, borderTop: 1, borderColor: "divider" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "success.light", border: 1, borderColor: "divider" }} />
+          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "#9CA3AF", border: 1, borderColor: "divider" }} />
           <Typography variant="caption" color="text.secondary">Empty</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "grey.300", border: 1, borderColor: "divider" }} />
+          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "#16A34A", border: 1, borderColor: "divider" }} />
           <Typography variant="caption" color="text.secondary">Occupied</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "primary.light", border: 3, borderColor: "primary.main" }} />
+          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "#1976d2", border: 3, borderColor: "#1976d2" }} />
           <Typography variant="caption" color="text.secondary">Selected</Typography>
         </Box>
       </Box>

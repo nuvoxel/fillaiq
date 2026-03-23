@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, createContext, useContext } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
@@ -74,6 +74,7 @@ export type RackVisualizerCallbacks = {
   onDeleteShelf?: (id: string) => void;
   onAddShelfToRack?: (rackId: string, currentShelves: ShelfData[]) => void;
   onPrintSlot?: (slot: SlotData, context: string) => void;
+  onSlotClick?: (slot: SlotData) => void;
 };
 
 // ── Spool ring color map ──────────────────────────────────────────────────────
@@ -87,6 +88,13 @@ const SPOOL_COLORS: Record<string, { base: string; mid: string; hub: string }> =
   removed: { base: "#6B7280", mid: "#4B5563", hub: "#374151" },
 };
 const DEFAULT_COLORS = SPOOL_COLORS.empty;
+
+// ── Slot selection context (avoids threading props through every component) ──
+
+const SlotSelectionContext = createContext<{
+  selectedSlotId: string | null;
+  onSlotClick: ((slot: SlotData) => void) | null;
+}>({ selectedSlotId: null, onSlotClick: null });
 
 // ── NFC Badge ─────────────────────────────────────────────────────────────────
 
@@ -158,6 +166,8 @@ function SlotCell({
 }) {
   const [editing, setEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(slot.label ?? "");
+  const selection = useContext(SlotSelectionContext);
+  const isSelected = selection.selectedSlotId === slot.id;
 
   const colSpan = slot.colSpan ?? 1;
   const rowSpan = slot.rowSpan ?? 1;
@@ -287,17 +297,24 @@ function SlotCell({
       }}
     >
       <Box
-        onClick={onSaveLabel ? () => {
-          setEditLabel(slot.label ?? "");
-          setEditing(true);
-        } : undefined}
+        onClick={() => {
+          if (selection.onSlotClick) {
+            selection.onSlotClick(slot);
+          } else if (onSaveLabel) {
+            setEditLabel(slot.label ?? "");
+            setEditing(true);
+          }
+        }}
         sx={{
           position: "relative",
           width: w,
           height: h,
           borderRadius: radius,
           flexShrink: 0,
-          cursor: onSaveLabel ? "pointer" : "default",
+          cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
+          outline: isSelected ? "3px solid" : "none",
+          outlineColor: isSelected ? "primary.main" : "transparent",
+          outlineOffset: 2,
           background: isSpool
             ? `radial-gradient(circle at 35% 28%, color-mix(in srgb, ${colors.base} 65%, white) 0%, ${colors.base} 60%)`
             : `linear-gradient(135deg, color-mix(in srgb, ${colors.base} 70%, white) 0%, ${colors.base} 50%, ${colors.mid} 100%)`,
@@ -1304,12 +1321,14 @@ export function RackVisualizer({
   slotShape = "cell",
   editing = false,
   callbacks = {},
+  selectedSlotId,
 }: {
   rack: RackTopology;
   displayStyle?: RackDisplayStyle;
   slotShape?: SlotShape;
   editing?: boolean;
   callbacks?: RackVisualizerCallbacks;
+  selectedSlotId?: string | null;
 }) {
   // When not editing, strip out mutation callbacks so controls don't render
   // Always keep onPrintSlot — printing is available in view mode
@@ -1321,34 +1340,36 @@ export function RackVisualizer({
   );
 
   return (
-    <Box sx={{ overflowX: "auto", pb: 1 }}>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column-reverse",
-          gap: "3px",
-        }}
-      >
-        {shelvesSorted.map((shelf) => {
-          const shelfStyle = shelf.displayStyle ?? rackDefault;
-          return (
-            <ShelfRenderer
-              key={shelf.id}
-              shelf={shelf}
-              resolvedStyle={shelfStyle}
-              slotShape={slotShape}
-              callbacks={cb}
-            />
-          );
-        })}
-      </Box>
+    <SlotSelectionContext.Provider value={{ selectedSlotId: selectedSlotId ?? null, onSlotClick: cb.onSlotClick ?? null }}>
+      <Box sx={{ overflowX: "auto", pb: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column-reverse",
+            gap: "3px",
+          }}
+        >
+          {shelvesSorted.map((shelf) => {
+            const shelfStyle = shelf.displayStyle ?? rackDefault;
+            return (
+              <ShelfRenderer
+                key={shelf.id}
+                shelf={shelf}
+                resolvedStyle={shelfStyle}
+                slotShape={slotShape}
+                callbacks={cb}
+              />
+            );
+          })}
+        </Box>
 
-      {cb.onAddShelfToRack && (
-        <AddLevelButton
-          label="Add shelf"
-          onClick={() => cb.onAddShelfToRack!(rack.id, rack.shelves ?? [])}
-        />
-      )}
-    </Box>
+        {cb.onAddShelfToRack && (
+          <AddLevelButton
+            label="Add shelf"
+            onClick={() => cb.onAddShelfToRack!(rack.id, rack.shelves ?? [])}
+          />
+        )}
+      </Box>
+    </SlotSelectionContext.Provider>
   );
 }
