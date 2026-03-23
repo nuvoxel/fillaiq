@@ -620,19 +620,7 @@ static void networkTask(void* param) {
             }
         }
 
-        // Periodic: OTA check (every 5 min after first 30s)
-        {
-            unsigned long now = millis();
-            if (!otaRunning && apiClient.isWiFiConnected() && apiClient.isPaired() &&
-                now - lastOtaCheck >= deviceConfig.otaCheckInterval()) {
-                lastOtaCheck = now;
-                otaRunning = true;
-                otaLoop();
-                otaRunning = false;
-            }
-        }
-
-        // Print jobs now arrive via MQTT (fiq/s/{hwId}/print/job)
+        // OTA checks + print jobs now arrive via MQTT push — no more HTTP polling
 
         // Note: Environmental reporting is enqueued by the main loop
         // (sensor reads require I2C which is only safe on Core 1)
