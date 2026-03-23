@@ -762,12 +762,16 @@ export async function getAvailableSlots() {
       shelf: shelves,
       rack: racks,
       zone: zones,
+      // Check occupancy: left join user_items on currentSlotId
+      itemId: userItems.id,
+      itemColorHex: userItems.measuredColorHex,
     })
     .from(slots)
     .innerJoin(bays, eq(slots.bayId, bays.id))
     .innerJoin(shelves, eq(bays.shelfId, shelves.id))
     .innerJoin(racks, eq(shelves.rackId, racks.id))
     .innerJoin(zones, eq(racks.zoneId, zones.id))
+    .leftJoin(userItems, and(eq(userItems.currentSlotId, slots.id), eq(userItems.status, "active")))
     .where(eq(zones.userId, guard.data.userId))
     .orderBy(zones.name, racks.position, shelves.position, bays.position, slots.position);
 
@@ -781,6 +785,8 @@ export async function getAvailableSlots() {
       shelfPosition: r.shelf.position,
       bayPosition: r.bay.position,
       slotPosition: r.slot.position,
+      occupied: !!r.itemId,
+      itemColorHex: r.itemColorHex,
     }))
   );
 }
