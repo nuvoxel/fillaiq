@@ -30,6 +30,7 @@ export default function ScanPage() {
   const router = useRouter();
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -51,8 +52,10 @@ export default function ScanPage() {
     []
   );
 
-  const activeSessions = sessions.filter((s: any) => s.status === "active");
-  const resolvedSessions = sessions.filter((s: any) => s.status === "resolved");
+  const visibleSessions = showCompleted
+    ? sessions
+    : sessions.filter((s: any) => s.status !== "resolved");
+  const resolvedCount = sessions.filter((s: any) => s.status === "resolved").length;
 
   return (
     <Box>
@@ -82,10 +85,23 @@ export default function ScanPage() {
         </Stack>
       )}
 
+      {/* ── Filter ──────────────────────────────────────────────────── */}
+      {!loading && resolvedCount > 0 && (
+        <Box sx={{ mb: 1.5 }}>
+          <Chip
+            label={showCompleted ? `Hide completed (${resolvedCount})` : `Show completed (${resolvedCount})`}
+            onClick={() => setShowCompleted(!showCompleted)}
+            variant={showCompleted ? "filled" : "outlined"}
+            size="small"
+            color={showCompleted ? "success" : "default"}
+          />
+        </Box>
+      )}
+
       {/* ── Sessions List ────────────────────────────────────────────── */}
-      {!loading && sessions.length > 0 && (
+      {!loading && visibleSessions.length > 0 && (
         <Stack spacing={1}>
-          {sessions.map((session: any) => (
+          {visibleSessions.map((session: any) => (
             <SessionCard
               key={session.id}
               session={session}
@@ -97,7 +113,7 @@ export default function ScanPage() {
       )}
 
       {/* ── Empty State ──────────────────────────────────────────────── */}
-      {!loading && sessions.length === 0 && (
+      {!loading && visibleSessions.length === 0 && (
         <Card sx={{ textAlign: "center", py: 6 }}>
           <CardContent>
             <QrCodeScannerIcon
