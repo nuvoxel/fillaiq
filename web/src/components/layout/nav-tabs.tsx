@@ -18,7 +18,6 @@ import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 const navItems = [
   { href: "/locations", label: "Dashboard", icon: <WarehouseIcon fontSize="small" /> },
   { href: "/scan", label: "Scan", icon: <QrCodeScannerIcon fontSize="small" /> },
-  { href: "/spools", label: "Spools", icon: <CircleOutlinedIcon fontSize="small" /> },
   { href: "/catalog", label: "Catalog", icon: <MenuBookIcon fontSize="small" /> },
   { href: "/hardware", label: "Hardware", icon: <MemoryIcon fontSize="small" /> },
   { href: "/dashboard", label: "Reporting", icon: <AssessmentIcon fontSize="small" /> },

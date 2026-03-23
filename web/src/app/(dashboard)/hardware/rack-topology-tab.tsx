@@ -92,6 +92,7 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                         slot.status = {
                           ...(slot.status ?? {}),
                           state: "active",
+                          userItemId: item.id,
                           colorHex: item.measuredColorHex,
                           nfcUid: item.nfcUid,
                           weightStableG: item.currentWeightG,

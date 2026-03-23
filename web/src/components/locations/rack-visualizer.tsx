@@ -6,9 +6,18 @@ import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Divider from "@mui/material/Divider";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PrintIcon from "@mui/icons-material/Print";
+import EditIcon from "@mui/icons-material/Edit";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +84,10 @@ export type RackVisualizerCallbacks = {
   onAddShelfToRack?: (rackId: string, currentShelves: ShelfData[]) => void;
   onPrintSlot?: (slot: SlotData, context: string) => void;
   onSlotClick?: (slot: SlotData) => void;
+  onViewItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string) => void;
+  onRemoveItem?: (slotId: string) => void;
+  onMoveItem?: (slotId: string) => void;
 };
 
 // ── Spool ring color map ──────────────────────────────────────────────────────
@@ -94,7 +107,12 @@ const DEFAULT_COLORS = SPOOL_COLORS.empty;
 const SlotSelectionContext = createContext<{
   selectedSlotId: string | null;
   onSlotClick: ((slot: SlotData) => void) | null;
-}>({ selectedSlotId: null, onSlotClick: null });
+  onViewItem: ((itemId: string) => void) | null;
+  onEditItem: ((itemId: string) => void) | null;
+  onRemoveItem: ((slotId: string) => void) | null;
+  onMoveItem: ((slotId: string) => void) | null;
+  onPrintSlot: ((slot: SlotData, context: string) => void) | null;
+}>({ selectedSlotId: null, onSlotClick: null, onViewItem: null, onEditItem: null, onRemoveItem: null, onMoveItem: null, onPrintSlot: null });
 
 // ── NFC Badge ─────────────────────────────────────────────────────────────────
 
@@ -166,8 +184,14 @@ function SlotCell({
 }) {
   const [editing, setEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(slot.label ?? "");
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const selection = useContext(SlotSelectionContext);
   const isSelected = selection.selectedSlotId === slot.id;
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  };
 
   const colSpan = slot.colSpan ?? 1;
   const rowSpan = slot.rowSpan ?? 1;
@@ -352,6 +376,7 @@ function SlotCell({
   );
 
   return (
+    <>
     <Tooltip
       title={tooltipContent}
       arrow
@@ -374,6 +399,7 @@ function SlotCell({
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
+          onContextMenu={handleContextMenu}
           sx={{
             position: "relative",
             width: spoolW,
@@ -426,6 +452,49 @@ function SlotCell({
           {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
         </Box>
         );
+      })() : state === "active" && packageType === "box" ? (() => {
+        // Box rendering: brown cardboard box with color window
+        const fil = itemColorHex ?? "#888";
+        const boxW = Math.round(size * 0.85);
+        const boxH = Math.round(size * 0.95);
+        const r = Math.round(size * 0.08);
+        return (
+        <Box
+          onClick={() => {
+            if (selection.onSlotClick) selection.onSlotClick(slot);
+            else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
+          }}
+          onContextMenu={handleContextMenu}
+          sx={{
+            position: "relative", width: boxW, height: boxH, flexShrink: 0,
+            cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
+            outline: isSelected ? "3px solid" : "none",
+            outlineColor: isSelected ? "primary.main" : "transparent",
+            outlineOffset: 2,
+            borderRadius: `${r}px`,
+            background: "linear-gradient(180deg, #c9a86c 0%, #b8945a 30%, #a6834e 70%, #8b6d3f 100%)",
+            boxShadow: "0 2px 5px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
+            overflow: "hidden",
+            transition: "transform 0.12s ease, outline 0.12s ease",
+            "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
+          }}
+        >
+          {/* Color window */}
+          <Box sx={{
+            position: "absolute",
+            top: "25%", left: "20%", width: "60%", height: "40%",
+            borderRadius: `${Math.round(r * 0.6)}px`,
+            bgcolor: fil,
+            boxShadow: "inset 0 1px 3px rgba(0,0,0,0.3)",
+          }} />
+          {/* Box seam line */}
+          <Box sx={{
+            position: "absolute", top: 0, left: "50%", width: 1, height: "100%",
+            bgcolor: "rgba(0,0,0,0.12)",
+          }} />
+          {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
+        </Box>
+        );
       })() : (
       <Box
         onClick={() => {
@@ -436,6 +505,7 @@ function SlotCell({
             setEditing(true);
           }
         }}
+        onContextMenu={handleContextMenu}
         sx={{
           position: "relative",
           width: w,
@@ -466,6 +536,55 @@ function SlotCell({
       </Box>
       )}
     </Tooltip>
+
+    {/* Context menu */}
+    <Menu
+      open={ctxMenu !== null}
+      onClose={() => setCtxMenu(null)}
+      anchorReference="anchorPosition"
+      anchorPosition={ctxMenu ? { top: ctxMenu.y, left: ctxMenu.x } : undefined}
+      slotProps={{ paper: { sx: { minWidth: 180 } } }}
+    >
+      {state === "active" && statusData?.userItemId && selection.onViewItem && (
+        <MenuItem onClick={() => { selection.onViewItem!(statusData.userItemId); setCtxMenu(null); }}>
+          <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>View Details</ListItemText>
+        </MenuItem>
+      )}
+      {state === "active" && statusData?.userItemId && selection.onEditItem && (
+        <MenuItem onClick={() => { selection.onEditItem!(statusData.userItemId); setCtxMenu(null); }}>
+          <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Edit Item</ListItemText>
+        </MenuItem>
+      )}
+      {state === "active" && selection.onMoveItem && (
+        <MenuItem onClick={() => { selection.onMoveItem!(slot.id); setCtxMenu(null); }}>
+          <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Move to Another Slot</ListItemText>
+        </MenuItem>
+      )}
+      {state === "active" && selection.onRemoveItem && (
+        <MenuItem onClick={() => { selection.onRemoveItem!(slot.id); setCtxMenu(null); }}>
+          <ListItemIcon><RemoveCircleOutlineIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Remove from Slot</ListItemText>
+        </MenuItem>
+      )}
+      {state === "active" && selection.onPrintSlot && (
+        <>
+          <Divider />
+          <MenuItem onClick={() => { selection.onPrintSlot!(slot, context ?? ""); setCtxMenu(null); }}>
+            <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Print Label</ListItemText>
+          </MenuItem>
+        </>
+      )}
+      {state === "empty" && (
+        <MenuItem disabled>
+          <ListItemText>Empty slot</ListItemText>
+        </MenuItem>
+      )}
+    </Menu>
+    </>
   );
 }
 
@@ -1472,7 +1591,15 @@ export function RackVisualizer({
   );
 
   return (
-    <SlotSelectionContext.Provider value={{ selectedSlotId: selectedSlotId ?? null, onSlotClick: cb.onSlotClick ?? null }}>
+    <SlotSelectionContext.Provider value={{
+      selectedSlotId: selectedSlotId ?? null,
+      onSlotClick: cb.onSlotClick ?? null,
+      onViewItem: cb.onViewItem ?? null,
+      onEditItem: cb.onEditItem ?? null,
+      onRemoveItem: cb.onRemoveItem ?? null,
+      onMoveItem: cb.onMoveItem ?? null,
+      onPrintSlot: cb.onPrintSlot ?? null,
+    }}>
       <Box sx={{ overflowX: "auto", pb: 1 }}>
         <Box
           sx={{

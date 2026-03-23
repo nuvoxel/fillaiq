@@ -645,6 +645,34 @@ export async function createIntakeItem(input: {
   }
 }
 
+// ── Move item to a different slot ────────────────────────────────────────────
+
+export async function moveItemToSlot(itemId: string, newSlotId: string | null) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [item] = await db.select().from(userItems)
+    .where(and(eq(userItems.id, itemId), eq(userItems.userId, guard.data.userId)));
+  if (!item) return err("Item not found");
+
+  await db.update(userItems)
+    .set({ currentSlotId: newSlotId, updatedAt: new Date() })
+    .where(eq(userItems.id, itemId));
+
+  return ok({ moved: true });
+}
+
+export async function removeItemFromSlot(slotId: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  await db.update(userItems)
+    .set({ currentSlotId: null, updatedAt: new Date() })
+    .where(and(eq(userItems.currentSlotId, slotId), eq(userItems.userId, guard.data.userId)));
+
+  return ok({ removed: true });
+}
+
 // ── Storage Location Tree ─────────────────────────────────────────────────────
 
 export async function getStorageTree() {
