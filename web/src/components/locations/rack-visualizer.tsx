@@ -414,11 +414,14 @@ function SlotCell({
       ref={setRefs}
       {...(isDraggable ? { ...dragAttrs, ...dragListeners } : {})}
       onContextMenu={handleContextMenu}
+      onClick={() => {
+        if (selection.onSlotClick) selection.onSlotClick(slot);
+      }}
       style={{
         display: "inline-flex",
         opacity: isDragging ? 0.3 : 1,
         touchAction: isDraggable ? "none" : undefined,
-        cursor: isDraggable ? "grab" : undefined,
+        cursor: isDraggable ? "grab" : selection.onSlotClick ? "pointer" : undefined,
         outline: isOver && !isDragging ? "2px dashed #1976d2" : undefined,
         outlineOffset: 3,
         borderRadius: 4,
