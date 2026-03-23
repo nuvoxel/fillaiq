@@ -176,7 +176,11 @@ function SlotCell({
 
   const state = slot.status?.state ?? "empty";
   const hasNfc = Boolean(slot.nfcTagId || slot.status?.nfcUid);
-  const colors = SPOOL_COLORS[state] ?? DEFAULT_COLORS;
+  const itemColorHex = (slot.status as any)?.colorHex as string | undefined;
+  // Use item's actual color for the spool if available, otherwise fall back to state color
+  const colors = itemColorHex && state === "active"
+    ? { base: itemColorHex, mid: itemColorHex, hub: "#0D0D0D" }
+    : (SPOOL_COLORS[state] ?? DEFAULT_COLORS);
   const label = slot.label ?? String(slot.position);
 
   const commit = () => {

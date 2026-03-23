@@ -6,7 +6,7 @@ import { scanStations, scanEvents, scanSessions } from "@/db/schema/scan-station
 import { environmentalReadings } from "@/db/schema/events";
 import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
 import { userItems, userPrinters, printJobs } from "@/db/schema/user-library";
-import { zones, racks, shelves, bays, slots } from "@/db/schema/storage";
+import { zones, racks, shelves, bays, slots, slotStatus } from "@/db/schema/storage";
 import { requireAuth } from "./auth";
 import { ok, err, type ActionResult } from "./utils";
 
@@ -684,12 +684,38 @@ export async function getStorageTree() {
               const baysWithSlots = await Promise.all(
                 bayRows.map(async (bay) => {
                   const slotRows = await db
-                    .select()
+                    .select({
+                      slot: slots,
+                      status: slotStatus,
+                      itemId: userItems.id,
+                      itemColorHex: userItems.measuredColorHex,
+                      itemNfcUid: userItems.nfcUid,
+                    })
                     .from(slots)
+                    .leftJoin(slotStatus, eq(slotStatus.slotId, slots.id))
+                    .leftJoin(userItems, and(
+                      eq(userItems.currentSlotId, slots.id),
+                      eq(userItems.status, "active")
+                    ))
                     .where(eq(slots.bayId, bay.id))
                     .orderBy(slots.position);
 
-                  return { ...bay, slots: slotRows };
+                  const slotsWithStatus = slotRows.map((r) => ({
+                    ...r.slot,
+                    status: r.status ? {
+                      state: r.itemId ? "active" : (r.status.state ?? "empty"),
+                      nfcUid: r.status.nfcUid ?? r.itemNfcUid ?? null,
+                      weightStableG: r.status.weightStableG,
+                      percentRemaining: r.status.percentRemaining,
+                      colorHex: r.itemColorHex,
+                    } : r.itemId ? {
+                      state: "active",
+                      nfcUid: r.itemNfcUid,
+                      colorHex: r.itemColorHex,
+                    } : null,
+                  }));
+
+                  return { ...bay, slots: slotsWithStatus };
                 })
               );
 
