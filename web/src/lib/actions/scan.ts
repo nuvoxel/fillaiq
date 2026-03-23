@@ -561,6 +561,14 @@ export async function createIntakeItem(input: {
   measuredColorLabB?: number;
   measuredSpectralData?: any;
   measuredHeightMm?: number;
+  // Purchase info
+  purchasePrice?: number;
+  purchaseCurrency?: string;
+  purchasedAt?: string;
+  productionDate?: string;
+  lotNumber?: string;
+  serialNumber?: string;
+  rating?: number;
   notes?: string;
 }) {
   const guard = await requireAuth();
@@ -588,6 +596,14 @@ export async function createIntakeItem(input: {
         measuredColorLabB: input.measuredColorLabB ?? null,
         measuredSpectralData: input.measuredSpectralData ?? null,
         measuredHeightMm: input.measuredHeightMm ?? null,
+        // Purchase info
+        purchasePrice: input.purchasePrice ?? null,
+        purchaseCurrency: input.purchaseCurrency ?? null,
+        purchasedAt: input.purchasedAt ? new Date(input.purchasedAt) : null,
+        productionDate: input.productionDate ?? null,
+        lotNumber: input.lotNumber ?? null,
+        serialNumber: input.serialNumber ?? null,
+        rating: input.rating ?? null,
         notes: input.notes ?? null,
         status: "active",
       })

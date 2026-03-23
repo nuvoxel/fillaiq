@@ -14,6 +14,14 @@ import Autocomplete from "@mui/material/Autocomplete";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
+import Grid from "@mui/material/Grid";
+import InputAdornment from "@mui/material/InputAdornment";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Rating from "@mui/material/Rating";
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import SearchIcon from "@mui/icons-material/Search";
 import PlaceIcon from "@mui/icons-material/Place";
@@ -25,11 +33,9 @@ import TextFieldsIcon from "@mui/icons-material/TextFields";
 import ScaleIcon from "@mui/icons-material/Scale";
 import HeightIcon from "@mui/icons-material/Height";
 import NfcIcon from "@mui/icons-material/Nfc";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DataObjectIcon from "@mui/icons-material/DataObject";
+import StarIcon from "@mui/icons-material/Star";
 import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
 import { ProductCard } from "@/components/scan/product-card";
 import { SlotPicker } from "@/components/scan/slot-picker";
@@ -40,10 +46,15 @@ import {
 } from "@/lib/actions/scan";
 import { PrintLabelDialog } from "@/components/labels/print-label-dialog";
 
-/**
- * Scan data pre-filled from a station session.
- * Pass null/undefined for manual scans without a station.
- */
+const PACKAGE_TYPES = [
+  { value: "spool", label: "Spool" },
+  { value: "box", label: "Box" },
+  { value: "bottle", label: "Bottle" },
+  { value: "bag", label: "Bag" },
+  { value: "cartridge", label: "Cartridge" },
+  { value: "other", label: "Other" },
+] as const;
+
 export type StationData = {
   sessionId?: string;
   weightG?: number | null;
@@ -64,20 +75,20 @@ export type StationData = {
 export function IntakeForm({ stationData }: { stationData?: StationData | null }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const parsed = stationData?.nfcParsedData;
 
-  // ── Identification ──────────────────────────────────────────────────────────
+  // ── Editable Station Readings ───────────────────────────────────────────────
+  const [weight, setWeight] = useState(stationData?.weightG?.toFixed(1) ?? "");
+  const [height, setHeight] = useState(stationData?.heightMm?.toFixed(0) ?? "");
+  const [colorHex, setColorHex] = useState(stationData?.colorHex ?? "");
+
+  // ── Product Identification ──────────────────────────────────────────────────
   const [showCamera, setShowCamera] = useState(false);
   const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
   const [barcode, setBarcode] = useState<{ value: string; format: string } | null>(null);
   const [productMatch, setProductMatch] = useState<any>(
     stationData?.matchedProduct
-      ? {
-          match: "auto",
-          product: stationData.matchedProduct,
-          brand: stationData.matchedProduct.brandName
-            ? { name: stationData.matchedProduct.brandName }
-            : null,
-        }
+      ? { match: "auto", product: stationData.matchedProduct, brand: stationData.matchedProduct.brandName ? { name: stationData.matchedProduct.brandName } : null }
       : null
   );
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,14 +100,22 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [ocrRunning, setOcrRunning] = useState(false);
 
-  // ── Details ─────────────────────────────────────────────────────────────────
-  const [notes, setNotes] = useState("");
-  const [initialWeight, setInitialWeight] = useState(
-    stationData?.weightG != null ? stationData.weightG.toFixed(1) : ""
-  );
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  // ── Photos ──────────────────────────────────────────────────────────────────
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [primaryPhoto, setPrimaryPhoto] = useState<number>(0);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Product Details ─────────────────────────────────────────────────────────
+  const [packageType, setPackageType] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [purchaseCurrency, setPurchaseCurrency] = useState("USD");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [productionDate, setProductionDate] = useState(parsed?.productionDate ?? "");
+  const [lotNumber, setLotNumber] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [rating, setRating] = useState<number | null>(null);
 
   // ── Location ────────────────────────────────────────────────────────────────
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
@@ -107,48 +126,36 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [saved, setSaved] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
 
-  const parsed = stationData?.nfcParsedData;
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
-  // ── Barcode scanning ──────────────────────────────────────────────────────
-
-  const handleCodesDetected = useCallback(
-    async (codes: DetectedCode[]) => {
-      setDetectedCodes(codes);
-      setShowCamera(false);
-      const primary = codes[0];
-      if (primary) {
-        setBarcode({ value: primary.value, format: primary.format });
-        setLookingUp(true);
-        setError(null);
-        for (const code of codes) {
-          const result = await lookupProductByBarcode(code.value);
-          if (result.data) {
-            setBarcode({ value: code.value, format: code.format });
-            setProductMatch(result.data);
-            setLookingUp(false);
-            return;
-          }
+  const handleCodesDetected = useCallback(async (codes: DetectedCode[]) => {
+    setDetectedCodes(codes);
+    setShowCamera(false);
+    const primary = codes[0];
+    if (primary) {
+      setBarcode({ value: primary.value, format: primary.format });
+      setLookingUp(true);
+      setError(null);
+      for (const code of codes) {
+        const result = await lookupProductByBarcode(code.value);
+        if (result.data) {
+          setBarcode({ value: code.value, format: code.format });
+          setProductMatch(result.data);
+          setLookingUp(false);
+          return;
         }
-        setLookingUp(false);
       }
-    },
-    []
-  );
-
-  // ── Catalog search ────────────────────────────────────────────────────────
+      setLookingUp(false);
+    }
+  }, []);
 
   const handleSearch = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
+    if (query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     const result = await searchProducts(query);
     setSearching(false);
     if (result.data) setSearchResults(result.data);
   }, []);
-
-  // ── OCR ───────────────────────────────────────────────────────────────────
 
   const handleRunOcr = useCallback(async () => {
     setOcrRunning(true);
@@ -161,46 +168,32 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       video.playsInline = true;
       await video.play();
       await new Promise((r) => setTimeout(r, 500));
-
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(video, 0, 0);
+      canvas.getContext("2d")!.drawImage(video, 0, 0);
       stream.getTracks().forEach((t) => t.stop());
-
       const { createWorker } = await import("tesseract.js");
       const worker = await createWorker("eng");
       const { data } = await worker.recognize(canvas);
       await worker.terminate();
-
-      const text = data.text.trim();
-      setOcrText(text || null);
+      setOcrText(data.text.trim() || null);
     } catch (e) {
       console.error("OCR failed:", e);
-      setOcrText(null);
     } finally {
       setOcrRunning(false);
     }
   }, []);
-
-  // ── Photo upload ──────────────────────────────────────────────────────────
 
   const handlePhotoUpload = async (file: File) => {
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/v1/upload?category=scans", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch("/api/v1/upload?category=scans", { method: "POST", body: formData });
       const result = await res.json();
-      if (!res.ok) {
-        setError(result.error || "Upload failed");
-        return;
-      }
-      setPhotoUrl(result.url);
+      if (!res.ok) { setError(result.error || "Upload failed"); return; }
+      setPhotos((prev) => [...prev, result.url]);
     } catch {
       setError("Upload failed");
     } finally {
@@ -208,15 +201,12 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
     }
   };
 
-  // ── Save to inventory ─────────────────────────────────────────────────────
-
   const handleSave = async () => {
     setSaving(true);
     setError(null);
-
     const notesParts: string[] = [];
     if (notes) notesParts.push(notes);
-    if (ocrText) notesParts.push(`OCR text: ${ocrText}`);
+    if (ocrText) notesParts.push(`OCR: ${ocrText}`);
 
     const result = await createIntakeItem({
       productId: productMatch?.product?.id,
@@ -226,162 +216,153 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       barcodeFormat: barcode?.format,
       nfcUid: stationData?.nfcUid ?? undefined,
       nfcTagFormat: stationData?.nfcTagFormat ?? undefined,
-      initialWeightG: initialWeight ? parseFloat(initialWeight) : undefined,
-      measuredColorHex: stationData?.colorHex ?? undefined,
+      initialWeightG: weight ? parseFloat(weight) : undefined,
+      measuredColorHex: colorHex || undefined,
       measuredColorLabL: stationData?.colorLabL ?? undefined,
       measuredColorLabA: stationData?.colorLabA ?? undefined,
       measuredColorLabB: stationData?.colorLabB ?? undefined,
-      measuredHeightMm: stationData?.heightMm ?? undefined,
+      measuredHeightMm: height ? parseFloat(height) : undefined,
+      packageType: packageType ?? undefined,
+      purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
+      purchaseCurrency: purchaseCurrency || undefined,
+      purchasedAt: purchaseDate || undefined,
+      productionDate: productionDate || undefined,
+      lotNumber: lotNumber || undefined,
+      serialNumber: serialNumber || undefined,
+      rating: rating ?? undefined,
       notes: notesParts.join("\n") || undefined,
     });
 
     setSaving(false);
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
+    if (result.error) { setError(result.error); return; }
     setSaved(true);
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  const effectiveColorHex = stationData?.colorHex;
+  // ── Render: Saved ─────────────────────────────────────────────────────────
 
   if (saved) {
     return (
       <Stack spacing={2}>
-        <Alert severity="success" variant="filled">
-          Item added to inventory!
-        </Alert>
+        <Alert severity="success" variant="filled">Item added to inventory!</Alert>
         {productMatch && <ProductCard data={productMatch} />}
         {selectedSlotAddress && (
-          <Alert severity="info" icon={<PlaceIcon />}>
-            Stored at: <strong>{selectedSlotAddress}</strong>
-          </Alert>
+          <Alert severity="info" icon={<PlaceIcon />}>Stored at: <strong>{selectedSlotAddress}</strong></Alert>
         )}
         <Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={() => setShowPrintDialog(true)}
-            sx={{ textTransform: "none" }}
-          >
+          <Button variant="outlined" startIcon={<PrintIcon />} onClick={() => setShowPrintDialog(true)} sx={{ textTransform: "none" }}>
             Print Label
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<QrCodeScannerIcon />}
-            onClick={() => router.push("/scan")}
-            sx={{ flex: 1, textTransform: "none" }}
-          >
+          <Button variant="contained" startIcon={<QrCodeScannerIcon />} onClick={() => router.push("/scan")} sx={{ flex: 1, textTransform: "none" }}>
             Back to Scans
           </Button>
         </Stack>
         <PrintLabelDialog
-          open={showPrintDialog}
-          onClose={() => setShowPrintDialog(false)}
-          items={[
-            {
-              brand: productMatch?.brand?.name ?? undefined,
-              material: productMatch?.product?.materialName ?? productMatch?.product?.name ?? undefined,
-              color: effectiveColorHex ?? undefined,
-              weight: initialWeight ? `${initialWeight}g` : undefined,
-              location: selectedSlotAddress || undefined,
-            },
-          ]}
+          open={showPrintDialog} onClose={() => setShowPrintDialog(false)}
+          items={[{
+            brand: productMatch?.brand?.name,
+            material: productMatch?.product?.materialName ?? productMatch?.product?.name,
+            color: colorHex || undefined,
+            weight: weight ? `${weight}g` : undefined,
+            location: selectedSlotAddress || undefined,
+          }]}
         />
       </Stack>
     );
   }
 
+  // ── Render: Active ────────────────────────────────────────────────────────
+
   return (
     <Stack spacing={2}>
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* ── Station readings (if from scanner) ─────────────────────── */}
-      {stationData && (
-        <Card variant="outlined">
-          <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: "block" }}>
-              STATION READINGS
-            </Typography>
-            <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
-              {stationData.weightG != null && (
-                <Chip icon={<ScaleIcon sx={{ fontSize: "16px !important" }} />} label={`${stationData.weightG.toFixed(1)}g`} size="small" variant="outlined" />
-              )}
-              {stationData.colorHex && (
-                <Chip
-                  icon={<Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: stationData.colorHex, border: 1, borderColor: "divider" }} />}
-                  label={stationData.colorHex} size="small" variant="outlined"
-                />
-              )}
-              {stationData.nfcUid && (
+      {/* ═══ 1. Station Readings (editable) ═══════════════════════════════ */}
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Measurements
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <TextField fullWidth size="small" label="Weight (g)" type="number"
+                value={weight} onChange={(e) => setWeight(e.target.value)}
+                slotProps={{ input: { startAdornment: <InputAdornment position="start"><ScaleIcon sx={{ fontSize: 16 }} /></InputAdornment> } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <TextField fullWidth size="small" label="Height (mm)" type="number"
+                value={height} onChange={(e) => setHeight(e.target.value)}
+                slotProps={{ input: { startAdornment: <InputAdornment position="start"><HeightIcon sx={{ fontSize: 16 }} /></InputAdornment> } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <TextField fullWidth size="small" label="Color" value={colorHex}
+                onChange={(e) => setColorHex(e.target.value)} placeholder="#FF5500"
+                slotProps={{ input: {
+                  startAdornment: colorHex ? (
+                    <InputAdornment position="start">
+                      <Box sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: colorHex, border: 1, borderColor: "divider" }} />
+                    </InputAdornment>
+                  ) : undefined,
+                } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              {stationData?.nfcUid && (
                 <Chip icon={<NfcIcon sx={{ fontSize: "16px !important" }} />}
-                  label={stationData.nfcTagFormat?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) ?? "NFC Tag"}
-                  size="small" variant="outlined" color="primary"
+                  label={stationData.nfcTagFormat && stationData.nfcTagFormat !== "unknown"
+                    ? stationData.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                    : stationData.nfcUid.slice(0, 12) + "..."}
+                  variant="outlined" color="primary" sx={{ mt: 0.5 }}
                 />
               )}
-              {stationData.heightMm != null && (
-                <Chip icon={<HeightIcon sx={{ fontSize: "16px !important" }} />} label={`${stationData.heightMm.toFixed(0)}mm`} size="small" variant="outlined" />
-              )}
+            </Grid>
+          </Grid>
+          {/* NFC parsed data chips */}
+          {parsed?.material && (
+            <Box sx={{ mt: 1.5, display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+              <Chip label={parsed.material} size="small" color="secondary" />
+              {parsed.name && <Chip label={parsed.name} size="small" variant="outlined" />}
+              {parsed.nozzleTempMin && <Chip label={`Nozzle: ${parsed.nozzleTempMin}–${parsed.nozzleTempMax}°C`} size="small" variant="outlined" />}
+              {parsed.bedTemp && <Chip label={`Bed: ${parsed.bedTemp}°C`} size="small" variant="outlined" />}
+              {parsed.spoolNetWeight && <Chip label={`Net: ${parsed.spoolNetWeight}g`} size="small" variant="outlined" />}
             </Box>
-            {parsed?.material && (
-              <Box sx={{ mt: 1, display: "flex", gap: 0.75, flexWrap: "wrap" }}>
-                <Chip label={parsed.material} size="small" color="secondary" />
-                {parsed.nozzleTempMin && <Chip label={`Nozzle: ${parsed.nozzleTempMin}–${parsed.nozzleTempMax}°C`} size="small" variant="outlined" />}
-                {parsed.bedTemp && <Chip label={`Bed: ${parsed.bedTemp}°C`} size="small" variant="outlined" />}
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
-      {/* ── Raw Scan Data (NFC sectors + spectral) ────────────────── */}
+      {/* ═══ 2. Raw Scan Data (collapsible) ═══════════════════════════════ */}
       {stationData && (stationData.nfcRawData || stationData.spectralData || stationData.nfcParsedData) && (
         <Accordion disableGutters variant="outlined" sx={{ "&:before": { display: "none" } }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <DataObjectIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-              <Typography variant="caption" fontWeight={600} color="text.secondary">
-                Raw Scan Data
-              </Typography>
+              <Typography variant="caption" fontWeight={600} color="text.secondary">Raw Scan Data</Typography>
             </Box>
           </AccordionSummary>
           <AccordionDetails sx={{ pt: 0 }}>
-            {/* Parsed NFC data */}
             {stationData.nfcParsedData && (
               <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                  NFC Parsed Data
-                </Typography>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>NFC Parsed</Typography>
                 <Box component="pre" sx={{ fontSize: "0.7rem", fontFamily: "monospace", bgcolor: "grey.50", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 200, m: 0 }}>
                   {JSON.stringify(stationData.nfcParsedData, null, 2)}
                 </Box>
               </Box>
             )}
-
-            {/* Raw NFC sectors */}
             {stationData.nfcRawData && stationData.nfcSectorsRead && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                  NFC Raw Sectors ({stationData.nfcSectorsRead} sectors, {stationData.nfcRawData.length / 2} bytes)
+                  NFC Raw ({stationData.nfcSectorsRead} sectors)
                 </Typography>
                 <Box component="pre" sx={{ fontSize: "0.65rem", fontFamily: "monospace", bgcolor: "grey.900", color: "grey.100", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 300, m: 0 }}>
                   {Array.from({ length: stationData.nfcSectorsRead }).map((_, s) => {
-                    const bytesPerSector = stationData.nfcRawData!.length / 2 / stationData.nfcSectorsRead!;
-                    const blocksPerSector = bytesPerSector / 16;
+                    const bps = stationData.nfcRawData!.length / 2 / stationData.nfcSectorsRead!;
+                    const bpb = bps / 16;
                     const lines: string[] = [`── Sector ${s} ──`];
-                    for (let b = 0; b < blocksPerSector; b++) {
-                      const start = (s * bytesPerSector + b * 16) * 2;
+                    for (let b = 0; b < bpb; b++) {
+                      const start = (s * bps + b * 16) * 2;
                       const hex = stationData.nfcRawData!.slice(start, start + 32);
-                      const ascii = hex.match(/.{2}/g)?.map(h => {
-                        const c = parseInt(h, 16);
-                        return c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : ".";
-                      }).join("") ?? "";
+                      const ascii = hex.match(/.{2}/g)?.map(h => { const c = parseInt(h, 16); return c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : "."; }).join("") ?? "";
                       lines.push(`  B${b}: ${hex.match(/.{2}/g)?.join(" ") ?? hex}  |${ascii}|`);
                     }
                     return lines.join("\n");
@@ -389,13 +370,9 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
                 </Box>
               </Box>
             )}
-
-            {/* Spectral data */}
             {stationData.spectralData && (
               <Box>
-                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                  Spectral Data
-                </Typography>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>Spectral Data</Typography>
                 <Box component="pre" sx={{ fontSize: "0.7rem", fontFamily: "monospace", bgcolor: "grey.50", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 200, m: 0 }}>
                   {JSON.stringify(stationData.spectralData, null, 2)}
                 </Box>
@@ -405,7 +382,47 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
         </Accordion>
       )}
 
-      {/* ── Product Identification ──────────────────────────────────── */}
+      {/* ═══ 3. Photos ════════════════════════════════════════════════════ */}
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>Photos</Typography>
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ""; }}
+          />
+          {photos.length > 0 && (
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+              {photos.map((url, i) => (
+                <Box key={url} sx={{ position: "relative", width: 80, height: 80 }}>
+                  <Box component="img" src={url} alt={`Photo ${i + 1}`}
+                    sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, border: i === primaryPhoto ? 3 : 1, borderColor: i === primaryPhoto ? "primary.main" : "divider", cursor: "pointer" }}
+                    onClick={() => setPrimaryPhoto(i)}
+                  />
+                  <IconButton size="small" onClick={() => { setPhotos((p) => p.filter((_, j) => j !== i)); if (primaryPhoto >= i && primaryPhoto > 0) setPrimaryPhoto(primaryPhoto - 1); }}
+                    sx={{ position: "absolute", top: -6, right: -6, bgcolor: "background.paper", boxShadow: 1, p: 0.25, "&:hover": { bgcolor: "error.light", color: "white" } }}>
+                    <DeleteIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                  {i === primaryPhoto && (
+                    <StarIcon sx={{ position: "absolute", bottom: 2, left: 2, fontSize: 16, color: "primary.main", filter: "drop-shadow(0 0 2px white)" }} />
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )}
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" startIcon={uploading ? <CircularProgress size={16} /> : <CameraAltIcon />}
+              disabled={uploading} onClick={() => fileInputRef.current?.click()} sx={{ textTransform: "none", flex: 1 }}>
+              {uploading ? "Uploading..." : "Take Photo"}
+            </Button>
+          </Stack>
+          {photos.length > 1 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+              Tap a photo to set it as primary. Primary photo is used as the product image.
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ═══ 4. Product Identification ════════════════════════════════════ */}
       {productMatch ? (
         <>
           <ProductCard data={productMatch} />
@@ -416,24 +433,15 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       ) : (
         <Card variant="outlined">
           <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Identify Product
-            </Typography>
-
-            {/* Barcode scanner */}
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>Identify Product</Typography>
             {showCamera ? (
               <BarcodeScanner onDetected={handleCodesDetected} onClose={() => setShowCamera(false)} />
             ) : (
-              <Button
-                fullWidth variant="contained" startIcon={<QrCodeScannerIcon />}
-                onClick={() => setShowCamera(true)}
-                sx={{ mb: 1.5, textTransform: "none" }}
-              >
+              <Button fullWidth variant="contained" startIcon={<QrCodeScannerIcon />}
+                onClick={() => setShowCamera(true)} sx={{ mb: 1.5, textTransform: "none" }}>
                 Scan Barcode
               </Button>
             )}
-
-            {/* Detected codes */}
             {detectedCodes.length > 0 && (
               <Box sx={{ mb: 1.5 }}>
                 <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mb: 0.5 }}>
@@ -442,57 +450,28 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
                       color={code.value === barcode?.value ? "primary" : "default"} />
                   ))}
                 </Stack>
-                {lookingUp && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <CircularProgress size={16} />
-                    <Typography variant="body2">Looking up...</Typography>
-                  </Box>
-                )}
-                {!lookingUp && !productMatch && (
-                  <Typography variant="body2" color="text.secondary">
-                    No match found. Try OCR or search below.
-                  </Typography>
-                )}
+                {lookingUp && <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><CircularProgress size={16} /><Typography variant="body2">Looking up...</Typography></Box>}
+                {!lookingUp && !productMatch && <Typography variant="body2" color="text.secondary">No match. Try OCR or search.</Typography>}
               </Box>
             )}
-
-            {/* OCR */}
             {!showCamera && (
-              <Button
-                fullWidth variant="outlined"
-                startIcon={ocrRunning ? <CircularProgress size={16} /> : <TextFieldsIcon />}
-                onClick={handleRunOcr} disabled={ocrRunning}
-                sx={{ mb: 1.5, textTransform: "none" }}
-              >
-                {ocrRunning ? "Reading text..." : "Capture & Read Label (OCR)"}
+              <Button fullWidth variant="outlined" startIcon={ocrRunning ? <CircularProgress size={16} /> : <TextFieldsIcon />}
+                onClick={handleRunOcr} disabled={ocrRunning} sx={{ mb: 1.5, textTransform: "none" }}>
+                {ocrRunning ? "Reading..." : "Capture & Read Label (OCR)"}
               </Button>
             )}
-
             {ocrText && (
               <Alert severity="info" sx={{ mb: 1.5 }}>
-                <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>
-                  EXTRACTED TEXT
-                </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}>
-                  {ocrText}
-                </Typography>
+                <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>EXTRACTED TEXT</Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}>{ocrText}</Typography>
               </Alert>
             )}
-
-            {/* Catalog search */}
             {!showCamera && (
-              <Autocomplete
-                freeSolo
-                options={searchResults}
-                getOptionLabel={(opt: any) =>
-                  typeof opt === "string" ? opt : `${opt.brand?.name ?? ""} ${opt.product.name}`.trim()
-                }
-                loading={searching}
-                inputValue={searchQuery}
+              <Autocomplete freeSolo options={searchResults}
+                getOptionLabel={(opt: any) => typeof opt === "string" ? opt : `${opt.brand?.name ?? ""} ${opt.product.name}`.trim()}
+                loading={searching} inputValue={searchQuery}
                 onInputChange={(_, val) => { setSearchQuery(val); handleSearch(val); }}
-                onChange={(_, val) => {
-                  if (val && typeof val !== "string") setProductMatch({ match: "search", ...val });
-                }}
+                onChange={(_, val) => { if (val && typeof val !== "string") setProductMatch({ match: "search", ...val }); }}
                 renderOption={(props, option: any) => {
                   const { key, ...rest } = props as any;
                   return (
@@ -516,50 +495,59 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
         </Card>
       )}
 
-      {/* ── Details ────────────────────────────────────────────────── */}
+      {/* ═══ 5. Product Details ═══════════════════════════════════════════ */}
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Details
-          </Typography>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>Details</Typography>
 
-          {/* Photo upload */}
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" hidden
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ""; }}
-          />
-          {photoUrl ? (
-            <Box sx={{ position: "relative", display: "inline-block", mb: 2, width: "100%" }}>
-              <Box component="img" src={photoUrl} alt="Uploaded" sx={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 2, border: 1, borderColor: "divider", bgcolor: "grey.50" }} />
-              <IconButton size="small" sx={{ position: "absolute", top: 4, right: 4, bgcolor: "background.paper", boxShadow: 1, "&:hover": { bgcolor: "error.light", color: "white" } }}
-                onClick={() => setPhotoUrl(null)}>
-                <DeleteIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Box>
-          ) : (
-            <Button variant="outlined" fullWidth
-              startIcon={uploading ? <CircularProgress size={18} /> : <CameraAltIcon />}
-              disabled={uploading} onClick={() => fileInputRef.current?.click()}
-              sx={{ height: 64, borderStyle: "dashed", textTransform: "none", mb: 2 }}>
-              {uploading ? "Uploading..." : "Take Photo"}
-            </Button>
-          )}
+          {/* Package type */}
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Package Type</Typography>
+          <ToggleButtonGroup value={packageType} exclusive size="small"
+            onChange={(_, val) => { if (val !== null) setPackageType(val); }}
+            sx={{ mb: 2, flexWrap: "wrap", gap: 0.5 }}>
+            {PACKAGE_TYPES.map((pt) => (
+              <ToggleButton key={pt.value} value={pt.value} sx={{ textTransform: "none", px: 1.5 }}>{pt.label}</ToggleButton>
+            ))}
+          </ToggleButtonGroup>
 
-          {/* Weight — manual entry if no station data */}
-          {!stationData?.weightG && (
-            <TextField fullWidth label="Weight (g)" type="number" size="small"
-              value={initialWeight} onChange={(e) => setInitialWeight(e.target.value)}
-              placeholder="e.g. 1200" helperText="Total weight including spool" sx={{ mb: 2 }}
-            />
-          )}
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Purchase Price" type="number"
+                value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)}
+                slotProps={{ input: { startAdornment: <InputAdornment position="start">$</InputAdornment> } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Purchase Date" type="date"
+                value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Production Date" value={productionDate}
+                onChange={(e) => setProductionDate(e.target.value)} placeholder="2025-01-15"
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Lot Number" value={lotNumber}
+                onChange={(e) => setLotNumber(e.target.value)}
+              />
+            </Grid>
+          </Grid>
 
-          <TextField fullWidth label="Notes" size="small" multiline minRows={2}
-            value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any additional details..."
+          {/* Rating */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+            <Typography variant="caption" color="text.secondary">Rating</Typography>
+            <Rating value={rating} onChange={(_, v) => setRating(v)} size="small" />
+          </Box>
+
+          <TextField fullWidth size="small" label="Notes" multiline minRows={2}
+            value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes..."
           />
         </CardContent>
       </Card>
 
-      {/* ── Location ───────────────────────────────────────────────── */}
+      {/* ═══ 6. Storage Location ══════════════════════════════════════════ */}
       <Card variant="outlined">
         <CardContent>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
@@ -573,14 +561,12 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
             onSelect={(id, addr) => { setSelectedSlotId(id); setSelectedSlotAddress(addr); }}
           />
           {selectedSlotAddress && (
-            <Alert severity="success" sx={{ mt: 1 }}>
-              Selected: <strong>{selectedSlotAddress}</strong>
-            </Alert>
+            <Alert severity="success" sx={{ mt: 1 }}>Selected: <strong>{selectedSlotAddress}</strong></Alert>
           )}
         </CardContent>
       </Card>
 
-      {/* ── Save ───────────────────────────────────────────────────── */}
+      {/* ═══ 7. Save ══════════════════════════════════════════════════════ */}
       <Button variant="contained" size="large" fullWidth onClick={handleSave} disabled={saving}
         startIcon={saving ? <CircularProgress size={18} /> : <CheckCircleOutlineIcon />}
         sx={{ textTransform: "none" }}>
