@@ -6,6 +6,9 @@ import {
   DragOverlay,
   useDraggable,
   useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -1601,6 +1604,8 @@ export function RackVisualizer({
     (a, b) => a.position - b.position
   );
 
+  // Require 8px of movement before starting drag — allows normal clicks to pass through
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
   const [ctxMenuSlotId, setCtxMenuSlotId] = useState<string | null>(null);
   const [ctxMenuPos, setCtxMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -1637,7 +1642,7 @@ export function RackVisualizer({
   }, [cb]);
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <SlotSelectionContext.Provider value={{
       selectedSlotId: selectedSlotId ?? null,
       onSlotClick: cb.onSlotClick ?? null,
