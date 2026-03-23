@@ -405,22 +405,22 @@ function SlotCell({
 
   return (
     <>
-    <Box
+    <div
       ref={setRefs}
       {...(isDraggable ? { ...dragAttrs, ...dragListeners } : {})}
-      sx={{
+      style={{
         display: "inline-flex",
+        position: "relative",
         opacity: isDragging ? 0.3 : 1,
-        outline: isOver && !isDragging ? "2px dashed" : "none",
-        outlineColor: "primary.main",
-        outlineOffset: 3,
-        borderRadius: 1,
+        touchAction: "none",
+        cursor: isDraggable ? "grab" : undefined,
       }}
     >
     <Tooltip
       title={isDragging ? "" : tooltipContent}
       arrow
       placement="top"
+      disableInteractive
       slotProps={{
         tooltip: { sx: { maxWidth: 260, px: 1.25, py: 0.75 } },
         popper: { modifiers: [{ name: "offset", options: { offset: [0, -4] } }] },
@@ -576,7 +576,16 @@ function SlotCell({
       </Box>
       )}
     </Tooltip>
-    </Box>
+    {/* Drop indicator */}
+    {isOver && !isDragging && (
+      <div style={{
+        position: "absolute", inset: -4,
+        border: "2px dashed #1976d2",
+        borderRadius: 6,
+        pointerEvents: "none",
+      }} />
+    )}
+    </div>
 
     {/* Context menu */}
     <Menu
@@ -611,13 +620,13 @@ function SlotCell({
         </MenuItem>
       )}
       {state === "active" && selection.onPrintSlot && (
-        <>
-          <Divider />
-          <MenuItem onClick={() => { selection.onPrintSlot!(slot, context ?? ""); setCtxMenu(null); }}>
-            <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>Print Label</ListItemText>
-          </MenuItem>
-        </>
+        <Divider key="print-divider" />
+      )}
+      {state === "active" && selection.onPrintSlot && (
+        <MenuItem key="print" onClick={() => { selection.onPrintSlot!(slot, context ?? ""); setCtxMenu(null); }}>
+          <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Print Label</ListItemText>
+        </MenuItem>
       )}
       {state === "empty" && (
         <MenuItem disabled>
