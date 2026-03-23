@@ -189,7 +189,8 @@ function SlotCell({
     setEditing(false);
   };
 
-  const isSpool = shape === "spool" && colSpan === 1 && rowSpan === 1;
+  const packageType = (slot.status as any)?.packageType as string | undefined;
+  const isSpool = (shape === "spool" || packageType === "spool" || (state === "active" && !packageType)) && colSpan === 1 && rowSpan === 1;
   const radius = isSpool ? "50%" : `${Math.round(size * 0.18)}px`;
 
   // Spool concentric rings (only for spool shape, no span)
@@ -262,7 +263,7 @@ function SlotCell({
   const weightG = statusData?.weightStableG as number | undefined;
   const pctRemaining = statusData?.percentRemaining as number | undefined;
 
-  const tooltipContent = state === "active" && (productName || itemColorHex) ? (
+  const tooltipContent = state === "active" ? (
     // Rich tooltip for occupied slots
     <Box sx={{ minWidth: 160 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
@@ -316,7 +317,11 @@ function SlotCell({
       }}
     >
       {/* Spool side-view for occupied spool slots */}
-      {state === "active" && isSpool ? (
+      {state === "active" && isSpool ? (() => {
+        const fil = itemColorHex ?? colors.base;
+        const flangeW = Math.round(w * 0.18);
+        const coreH = Math.round(h * 0.35);
+        return (
         <Box
           onClick={() => {
             if (selection.onSlotClick) selection.onSlotClick(slot);
@@ -333,32 +338,54 @@ function SlotCell({
             outlineOffset: 2,
             display: "flex",
             flexDirection: "row",
-            borderRadius: `${Math.round(size * 0.12)}px`,
+            alignItems: "stretch",
+            borderRadius: `${Math.round(size * 0.15)}px`,
             overflow: "hidden",
-            boxShadow: "0 2px 5px rgba(0,0,0,0.35)",
+            boxShadow: `0 2px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)`,
             transition: "transform 0.12s ease, outline 0.12s ease",
-            "&:hover": { transform: "translateY(-2px) scale(1.06)" },
+            "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
           }}
         >
           {/* Left flange */}
-          <Box sx={{ width: Math.round(w * 0.2), height: "100%", bgcolor: "#3a3a3a", background: "linear-gradient(90deg, #4a4a4a, #2a2a2a)" }} />
-          {/* Filament wrap */}
           <Box sx={{
-            flex: 1, height: "100%",
-            bgcolor: itemColorHex ?? colors.base,
-            background: `linear-gradient(180deg, color-mix(in srgb, ${itemColorHex ?? colors.base} 80%, white) 0%, ${itemColorHex ?? colors.base} 40%, color-mix(in srgb, ${itemColorHex ?? colors.base} 70%, black) 100%)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
+            width: flangeW, background: "linear-gradient(180deg, #666 0%, #444 30%, #333 70%, #222 100%)",
+            borderRight: "1px solid rgba(0,0,0,0.3)",
+          }} />
+          {/* Filament section */}
+          <Box sx={{
+            flex: 1, display: "flex", flexDirection: "column", position: "relative",
+            background: `linear-gradient(180deg,
+              color-mix(in srgb, ${fil} 60%, white) 0%,
+              ${fil} 15%,
+              color-mix(in srgb, ${fil} 85%, black) 50%,
+              ${fil} 85%,
+              color-mix(in srgb, ${fil} 60%, white) 100%)`,
           }}>
-            <Typography sx={{ fontSize: size < 40 ? 7 : 9, fontWeight: 700, color: "rgba(255,255,255,0.9)", textShadow: "0 1px 2px rgba(0,0,0,0.5)", lineHeight: 1 }}>
-              {label}
-            </Typography>
+            {/* Core hole */}
+            <Box sx={{
+              position: "absolute",
+              top: "50%", left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: coreH, height: coreH,
+              borderRadius: "50%",
+              bgcolor: "#1a1a1a",
+              boxShadow: `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 0 2px rgba(0,0,0,0.2)`,
+            }} />
+            {/* Filament wrap lines */}
+            <Box sx={{
+              position: "absolute", inset: 0, opacity: 0.12,
+              background: `repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 3px)`,
+            }} />
           </Box>
           {/* Right flange */}
-          <Box sx={{ width: Math.round(w * 0.2), height: "100%", bgcolor: "#3a3a3a", background: "linear-gradient(90deg, #2a2a2a, #4a4a4a)" }} />
-          {/* NFC badge */}
+          <Box sx={{
+            width: flangeW, background: "linear-gradient(180deg, #666 0%, #444 30%, #333 70%, #222 100%)",
+            borderLeft: "1px solid rgba(0,0,0,0.3)",
+          }} />
           {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
         </Box>
-      ) : (
+        );
+      })() : (
       <Box
         onClick={() => {
           if (selection.onSlotClick) {
