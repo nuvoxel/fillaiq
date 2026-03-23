@@ -80,7 +80,7 @@ export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
   const pct = item.percentRemaining;
 
   return (
-    <Card variant="outlined" sx={{ mt: 1.5, borderColor: "primary.main", borderWidth: 2 }}>
+    <Card variant="outlined" sx={{ borderColor: "primary.main", borderWidth: 2, position: "sticky", top: 80 }}>
       <CardContent sx={{ pb: "12px !important" }}>
         {/* Header */}
         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, mb: 1.5 }}>

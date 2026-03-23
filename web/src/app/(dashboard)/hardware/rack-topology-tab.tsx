@@ -277,7 +277,8 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
 
                     {/* Rack content — visual shelf display */}
                     {rackExpanded && (
-                      <Box sx={{ px: 1.5, py: 1 }}>
+                      <Box sx={{ display: "flex", gap: 2 }}>
+                      <Box sx={{ flex: 1, px: 1.5, py: 1, minWidth: 0 }}>
                         <RackVisualizer
                           rack={rack}
                           displayStyle="shelf"
@@ -319,14 +320,17 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                           }}
                         />
 
-                        {/* Spool detail panel below rack */}
-                        {selectedItemId && (
+                      </Box>
+                      {/* Spool detail panel to the right */}
+                      {selectedItemId && (
+                        <Box sx={{ width: 360, flexShrink: 0 }}>
                           <SpoolDetailPanel
                             itemId={selectedItemId}
                             onClose={() => setSelectedItemId(null)}
                             onUpdate={loadData}
                           />
-                        )}
+                        </Box>
+                      )}
                       </Box>
                     )}
                   </Box>
