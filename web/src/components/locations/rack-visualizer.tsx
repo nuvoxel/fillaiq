@@ -417,6 +417,7 @@ function SlotCell({
     <div
       ref={setRefs}
       {...(isDraggable ? { ...dragAttrs, ...dragListeners } : {})}
+      onContextMenu={handleContextMenu}
       style={{
         display: "inline-flex",
         opacity: isDragging ? 0.3 : 1,
@@ -450,7 +451,6 @@ function SlotCell({
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
-          onContextMenu={handleContextMenu}
           sx={{
             position: "relative",
             width: spoolW,
@@ -515,7 +515,6 @@ function SlotCell({
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
-          onContextMenu={handleContextMenu}
           sx={{
             position: "relative", width: boxW, height: boxH, flexShrink: 0,
             cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
@@ -556,7 +555,6 @@ function SlotCell({
             setEditing(true);
           }
         }}
-        onContextMenu={handleContextMenu}
         sx={{
           position: "relative",
           width: w,
