@@ -44,6 +44,15 @@ public:
     bool isRawSensorsScreen() const { return _currentScreen == SCR_RAW_SENSORS; }
     bool isDashboardScreen() const { return _currentScreen == SCR_IDLE; }
 
+    // Pending display command — set by main loop, executed by LVGL task
+    enum PendingCmd : uint8_t { CMD_NONE = 0, CMD_MESSAGE, CMD_CALIBRATE, CMD_RAW_SENSORS };
+    volatile PendingCmd pendingCmd = CMD_NONE;
+    char pendingLine1[64] = {0};
+    char pendingLine2[64] = {0};
+    void requestMessage(const char* line1, const char* line2 = nullptr);
+    void requestCalibrate(const char* step, const char* detail = nullptr);
+    void processPendingCmd();  // Called from LVGL task
+
     // Touch-to-submit flag — set by LVGL event, consumed by main loop
     volatile bool touchSubmitRequested = false;
 

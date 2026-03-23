@@ -1052,6 +1052,36 @@ void Display::buildIdentifiedScreen(float weight, bool stable,
     }
 }
 
+// ── Pending Command System (thread-safe main loop → LVGL task) ───
+
+void Display::requestMessage(const char* line1, const char* line2) {
+    strncpy(pendingLine1, line1 ? line1 : "", sizeof(pendingLine1) - 1);
+    strncpy(pendingLine2, line2 ? line2 : "", sizeof(pendingLine2) - 1);
+    pendingCmd = CMD_MESSAGE;
+}
+
+void Display::requestCalibrate(const char* step, const char* detail) {
+    strncpy(pendingLine1, step ? step : "", sizeof(pendingLine1) - 1);
+    strncpy(pendingLine2, detail ? detail : "", sizeof(pendingLine2) - 1);
+    pendingCmd = CMD_CALIBRATE;
+}
+
+void Display::processPendingCmd() {
+    if (pendingCmd == CMD_NONE) return;
+    PendingCmd cmd = pendingCmd;
+    pendingCmd = CMD_NONE;
+    switch (cmd) {
+        case CMD_MESSAGE:
+            showMessage(pendingLine1, pendingLine2[0] ? pendingLine2 : nullptr);
+            break;
+        case CMD_CALIBRATE:
+            showCalibrate(pendingLine1, pendingLine2[0] ? pendingLine2 : nullptr);
+            break;
+        default:
+            break;
+    }
+}
+
 // ── Message Screen ───────────────────────────────────────────
 
 void Display::showMessage(const char* line1, const char* line2) {

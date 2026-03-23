@@ -208,6 +208,7 @@ static void lvglTask(void* param) {
 
     for (;;) {
         lv_lock();
+        display.processPendingCmd();  // Execute display commands from main loop
         lv_timer_handler();
         lv_unlock();
         vTaskDelayUntil(&lastWake, period);
@@ -1981,111 +1982,107 @@ void loop() {
         suspendBackgroundTasks();
         scale.pauseTask();  // Weight task must stop to free i2cMutex for touch
 
+        // Helper: request display update and wait for LVGL task to render it
+        #define SHOW_MSG(l1, l2) do { display.requestMessage(l1, l2); vTaskDelay(pdMS_TO_TICKS(100)); } while(0)
+        #define SHOW_CAL(l1, l2) do { display.requestCalibrate(l1, l2); vTaskDelay(pdMS_TO_TICKS(100)); } while(0)
+
         switch (action) {
             case MENU_FORMAT_SD:
                 if (sdCard.isConnected()) {
-                    lv_lock(); display.showMessage("Formatting...", "Please wait"); lv_unlock();
+                    SHOW_MSG("Formatting...", "Please wait");
                     sdCard.format();
-                    lv_lock(); display.showMessage("SD Formatted", "Scan log cleared"); lv_unlock();
+                    SHOW_MSG("SD Formatted", "Scan log cleared");
                     vTaskDelay(pdMS_TO_TICKS(1500));
                 } else {
-                    lv_lock(); display.showMessage("No SD Card", "Insert card and reboot"); lv_unlock();
+                    SHOW_MSG("No SD Card", "Insert card and reboot");
                     vTaskDelay(pdMS_TO_TICKS(1500));
                 }
                 break;
             case MENU_WIFI_SETUP:
-                resumeBackgroundTasks();  // WiFi setup needs network task
+                scale.resumeTask();
+                resumeBackgroundTasks();
                 startProvisioning();
                 break;
             case MENU_TARE_SCALE:
                 if (scale.isConnected()) {
-                    lv_lock(); display.showMessage("Taring...", "Keep platform empty"); lv_unlock();
-                    scale.pauseTask();
+                    SHOW_MSG("Taring...", "Keep platform empty");
                     vTaskDelay(pdMS_TO_TICKS(200));
                     scale.tare();
-                    scale.resumeTask();
-                    lv_lock(); display.showMessage("Tared!", "Scale zeroed"); lv_unlock();
+                    SHOW_MSG("Tared!", "Scale zeroed");
                     vTaskDelay(pdMS_TO_TICKS(1000));
                 }
                 break;
             case MENU_RAW_SENSORS:
+                // Raw sensors still uses lv_lock since it has its own update loop
                 lv_lock(); display.showRawSensors("Loading..."); lv_unlock();
                 break;
             case MENU_CALIBRATE: {
                 if (!scale.isConnected()) {
-                    lv_lock(); display.showMessage("No Scale", "Scale not detected"); lv_unlock();
+                    SHOW_MSG("No Scale", "Scale not detected");
                     vTaskDelay(pdMS_TO_TICKS(1500));
                     break;
                 }
                 // Step 1: Remove weight
-                lv_lock();
-                display.showCalibrate("Remove all weight", "Tap Continue when ready");
-                lv_unlock();
+                SHOW_CAL("Remove all weight", "Tap Continue when ready");
                 display.touchSubmitRequested = false;
                 while (!display.touchSubmitRequested) {
                     vTaskDelay(pdMS_TO_TICKS(50));
                 }
                 // Step 2: Tare
-                lv_lock();
-                display.showCalibrate("Taring...", "Hold still");
-                lv_unlock();
-                scale.pauseTask();
+                SHOW_CAL("Taring...", "Hold still");
                 vTaskDelay(pdMS_TO_TICKS(500));
                 scale.tare();
                 // Step 3: Place known weight
-                lv_lock();
-                display.showCalibrate("Place 100g weight", "Tap Continue when ready");
-                lv_unlock();
+                SHOW_CAL("Place 100g weight", "Tap Continue when ready");
                 display.touchSubmitRequested = false;
                 while (!display.touchSubmitRequested) {
                     vTaskDelay(pdMS_TO_TICKS(50));
                 }
                 // Step 4: Calculate
-                lv_lock();
-                display.showCalibrate("Measuring...", "Hold still");
-                lv_unlock();
+                SHOW_CAL("Measuring...", "Hold still");
                 vTaskDelay(pdMS_TO_TICKS(500));
                 double raw = 0;
                 raw = scale.getValueForCalibration(20);
                 float factor = (float)(raw / 100.0);
                 scale.setScale(factor);
-                scale.resumeTask();
                 saveCalibration(factor);
                 char msg[48];
                 snprintf(msg, sizeof(msg), "Factor: %.4f", factor);
-                lv_lock(); display.showCalibrate("Calibrated!", msg); lv_unlock();
+                SHOW_CAL("Calibrated!", msg);
                 Serial.printf("Calibration: %.4f (saved)\n", factor);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                lv_lock(); display.showMessage("Done", "Tap Back to return"); lv_unlock();
+                SHOW_MSG("Done", "Tap Back to return");
                 break;
             }
             case MENU_CHECK_UPDATE:
                 if (apiClient.isWiFiConnected() && apiClient.isPaired()) {
-                    lv_lock(); display.showMessage("Checking...", "Looking for updates"); lv_unlock();
+                    SHOW_MSG("Checking...", "Looking for updates");
+                    scale.resumeTask();
                     resumeBackgroundTasks();
                     NetworkWorkItem item = { NET_CHECK_OTA };
                     xQueueSend(networkQueue, &item, 0);
                     vTaskDelay(pdMS_TO_TICKS(2000));
                 } else {
-                    lv_lock(); display.showMessage("No Connection", "WiFi or pairing required"); lv_unlock();
+                    SHOW_MSG("No Connection", "WiFi or pairing required");
                     vTaskDelay(pdMS_TO_TICKS(2000));
                 }
                 break;
             case MENU_BLE_SCAN:
-                lv_lock(); display.showMessage("Scanning BLE...", "Looking for printer"); lv_unlock();
+                SHOW_MSG("Scanning BLE...", "Looking for printer");
+                scale.resumeTask();
                 resumeBackgroundTasks();
                 if (labelPrinter.scan(8000)) {
                     char msg2[48];
                     snprintf(msg2, sizeof(msg2), "Found: %s", labelPrinter.getDeviceName());
-                    lv_lock(); display.showMessage(msg2, "Connecting..."); lv_unlock();
+                    SHOW_MSG(msg2, "Connecting...");
                     labelPrinter.connect();
                     if (labelPrinter.isConnected()) {
-                        lv_lock(); display.showMessage("Printer Ready", labelPrinter.getDeviceName()); lv_unlock();
+                        SHOW_MSG("Printer Ready", labelPrinter.getDeviceName());
                     } else {
-                        lv_lock(); display.showMessage("Connect Failed", labelPrinter.getDeviceName()); lv_unlock();
+                        SHOW_MSG("Connect Failed", labelPrinter.getDeviceName());
                     }
                 } else {
-                    lv_lock(); display.showMessage("No Printer", "None found nearby"); lv_unlock();
+                    SHOW_MSG("No Printer", "None found nearby");
                 }
                 vTaskDelay(pdMS_TO_TICKS(2000));
                 break;
