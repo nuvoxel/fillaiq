@@ -364,8 +364,8 @@ function SlotCell({
       {/* Spool side-view: flanges + filament, wider than tall */}
       {state === "active" && isSpool ? (() => {
         const fil = itemColorHex ?? colors.base;
-        const spoolW = Math.round(size * 1.1);
-        const spoolH = Math.round(size * 0.75);
+        const spoolW = Math.round(size * 0.7);
+        const spoolH = Math.round(size * 1.0);
         const flangeW = Math.round(spoolW * 0.12);
         const flangeR = Math.round(spoolH * 0.12);
         return (
