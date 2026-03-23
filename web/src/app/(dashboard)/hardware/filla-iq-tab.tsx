@@ -882,7 +882,7 @@ export function FillaIqTab() {
                     await deletePrinter(id);
                     fetchStations();
                   });
-                }
+                }}
                 onClearAllJobs={() => {
                   startTransition(async () => {
                     await cancelAllPendingPrintJobs();
