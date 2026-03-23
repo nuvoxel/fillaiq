@@ -420,7 +420,7 @@ function SlotCell({
       onClick={(e) => {
         e.stopPropagation();
         if (selection.onSlotClick) selection.onSlotClick(slot);
-      }}}
+      }}
       style={{
         display: "inline-flex",
         opacity: isDragging ? 0.3 : 1,
