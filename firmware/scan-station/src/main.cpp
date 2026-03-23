@@ -2033,7 +2033,7 @@ void loop() {
                 vTaskDelay(pdMS_TO_TICKS(500));
                 scale.tare();
                 // Step 3: Place known weight
-                SHOW_CAL("Place 100g weight", "Tap Continue when ready");
+                SHOW_CAL("Place 500g weight", "Tap Continue when ready");
                 display.touchSubmitRequested = false;
                 while (!display.touchSubmitRequested) {
                     vTaskDelay(pdMS_TO_TICKS(50));
@@ -2043,7 +2043,7 @@ void loop() {
                 vTaskDelay(pdMS_TO_TICKS(500));
                 double raw = 0;
                 raw = scale.getValueForCalibration(20);
-                float factor = (float)(raw / 100.0);
+                float factor = (float)(raw / 500.0);
                 scale.setScale(factor);
                 saveCalibration(factor);
                 char msg[48];
