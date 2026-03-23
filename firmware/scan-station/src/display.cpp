@@ -262,7 +262,7 @@ void Display::clearScreen() {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     _screen = scr;
-    _iconWifi = _iconPaired = _iconPrinter = nullptr;
+    _iconWifi = _iconMqtt = _iconPrinter = nullptr;
     _idleTitle = _idleSubtitle = nullptr;
     _weightLabel = _heightLabel = _colorSwatch = nullptr;
     _itemName = _materialLabel = _tempLabel = nullptr;
@@ -331,8 +331,6 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
 
     _iconWifi = makeSymbol(bar, FA_WIFI, (icons & ICON_WIFI) ? green : grayLight);
 
-    _iconPaired = makeSymbol(bar, FA_CHECK, (icons & ICON_PAIRED) ? green : grayLight);
-
     _iconMqtt = makeSymbol(bar, FA_CLOUD, (icons & ICON_MQTT) ? green : grayLight);
 
     _iconPrinter = makeSymbol(bar, FA_PRINT, (icons & ICON_PRINTER) ? green : grayLight);
@@ -348,8 +346,6 @@ void Display::setSensorFlags(uint8_t flags) {
 void Display::updateStatusIcons(uint8_t icons) {
     if (_iconWifi)
         lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
-    if (_iconPaired)
-        lv_obj_set_style_text_color(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
     if (_iconMqtt)
         lv_obj_set_style_text_color(_iconMqtt, (icons & ICON_MQTT) ? green : grayLight, 0);
     if (_iconPrinter) {
