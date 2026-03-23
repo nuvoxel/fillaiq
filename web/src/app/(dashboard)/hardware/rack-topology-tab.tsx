@@ -288,6 +288,13 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                             onSaveShelf: saveShelf,
                             onDeleteShelf: deleteShelf,
                             onAddShelfToRack: addShelfToRack,
+                            onSlotClick: (slot) => {
+                              // If occupied, could navigate to spool detail — for now just log
+                              const st = slot.status as any;
+                              if (st?.state === "active") {
+                                console.log("Slot clicked:", slot.id, st.productName);
+                              }
+                            },
                             onPrintSlot: (slot, context) => {
                               const rackName = rack.name ?? rack.id.slice(0, 8);
                               setPrintDialog({

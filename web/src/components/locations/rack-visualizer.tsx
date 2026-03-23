@@ -263,46 +263,91 @@ function SlotCell({
   const weightG = statusData?.weightStableG as number | undefined;
   const pctRemaining = statusData?.percentRemaining as number | undefined;
 
+  const initialWeightG = statusData?.initialWeightG as number | undefined;
+
   const tooltipContent = state === "active" ? (
-    // Rich tooltip for occupied slots
-    <Box sx={{ minWidth: 160 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-        <Box sx={{ width: 20, height: 20, borderRadius: "50%", bgcolor: itemColorHex ?? colors.base, border: "2px solid rgba(255,255,255,0.3)", flexShrink: 0 }} />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }} noWrap>
+    // Rich tooltip card for occupied slots
+    <Box sx={{ minWidth: 200, p: 0.5 }}>
+      {/* Header: color swatch + name */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+        <Box sx={{
+          width: 28, height: 28, borderRadius: "50%",
+          bgcolor: itemColorHex ?? colors.base,
+          border: "2px solid rgba(255,255,255,0.25)",
+          flexShrink: 0,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+        }} />
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2, color: "#fff" }} noWrap>
             {productName ?? "Unknown"}
           </Typography>
           {brandName && (
-            <Typography sx={{ fontSize: 10, opacity: 0.7, lineHeight: 1.1 }}>{brandName}</Typography>
+            <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.65)", lineHeight: 1.1 }}>{brandName}</Typography>
           )}
         </Box>
       </Box>
-      {(weightG != null || pctRemaining != null) && (
-        <Box sx={{ mt: 0.5 }}>
-          {pctRemaining != null && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.25 }}>
-              <Box sx={{ flex: 1, height: 4, bgcolor: "rgba(255,255,255,0.15)", borderRadius: 2, overflow: "hidden" }}>
-                <Box sx={{ width: `${pctRemaining}%`, height: "100%", bgcolor: pctRemaining > 25 ? "#4ade80" : pctRemaining > 10 ? "#fbbf24" : "#f87171", borderRadius: 2 }} />
-              </Box>
-              <Typography sx={{ fontSize: 10, fontWeight: 600, minWidth: 28, textAlign: "right" }}>{pctRemaining}%</Typography>
+
+      {/* Stats row */}
+      <Box sx={{ display: "flex", gap: 1.5, mb: 0.5 }}>
+        {weightG != null && (
+          <Box>
+            <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.5)", lineHeight: 1, mb: 0.15 }}>Weight</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#fff", lineHeight: 1 }}>{Math.round(weightG)}g</Typography>
+          </Box>
+        )}
+        {initialWeightG != null && initialWeightG > 0 && weightG != null && (
+          <Box>
+            <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.5)", lineHeight: 1, mb: 0.15 }}>Used</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#fff", lineHeight: 1 }}>
+              {Math.round(((initialWeightG - weightG) / initialWeightG) * 100)}%
+            </Typography>
+          </Box>
+        )}
+        {packageType && (
+          <Box>
+            <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.5)", lineHeight: 1, mb: 0.15 }}>Type</Typography>
+            <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#fff", lineHeight: 1, textTransform: "capitalize" }}>{packageType}</Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Progress bar */}
+      {pctRemaining != null && (
+        <Box sx={{ mb: 0.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Box sx={{ flex: 1, height: 5, bgcolor: "rgba(255,255,255,0.12)", borderRadius: 3, overflow: "hidden" }}>
+              <Box sx={{
+                width: `${pctRemaining}%`, height: "100%", borderRadius: 3,
+                bgcolor: pctRemaining > 50 ? "#4ade80" : pctRemaining > 25 ? "#fbbf24" : "#f87171",
+              }} />
             </Box>
-          )}
-          {weightG != null && (
-            <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{Math.round(weightG)}g</Typography>
-          )}
+            <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#fff", minWidth: 30, textAlign: "right" }}>{pctRemaining}%</Typography>
+          </Box>
         </Box>
       )}
-      {hasNfc && <Typography sx={{ fontSize: 9, opacity: 0.5, mt: 0.25 }}>NFC tagged</Typography>}
-      <Typography sx={{ fontSize: 9, opacity: 0.4, mt: 0.25 }}>Slot {label} · {context}</Typography>
+
+      {/* Badges */}
+      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.25 }}>
+        {hasNfc && (
+          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, bgcolor: "rgba(255,255,255,0.1)", borderRadius: 1, px: 0.5, py: 0.15 }}>
+            <Typography sx={{ fontSize: 8, color: "rgba(255,255,255,0.7)" }}>NFC</Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Footer: slot address */}
+      <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.35)", mt: 0.5, borderTop: "1px solid rgba(255,255,255,0.08)", pt: 0.3 }}>
+        Slot {label}{context ? ` · ${context}` : ""}
+      </Typography>
     </Box>
   ) : (
     // Simple tooltip for empty slots
-    <Box>
+    <Box sx={{ p: 0.25 }}>
       <Typography sx={{ fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>
         Slot {label}{spanLabel}
       </Typography>
       {context && <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{context}</Typography>}
-      <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{state === "empty" ? "Available" : state.replace("_", " ")}</Typography>
+      <Typography sx={{ fontSize: 10, opacity: 0.5 }}>Available</Typography>
     </Box>
   );
 
