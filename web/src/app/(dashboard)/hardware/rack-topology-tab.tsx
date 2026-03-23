@@ -298,11 +298,11 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                             },
                             onDragMoveItem: async (itemId, _fromSlotId, toSlotId) => {
                               await moveItemToSlot(itemId, toSlotId);
-                              fetchData();
+                              loadData();
                             },
                             onRemoveItem: async (slotId) => {
                               await removeItemFromSlot(slotId);
-                              fetchData();
+                              loadData();
                             },
                             onPrintSlot: (slot, context) => {
                               const rackName = rack.name ?? rack.id.slice(0, 8);
