@@ -37,14 +37,25 @@ export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
   const [rating, setRating] = useState<number | null>(null);
   const [weight, setWeight] = useState("");
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
+    setLoading(true);
+    setError(null);
+    setItem(null);
     (async () => {
-      const result = await getUserItemWithRelations(itemId);
-      if (result.data) {
-        setItem(result.data);
-        setNotes(result.data.notes ?? "");
-        setRating(result.data.rating);
-        setWeight(result.data.currentWeightG?.toFixed(1) ?? "");
+      try {
+        const result = await getUserItemWithRelations(itemId);
+        if (result.error) {
+          setError(result.error);
+        } else if (result.data) {
+          setItem(result.data);
+          setNotes(result.data.notes ?? "");
+          setRating(result.data.rating);
+          setWeight(result.data.currentWeightG?.toFixed(1) ?? "");
+        }
+      } catch (e) {
+        setError((e as Error).message);
       }
       setLoading(false);
     })();
@@ -66,6 +77,17 @@ export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
       <Card variant="outlined" sx={{ mt: 1.5 }}>
         <CardContent>
           <Skeleton variant="rounded" height={120} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card variant="outlined" sx={{ borderColor: "error.main" }}>
+        <CardContent>
+          <Typography color="error" variant="body2">Error: {error}</Typography>
+          <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
         </CardContent>
       </Card>
     );
