@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
   const format = url.searchParams.get("format") ?? "raw";
 
   // ── Build label data ────────────────────────────────────────────────
+  let jobTemplateId: string | null = null;
   let brandName: string | null = null;
   let materialName: string | null = null;
   let productName: string | null = null;
@@ -104,7 +105,28 @@ export async function GET(request: NextRequest) {
   let weightStr: string | null = null;
   let location: string | null = null;
 
-  if (sessionId) {
+  if (jobId && !sessionId) {
+    // ── Fetch label data from print job ──────────────────────────────
+    const [job] = await db
+      .select()
+      .from(printJobs)
+      .where(eq(printJobs.id, jobId));
+
+    if (job) {
+      const ld = job.labelData as Record<string, any>;
+      brandName = ld.brand ?? null;
+      materialName = ld.material ?? null;
+      productName = ld.productName ?? null;
+      colorHex = ld.color ?? ld.colorHex ?? null;
+      colorName = ld.colorName ?? null;
+      nozzleTempMin = ld.nozzleTempMin ?? (ld.nozzleTemp ? parseInt(ld.nozzleTemp, 10) : null);
+      nozzleTempMax = ld.nozzleTempMax ?? null;
+      bedTemp = ld.bedTemp ? parseInt(String(ld.bedTemp), 10) : null;
+      weightStr = ld.weight ?? null;
+      location = ld.location ?? null;
+      if (job.templateId) jobTemplateId = job.templateId;
+    }
+  } else if (sessionId) {
     // ── Fetch session + product data ────────────────────────────────
     const [session] = await db
       .select()
@@ -192,11 +214,12 @@ export async function GET(request: NextRequest) {
 
   // ── Fetch template ────────────────────────────────────────────────────
   let template;
-  if (templateId) {
+  const resolvedTemplateId = templateId ?? jobTemplateId;
+  if (resolvedTemplateId) {
     [template] = await db
       .select()
       .from(labelTemplates)
-      .where(eq(labelTemplates.id, templateId));
+      .where(eq(labelTemplates.id, resolvedTemplateId));
   }
 
   // Fall back to user's default template

@@ -19,9 +19,10 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import CancelIcon from "@mui/icons-material/Cancel";
+import DeleteIcon from "@mui/icons-material/Delete";
 import PrintIcon from "@mui/icons-material/Print";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { listMyPrintJobs, cancelPrintJob } from "@/lib/actions/user-library";
+import { listMyPrintJobs, cancelPrintJob, deletePrintJob } from "@/lib/actions/user-library";
 
 type PrintJob = {
   id: string;
@@ -67,7 +68,7 @@ function labelSummary(data: Record<string, any>): string {
 export function PrintJobsCard() {
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -82,9 +83,18 @@ export function PrintJobsCard() {
   }, [loadData]);
 
   const handleCancel = async (id: string) => {
-    setCancelling(id);
+    setBusy(id);
     const result = await cancelPrintJob(id);
-    setCancelling(null);
+    setBusy(null);
+    if (!result.error) {
+      loadData();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setBusy(id);
+    const result = await deletePrintJob(id);
+    setBusy(null);
     if (!result.error) {
       loadData();
     }
@@ -174,17 +184,28 @@ export function PrintJobsCard() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {job.status === "pending" && (
+                      <Stack direction="row" spacing={0}>
+                        {job.status === "pending" && (
+                          <IconButton
+                            size="small"
+                            color="warning"
+                            title="Cancel"
+                            disabled={busy === job.id}
+                            onClick={() => handleCancel(job.id)}
+                          >
+                            <CancelIcon fontSize="small" />
+                          </IconButton>
+                        )}
                         <IconButton
                           size="small"
                           color="error"
-                          title="Cancel"
-                          disabled={cancelling === job.id}
-                          onClick={() => handleCancel(job.id)}
+                          title="Delete"
+                          disabled={busy === job.id}
+                          onClick={() => handleDelete(job.id)}
                         >
-                          <CancelIcon fontSize="small" />
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
-                      )}
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}

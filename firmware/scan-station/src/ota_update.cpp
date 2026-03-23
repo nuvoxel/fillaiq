@@ -69,6 +69,7 @@ void otaCheckNow() {
     doc["uptime"] = millis() / 1000;
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["wifiRssi"] = WiFi.RSSI();
+    doc["weightCalibration"] = deviceConfig.weightCalibration();
 
     // Capabilities
     {

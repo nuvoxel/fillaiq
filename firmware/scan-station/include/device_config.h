@@ -36,6 +36,7 @@ public:
     uint8_t displayBrightness() const { return _config.displayBrightness; }
     uint8_t ledBrightness() const { return _config.ledBrightness; }
 
+    void setWeightCalibration(float factor);  // Update from local calibration
     void printStatus();
 
 private:

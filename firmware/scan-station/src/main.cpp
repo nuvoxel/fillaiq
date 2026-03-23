@@ -99,6 +99,7 @@ enum NetworkWorkType : uint8_t {
     NET_WIFI_CONNECT,
     NET_POLL_RESULT,
     NET_PRINT_LABEL,
+    NET_POLL_PRINT_JOBS,
 };
 
 struct NetworkWorkItem {
@@ -386,6 +387,7 @@ static void networkTask(void* param) {
     unsigned long lastWifiAttempt = 0;
     unsigned long lastOtaCheck = millis();
     unsigned long lastEnvReport = 0;
+    unsigned long lastPrintJobPoll = 0;
     bool wifiEverConnected_net = false;
 
     for (;;) {
@@ -562,6 +564,10 @@ static void networkTask(void* param) {
                 break;
             }
 
+            case NET_POLL_PRINT_JOBS:
+                // Handled by periodic polling below, not via queue
+                break;
+
             } // switch
         }
 
@@ -586,6 +592,51 @@ static void networkTask(void* param) {
                 otaRunning = true;
                 otaLoop();
                 otaRunning = false;
+            }
+        }
+
+        // Periodic: Poll for web-initiated print jobs (every 10s if printer available)
+        #define PRINT_JOB_POLL_INTERVAL_MS 10000
+        {
+            unsigned long now = millis();
+            if (!otaRunning && apiClient.isWiFiConnected() && apiClient.isPaired() &&
+                apiClient.hasPrinter() &&
+                now - lastPrintJobPoll >= PRINT_JOB_POLL_INTERVAL_MS) {
+                lastPrintJobPoll = now;
+
+                char jobId[64] = {0};
+                int count = apiClient.pollPrintJobs(jobId, sizeof(jobId));
+
+                if (count > 0 && jobId[0] != '\0') {
+                    Serial.printf("[PrintJob] Found %d pending job(s), processing: %s\n", count, jobId);
+
+                    // Ensure printer is connected
+                    if (!labelPrinter.isConnected()) {
+                        Serial.println("[PrintJob] Printer not connected, scanning...");
+                        if (!labelPrinter.scan(5000) || !labelPrinter.connect()) {
+                            Serial.println("[PrintJob] Printer not found");
+                            apiClient.updatePrintJobStatus(jobId, "failed", "Printer not connected");
+                        }
+                    }
+
+                    if (labelPrinter.isConnected()) {
+                        uint8_t* bitmap = nullptr;
+                        int labelWidth = 0, labelHeight = 0, bytesPerRow = 0;
+                        bool downloaded = apiClient.downloadLabelBitmapByJobId(
+                            jobId, PRINTER_DOTS_PER_LINE, PRINTER_DPI,
+                            &bitmap, &labelWidth, &labelHeight, &bytesPerRow);
+
+                        if (!downloaded || !bitmap) {
+                            apiClient.updatePrintJobStatus(jobId, "failed", "Label download failed");
+                        } else {
+                            bool printOk = labelPrinter.printRaster(bitmap, bytesPerRow, labelHeight);
+                            free(bitmap);
+                            apiClient.updatePrintJobStatus(jobId, printOk ? "done" : "failed",
+                                printOk ? nullptr : "Print failed");
+                            Serial.printf("[PrintJob] %s: %s\n", jobId, printOk ? "Done" : "Failed");
+                        }
+                    }
+                }
             }
         }
 
@@ -620,6 +671,7 @@ void saveCalibration(float factor) {
     prefs.begin("cal", false);
     prefs.putFloat("ch0", factor);
     prefs.end();
+    deviceConfig.setWeightCalibration(factor);
     Serial.printf("Calibration saved: %.4f\n", factor);
 }
 

@@ -143,6 +143,17 @@ public:
     bool downloadLabelBitmap(const char* sessionId, int printerWidth, int printerDpi,
                              uint8_t** bitmapOut, int* widthOut, int* heightOut, int* bytesPerRowOut);
 
+    // Download label bitmap by print job ID (for web-initiated print jobs)
+    bool downloadLabelBitmapByJobId(const char* jobId, int printerWidth, int printerDpi,
+                                     uint8_t** bitmapOut, int* widthOut, int* heightOut, int* bytesPerRowOut);
+
+    // Print job polling — returns number of pending jobs found (max 1 processed at a time)
+    // Fills jobIdOut with the first pending job ID. Returns 0 if none.
+    int pollPrintJobs(char* jobIdOut, size_t jobIdLen);
+
+    // Update print job status on server
+    bool updatePrintJobStatus(const char* jobId, const char* status, const char* errorMessage = nullptr);
+
     // Device pairing
     ApiStatus requestPairingCode(char* codeOut, size_t codeLen);
     ApiStatus pollPairingStatus(bool& paired);

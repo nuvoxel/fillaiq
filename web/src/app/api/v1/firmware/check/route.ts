@@ -85,6 +85,18 @@ export async function POST(request: NextRequest) {
     updateData.config = { ...existingConfig, capabilities: caps };
   }
 
+  // Sync weight calibration reported by device (e.g. after on-device calibration)
+  if (typeof body.weightCalibration === "number" && body.weightCalibration > 0) {
+    const existingConfig = (updateData.config ?? (station.config as any)) ?? {};
+    updateData.config = {
+      ...existingConfig,
+      deviceSettings: {
+        ...(existingConfig.deviceSettings ?? {}),
+        weightCalibration: body.weightCalibration,
+      },
+    };
+  }
+
   await db
     .update(scanStations)
     .set(updateData)

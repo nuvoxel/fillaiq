@@ -37,6 +37,7 @@ import {
   removeBay,
   removeSlot,
 } from "@/lib/actions/hardware";
+import { moveItemToSlot, removeItemFromSlot } from "@/lib/actions/scan";
 import { LocationDialog } from "@/components/locations/location-dialog";
 import {
   PrintLabelDialog,
@@ -290,11 +291,18 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                             onDeleteShelf: deleteShelf,
                             onAddShelfToRack: addShelfToRack,
                             onSlotClick: (slot) => {
-                              // If occupied, could navigate to spool detail — for now just log
                               const st = slot.status as any;
-                              if (st?.state === "active") {
-                                console.log("Slot clicked:", slot.id, st.productName);
+                              if (st?.state === "active" && st.userItemId) {
+                                // TODO: open spool detail dialog
                               }
+                            },
+                            onDragMoveItem: async (itemId, _fromSlotId, toSlotId) => {
+                              await moveItemToSlot(itemId, toSlotId);
+                              fetchData();
+                            },
+                            onRemoveItem: async (slotId) => {
+                              await removeItemFromSlot(slotId);
+                              fetchData();
                             },
                             onPrintSlot: (slot, context) => {
                               const rackName = rack.name ?? rack.id.slice(0, 8);

@@ -781,6 +781,153 @@ bool ApiClient::downloadLabelBitmap(const char* sessionId, int printerWidth, int
     return true;
 }
 
+bool ApiClient::downloadLabelBitmapByJobId(const char* jobId, int printerWidth, int printerDpi,
+                                             uint8_t** bitmapOut, int* widthOut, int* heightOut, int* bytesPerRowOut) {
+    if (!jobId || jobId[0] == '\0') return false;
+
+    char url[384];
+    snprintf(url, sizeof(url),
+        "%s/api/v1/label/render?jobId=%s&width=%d&dpi=%d",
+        _apiUrl, jobId, printerWidth, printerDpi);
+
+    Serial.printf("[PrintJob] GET %s\n", url);
+
+    HTTPClient http;
+    http.begin(getSecureClient(), url);
+    addAuthHeaders(http, _deviceToken, _apiKey);
+    http.setTimeout(API_TIMEOUT_MS);
+
+    const char* headerKeys[] = { "X-Label-Width", "X-Label-Height", "X-Bytes-Per-Row" };
+    http.collectHeaders(headerKeys, 3);
+
+    int httpCode = http.GET();
+
+    if (httpCode != 200) {
+        Serial.printf("[PrintJob] Render HTTP %d\n", httpCode);
+        http.end();
+        return false;
+    }
+
+    int labelW = http.header("X-Label-Width").toInt();
+    int labelH = http.header("X-Label-Height").toInt();
+    int bpr = http.header("X-Bytes-Per-Row").toInt();
+
+    int contentLen = http.getSize();
+    if (bpr <= 0) bpr = (printerWidth + 7) / 8;
+    if (labelH <= 0 && contentLen > 0) labelH = contentLen / bpr;
+    if (labelW <= 0) labelW = printerWidth;
+
+    int totalBytes = bpr * labelH;
+    if (totalBytes <= 0 || totalBytes > 100000) {
+        Serial.printf("[PrintJob] Bad size: %dx%d = %d bytes\n", labelW, labelH, totalBytes);
+        http.end();
+        return false;
+    }
+
+    uint8_t* bitmap = (uint8_t*)malloc(totalBytes);
+    if (!bitmap) {
+        Serial.println("[PrintJob] Out of memory");
+        http.end();
+        return false;
+    }
+
+    WiFiClient* stream = http.getStreamPtr();
+    int bytesRead = 0;
+    unsigned long readStart = millis();
+    while (bytesRead < totalBytes && (millis() - readStart) < 15000) {
+        int avail = stream->available();
+        if (avail > 0) {
+            int toRead = min(avail, totalBytes - bytesRead);
+            int got = stream->readBytes(bitmap + bytesRead, toRead);
+            bytesRead += got;
+        } else if (!stream->connected()) {
+            break;
+        } else {
+            delay(10);
+        }
+    }
+    http.end();
+
+    if (bytesRead < totalBytes) {
+        Serial.printf("[PrintJob] Incomplete: %d/%d bytes\n", bytesRead, totalBytes);
+        free(bitmap);
+        return false;
+    }
+
+    Serial.printf("[PrintJob] Downloaded %dx%d bitmap (%d bytes)\n", labelW, labelH, totalBytes);
+    *bitmapOut = bitmap;
+    *widthOut = labelW;
+    *heightOut = labelH;
+    *bytesPerRowOut = bpr;
+    return true;
+}
+
+int ApiClient::pollPrintJobs(char* jobIdOut, size_t jobIdLen) {
+    char url[256];
+    snprintf(url, sizeof(url), "%s/api/v1/print/jobs?status=pending", _apiUrl);
+
+    HTTPClient http;
+    http.begin(getSecureClient(), url);
+    addAuthHeaders(http, _deviceToken, _apiKey);
+    http.setTimeout(API_TIMEOUT_MS);
+
+    int httpCode = http.GET();
+    if (httpCode != 200) {
+        Serial.printf("[PrintJob] Poll HTTP %d\n", httpCode);
+        http.end();
+        return 0;
+    }
+
+    String body = http.getString();
+    http.end();
+
+    JsonDocument doc;
+    if (deserializeJson(doc, body)) {
+        Serial.println("[PrintJob] Poll parse error");
+        return 0;
+    }
+
+    JsonArray jobs = doc["jobs"].as<JsonArray>();
+    int count = jobs.size();
+    if (count > 0 && jobIdOut) {
+        const char* id = jobs[0]["id"];
+        if (id) {
+            strncpy(jobIdOut, id, jobIdLen - 1);
+            jobIdOut[jobIdLen - 1] = '\0';
+        }
+    }
+
+    return count;
+}
+
+bool ApiClient::updatePrintJobStatus(const char* jobId, const char* status, const char* errorMessage) {
+    char url[256];
+    snprintf(url, sizeof(url), "%s/api/v1/print/jobs", _apiUrl);
+
+    JsonDocument doc;
+    doc["jobId"] = jobId;
+    doc["status"] = status;
+    if (errorMessage && errorMessage[0]) {
+        doc["errorMessage"] = errorMessage;
+    }
+
+    String payload;
+    serializeJson(doc, payload);
+
+    HTTPClient http;
+    http.begin(getSecureClient(), url);
+    addAuthHeaders(http, _deviceToken, _apiKey);
+    http.addHeader("Content-Type", "application/json");
+    http.setTimeout(API_TIMEOUT_MS);
+
+    // PATCH method
+    int httpCode = http.sendRequest("PATCH", payload);
+    http.end();
+
+    Serial.printf("[PrintJob] Status update %s -> %s: HTTP %d\n", jobId, status, httpCode);
+    return httpCode == 200;
+}
+
 void ApiClient::printStatus() {
     Serial.println("=== API Client ===");
     Serial.printf("  WiFi: %s (%s)\n",

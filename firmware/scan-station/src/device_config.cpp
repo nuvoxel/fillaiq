@@ -86,6 +86,12 @@ void DeviceConfigManager::load() {
     configPrefs.end();
 }
 
+void DeviceConfigManager::setWeightCalibration(float factor) {
+    _config.weightCalibration = factor;
+    save();
+    Serial.printf("[Config] Weight calibration updated: %.4f\n", factor);
+}
+
 void DeviceConfigManager::printStatus() {
     Serial.println("--- Device Config ---");
     Serial.printf("  Env report: %lus\n", _config.envReportIntervalMs / 1000);

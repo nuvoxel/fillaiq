@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, createContext, useContext } from "react";
+import { useState, createContext, useContext, useCallback } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
@@ -88,6 +96,7 @@ export type RackVisualizerCallbacks = {
   onEditItem?: (itemId: string) => void;
   onRemoveItem?: (slotId: string) => void;
   onMoveItem?: (slotId: string) => void;
+  onDragMoveItem?: (itemId: string, fromSlotId: string, toSlotId: string) => void;
 };
 
 // ── Spool ring color map ──────────────────────────────────────────────────────
@@ -112,7 +121,9 @@ const SlotSelectionContext = createContext<{
   onRemoveItem: ((slotId: string) => void) | null;
   onMoveItem: ((slotId: string) => void) | null;
   onPrintSlot: ((slot: SlotData, context: string) => void) | null;
-}>({ selectedSlotId: null, onSlotClick: null, onViewItem: null, onEditItem: null, onRemoveItem: null, onMoveItem: null, onPrintSlot: null });
+  onDragMoveItem: ((itemId: string, fromSlotId: string, toSlotId: string) => void) | null;
+  draggingSlotId: string | null;
+}>({ selectedSlotId: null, onSlotClick: null, onViewItem: null, onEditItem: null, onRemoveItem: null, onMoveItem: null, onPrintSlot: null, onDragMoveItem: null, draggingSlotId: null });
 
 // ── NFC Badge ─────────────────────────────────────────────────────────────────
 
@@ -192,6 +203,23 @@ function SlotCell({
     e.preventDefault();
     setCtxMenu({ x: e.clientX, y: e.clientY });
   };
+
+  // Drag and drop
+  const isDraggable = state === "active" && !!selection.onDragMoveItem;
+  const itemId = (slot.status as any)?.userItemId as string | undefined;
+  const { attributes: dragAttrs, listeners: dragListeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: `drag-${slot.id}`,
+    data: { slotId: slot.id, itemId },
+    disabled: !isDraggable,
+  });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `drop-${slot.id}`,
+    data: { slotId: slot.id },
+  });
+  const setRefs = useCallback((node: HTMLElement | null) => {
+    setDragRef(node);
+    setDropRef(node);
+  }, [setDragRef, setDropRef]);
 
   const colSpan = slot.colSpan ?? 1;
   const rowSpan = slot.rowSpan ?? 1;
@@ -377,8 +405,20 @@ function SlotCell({
 
   return (
     <>
+    <Box
+      ref={setRefs}
+      {...(isDraggable ? { ...dragAttrs, ...dragListeners } : {})}
+      sx={{
+        display: "inline-flex",
+        opacity: isDragging ? 0.3 : 1,
+        outline: isOver && !isDragging ? "2px dashed" : "none",
+        outlineColor: "primary.main",
+        outlineOffset: 3,
+        borderRadius: 1,
+      }}
+    >
     <Tooltip
-      title={tooltipContent}
+      title={isDragging ? "" : tooltipContent}
       arrow
       placement="top"
       slotProps={{
@@ -536,6 +576,7 @@ function SlotCell({
       </Box>
       )}
     </Tooltip>
+    </Box>
 
     {/* Context menu */}
     <Menu
@@ -1590,7 +1631,26 @@ export function RackVisualizer({
     (a, b) => a.position - b.position
   );
 
+  const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setDraggingSlotId(event.active.data.current?.slotId ?? null);
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setDraggingSlotId(null);
+    const { active, over } = event;
+    if (!over || !cb.onDragMoveItem) return;
+    const fromSlotId = active.data.current?.slotId;
+    const itemId = active.data.current?.itemId;
+    const toSlotId = over.data.current?.slotId;
+    if (fromSlotId && toSlotId && itemId && fromSlotId !== toSlotId) {
+      cb.onDragMoveItem(itemId, fromSlotId, toSlotId);
+    }
+  }, [cb]);
+
   return (
+    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <SlotSelectionContext.Provider value={{
       selectedSlotId: selectedSlotId ?? null,
       onSlotClick: cb.onSlotClick ?? null,
@@ -1599,6 +1659,8 @@ export function RackVisualizer({
       onRemoveItem: cb.onRemoveItem ?? null,
       onMoveItem: cb.onMoveItem ?? null,
       onPrintSlot: cb.onPrintSlot ?? null,
+      onDragMoveItem: cb.onDragMoveItem ?? null,
+      draggingSlotId,
     }}>
       <Box sx={{ overflowX: "auto", pb: 1 }}>
         <Box
@@ -1630,5 +1692,6 @@ export function RackVisualizer({
         )}
       </Box>
     </SlotSelectionContext.Provider>
+    </DndContext>
   );
 }
