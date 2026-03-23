@@ -129,6 +129,11 @@ void ApiClient::setStationId(const char* id) {
     saveConfig();
 }
 
+void ApiClient::setMqttUrl(const char* url) {
+    strncpy(_mqttUrl, url, sizeof(_mqttUrl) - 1);
+    saveConfig();
+}
+
 void ApiClient::setCapabilities(const DeviceCapabilities& caps) {
     _capabilities = caps;
 }
@@ -679,6 +684,7 @@ void ApiClient::loadConfig() {
     prefs.getString("apikey", _apiKey, sizeof(_apiKey));
     prefs.getString("station", _stationId, sizeof(_stationId));
     prefs.getString("devtoken", _deviceToken, sizeof(_deviceToken));
+    prefs.getString("mqtturl", _mqttUrl, sizeof(_mqttUrl));
     _paired = prefs.getBool("paired", false);
     prefs.end();
 }
@@ -691,6 +697,7 @@ void ApiClient::saveConfig() {
     prefs.putString("apikey", _apiKey);
     prefs.putString("station", _stationId);
     prefs.putString("devtoken", _deviceToken);
+    prefs.putString("mqtturl", _mqttUrl);
     prefs.putBool("paired", _paired);
     prefs.end();
 }

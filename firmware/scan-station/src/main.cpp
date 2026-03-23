@@ -21,6 +21,9 @@
 #include "device_config.h"
 #include "device_identity.h"
 #include "printer.h"
+#include "fiq_mqtt.h"
+#include <ArduinoJson.h>
+#include <WiFi.h>
 #ifdef BOARD_SCAN_TOUCH
 #include "touch.h"
 #include "sdcard.h"
@@ -388,7 +391,9 @@ static void networkTask(void* param) {
     unsigned long lastOtaCheck = millis();
     unsigned long lastEnvReport = 0;
     unsigned long lastPrintJobPoll = 0;
+    unsigned long lastMqttTelemetry = 0;
     bool wifiEverConnected_net = false;
+    bool mqttStarted = false;
 
     for (;;) {
         // Process queued work items (non-blocking peek with short timeout)
@@ -565,7 +570,7 @@ static void networkTask(void* param) {
             }
 
             case NET_POLL_PRINT_JOBS:
-                // Handled by periodic polling below, not via queue
+                // Replaced by MQTT — no-op
                 break;
 
             } // switch
@@ -583,6 +588,38 @@ static void networkTask(void* param) {
             }
         }
 
+        // Start MQTT client once WiFi is connected and device is paired
+        if (apiClient.isWiFiConnected() && apiClient.isPaired() && !mqttStarted) {
+            mqttStarted = true;
+            Serial.println("[Net] Starting MQTT client...");
+            fillaiqMqtt.begin(
+                apiClient.getMqttUrl(),
+                apiClient.getDeviceToken(),
+                apiClient.getStationId()
+            );
+        }
+
+        // Periodic: MQTT telemetry heartbeat
+        {
+            unsigned long now = millis();
+            if (fillaiqMqtt.isConnected() &&
+                now - lastMqttTelemetry >= MQTT_TELEMETRY_INTERVAL_MS) {
+                lastMqttTelemetry = now;
+
+                JsonDocument doc;
+                doc["version"] = FW_VERSION;
+                doc["sku"] = FW_SKU;
+                doc["uptime"] = millis() / 1000;
+                doc["freeHeap"] = ESP.getFreeHeap();
+                doc["wifiRssi"] = WiFi.RSSI();
+                doc["weightCalibration"] = deviceConfig.weightCalibration();
+
+                String payload;
+                serializeJson(doc, payload);
+                fillaiqMqtt.publishTelemetry(payload.c_str());
+            }
+        }
+
         // Periodic: OTA check (every 5 min after first 30s)
         {
             unsigned long now = millis();
@@ -595,50 +632,7 @@ static void networkTask(void* param) {
             }
         }
 
-        // Periodic: Poll for web-initiated print jobs (every 10s if printer available)
-        #define PRINT_JOB_POLL_INTERVAL_MS 10000
-        {
-            unsigned long now = millis();
-            if (!otaRunning && apiClient.isWiFiConnected() && apiClient.isPaired() &&
-                apiClient.hasPrinter() &&
-                now - lastPrintJobPoll >= PRINT_JOB_POLL_INTERVAL_MS) {
-                lastPrintJobPoll = now;
-
-                char jobId[64] = {0};
-                int count = apiClient.pollPrintJobs(jobId, sizeof(jobId));
-
-                if (count > 0 && jobId[0] != '\0') {
-                    Serial.printf("[PrintJob] Found %d pending job(s), processing: %s\n", count, jobId);
-
-                    // Ensure printer is connected
-                    if (!labelPrinter.isConnected()) {
-                        Serial.println("[PrintJob] Printer not connected, scanning...");
-                        if (!labelPrinter.scan(5000) || !labelPrinter.connect()) {
-                            Serial.println("[PrintJob] Printer not found");
-                            apiClient.updatePrintJobStatus(jobId, "failed", "Printer not connected");
-                        }
-                    }
-
-                    if (labelPrinter.isConnected()) {
-                        uint8_t* bitmap = nullptr;
-                        int labelWidth = 0, labelHeight = 0, bytesPerRow = 0;
-                        bool downloaded = apiClient.downloadLabelBitmapByJobId(
-                            jobId, PRINTER_DOTS_PER_LINE, PRINTER_DPI,
-                            &bitmap, &labelWidth, &labelHeight, &bytesPerRow);
-
-                        if (!downloaded || !bitmap) {
-                            apiClient.updatePrintJobStatus(jobId, "failed", "Label download failed");
-                        } else {
-                            bool printOk = labelPrinter.printRaster(bitmap, bytesPerRow, labelHeight);
-                            free(bitmap);
-                            apiClient.updatePrintJobStatus(jobId, printOk ? "done" : "failed",
-                                printOk ? nullptr : "Print failed");
-                            Serial.printf("[PrintJob] %s: %s\n", jobId, printOk ? "Done" : "Failed");
-                        }
-                    }
-                }
-            }
-        }
+        // Print jobs now arrive via MQTT (fiq/s/{hwId}/print/job)
 
         // Note: Environmental reporting is enqueued by the main loop
         // (sensor reads require I2C which is only safe on Core 1)
@@ -1801,6 +1795,9 @@ void setup() {
 #ifdef BOARD_SCAN_TOUCH
     display.setBootStatus("Audio init...");
     audio.begin();
+    if (audio.isConnected()) {
+        audio.setVolume(deviceConfig.audioVolume());
+    }
     display.addBootItem("Audio", audio.isConnected());
 #endif
 

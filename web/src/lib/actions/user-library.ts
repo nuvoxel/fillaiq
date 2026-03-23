@@ -938,6 +938,23 @@ export async function createPrintJob(input: {
         copies: input.copies ?? 1,
       })
       .returning();
+
+    // Notify device via MQTT if station is assigned
+    if (input.stationId) {
+      const { publishPrintJob } = await import("@/lib/mqtt/publisher");
+      const [station] = await db
+        .select({ hardwareId: scanStations.hardwareId })
+        .from(scanStations)
+        .where(eq(scanStations.id, input.stationId));
+      if (station) {
+        publishPrintJob(station.hardwareId, {
+          jobId: row.id,
+          templateId: input.templateId,
+          labelData: input.labelData,
+        });
+      }
+    }
+
     return ok(row);
   } catch (e) {
     return err((e as Error).message);

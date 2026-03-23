@@ -157,47 +157,4 @@ export async function POST(request: NextRequest) {
   });
 }
 
-/**
- * GET /api/v1/devices/pair?token=<deviceToken>
- *
- * Called by devices to poll pairing status.
- * Returns: { paired: true/false }
- */
-export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get("token");
-  if (!token) {
-    return NextResponse.json(
-      { error: "token parameter required" },
-      { status: 400 }
-    );
-  }
-
-  const [station] = await db
-    .select()
-    .from(scanStations)
-    .where(eq(scanStations.deviceToken, token));
-
-  if (!station) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 404 });
-  }
-
-  // Update last seen
-  await db
-    .update(scanStations)
-    .set({ lastSeenAt: new Date(), isOnline: true, updatedAt: new Date() })
-    .where(eq(scanStations.id, station.id));
-
-  if (station.userId) {
-    return NextResponse.json({ paired: true, stationId: station.id });
-  }
-
-  // Check if pairing code expired
-  if (
-    station.pairingExpiresAt &&
-    new Date() > new Date(station.pairingExpiresAt)
-  ) {
-    return NextResponse.json({ paired: false, expired: true });
-  }
-
-  return NextResponse.json({ paired: false });
-}
+// GET removed — pairing status now pushed via MQTT (fiq/s/{hwId}/pair/status)

@@ -154,6 +154,10 @@
 #define API_TIMEOUT_MS          10000
 #define DEFAULT_API_URL         "https://www.fillaiq.com"
 
+// --- MQTT ---
+#define DEFAULT_MQTT_URL        "wss://mqtt.fillaiq.com"
+#define MQTT_TELEMETRY_INTERVAL_MS  (30 * 1000UL)   // 30 seconds
+
 // --- Weight ADC (NAU7802 preferred, HX711 fallback) ---
 #define NAU7802_ADDR            0x2A
 #define NAU7802_AFE_CAL_INTERVAL_MS  (5 * 60 * 1000UL)  // Recalibrate AFE every 5 min

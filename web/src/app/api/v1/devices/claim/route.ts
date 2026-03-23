@@ -61,6 +61,13 @@ export async function POST(request: NextRequest) {
     })
     .where(eq(scanStations.id, station.id));
 
+  // Notify device via MQTT that pairing is confirmed
+  const { publishPairStatus } = await import("@/lib/mqtt/publisher");
+  publishPairStatus(station.hardwareId, {
+    paired: true,
+    stationId: station.id,
+  });
+
   return NextResponse.json({
     success: true,
     station: {

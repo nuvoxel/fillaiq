@@ -3,7 +3,7 @@ name: Deploy to Azure Container Apps
 on:
   push:
     branches: [main]
-    paths: [web/**]
+    paths: [web/**, mosquitto/**]
   workflow_dispatch:
 
 permissions:
@@ -13,8 +13,11 @@ permissions:
 env:
   REGISTRY: fillaiqacr.azurecr.io
   IMAGE_NAME: fillaiq-web
+  MQTT_IMAGE_NAME: fillaiq-mqtt
   RESOURCE_GROUP: fillaiq-rg
   CONTAINER_APP: fillaiq-web
+  MQTT_CONTAINER_APP: fillaiq-mqtt
+  ENVIRONMENT: fillaiq-env
 
 jobs:
   build-and-deploy:
@@ -33,7 +36,8 @@ jobs:
       - name: ACR login
         run: az acr login --name fillaiqacr
 
-      - name: Build and push Docker image
+      # ── Build and push web app ─────────────────────────────────────
+      - name: Build and push web image
         run: |
           cd web
           docker build --build-arg APP_VERSION=${{ github.sha }} \
@@ -42,9 +46,48 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Deploy to Container Apps
+      # ── Build and push Mosquitto ───────────────────────────────────
+      - name: Build and push MQTT broker image
         run: |
+          cd mosquitto
+          docker build -t ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }} \
+                       -t ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:latest .
+          docker push ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:latest
+
+      # ── Deploy Mosquitto broker ────────────────────────────────────
+      - name: Deploy MQTT broker
+        run: |
+          # Create if not exists, update if exists
+          if az containerapp show --name ${{ env.MQTT_CONTAINER_APP }} --resource-group ${{ env.RESOURCE_GROUP }} &>/dev/null; then
+            az containerapp update \
+              --name ${{ env.MQTT_CONTAINER_APP }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --image ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }}
+          else
+            az containerapp create \
+              --name ${{ env.MQTT_CONTAINER_APP }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --environment ${{ env.ENVIRONMENT }} \
+              --image ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }} \
+              --registry-server ${{ env.REGISTRY }} \
+              --target-port 1883 \
+              --transport tcp \
+              --ingress external \
+              --min-replicas 1 \
+              --max-replicas 1 \
+              --cpu 0.25 \
+              --memory 0.5Gi
+          fi
+
+      # ── Deploy web app ─────────────────────────────────────────────
+      - name: Deploy web app
+        run: |
+          # Get MQTT broker internal FQDN for web app to connect
+          MQTT_FQDN=$(az containerapp show --name ${{ env.MQTT_CONTAINER_APP }} --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+
           az containerapp update \
             --name ${{ env.CONTAINER_APP }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --set-env-vars "MQTT_BROKER_URL=mqtt://${MQTT_FQDN}:1883"

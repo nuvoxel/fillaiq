@@ -194,6 +194,10 @@ export async function updateDeviceConfig(stationId: string, settings: Record<str
     .set({ config: updatedConfig, updatedAt: new Date() })
     .where(eq(scanStations.id, stationId));
 
+  // Push config to device via MQTT (retained — device gets it on reconnect)
+  const { publishConfig } = await import("@/lib/mqtt/publisher");
+  publishConfig(station.hardwareId, updatedConfig.deviceSettings);
+
   return ok({ updated: true });
 }
 

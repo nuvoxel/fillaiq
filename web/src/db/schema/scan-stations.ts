@@ -44,6 +44,7 @@ export const scanStations = pgTable(
     // Status
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     isOnline: boolean("is_online").default(false),
+    mqttConnectedAt: timestamp("mqtt_connected_at", { withTimezone: true }),
     config: jsonb("config"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

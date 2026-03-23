@@ -177,6 +177,7 @@ function StationCard({
     weightCalibration: settings.weightCalibration ?? "",
     displayBrightness: settings.displayBrightness ?? 255,
     ledBrightness: settings.ledBrightness ?? 50,
+    audioVolume: settings.audioVolume ?? 70,
     printerSpeed: settings.printerSpeed ?? 3,
     printerDensity: settings.printerDensity ?? 10,
   });
@@ -191,6 +192,7 @@ function StationCard({
       out.weightCalibration = parseFloat(String(configValues.weightCalibration));
     out.displayBrightness = configValues.displayBrightness;
     out.ledBrightness = configValues.ledBrightness;
+    out.audioVolume = configValues.audioVolume;
     out.printerSpeed = configValues.printerSpeed;
     out.printerDensity = configValues.printerDensity;
     onSaveConfig(station.id, out);
@@ -389,6 +391,16 @@ function StationCard({
                 min={0} max={255} step={1} size="small"
               />
             </Grid>
+            {caps?.audio?.detected && (
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary">Audio Volume ({configValues.audioVolume}%{configValues.audioVolume === 0 ? " — Muted" : ""})</Typography>
+                <Slider
+                  value={configValues.audioVolume}
+                  onChange={(_, v) => setConfigValues(vals => ({ ...vals, audioVolume: v as number }))}
+                  min={0} max={100} step={5} size="small"
+                />
+              </Grid>
+            )}
             <Grid size={{ xs: 12 }}>
               <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                 <Button size="small" variant="contained" onClick={handleSave} disabled={isPending}>
@@ -689,15 +701,9 @@ function PrinterCard({
                 variant="outlined"
                 sx={{ height: 20, textTransform: "capitalize", "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
               />
-              <Tooltip title={["pending", "sent", "printing"].includes(job.status) ? "Cancel" : "Delete"}>
+              <Tooltip title="Delete">
                 <IconButton size="small" disabled={isPending} sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main" } }}
-                  onClick={() => {
-                    if (["pending", "sent", "printing"].includes(job.status)) {
-                      onCancelJob(job.id);
-                    } else if (onDeleteJob) {
-                      onDeleteJob(job.id);
-                    }
-                  }}>
+                  onClick={() => onDeleteJob?.(job.id)}>
                   <DeleteIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>

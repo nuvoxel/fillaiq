@@ -1,0 +1,26 @@
+# Local development: Mosquitto MQTT broker
+# Run from the fillaiq/ root: docker compose -f mosquitto/docker-compose.yml up
+#
+# For local dev, override the HTTP auth host to point to host machine:
+#   auth_opt_http_host -> host.docker.internal (macOS/Windows)
+
+services:
+  mosquitto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "1883:1883"   # Internal (no TLS)
+      - "8883:8883"   # External (TLS) — needs certs in ./certs/
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - ./certs:/mosquitto/certs:ro
+    environment:
+      # Override auth host for local dev (Next.js on host machine)
+      - MOSQUITTO_AUTH_HOST=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:

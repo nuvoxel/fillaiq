@@ -53,6 +53,11 @@ void DeviceConfigManager::applyFromJson(const char* json) {
         _config.ledBrightness = doc["ledBrightness"].as<uint8_t>();
         changed = true;
     }
+    if (doc.containsKey("audioVolume")) {
+        _config.audioVolume = doc["audioVolume"].as<uint8_t>();
+        if (_config.audioVolume > 100) _config.audioVolume = 100;
+        changed = true;
+    }
 
     if (changed) {
         Serial.println("[Config] Updated from server");
@@ -70,6 +75,7 @@ void DeviceConfigManager::save() {
     configPrefs.putULong("otaInterval", _config.otaCheckIntervalMs);
     configPrefs.putUChar("dispBright", _config.displayBrightness);
     configPrefs.putUChar("ledBright", _config.ledBrightness);
+    configPrefs.putUChar("audioVol", _config.audioVolume);
     configPrefs.end();
 }
 
@@ -83,6 +89,7 @@ void DeviceConfigManager::load() {
     _config.otaCheckIntervalMs = configPrefs.getULong("otaInterval", OTA_CHECK_INTERVAL_MS);
     _config.displayBrightness = configPrefs.getUChar("dispBright", 255);
     _config.ledBrightness = configPrefs.getUChar("ledBright", 50);
+    _config.audioVolume = configPrefs.getUChar("audioVol", 70);
     configPrefs.end();
 }
 
@@ -101,4 +108,5 @@ void DeviceConfigManager::printStatus() {
     Serial.printf("  OTA check: %lus\n", _config.otaCheckIntervalMs / 1000);
     Serial.printf("  Display brightness: %d  LED brightness: %d\n",
         _config.displayBrightness, _config.ledBrightness);
+    Serial.printf("  Audio volume: %d%%\n", _config.audioVolume);
 }

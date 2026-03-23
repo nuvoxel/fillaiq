@@ -166,11 +166,13 @@ public:
     void setApiUrl(const char* url);
     void setApiKey(const char* key);
     void setStationId(const char* id);
+    void setMqttUrl(const char* url);
 
     bool hasApiUrl() const { return _apiUrl[0] != '\0'; }
     const char* getApiUrl() const { return _apiUrl; }
     const char* getDeviceToken() const { return _deviceToken; }
     const char* getStationId() const { return _stationId; }
+    const char* getMqttUrl() const { return _mqttUrl[0] ? _mqttUrl : DEFAULT_MQTT_URL; }
     // Device capabilities
     void setCapabilities(const DeviceCapabilities& caps);
     const DeviceCapabilities& getCapabilities() const { return _capabilities; }
@@ -193,6 +195,7 @@ private:
     char _apiUrl[256];
     char _apiKey[128];
     char _stationId[32];
+    char _mqttUrl[256];
     char _deviceToken[128];
     char _pairingCode[12];
     bool _wifiConfigured;
