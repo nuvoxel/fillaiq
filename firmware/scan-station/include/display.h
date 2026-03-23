@@ -9,7 +9,8 @@
 // Status icon flags (bitmask) — connectivity
 #define ICON_WIFI       0x01
 #define ICON_PAIRED     0x02
-#define ICON_PRINTER    0x04
+#define ICON_MQTT       0x04
+#define ICON_PRINTER    0x08
 
 // Sensor icon flags (bitmask) — set once at boot
 #define SENSOR_NFC      0x01
@@ -119,6 +120,7 @@ private:
     // Status bar
     lv_obj_t* _iconWifi = nullptr;
     lv_obj_t* _iconPaired = nullptr;
+    lv_obj_t* _iconMqtt = nullptr;
     lv_obj_t* _iconPrinter = nullptr;
 
     // Idle screen

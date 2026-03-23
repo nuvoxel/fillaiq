@@ -20,6 +20,7 @@
 #define FA_WIFI             "\xEF\x87\xAB"   // 0xF1EB — WiFi
 #define FA_SD_CARD          "\xEF\x9F\x82"   // 0xF7C2 — SD card
 #define FA_CHECK            "\xEF\x80\x8C"   // 0xF00C — Paired/OK
+#define FA_CLOUD            "\xEF\x83\x82"   // 0xF0C2 — MQTT/Cloud
 #define FA_GEAR             "\xEF\x80\x93"   // 0xF013 — Settings
 #define FA_VOLUME_MUTE      "\xEF\x9A\xA9"   // 0xF6A9 — Audio/Mute
 
@@ -332,6 +333,8 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
 
     _iconPaired = makeSymbol(bar, FA_CHECK, (icons & ICON_PAIRED) ? green : grayLight);
 
+    _iconMqtt = makeSymbol(bar, FA_CLOUD, (icons & ICON_MQTT) ? green : grayLight);
+
     _iconPrinter = makeSymbol(bar, FA_PRINT, (icons & ICON_PRINTER) ? green : grayLight);
     if (!(icons & ICON_PRINTER)) lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
 
@@ -347,6 +350,8 @@ void Display::updateStatusIcons(uint8_t icons) {
         lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
     if (_iconPaired)
         lv_obj_set_style_text_color(_iconPaired, (icons & ICON_PAIRED) ? green : grayLight, 0);
+    if (_iconMqtt)
+        lv_obj_set_style_text_color(_iconMqtt, (icons & ICON_MQTT) ? green : grayLight, 0);
     if (_iconPrinter) {
         lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
         if (icons & ICON_PRINTER) lv_obj_clear_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);

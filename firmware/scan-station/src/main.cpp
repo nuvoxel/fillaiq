@@ -1059,6 +1059,7 @@ void updateDisplayAndLed() {
     uint8_t icons = 0;
     if (apiClient.isWiFiConnected()) icons |= ICON_WIFI;
     if (apiClient.isPaired())        icons |= ICON_PAIRED;
+    if (fillaiqMqtt.isConnected())   icons |= ICON_MQTT;
     if (labelPrinter.isConnected())  icons |= ICON_PRINTER;
 
     // For SCAN_IDLE: update the live dashboard with current sensor readings
