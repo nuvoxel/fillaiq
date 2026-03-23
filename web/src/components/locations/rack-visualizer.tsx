@@ -410,10 +410,12 @@ function SlotCell({
       {...(isDraggable ? { ...dragAttrs, ...dragListeners } : {})}
       style={{
         display: "inline-flex",
-        position: "relative",
         opacity: isDragging ? 0.3 : 1,
-        touchAction: "none",
+        touchAction: isDraggable ? "none" : undefined,
         cursor: isDraggable ? "grab" : undefined,
+        outline: isOver && !isDragging ? "2px dashed #1976d2" : undefined,
+        outlineOffset: 3,
+        borderRadius: 4,
       }}
     >
     <Tooltip
@@ -576,15 +578,6 @@ function SlotCell({
       </Box>
       )}
     </Tooltip>
-    {/* Drop indicator */}
-    {isOver && !isDragging && (
-      <div style={{
-        position: "absolute", inset: -4,
-        border: "2px dashed #1976d2",
-        borderRadius: 6,
-        pointerEvents: "none",
-      }} />
-    )}
     </div>
 
     {/* Context menu */}
@@ -1631,9 +1624,17 @@ export function RackVisualizer({
   callbacks?: RackVisualizerCallbacks;
   selectedSlotId?: string | null;
 }) {
-  // When not editing, strip out mutation callbacks so controls don't render
-  // Always keep onPrintSlot — printing is available in view mode
-  const cb = editing ? callbacks : { onPrintSlot: callbacks.onPrintSlot };
+  // When not editing, strip out mutation callbacks (add/delete/rename) so controls don't render
+  // Keep interaction callbacks (click, drag, print, context menu) in all modes
+  const cb = editing ? callbacks : {
+    onPrintSlot: callbacks.onPrintSlot,
+    onSlotClick: callbacks.onSlotClick,
+    onDragMoveItem: callbacks.onDragMoveItem,
+    onViewItem: callbacks.onViewItem,
+    onEditItem: callbacks.onEditItem,
+    onRemoveItem: callbacks.onRemoveItem,
+    onMoveItem: callbacks.onMoveItem,
+  };
   const rackDefault = rack.displayStyle ?? displayStyle;
 
   const shelvesSorted = [...(rack.shelves ?? [])].sort(
