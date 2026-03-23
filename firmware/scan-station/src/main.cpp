@@ -237,13 +237,10 @@ static void sensorTask(void* param) {
         // Acquire mutex per-read, release between slots so weight task can get in
         switch (slot) {
             case SLOT_START_COLOR:
-                // Only read color when scan is requested (LED must be on for accurate reflectance)
-                if (colorSensor.isConnected() && sensorCache.colorReadRequested) {
+                if (colorSensor.isConnected()) {
                     if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
-                        // Turn on the sensor's onboard LED for illumination
-                        colorSensor.ledOn(50);  // ~100mA drive
-                        vTaskDelay(pdMS_TO_TICKS(50));  // Let LED stabilize
-                        colorSensor.startRead();  // Quick I2C write (~1ms)
+                        colorSensor.ledOn(50);
+                        colorSensor.startRead();
                         xSemaphoreGive(i2cMutex);
                         slot = SLOT_WAIT_COLOR;  // Only advance if read started
                     }
@@ -257,10 +254,8 @@ static void sensorTask(void* param) {
                     if (colorSensor.isReady()) {
                         ColorData c;
                         colorSensor.finishRead(c);
-                        xSemaphoreGive(i2cMutex);
-                        // Turn sensor LED off after read
                         colorSensor.ledOff();
-                        sensorCache.colorReadRequested = false;
+                        xSemaphoreGive(i2cMutex);
                         if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
                             sensorCache.color = c;
                             xSemaphoreGive(sensorCache.mutex);
@@ -398,8 +393,9 @@ static void networkTask(void* param) {
             switch (item.type) {
 
             case NET_POST_SCAN: {
-                ScanResult scanCopy;
-                TagData tagCopy;
+                // Use static to keep large structs off the task stack
+                static ScanResult scanCopy;
+                static TagData tagCopy;
                 bool hasTag;
 
                 if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -848,17 +844,6 @@ void updateScanState() {
 #ifdef BOARD_SCAN_TOUCH
         if (display.scanButtonPressed) {
             display.scanButtonPressed = false;
-            // Request an illuminated color read before scanning
-            if (colorSensor.isConnected() && !sensorCache.colorReadRequested) {
-                sensorCache.colorReadRequested = true;
-                // Wait for the color read to complete (LED on → measure → LED off)
-                unsigned long waitStart = millis();
-                while (sensorCache.colorReadRequested && millis() - waitStart < 2000) {
-                    snapshotSensors();  // Keep reading the cache
-                    vTaskDelay(pdMS_TO_TICKS(50));
-                }
-                snapshotSensors();  // Final snapshot with illuminated color
-            }
             triggerScan();
         }
 #endif
@@ -1932,7 +1917,7 @@ void setup() {
     xTaskCreatePinnedToCore(
         networkTask,        // task function
         "net",              // name
-        8192,               // stack size (bytes)
+        12288,              // stack size (bytes) — needs room for JSON + HTTP
         nullptr,            // parameter
         1,                  // priority (lower than NFC)
         &networkTaskHandle, // task handle
