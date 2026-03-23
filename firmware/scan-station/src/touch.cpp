@@ -77,7 +77,7 @@ void TouchDriver::lvglReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
     (void)indev;
 
     // Touch shares I2C bus — try-acquire mutex, return cached state if busy.
-    if (i2cMutex && xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+    if (i2cMutex && xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(15)) == pdTRUE) {
         uint16_t x, y;
         bool pressed;
         if (touchInput.read(x, y, pressed) && pressed) {

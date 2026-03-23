@@ -1977,8 +1977,9 @@ void loop() {
     if (menuActionPending != MENU_NONE) {
         MenuAction action = menuActionPending;
         menuActionPending = MENU_NONE;
-        // Suspend NFC + network tasks during menu actions for UI responsiveness
+        // Suspend all background tasks during menu actions for UI responsiveness
         suspendBackgroundTasks();
+        scale.pauseTask();  // Weight task must stop to free i2cMutex for touch
 
         switch (action) {
             case MENU_FORMAT_SD:
@@ -2099,6 +2100,7 @@ void loop() {
 
     // Resume background tasks when menu is exited (Back button pressed)
     if (backgroundTasksPaused && !display.isMenuActive()) {
+        scale.resumeTask();
         resumeBackgroundTasks();
     }
 #endif
