@@ -237,7 +237,7 @@ static void sensorTask(void* param) {
         // Acquire mutex per-read, release between slots so weight task can get in
         switch (slot) {
             case SLOT_START_COLOR:
-                if (colorSensor.isConnected()) {
+                if (colorSensor.isConnected() && sensorCache.colorReadRequested) {
                     if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
                         colorSensor.ledOn(50);
                         colorSensor.startRead();
@@ -256,6 +256,7 @@ static void sensorTask(void* param) {
                         colorSensor.finishRead(c);
                         colorSensor.ledOff();
                         xSemaphoreGive(i2cMutex);
+                        sensorCache.colorReadRequested = false;
                         if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
                             sensorCache.color = c;
                             xSemaphoreGive(sensorCache.mutex);
@@ -844,6 +845,11 @@ void updateScanState() {
 #ifdef BOARD_SCAN_TOUCH
         if (display.scanButtonPressed) {
             display.scanButtonPressed = false;
+            // Request illuminated color read — sensor task will LED on, read, LED off
+            sensorCache.colorReadRequested = true;
+            // Give sensor task time to do the read before we snapshot
+            vTaskDelay(pdMS_TO_TICKS(300));
+            snapshotSensors();
             triggerScan();
         }
 #endif
