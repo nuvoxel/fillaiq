@@ -417,8 +417,11 @@ function SlotCell({
       ref={setRefs}
       {...(isDraggable ? { ...dragAttrs, ...dragListeners } : {})}
       onContextMenu={handleContextMenu}
-      onClick={() => {
-        if (selection.onSlotClick) selection.onSlotClick(slot);
+      onPointerUp={(e) => {
+        // Only fire click if not dragging (pointer didn't move much)
+        if (!isDragging && e.button === 0 && selection.onSlotClick) {
+          selection.onSlotClick(slot);
+        }
       }}
       style={{
         display: "inline-flex",
