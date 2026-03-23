@@ -169,10 +169,8 @@ void FillaiqMqtt::begin(const char* brokerUrl, const char* deviceToken,
     // ESP-IDF v4.x (Arduino ESP32) uses flat config struct
     esp_mqtt_client_config_t config = {};
     config.uri = brokerUrl;
-    // ACA terminates TLS with a public CA cert — skip verification
-    // (esp_mqtt WSS connects to ACA's HTTPS frontend, not Mosquitto directly)
-    config.skip_cert_common_name_check = true;
-    config.cert_pem = NULL;
+    // ACA uses DigiCert Global Root G2 — same CA as our API
+    config.cert_pem = FILLAIQ_ROOT_CA;
     config.username = deviceToken;
     config.keepalive = 60;
     config.lwt_topic = lwTopic;
