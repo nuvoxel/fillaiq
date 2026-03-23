@@ -123,7 +123,9 @@ const SlotSelectionContext = createContext<{
   onPrintSlot: ((slot: SlotData, context: string) => void) | null;
   onDragMoveItem: ((itemId: string, fromSlotId: string, toSlotId: string) => void) | null;
   draggingSlotId: string | null;
-}>({ selectedSlotId: null, onSlotClick: null, onViewItem: null, onEditItem: null, onRemoveItem: null, onMoveItem: null, onPrintSlot: null, onDragMoveItem: null, draggingSlotId: null });
+  ctxMenuSlotId: string | null;
+  setCtxMenuSlotId: (id: string | null) => void;
+}>({ selectedSlotId: null, onSlotClick: null, onViewItem: null, onEditItem: null, onRemoveItem: null, onMoveItem: null, onPrintSlot: null, onDragMoveItem: null, draggingSlotId: null, ctxMenuSlotId: null, setCtxMenuSlotId: () => {} });
 
 // ── NFC Badge ─────────────────────────────────────────────────────────────────
 
@@ -195,13 +197,20 @@ function SlotCell({
 }) {
   const [editing, setEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(slot.label ?? "");
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const [ctxPos, setCtxPos] = useState<{ x: number; y: number } | null>(null);
   const selection = useContext(SlotSelectionContext);
   const isSelected = selection.selectedSlotId === slot.id;
+  const ctxMenuOpen = selection.ctxMenuSlotId === slot.id && ctxPos !== null;
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    setCtxMenu({ x: e.clientX, y: e.clientY });
+    selection.setCtxMenuSlotId(slot.id);
+    setCtxPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const closeCtxMenu = () => {
+    selection.setCtxMenuSlotId(null);
+    setCtxPos(null);
   };
 
   const colSpan = slot.colSpan ?? 1;
@@ -582,32 +591,32 @@ function SlotCell({
 
     {/* Context menu */}
     <Menu
-      open={ctxMenu !== null}
-      onClose={() => setCtxMenu(null)}
+      open={ctxMenuOpen}
+      onClose={closeCtxMenu}
       anchorReference="anchorPosition"
-      anchorPosition={ctxMenu ? { top: ctxMenu.y, left: ctxMenu.x } : undefined}
+      anchorPosition={ctxPos ? { top: ctxPos.y, left: ctxPos.x } : undefined}
       slotProps={{ paper: { sx: { minWidth: 180 } } }}
     >
       {state === "active" && statusData?.userItemId && selection.onViewItem && (
-        <MenuItem onClick={() => { selection.onViewItem!(statusData.userItemId); setCtxMenu(null); }}>
+        <MenuItem onClick={() => { selection.onViewItem!(statusData.userItemId); closeCtxMenu(); }}>
           <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
           <ListItemText>View Details</ListItemText>
         </MenuItem>
       )}
       {state === "active" && statusData?.userItemId && selection.onEditItem && (
-        <MenuItem onClick={() => { selection.onEditItem!(statusData.userItemId); setCtxMenu(null); }}>
+        <MenuItem onClick={() => { selection.onEditItem!(statusData.userItemId); closeCtxMenu(); }}>
           <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Edit Item</ListItemText>
         </MenuItem>
       )}
       {state === "active" && selection.onMoveItem && (
-        <MenuItem onClick={() => { selection.onMoveItem!(slot.id); setCtxMenu(null); }}>
+        <MenuItem onClick={() => { selection.onMoveItem!(slot.id); closeCtxMenu(); }}>
           <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Move to Another Slot</ListItemText>
         </MenuItem>
       )}
       {state === "active" && selection.onRemoveItem && (
-        <MenuItem onClick={() => { selection.onRemoveItem!(slot.id); setCtxMenu(null); }}>
+        <MenuItem onClick={() => { selection.onRemoveItem!(slot.id); closeCtxMenu(); }}>
           <ListItemIcon><RemoveCircleOutlineIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Remove from Slot</ListItemText>
         </MenuItem>
@@ -616,7 +625,7 @@ function SlotCell({
         <Divider key="print-divider" />
       )}
       {state === "active" && selection.onPrintSlot && (
-        <MenuItem key="print" onClick={() => { selection.onPrintSlot!(slot, context ?? ""); setCtxMenu(null); }}>
+        <MenuItem key="print" onClick={() => { selection.onPrintSlot!(slot, context ?? ""); closeCtxMenu(); }}>
           <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Print Label</ListItemText>
         </MenuItem>
@@ -1642,6 +1651,7 @@ export function RackVisualizer({
   );
 
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
+  const [ctxMenuSlotId, setCtxMenuSlotId] = useState<string | null>(null);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setDraggingSlotId(event.active.data.current?.slotId ?? null);
@@ -1671,6 +1681,8 @@ export function RackVisualizer({
       onPrintSlot: cb.onPrintSlot ?? null,
       onDragMoveItem: cb.onDragMoveItem ?? null,
       draggingSlotId,
+      ctxMenuSlotId,
+      setCtxMenuSlotId,
     }}>
       <Box sx={{ overflowX: "auto", pb: 1 }}>
         <Box
