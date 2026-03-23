@@ -256,37 +256,52 @@ function SlotCell({
     );
   }
 
-  const tooltipContent = (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>
-          Slot {label}{spanLabel}
-        </Typography>
-        {context && (
-          <Typography sx={{ fontSize: 10, opacity: 0.7, lineHeight: 1.2 }}>
-            {context}
+  const statusData = slot.status as any;
+  const productName = statusData?.productName;
+  const brandName = statusData?.brandName;
+  const weightG = statusData?.weightStableG as number | undefined;
+  const pctRemaining = statusData?.percentRemaining as number | undefined;
+
+  const tooltipContent = state === "active" && (productName || itemColorHex) ? (
+    // Rich tooltip for occupied slots
+    <Box sx={{ minWidth: 160 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+        <Box sx={{ width: 20, height: 20, borderRadius: "50%", bgcolor: itemColorHex ?? colors.base, border: "2px solid rgba(255,255,255,0.3)", flexShrink: 0 }} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }} noWrap>
+            {productName ?? "Unknown"}
           </Typography>
-        )}
-        <Typography sx={{ fontSize: 10, opacity: 0.7, lineHeight: 1.2 }}>
-          {state.replace("_", " ")}{hasNfc ? " · NFC" : ""}
-          {slot.status?.weightStableG != null ? ` · ${Math.round(slot.status.weightStableG as number)}g` : ""}
-          {slot.status?.percentRemaining != null ? ` · ${slot.status.percentRemaining}%` : ""}
-        </Typography>
+          {brandName && (
+            <Typography sx={{ fontSize: 10, opacity: 0.7, lineHeight: 1.1 }}>{brandName}</Typography>
+          )}
+        </Box>
       </Box>
-      {onPrint && (
-        <IconButton
-          size="small"
-          onClick={(e) => { e.stopPropagation(); onPrint(); }}
-          sx={{
-            p: 0.25,
-            color: "inherit",
-            opacity: 0.7,
-            "&:hover": { opacity: 1, bgcolor: "rgba(255,255,255,0.15)" },
-          }}
-        >
-          <PrintIcon sx={{ fontSize: 14 }} />
-        </IconButton>
+      {(weightG != null || pctRemaining != null) && (
+        <Box sx={{ mt: 0.5 }}>
+          {pctRemaining != null && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.25 }}>
+              <Box sx={{ flex: 1, height: 4, bgcolor: "rgba(255,255,255,0.15)", borderRadius: 2, overflow: "hidden" }}>
+                <Box sx={{ width: `${pctRemaining}%`, height: "100%", bgcolor: pctRemaining > 25 ? "#4ade80" : pctRemaining > 10 ? "#fbbf24" : "#f87171", borderRadius: 2 }} />
+              </Box>
+              <Typography sx={{ fontSize: 10, fontWeight: 600, minWidth: 28, textAlign: "right" }}>{pctRemaining}%</Typography>
+            </Box>
+          )}
+          {weightG != null && (
+            <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{Math.round(weightG)}g</Typography>
+          )}
+        </Box>
       )}
+      {hasNfc && <Typography sx={{ fontSize: 9, opacity: 0.5, mt: 0.25 }}>NFC tagged</Typography>}
+      <Typography sx={{ fontSize: 9, opacity: 0.4, mt: 0.25 }}>Slot {label} · {context}</Typography>
+    </Box>
+  ) : (
+    // Simple tooltip for empty slots
+    <Box>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>
+        Slot {label}{spanLabel}
+      </Typography>
+      {context && <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{context}</Typography>}
+      <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{state === "empty" ? "Available" : state.replace("_", " ")}</Typography>
     </Box>
   );
 
@@ -300,6 +315,50 @@ function SlotCell({
         popper: { modifiers: [{ name: "offset", options: { offset: [0, -4] } }] },
       }}
     >
+      {/* Spool side-view for occupied spool slots */}
+      {state === "active" && isSpool ? (
+        <Box
+          onClick={() => {
+            if (selection.onSlotClick) selection.onSlotClick(slot);
+            else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
+          }}
+          sx={{
+            position: "relative",
+            width: w,
+            height: h,
+            flexShrink: 0,
+            cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
+            outline: isSelected ? "3px solid" : "none",
+            outlineColor: isSelected ? "primary.main" : "transparent",
+            outlineOffset: 2,
+            display: "flex",
+            flexDirection: "row",
+            borderRadius: `${Math.round(size * 0.12)}px`,
+            overflow: "hidden",
+            boxShadow: "0 2px 5px rgba(0,0,0,0.35)",
+            transition: "transform 0.12s ease, outline 0.12s ease",
+            "&:hover": { transform: "translateY(-2px) scale(1.06)" },
+          }}
+        >
+          {/* Left flange */}
+          <Box sx={{ width: Math.round(w * 0.2), height: "100%", bgcolor: "#3a3a3a", background: "linear-gradient(90deg, #4a4a4a, #2a2a2a)" }} />
+          {/* Filament wrap */}
+          <Box sx={{
+            flex: 1, height: "100%",
+            bgcolor: itemColorHex ?? colors.base,
+            background: `linear-gradient(180deg, color-mix(in srgb, ${itemColorHex ?? colors.base} 80%, white) 0%, ${itemColorHex ?? colors.base} 40%, color-mix(in srgb, ${itemColorHex ?? colors.base} 70%, black) 100%)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Typography sx={{ fontSize: size < 40 ? 7 : 9, fontWeight: 700, color: "rgba(255,255,255,0.9)", textShadow: "0 1px 2px rgba(0,0,0,0.5)", lineHeight: 1 }}>
+              {label}
+            </Typography>
+          </Box>
+          {/* Right flange */}
+          <Box sx={{ width: Math.round(w * 0.2), height: "100%", bgcolor: "#3a3a3a", background: "linear-gradient(90deg, #2a2a2a, #4a4a4a)" }} />
+          {/* NFC badge */}
+          {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
+        </Box>
+      ) : (
       <Box
         onClick={() => {
           if (selection.onSlotClick) {
@@ -337,6 +396,7 @@ function SlotCell({
       >
         {hasNfc && <NfcBadge />}
       </Box>
+      )}
     </Tooltip>
   );
 }

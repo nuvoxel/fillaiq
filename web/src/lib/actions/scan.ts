@@ -690,6 +690,12 @@ export async function getStorageTree() {
                       itemId: userItems.id,
                       itemColorHex: userItems.measuredColorHex,
                       itemNfcUid: userItems.nfcUid,
+                      itemWeightG: userItems.currentWeightG,
+                      itemInitialWeightG: userItems.initialWeightG,
+                      itemPercentRemaining: userItems.percentRemaining,
+                      itemPackageType: userItems.packageType,
+                      productName: products.name,
+                      brandName: brands.name,
                     })
                     .from(slots)
                     .leftJoin(slotStatus, eq(slotStatus.slotId, slots.id))
@@ -697,6 +703,8 @@ export async function getStorageTree() {
                       eq(userItems.currentSlotId, slots.id),
                       eq(userItems.status, "active")
                     ))
+                    .leftJoin(products, eq(userItems.productId, products.id))
+                    .leftJoin(brands, eq(products.brandId, brands.id))
                     .where(eq(slots.bayId, bay.id))
                     .orderBy(slots.position);
 
@@ -705,13 +713,23 @@ export async function getStorageTree() {
                     status: r.status ? {
                       state: r.itemId ? "active" : (r.status.state ?? "empty"),
                       nfcUid: r.status.nfcUid ?? r.itemNfcUid ?? null,
-                      weightStableG: r.status.weightStableG,
-                      percentRemaining: r.status.percentRemaining,
+                      weightStableG: r.status.weightStableG ?? r.itemWeightG,
+                      percentRemaining: r.status.percentRemaining ?? r.itemPercentRemaining,
                       colorHex: r.itemColorHex,
+                      productName: r.productName,
+                      brandName: r.brandName,
+                      packageType: r.itemPackageType,
+                      initialWeightG: r.itemInitialWeightG,
                     } : r.itemId ? {
                       state: "active",
                       nfcUid: r.itemNfcUid,
                       colorHex: r.itemColorHex,
+                      weightStableG: r.itemWeightG,
+                      percentRemaining: r.itemPercentRemaining,
+                      productName: r.productName,
+                      brandName: r.brandName,
+                      packageType: r.itemPackageType,
+                      initialWeightG: r.itemInitialWeightG,
                     } : null,
                   }));
 
