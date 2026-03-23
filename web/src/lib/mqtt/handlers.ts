@@ -17,6 +17,7 @@ import {
 import { processScan } from "@/lib/services/scan-processor";
 import { insertEnvironmentalReading } from "@/lib/services/environment-service";
 import { updatePrintJobStatus } from "@/lib/services/print-job-service";
+import { upsertPrinterFromHeartbeat } from "@/lib/services/printer-upsert";
 import { publishScanResult } from "./publisher";
 
 type Handler = (hardwareId: string, payload: Record<string, any>) => Promise<void>;
@@ -94,7 +95,14 @@ async function handleCapabilities(
 
   await processCapabilities(station.id, payload);
 
-  // TODO: printer upsert from capabilities (extract from firmware/check route)
+  // Auto-discover and catalog printers from capabilities
+  if (payload.printer?.detected && station.userId) {
+    try {
+      await upsertPrinterFromHeartbeat(payload.printer, station.id, station.userId);
+    } catch (e) {
+      console.error("[MQTT] Printer upsert error:", e);
+    }
+  }
 }
 
 async function handleScan(

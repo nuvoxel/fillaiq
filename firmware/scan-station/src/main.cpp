@@ -394,6 +394,7 @@ static void networkTask(void* param) {
     unsigned long lastMqttTelemetry = 0;
     bool wifiEverConnected_net = false;
     bool mqttStarted = false;
+    bool mqttCapsSent = false;
 
     for (;;) {
         // Process queued work items (non-blocking peek with short timeout)
@@ -599,6 +600,35 @@ static void networkTask(void* param) {
             );
         }
 
+        // Publish capabilities once after MQTT connects
+        if (fillaiqMqtt.isConnected() && !mqttCapsSent) {
+            mqttCapsSent = true;
+            // Build capabilities JSON (same format as old heartbeat)
+            String capsJson = apiClient.buildCapabilitiesJson();
+
+            // Augment with live printer state
+            if (labelPrinter.isConnected()) {
+                JsonDocument capsDoc;
+                deserializeJson(capsDoc, capsJson);
+                const auto& ps = labelPrinter.getState();
+                JsonObject p = capsDoc["printer"];
+                p["transport"] = "BLE";
+                if (ps.infoQueried) {
+                    p["battery"] = ps.batteryPercent;
+                    if (ps.firmwareVersion[0]) p["firmware"] = ps.firmwareVersion;
+                    if (ps.serialNumber > 0) p["serialNumber"] = ps.serialNumber;
+                }
+                p["paperLoaded"] = ps.paperLoaded;
+                p["coverClosed"] = ps.coverClosed;
+                capsJson = "";
+                serializeJson(capsDoc, capsJson);
+            }
+
+            fillaiqMqtt.publishCapabilities(capsJson.c_str());
+            Serial.println("[MQTT] Published capabilities");
+        }
+        if (!fillaiqMqtt.isConnected()) mqttCapsSent = false;
+
         // Periodic: MQTT telemetry heartbeat
         {
             unsigned long now = millis();
@@ -613,6 +643,9 @@ static void networkTask(void* param) {
                 doc["freeHeap"] = ESP.getFreeHeap();
                 doc["wifiRssi"] = WiFi.RSSI();
                 doc["weightCalibration"] = deviceConfig.weightCalibration();
+
+                // Include printer online status in telemetry
+                doc["printerConnected"] = labelPrinter.isConnected();
 
                 String payload;
                 serializeJson(doc, payload);
