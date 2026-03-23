@@ -321,16 +321,6 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                         />
 
                       </Box>
-                      {/* Spool detail panel to the right */}
-                      {selectedItemId && (
-                        <Box sx={{ width: 360, flexShrink: 0 }}>
-                          <SpoolDetailPanel
-                            itemId={selectedItemId}
-                            onClose={() => setSelectedItemId(null)}
-                            onUpdate={loadData}
-                          />
-                        </Box>
-                      )}
                       </Box>
                     )}
                   </Box>
@@ -374,6 +364,26 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
         title={printDialog.title}
         onClose={() => setPrintDialog(closedPrint)}
       />
+
+      {/* Spool detail panel — fixed to bottom right */}
+      {selectedItemId && (
+        <Box sx={{
+          position: "fixed",
+          bottom: 16,
+          right: 16,
+          width: 380,
+          maxHeight: "60vh",
+          overflow: "auto",
+          zIndex: 1200,
+        }}>
+          <SpoolDetailPanel
+            key={selectedItemId}
+            itemId={selectedItemId}
+            onClose={() => setSelectedItemId(null)}
+            onUpdate={loadData}
+          />
+        </Box>
+      )}
 
     </>
   );
