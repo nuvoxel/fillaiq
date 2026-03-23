@@ -45,7 +45,10 @@ void ColorSensor::begin() {
         Wire.endTransmission();
         delay(5);
 
-        uint8_t id = _readDeviceId(AS7341_ADDR, 0x92);
+        // AS7343 ID is at 0x5A in bank 1, AS7341 ID is at 0x92
+        uint8_t id43 = _readDeviceId(AS7341_ADDR, 0x5A);
+        uint8_t id41 = _readDeviceId(AS7341_ADDR, 0x92);
+        Serial.printf("  Color ID probe: 0x5A=0x%02X 0x92=0x%02X\n", id43, id41);
 
         // Switch back to bank 0
         Wire.beginTransmission(AS7341_ADDR);
@@ -53,10 +56,10 @@ void ColorSensor::begin() {
         Wire.write(0x00);
         Wire.endTransmission();
 
-        // AS7343: ID = 0x81, AS7341: ID = 0x24 or 0x09
-        if (id == 0x81) {
+        // AS7343: ID at 0x5A = 0x81, AS7341: ID at 0x92 = 0x24 or 0x09
+        if (id43 == 0x81) {
             if (_initAS7343()) return;
-        } else if (id == 0x24 || id == 0x09) {
+        } else if (id41 == 0x24 || id41 == 0x09) {
             if (_initAS7341()) return;
         }
         // Unknown ID — try AS7341 library (it does its own ID check)
@@ -90,39 +93,46 @@ bool ColorSensor::_initAS7341() {
 }
 
 bool ColorSensor::_initAS7343() {
-    // AS7343 uses same I2C address as AS7341 but has 14 spectral channels
-    // Caller (begin) already verified device ID = 0x81
+    // AS7343: 14-channel spectral sensor
+    // Register map is NOT compatible with AS7341 — different addresses for
+    // ASTEP, GAIN, STATUS2, and uses AutoSMUX instead of manual SMUX.
 
-    // Enable the sensor: write PON bit to ENABLE register (0x80)
+    // Power on: ENABLE register (0x80) — same as AS7341
     Wire.beginTransmission(AS7341_ADDR);
-    Wire.write(0x80);  // ENABLE register
+    Wire.write(0x80);  // ENABLE
     Wire.write(0x01);  // PON
     if (Wire.endTransmission() != 0) return false;
     delay(10);
 
-    // Enable spectral measurement: SP_EN
+    // Set ATIME (0x81) — same address as AS7341
     Wire.beginTransmission(AS7341_ADDR);
-    Wire.write(0x80);
-    Wire.write(0x03);  // PON + SP_EN
-    Wire.endTransmission();
-
-    // Set ATIME
-    Wire.beginTransmission(AS7341_ADDR);
-    Wire.write(0x81);  // ATIME register
+    Wire.write(0x81);
     Wire.write(COLOR_AS7341_ATIME);
     Wire.endTransmission();
 
-    // Set ASTEP (2 bytes, little-endian)
+    // Set ASTEP (0xD4/0xD5) — AS7343 specific, NOT 0xCA/0xCB
     Wire.beginTransmission(AS7341_ADDR);
-    Wire.write(0xCA);  // ASTEP_L register
+    Wire.write(0xD4);  // ASTEP_L
     Wire.write(COLOR_AS7341_ASTEP & 0xFF);
     Wire.write((COLOR_AS7341_ASTEP >> 8) & 0xFF);
     Wire.endTransmission();
 
-    // Set gain
+    // Set gain (0xC6) — AS7343 specific, NOT 0xAA
     Wire.beginTransmission(AS7341_ADDR);
-    Wire.write(0xAA);  // CFG1 / GAIN register
+    Wire.write(0xC6);  // CFG1 / AGAIN
     Wire.write(COLOR_AS7341_GAIN);
+    Wire.endTransmission();
+
+    // Enable AutoSMUX: CFG20 (0xD6) = 0x03 for full 18-channel (3 sub-cycles)
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0xD6);  // CFG20
+    Wire.write(0x03);  // auto_smux = 3 (all 3 sub-cycles)
+    Wire.endTransmission();
+
+    // Enable spectral measurement: PON + SP_EN
+    Wire.beginTransmission(AS7341_ADDR);
+    Wire.write(0x80);
+    Wire.write(0x03);  // PON + SP_EN
     Wire.endTransmission();
 
     _type = COLOR_AS7343;
@@ -337,8 +347,8 @@ bool ColorSensor::isReady() {
         case COLOR_AS7341:
             return as7341.checkReadingProgress();
         case COLOR_AS7343: {
-            // Check STATUS2 register (0xA3) bit 6 (AVALID)
-            uint8_t status = _readDeviceId(AS7341_ADDR, 0xA3);
+            // AS7343 STATUS2 is at 0x90 (not 0xA3 like AS7341), bit 6 = AVALID
+            uint8_t status = _readDeviceId(AS7341_ADDR, 0x90);
             return (status & 0x40) != 0;
         }
         case COLOR_AS7331: {
@@ -388,39 +398,51 @@ bool ColorSensor::finishRead(ColorData& data) {
             return true;
         }
         case COLOR_AS7343: {
-            // Read channel data registers (already captured by ADC)
-            uint8_t rawBuf[28];
+            // Read all 36 bytes (18 regs × 2) from 0x95
+            uint8_t rawBuf[36];
             Wire.beginTransmission(AS7341_ADDR);
             Wire.write(0x95);
             if (Wire.endTransmission() != 0) return false;
             int bytesRead = 0;
-            while (bytesRead < 28) {
-                int toRead = min(28 - bytesRead, 28);
+            while (bytesRead < 36) {
+                int toRead = min(36 - bytesRead, 32);
                 int got = Wire.requestFrom((uint8_t)AS7341_ADDR, (uint8_t)toRead);
-                for (int i = 0; i < got && bytesRead < 28; i++) {
+                for (int i = 0; i < got && bytesRead < 36; i++) {
                     rawBuf[bytesRead++] = Wire.read();
                 }
                 if (got == 0) break;
             }
-            if (bytesRead < 20) return false;
-            int chIdx = 0;
-            for (int i = 0; i + 1 < bytesRead && chIdx < 14; i += 2) {
-                data.channels[chIdx] = rawBuf[i] | (rawBuf[i + 1] << 8);
-                chIdx++;
+            if (bytesRead < 36) return false;
+            // Same mapping as _readAS7343
+            uint16_t regs[18];
+            for (int i = 0; i < 18; i++) {
+                regs[i] = rawBuf[i * 2] | (rawBuf[i * 2 + 1] << 8);
             }
-            data.channelCount = chIdx;
-            if (chIdx >= 10) {
-                data.f1_415nm = data.channels[0];
-                data.f2_445nm = data.channels[1];
-                data.f3_480nm = data.channels[2];
-                data.f4_515nm = data.channels[3];
-                data.f5_555nm = data.channels[4];
-                data.f6_590nm = data.channels[5];
-                data.f7_630nm = data.channels[6];
-                data.f8_680nm = data.channels[7];
-                data.clear    = (chIdx > 12) ? data.channels[12] : 0;
-                data.nir      = (chIdx > 8)  ? data.channels[8]  : 0;
-            }
+            data.channels[0]  = regs[12]; // F1  405nm
+            data.channels[1]  = regs[6];  // F2  425nm
+            data.channels[2]  = regs[0];  // FZ  450nm
+            data.channels[3]  = regs[7];  // F3  475nm
+            data.channels[4]  = regs[8];  // F4  515nm
+            data.channels[5]  = regs[15]; // F5  550nm
+            data.channels[6]  = regs[1];  // FY  555nm
+            data.channels[7]  = regs[2];  // FXL 600nm
+            data.channels[8]  = regs[9];  // F6  640nm
+            data.channels[9]  = regs[13]; // F7  690nm
+            data.channels[10] = regs[14]; // F8  745nm
+            data.channels[11] = regs[3];  // NIR 855nm
+            data.channels[12] = regs[4];  // Clear
+            data.channels[13] = regs[5];  // FD
+            data.channelCount = 14;
+            data.f1_415nm = data.channels[0];
+            data.f2_445nm = data.channels[1];
+            data.f3_480nm = data.channels[2];
+            data.f4_515nm = data.channels[4];
+            data.f5_555nm = data.channels[6];
+            data.f6_590nm = data.channels[7];
+            data.f7_630nm = data.channels[8];
+            data.f8_680nm = data.channels[9];
+            data.clear    = data.channels[12];
+            data.nir      = data.channels[11];
             data.valid = true;
             return true;
         }
@@ -481,66 +503,82 @@ bool ColorSensor::_readAS7341(ColorData& data) {
 }
 
 bool ColorSensor::_readAS7343(ColorData& data) {
-    // AS7343 has 14 spectral channels read via two SMUX configurations
-    // Channels: FZ(450) FY(555) FXL(600) NIR(855) | F2(425) F3(475) F4(515) F6(640)
-    //           F1(405) F5(550) F7(690) F8(745) | Clear FD(flicker)
-    // For simplicity, read all channels using the auto-SMUX approach
+    // AS7343: 18 data registers (0x95-0xB7) = 36 bytes, covering 3 AutoSMUX sub-cycles
+    // Channel order in data registers (NOT sequential by wavelength):
+    //   Data0  (0x95) = FZ   450nm    Data6  (0xA1) = F2   425nm    Data12 (0xAD) = F1   405nm
+    //   Data1  (0x97) = FY   555nm    Data7  (0xA3) = F3   475nm    Data13 (0xAF) = F7   690nm
+    //   Data2  (0x99) = FXL  600nm    Data8  (0xA5) = F4   515nm    Data14 (0xB1) = F8   745nm
+    //   Data3  (0x9B) = NIR  855nm    Data9  (0xA7) = F6   640nm    Data15 (0xB3) = F5   550nm
+    //   Data4  (0x9D) = Clear1        Data10 (0xA9) = Clear2        Data16 (0xB5) = Clear3
+    //   Data5  (0x9F) = FD1           Data11 (0xAB) = FD2           Data17 (0xB7) = FD3
 
-    // Trigger measurement: set SP_EN in ENABLE register
+    // Trigger measurement
     Wire.beginTransmission(AS7341_ADDR);
     Wire.write(0x80);  // ENABLE
     Wire.write(0x03);  // PON + SP_EN
     Wire.endTransmission();
 
-    // Wait for data ready — check STATUS2 register (0xA3) bit 6
+    // Wait for AVALID — STATUS2 at 0x90 (AS7343), bit 6
     unsigned long start = millis();
     while (millis() - start < 500) {
-        uint8_t status = _readDeviceId(AS7341_ADDR, 0xA3);
-        if (status & 0x40) break;  // AVALID bit
+        uint8_t status = _readDeviceId(AS7341_ADDR, 0x90);
+        if (status & 0x40) break;
         delay(10);
     }
 
-    // Read all channel data registers (0x95-0xB0)
-    // AS7343 has 14 channels of 16-bit data
-    uint8_t rawBuf[28];  // 14 channels × 2 bytes
+    // Read all 36 bytes (18 channels × 2 bytes) from 0x95
+    uint8_t rawBuf[36];
     Wire.beginTransmission(AS7341_ADDR);
-    Wire.write(0x95);  // First data register
+    Wire.write(0x95);
     if (Wire.endTransmission() != 0) return false;
 
-    // Read in chunks (Wire buffer limit)
     int bytesRead = 0;
-    while (bytesRead < 28) {
-        int toRead = min(28 - bytesRead, 28);
+    while (bytesRead < 36) {
+        int toRead = min(36 - bytesRead, 32);  // Wire buffer limit
         int got = Wire.requestFrom((uint8_t)AS7341_ADDR, (uint8_t)toRead);
-        for (int i = 0; i < got && bytesRead < 28; i++) {
+        for (int i = 0; i < got && bytesRead < 36; i++) {
             rawBuf[bytesRead++] = Wire.read();
         }
         if (got == 0) break;
     }
 
-    if (bytesRead < 20) return false;  // Need at least some channels
+    if (bytesRead < 36) return false;
 
-    // Parse channel data (little-endian 16-bit)
-    int chIdx = 0;
-    for (int i = 0; i + 1 < bytesRead && chIdx < 14; i += 2) {
-        data.channels[chIdx] = rawBuf[i] | (rawBuf[i + 1] << 8);
-        chIdx++;
+    // Parse all 18 registers as little-endian uint16
+    uint16_t regs[18];
+    for (int i = 0; i < 18; i++) {
+        regs[i] = rawBuf[i * 2] | (rawBuf[i * 2 + 1] << 8);
     }
-    data.channelCount = chIdx;
 
-    // Map to named fields for compatibility (approximate wavelength mapping)
-    if (chIdx >= 10) {
-        data.f1_415nm = data.channels[0];   // F1 (405nm)
-        data.f2_445nm = data.channels[1];   // F2 (425nm)
-        data.f3_480nm = data.channels[2];   // FZ (450nm)
-        data.f4_515nm = data.channels[3];   // F3 (475nm)
-        data.f5_555nm = data.channels[4];   // F4 (515nm)
-        data.f6_590nm = data.channels[5];   // FY/FXL (~555-600nm)
-        data.f7_630nm = data.channels[6];   // F6 (640nm)
-        data.f8_680nm = data.channels[7];   // F7 (690nm)
-        data.clear    = (chIdx > 12) ? data.channels[12] : 0;
-        data.nir      = (chIdx > 8)  ? data.channels[8]  : 0;
-    }
+    // Map to channels[] in wavelength order for the 14 spectral channels:
+    // F1(405) F2(425) FZ(450) F3(475) F4(515) F5(550) FY(555) FXL(600) F6(640) F7(690) F8(745) NIR(855) Clear FD
+    data.channels[0]  = regs[12]; // F1   405nm (Data12)
+    data.channels[1]  = regs[6];  // F2   425nm (Data6)
+    data.channels[2]  = regs[0];  // FZ   450nm (Data0)
+    data.channels[3]  = regs[7];  // F3   475nm (Data7)
+    data.channels[4]  = regs[8];  // F4   515nm (Data8)
+    data.channels[5]  = regs[15]; // F5   550nm (Data15)
+    data.channels[6]  = regs[1];  // FY   555nm (Data1)
+    data.channels[7]  = regs[2];  // FXL  600nm (Data2)
+    data.channels[8]  = regs[9];  // F6   640nm (Data9)
+    data.channels[9]  = regs[13]; // F7   690nm (Data13)
+    data.channels[10] = regs[14]; // F8   745nm (Data14)
+    data.channels[11] = regs[3];  // NIR  855nm (Data3)
+    data.channels[12] = regs[4];  // Clear (avg of 3: use sub-cycle 1)
+    data.channels[13] = regs[5];  // FD (flicker, sub-cycle 1)
+    data.channelCount = 14;
+
+    // Map to AS7341-compatible named fields (closest wavelength match)
+    data.f1_415nm = data.channels[0];   // F1  405nm
+    data.f2_445nm = data.channels[1];   // F2  425nm
+    data.f3_480nm = data.channels[2];   // FZ  450nm
+    data.f4_515nm = data.channels[4];   // F4  515nm
+    data.f5_555nm = data.channels[6];   // FY  555nm
+    data.f6_590nm = data.channels[7];   // FXL 600nm
+    data.f7_630nm = data.channels[8];   // F6  640nm
+    data.f8_680nm = data.channels[9];   // F7  690nm
+    data.clear    = data.channels[12];
+    data.nir      = data.channels[11];
 
     data.valid = true;
     return true;
