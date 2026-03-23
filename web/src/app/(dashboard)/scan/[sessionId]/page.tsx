@@ -77,8 +77,12 @@ export default function ScanSessionPage() {
 
   if (!data) return null;
 
-  const { session, matchedProduct } = data;
+  const { session, events, matchedProduct } = data;
   const isResolved = session.status === "resolved";
+
+  // Find the event with NFC raw data and spectral data
+  const nfcEvent = events.find((e: any) => e.nfcRawData);
+  const spectralEvent = events.find((e: any) => e.spectralData);
 
   // Build station data for the intake form
   const stationData: StationData = {
@@ -92,6 +96,9 @@ export default function ScanSessionPage() {
     nfcUid: session.nfcUid,
     nfcTagFormat: session.nfcTagFormat,
     nfcParsedData: session.nfcParsedData as Record<string, any> | null,
+    nfcRawData: nfcEvent?.nfcRawData ?? null,
+    nfcSectorsRead: nfcEvent?.nfcSectorsRead ?? null,
+    spectralData: spectralEvent?.spectralData as Record<string, any> | null,
     matchedProduct: matchedProduct ?? undefined,
   };
 

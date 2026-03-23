@@ -25,6 +25,11 @@ import TextFieldsIcon from "@mui/icons-material/TextFields";
 import ScaleIcon from "@mui/icons-material/Scale";
 import HeightIcon from "@mui/icons-material/Height";
 import NfcIcon from "@mui/icons-material/Nfc";
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import DataObjectIcon from "@mui/icons-material/DataObject";
 import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
 import { ProductCard } from "@/components/scan/product-card";
 import { SlotPicker } from "@/components/scan/slot-picker";
@@ -50,6 +55,9 @@ export type StationData = {
   nfcUid?: string | null;
   nfcTagFormat?: string | null;
   nfcParsedData?: Record<string, any> | null;
+  nfcRawData?: string | null;
+  nfcSectorsRead?: number | null;
+  spectralData?: Record<string, any> | null;
   matchedProduct?: any;
 };
 
@@ -330,6 +338,71 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* ── Raw Scan Data (NFC sectors + spectral) ────────────────── */}
+      {stationData && (stationData.nfcRawData || stationData.spectralData || stationData.nfcParsedData) && (
+        <Accordion disableGutters variant="outlined" sx={{ "&:before": { display: "none" } }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <DataObjectIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+              <Typography variant="caption" fontWeight={600} color="text.secondary">
+                Raw Scan Data
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails sx={{ pt: 0 }}>
+            {/* Parsed NFC data */}
+            {stationData.nfcParsedData && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                  NFC Parsed Data
+                </Typography>
+                <Box component="pre" sx={{ fontSize: "0.7rem", fontFamily: "monospace", bgcolor: "grey.50", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 200, m: 0 }}>
+                  {JSON.stringify(stationData.nfcParsedData, null, 2)}
+                </Box>
+              </Box>
+            )}
+
+            {/* Raw NFC sectors */}
+            {stationData.nfcRawData && stationData.nfcSectorsRead && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                  NFC Raw Sectors ({stationData.nfcSectorsRead} sectors, {stationData.nfcRawData.length / 2} bytes)
+                </Typography>
+                <Box component="pre" sx={{ fontSize: "0.65rem", fontFamily: "monospace", bgcolor: "grey.900", color: "grey.100", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 300, m: 0 }}>
+                  {Array.from({ length: stationData.nfcSectorsRead }).map((_, s) => {
+                    const bytesPerSector = stationData.nfcRawData!.length / 2 / stationData.nfcSectorsRead!;
+                    const blocksPerSector = bytesPerSector / 16;
+                    const lines: string[] = [`── Sector ${s} ──`];
+                    for (let b = 0; b < blocksPerSector; b++) {
+                      const start = (s * bytesPerSector + b * 16) * 2;
+                      const hex = stationData.nfcRawData!.slice(start, start + 32);
+                      const ascii = hex.match(/.{2}/g)?.map(h => {
+                        const c = parseInt(h, 16);
+                        return c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : ".";
+                      }).join("") ?? "";
+                      lines.push(`  B${b}: ${hex.match(/.{2}/g)?.join(" ") ?? hex}  |${ascii}|`);
+                    }
+                    return lines.join("\n");
+                  }).join("\n\n")}
+                </Box>
+              </Box>
+            )}
+
+            {/* Spectral data */}
+            {stationData.spectralData && (
+              <Box>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                  Spectral Data
+                </Typography>
+                <Box component="pre" sx={{ fontSize: "0.7rem", fontFamily: "monospace", bgcolor: "grey.50", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 200, m: 0 }}>
+                  {JSON.stringify(stationData.spectralData, null, 2)}
+                </Box>
+              </Box>
+            )}
+          </AccordionDetails>
+        </Accordion>
       )}
 
       {/* ── Product Identification ──────────────────────────────────── */}
