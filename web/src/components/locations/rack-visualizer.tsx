@@ -204,7 +204,14 @@ function SlotCell({
     setCtxMenu({ x: e.clientX, y: e.clientY });
   };
 
-  // Drag and drop
+  const colSpan = slot.colSpan ?? 1;
+  const rowSpan = slot.rowSpan ?? 1;
+  const w = size * colSpan + CELL_GAP * (colSpan - 1);
+  const h = size * rowSpan + CELL_GAP * (rowSpan - 1);
+
+  const state = slot.status?.state ?? "empty";
+
+  // Drag and drop (must be after state is defined)
   const isDraggable = state === "active" && !!selection.onDragMoveItem;
   const itemId = (slot.status as any)?.userItemId as string | undefined;
   const { attributes: dragAttrs, listeners: dragListeners, setNodeRef: setDragRef, isDragging } = useDraggable({
@@ -220,13 +227,6 @@ function SlotCell({
     setDragRef(node);
     setDropRef(node);
   }, [setDragRef, setDropRef]);
-
-  const colSpan = slot.colSpan ?? 1;
-  const rowSpan = slot.rowSpan ?? 1;
-  const w = size * colSpan + CELL_GAP * (colSpan - 1);
-  const h = size * rowSpan + CELL_GAP * (rowSpan - 1);
-
-  const state = slot.status?.state ?? "empty";
   const hasNfc = Boolean(slot.nfcTagId || slot.status?.nfcUid);
   const itemColorHex = (slot.status as any)?.colorHex as string | undefined;
   // Use item's actual color for the spool if available, otherwise fall back to state color
