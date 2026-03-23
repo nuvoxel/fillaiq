@@ -316,11 +316,13 @@ function SlotCell({
         popper: { modifiers: [{ name: "offset", options: { offset: [0, -4] } }] },
       }}
     >
-      {/* Spool side-view for occupied spool slots */}
+      {/* Spool side-view: flanges + filament, wider than tall */}
       {state === "active" && isSpool ? (() => {
         const fil = itemColorHex ?? colors.base;
-        const flangeW = Math.round(w * 0.18);
-        const coreH = Math.round(h * 0.35);
+        const spoolW = Math.round(size * 1.1);
+        const spoolH = Math.round(size * 0.75);
+        const flangeW = Math.round(spoolW * 0.12);
+        const flangeR = Math.round(spoolH * 0.12);
         return (
         <Box
           onClick={() => {
@@ -329,8 +331,8 @@ function SlotCell({
           }}
           sx={{
             position: "relative",
-            width: w,
-            height: h,
+            width: spoolW,
+            height: spoolH,
             flexShrink: 0,
             cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
             outline: isSelected ? "3px solid" : "none",
@@ -339,48 +341,42 @@ function SlotCell({
             display: "flex",
             flexDirection: "row",
             alignItems: "stretch",
-            borderRadius: `${Math.round(size * 0.15)}px`,
             overflow: "hidden",
-            boxShadow: `0 2px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)`,
             transition: "transform 0.12s ease, outline 0.12s ease",
             "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
+            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))",
           }}
         >
-          {/* Left flange */}
+          {/* Left flange — circular disc */}
           <Box sx={{
-            width: flangeW, background: "linear-gradient(180deg, #666 0%, #444 30%, #333 70%, #222 100%)",
-            borderRight: "1px solid rgba(0,0,0,0.3)",
+            width: flangeW,
+            borderRadius: `${flangeR}px 0 0 ${flangeR}px`,
+            background: "linear-gradient(180deg, #888 0%, #555 40%, #444 60%, #333 100%)",
+            boxShadow: "inset -1px 0 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
           }} />
-          {/* Filament section */}
+          {/* Filament wrap — cylinder body */}
           <Box sx={{
-            flex: 1, display: "flex", flexDirection: "column", position: "relative",
+            flex: 1, position: "relative",
             background: `linear-gradient(180deg,
-              color-mix(in srgb, ${fil} 60%, white) 0%,
-              ${fil} 15%,
-              color-mix(in srgb, ${fil} 85%, black) 50%,
-              ${fil} 85%,
-              color-mix(in srgb, ${fil} 60%, white) 100%)`,
+              color-mix(in srgb, ${fil} 50%, white) 0%,
+              color-mix(in srgb, ${fil} 80%, white) 8%,
+              ${fil} 25%,
+              color-mix(in srgb, ${fil} 90%, black) 55%,
+              color-mix(in srgb, ${fil} 70%, black) 85%,
+              color-mix(in srgb, ${fil} 50%, black) 100%)`,
           }}>
-            {/* Core hole */}
+            {/* Subtle wrap texture */}
             <Box sx={{
-              position: "absolute",
-              top: "50%", left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: coreH, height: coreH,
-              borderRadius: "50%",
-              bgcolor: "#1a1a1a",
-              boxShadow: `inset 0 1px 3px rgba(0,0,0,0.8), 0 0 0 2px rgba(0,0,0,0.2)`,
-            }} />
-            {/* Filament wrap lines */}
-            <Box sx={{
-              position: "absolute", inset: 0, opacity: 0.12,
-              background: `repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 3px)`,
+              position: "absolute", inset: 0, opacity: 0.08,
+              background: `repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.6) 1px, rgba(255,255,255,0.6) 2px)`,
             }} />
           </Box>
           {/* Right flange */}
           <Box sx={{
-            width: flangeW, background: "linear-gradient(180deg, #666 0%, #444 30%, #333 70%, #222 100%)",
-            borderLeft: "1px solid rgba(0,0,0,0.3)",
+            width: flangeW,
+            borderRadius: `0 ${flangeR}px ${flangeR}px 0`,
+            background: "linear-gradient(180deg, #777 0%, #4a4a4a 40%, #3a3a3a 60%, #2a2a2a 100%)",
+            boxShadow: "inset 1px 0 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
           }} />
           {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
         </Box>
