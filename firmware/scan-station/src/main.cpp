@@ -240,8 +240,8 @@ static void sensorTask(void* param) {
                 // Only read color when scan is requested (LED must be on for accurate reflectance)
                 if (colorSensor.isConnected() && sensorCache.colorReadRequested) {
                     if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
-                        // Turn on LED ring for illumination
-                        backlight.white(sensorCache.colorLedBrightness);
+                        // Turn on the sensor's onboard LED for illumination
+                        colorSensor.ledOn(50);  // ~100mA drive
                         vTaskDelay(pdMS_TO_TICKS(50));  // Let LED stabilize
                         colorSensor.startRead();  // Quick I2C write (~1ms)
                         xSemaphoreGive(i2cMutex);
@@ -258,8 +258,8 @@ static void sensorTask(void* param) {
                         ColorData c;
                         colorSensor.finishRead(c);
                         xSemaphoreGive(i2cMutex);
-                        // Turn LED off after read
-                        backlight.off();
+                        // Turn sensor LED off after read
+                        colorSensor.ledOff();
                         sensorCache.colorReadRequested = false;
                         if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
                             sensorCache.color = c;

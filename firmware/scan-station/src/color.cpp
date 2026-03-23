@@ -731,6 +731,72 @@ bool ColorSensor::_readAS7331(ColorData& data) {
 ColorSensorType ColorSensor::getType() { return _type; }
 bool ColorSensor::isConnected() { return _connected; }
 
+void ColorSensor::ledOn(uint8_t drive) {
+    if (!_connected) return;
+    if (drive > 127) drive = 127;
+
+    switch (_type) {
+        case COLOR_AS7343:
+            // AS7343: LED register at 0xCD (bank 0), bit 7 = LED_ACT, bits 0-6 = drive
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0xCD);
+            Wire.write(0x80 | drive);  // LED_ACT + drive current
+            Wire.endTransmission();
+            break;
+        case COLOR_AS7341: {
+            // AS7341: LED register at 0x74 (bank 1)
+            // Switch to bank 1
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0xBF);  // CFG0
+            Wire.write(0x10);  // REG_BANK = 1
+            Wire.endTransmission();
+            // Write LED register
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0x74);
+            Wire.write(0x80 | drive);
+            Wire.endTransmission();
+            // Switch back to bank 0
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0xBF);
+            Wire.write(0x00);
+            Wire.endTransmission();
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void ColorSensor::ledOff() {
+    if (!_connected) return;
+
+    switch (_type) {
+        case COLOR_AS7343:
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0xCD);
+            Wire.write(0x00);
+            Wire.endTransmission();
+            break;
+        case COLOR_AS7341: {
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0xBF);
+            Wire.write(0x10);
+            Wire.endTransmission();
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0x74);
+            Wire.write(0x00);
+            Wire.endTransmission();
+            Wire.beginTransmission(AS7341_ADDR);
+            Wire.write(0xBF);
+            Wire.write(0x00);
+            Wire.endTransmission();
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void ColorSensor::printStatus() {
     Serial.println("=== Color Sensor ===");
     const char* names[] = {"NONE", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};

@@ -30,6 +30,10 @@ public:
     const ColorData& getAmbient() const { return _ambient; }
     bool hasAmbient() const { return _ambient.valid; }
 
+    // Onboard LED control (for illuminated reflectance measurements)
+    void ledOn(uint8_t drive = 50);   // drive: 0-127 (~4-258mA)
+    void ledOff();
+
     ColorSensorType getType();
     bool isConnected();
     void printStatus();
