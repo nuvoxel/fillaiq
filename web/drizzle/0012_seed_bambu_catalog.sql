@@ -4,6 +4,44 @@
 
 -- ── Printers ────────────────────────────────────────────────
 
+-- H2S (Single-nozzle, enclosed, AMS support)
+INSERT INTO hardware_models (
+  category, manufacturer, model, slug, description,
+  build_volume_x, build_volume_y, build_volume_z,
+  max_nozzle_temp, max_bed_temp,
+  has_enclosure, has_filament_changer, filament_changer_slots,
+  has_wifi, has_mqtt, protocol,
+  capabilities, validation_status
+) VALUES (
+  'fdm_printer', 'Bambu Lab', 'H2S', 'bambu-lab-h2s',
+  'Single-nozzle enclosed FDM printer with AMS support. 350x320x325mm build volume.',
+  350, 320, 325,
+  300, 120,
+  true, true, 16,
+  true, true, 'bambu_mqtt',
+  '{"cameraBuiltIn": true, "lidarLeveling": true, "maxAmsUnits": 4}',
+  'validated'
+) ON CONFLICT (slug) DO NOTHING;
+
+-- H2C (Carbon fiber capable, enclosed, AMS support)
+INSERT INTO hardware_models (
+  category, manufacturer, model, slug, description,
+  build_volume_x, build_volume_y, build_volume_z,
+  max_nozzle_temp, max_bed_temp,
+  has_enclosure, has_filament_changer, filament_changer_slots,
+  has_wifi, has_mqtt, protocol,
+  capabilities, validation_status
+) VALUES (
+  'fdm_printer', 'Bambu Lab', 'H2C', 'bambu-lab-h2c',
+  'Carbon fiber capable enclosed FDM printer with hardened nozzle and AMS support. 350x320x325mm build volume.',
+  350, 320, 325,
+  300, 120,
+  true, true, 16,
+  true, true, 'bambu_mqtt',
+  '{"cameraBuiltIn": true, "lidarLeveling": true, "hardenedNozzle": true, "maxAmsUnits": 4}',
+  'validated'
+) ON CONFLICT (slug) DO NOTHING;
+
 -- H2D (Dual-nozzle, enclosed, AMS support)
 INSERT INTO hardware_models (
   category, manufacturer, model, slug, description,
@@ -188,18 +226,6 @@ INSERT INTO hardware_models (
   'Heated 4-spool AMS for engineering filaments. Active drying with temperature control.',
   true, 4,
   '{"rfid": true, "humiditySensor": true, "activeDrying": true, "heatedChamber": true, "changerType": "ams"}',
-  'validated'
-) ON CONFLICT (slug) DO NOTHING;
-
--- ── Dryboxes ────────────────────────────────────────────────
-
-INSERT INTO hardware_models (
-  category, manufacturer, model, slug, description,
-  capabilities, validation_status
-) VALUES (
-  'drybox', 'Bambu Lab', 'Drybox', 'bambu-lab-drybox',
-  'Passive filament drybox with humidity indicator. Holds 1 spool.',
-  '{"spoolCapacity": 1, "humiditySensor": false, "activeDrying": false}',
   'validated'
 ) ON CONFLICT (slug) DO NOTHING;
 
