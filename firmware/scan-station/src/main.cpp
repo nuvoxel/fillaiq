@@ -1065,8 +1065,9 @@ void updateScanState() {
             }
         }
 
-        // Timeout submitting after 15s
-        if (elapsed > 15000) {
+        // Timeout submitting (5s for MQTT, 15s for HTTP fallback)
+        unsigned long submitTimeout = fillaiqMqtt.isConnected() ? 5000 : 15000;
+        if (elapsed > submitTimeout) {
             Serial.println("[Scan] Submit timeout");
             enterState(SCAN_RESULT);
         }
