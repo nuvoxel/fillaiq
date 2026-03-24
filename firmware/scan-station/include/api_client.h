@@ -203,6 +203,8 @@ private:
 
     void loadConfig();
     void saveConfig();
+public:
+    // Exposed for MQTT scan flow (build payload, parse response)
     String buildScanPayload(const ScanResult& scan, const TagData* tagData);
     bool parseResponse(const String& json, ScanResponse& response);
 };

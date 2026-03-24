@@ -419,16 +419,26 @@ static void networkTask(void* param) {
                     break;
                 }
 
-                const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
-                ScanResponse resp;
-                ApiStatus status = apiClient.postScan(scanCopy, tagPtr, resp);
+                if (fillaiqMqtt.isConnected()) {
+                    // Publish scan via MQTT (no second TLS connection needed)
+                    const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
+                    String payload = apiClient.buildScanPayload(scanCopy, tagPtr);
+                    fillaiqMqtt.publishScan(payload.c_str());
+                    Serial.printf("[Scan] Published via MQTT (%d bytes)\n", payload.length());
+                    // Response will arrive via onScanResult callback
+                } else {
+                    // Fallback: HTTP POST (will fail if heap is low)
+                    const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
+                    ScanResponse resp;
+                    ApiStatus status = apiClient.postScan(scanCopy, tagPtr, resp);
 
-                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                    sharedScan.response = resp;
-                    sharedScan.lastStatus = status;
-                    sharedScan.responseReady = true;
-                    sharedScan.postInFlight = false;
-                    xSemaphoreGive(sharedScan.mutex);
+                    if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                        sharedScan.response = resp;
+                        sharedScan.lastStatus = status;
+                        sharedScan.responseReady = true;
+                        sharedScan.postInFlight = false;
+                        xSemaphoreGive(sharedScan.mutex);
+                    }
                 }
                 break;
             }
@@ -596,6 +606,21 @@ static void networkTask(void* param) {
             mqttStarted = true;
             Serial.println("[Net] Starting MQTT client...");
             // Set up incoming message callbacks
+            fillaiqMqtt.onScanResult = [](const char* json, int len) {
+                // Parse scan result and write to shared state
+                ScanResponse resp = {};
+                if (apiClient.parseResponse(String(json).substring(0, len), resp)) {
+                    if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                        sharedScan.response = resp;
+                        sharedScan.lastStatus = API_OK;
+                        sharedScan.responseReady = true;
+                        sharedScan.postInFlight = false;
+                        xSemaphoreGive(sharedScan.mutex);
+                    }
+                    Serial.println("[MQTT] Scan result received");
+                }
+            };
+
             fillaiqMqtt.onConfig = [](const char* json, int len) {
                 // Parse config — check for Bambu printer settings
                 JsonDocument doc;
