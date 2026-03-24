@@ -26,6 +26,7 @@ export type ScanInput = {
     tagType?: number;
     rawData?: string;
     sectorsRead?: number;
+    sectorOk?: number;
     pagesRead?: number;
   };
   turntableAngle?: number;
@@ -96,7 +97,8 @@ export async function processScan(
       input.nfc.rawData,
       input.nfc.tagType ?? null,
       input.nfc.sectorsRead ?? null,
-      input.nfc.pagesRead ?? null
+      input.nfc.pagesRead ?? null,
+      input.nfc.sectorOk ?? null,
     );
     updates.nfcTagFormat = format;
     if (parsed) updates.nfcParsedData = parsed;

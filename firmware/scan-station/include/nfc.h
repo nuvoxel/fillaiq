@@ -69,8 +69,10 @@ private:
     // Incremental read state
     static const uint8_t SECTORS_PER_POLL = 2;
     static const uint8_t PAGES_PER_POLL = 30;
+    static const uint8_t MAX_RETRY_PASSES = 3;
     uint8_t _nextSector;   // 0xFF = not reading
     uint8_t _nextPage;     // 0xFF = not reading
+    uint8_t _retryPass;    // Current retry pass (0 = first read, 1+ = retries)
 };
 
 extern NfcScanner nfcScanner;

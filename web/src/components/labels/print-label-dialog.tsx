@@ -56,15 +56,21 @@ type StationRow = {
 
 export type PrintLabelItem = {
   brand?: string;
+  brandLogoUrl?: string;
   material?: string;
   color?: string;
+  colorName?: string;
   nozzleTemp?: string;
   bedTemp?: string;
+  dryingInfo?: string;
+  flowRatio?: string;
+  td?: string;
   weight?: string;
   location?: string;
   price?: string;
   purchaseDate?: string;
   lotNumber?: string;
+  filamentId?: string;
   /** For unique identification in batch mode */
   label?: string;
 };
@@ -93,6 +99,8 @@ function templateToSettings(t: TemplateRow): LabelPreviewSettings {
     showPrice: t.showPrice ?? false,
     showPurchaseDate: t.showPurchaseDate ?? false,
     showLotNumber: t.showLotNumber ?? false,
+    showDryingInfo: (t as any).showDryingInfo ?? true,
+    showFilamentId: (t as any).showFilamentId ?? true,
   };
 }
 

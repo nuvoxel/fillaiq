@@ -38,7 +38,7 @@ import {
   removeSlot,
 } from "@/lib/actions/hardware";
 import { moveItemToSlot, removeItemFromSlot } from "@/lib/actions/scan";
-import { SpoolDetailPanel } from "@/components/locations/spool-detail-panel";
+import { SlotDrawer } from "@/components/locations/slot-drawer";
 import { LocationDialog } from "@/components/locations/location-dialog";
 import {
   PrintLabelDialog,
@@ -63,7 +63,7 @@ const closedPrint: PrintDialogState = { open: false, items: [] };
 export function RackTopologyTab({ editing = false }: { editing?: boolean } = {}) {
   const [zonesWithRacks, setZonesWithRacks] = useState<ZoneWithRacks[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [printDialog, setPrintDialog] = useState<PrintDialogState>(closedPrint);
   const [addDialog, setAddDialog] = useState<{ open: boolean; level: "zone" | "rack"; parentId?: string }>({ open: false, level: "zone" });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; level: "zone" | "rack"; existing?: Record<string, any> | null }>({ open: false, level: "zone" });
@@ -97,13 +97,30 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                           state: "active",
                           userItemId: item.id,
                           colorHex: item.measuredColorHex,
+                          colorName: item.product?.colorName,
                           nfcUid: item.nfcUid,
                           weightStableG: item.currentWeightG,
                           percentRemaining: item.percentRemaining,
                           productName: item.product?.name,
                           brandName: item.product?.brand?.name,
+                          brandLogoUrl: item.product?.brand?.logoUrl,
+                          materialName: item.product?.material?.abbreviation ?? item.product?.material?.name,
                           packageType: item.packageType,
                           initialWeightG: item.initialWeightG,
+                          purchasePrice: item.purchasePrice,
+                          purchaseCurrency: item.purchaseCurrency,
+                          purchasedAt: item.purchasedAt,
+                          lotNumber: item.lotNumber,
+                          serialNumber: item.serialNumber,
+                          rating: item.rating,
+                          nozzleTempMin: item.product?.filamentProfile?.nozzleTempMin,
+                          nozzleTempMax: item.product?.filamentProfile?.nozzleTempMax,
+                          bedTempMin: item.product?.filamentProfile?.bedTempMin,
+                          bedTempMax: item.product?.filamentProfile?.bedTempMax,
+                          dryingTemp: item.product?.filamentProfile?.dryingTemp,
+                          dryingTimeMin: item.product?.filamentProfile?.dryingTimeMin,
+                          flowRatio: item.product?.filamentProfile?.defaultFlowRatio,
+                          td: item.product?.filamentProfile?.transmissionDistance,
                         };
                       }
                     }
@@ -283,6 +300,7 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                           rack={rack}
                           displayStyle="shelf"
                           editing={editing}
+                          selectedSlotId={selectedSlotId}
                           callbacks={{
                             onSaveSlotLabel: saveSlotLabel,
                             onDeleteSlot: deleteSlot,
@@ -294,12 +312,7 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                             onDeleteShelf: deleteShelf,
                             onAddShelfToRack: addShelfToRack,
                             onSlotClick: (slot) => {
-                              const st = slot.status as any;
-                              if (st?.state === "active" && st.userItemId) {
-                                setSelectedItemId((prev) => prev === st.userItemId ? null : st.userItemId);
-                              } else {
-                                setSelectedItemId(null);
-                              }
+                              setSelectedSlotId((prev) => prev === slot.id ? null : slot.id);
                             },
                             onDragMoveItem: async (itemId, _fromSlotId, toSlotId) => {
                               await moveItemToSlot(itemId, toSlotId);
@@ -365,25 +378,74 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
         onClose={() => setPrintDialog(closedPrint)}
       />
 
-      {/* Spool detail panel — fixed to bottom right */}
-      {selectedItemId && (
-        <Box sx={{
-          position: "fixed",
-          bottom: 16,
-          right: 16,
-          width: 380,
-          maxHeight: "60vh",
-          overflow: "auto",
-          zIndex: 1200,
-        }}>
-          <SpoolDetailPanel
-            key={selectedItemId}
-            itemId={selectedItemId}
-            onClose={() => setSelectedItemId(null)}
-            onUpdate={loadData}
-          />
-        </Box>
-      )}
+      <SlotDrawer
+        key={selectedSlotId}
+        slotId={selectedSlotId}
+        onClose={() => setSelectedSlotId(null)}
+        onUpdate={loadData}
+        onPrintSlot={selectedSlotId ? () => {
+          for (const { racks } of zonesWithRacks) {
+            for (const rack of racks) {
+              const rackName = rack.name ?? rack.id.slice(0, 8);
+              for (const shelf of rack.shelves ?? []) {
+                for (const bay of shelf.bays ?? []) {
+                  const slot = bay.slots.find((s) => s.id === selectedSlotId);
+                  if (slot) {
+                    const st = slot.status as any;
+                    const loc = `${rackName} / Shelf ${shelf.label || shelf.position} / Bay ${bay.label || bay.position} / Slot ${slot.label || slot.position}`;
+                    const hasItem = st?.state === "active" && st.userItemId;
+                    if (hasItem) {
+                      // Build temperature strings
+                      const nozzleTemp = st.nozzleTempMin && st.nozzleTempMax
+                        ? `${st.nozzleTempMin}-${st.nozzleTempMax}°C`
+                        : st.nozzleTempMin ? `${st.nozzleTempMin}°C` : undefined;
+                      const bedTemp = st.bedTempMin && st.bedTempMax
+                        ? `${st.bedTempMin}-${st.bedTempMax}°C`
+                        : st.bedTempMin ? `${st.bedTempMin}°C` : undefined;
+                      // Print item label with full details
+                      setPrintDialog({
+                        open: true,
+                        items: [{
+                          label: st.productName ?? "Item",
+                          brand: st.brandName,
+                          brandLogoUrl: st.brandLogoUrl,
+                          material: st.materialName,
+                          color: st.colorHex,
+                          colorName: st.colorName,
+                          nozzleTemp,
+                          bedTemp,
+                          dryingInfo: st.dryingTemp ? `${st.dryingTemp}°C / ${st.dryingTimeMin ? Math.round(st.dryingTimeMin / 60) + "h" : "?"}` : undefined,
+                          flowRatio: st.flowRatio ? String(st.flowRatio) : undefined,
+                          td: st.td ? String(st.td) : undefined,
+                          weight: st.weightStableG ? `${Math.round(st.weightStableG)}g` : undefined,
+                          location: loc,
+                          lotNumber: st.lotNumber ?? (slot.address || undefined),
+                          filamentId: st.userItemId?.slice(0, 8),
+                          price: st.purchasePrice ? `${st.purchaseCurrency ?? "$"}${Number(st.purchasePrice).toFixed(2)}` : undefined,
+                          purchaseDate: st.purchasedAt ? new Date(st.purchasedAt).toLocaleDateString() : undefined,
+                        }],
+                        title: `Print — ${st.brandName ? st.brandName + " " : ""}${st.productName ?? "Item"}`,
+                      });
+                    } else {
+                      // Print slot/shelf label
+                      setPrintDialog({
+                        open: true,
+                        items: [{
+                          label: `Slot ${slot.label || slot.position}`,
+                          location: loc,
+                          ...(slot.address ? { lotNumber: slot.address } : {}),
+                        }],
+                        title: `Print — Slot ${slot.label || slot.position}`,
+                      });
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        } : undefined}
+      />
 
     </>
   );

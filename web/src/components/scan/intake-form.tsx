@@ -52,6 +52,11 @@ const PACKAGE_TYPES = [
   { value: "bottle", label: "Bottle" },
   { value: "bag", label: "Bag" },
   { value: "cartridge", label: "Cartridge" },
+  { value: "tool", label: "Tool" },
+  { value: "bolt", label: "Bolt" },
+  { value: "nut", label: "Nut" },
+  { value: "screw", label: "Screw" },
+  { value: "electronic_component", label: "Electronic" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -116,6 +121,18 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [lotNumber, setLotNumber] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [rating, setRating] = useState<number | null>(null);
+
+  // ── Weight Details ────────────────────────────────────────────────────────
+  const [netFilamentWeightG, setNetFilamentWeightG] = useState(parsed?.spoolNetWeight?.toString() ?? "");
+  const [spoolWeightG, setSpoolWeightG] = useState("");
+  const [storageLocation, setStorageLocation] = useState("");
+
+  // ── Spool Dimensions ──────────────────────────────────────────────────────
+  const [spoolOuterDia, setSpoolOuterDia] = useState("");
+  const [spoolInnerDia, setSpoolInnerDia] = useState("");
+  const [spoolWidth, setSpoolWidth] = useState("");
+  const [spoolHubHoleDia, setSpoolHubHoleDia] = useState("");
+  const [spoolMeasuredWeight, setSpoolMeasuredWeight] = useState("");
 
   // ── Location ────────────────────────────────────────────────────────────────
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
@@ -217,11 +234,18 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       nfcUid: stationData?.nfcUid ?? undefined,
       nfcTagFormat: stationData?.nfcTagFormat ?? undefined,
       initialWeightG: weight ? parseFloat(weight) : undefined,
+      netFilamentWeightG: netFilamentWeightG ? parseFloat(netFilamentWeightG) : undefined,
+      spoolWeightG: spoolWeightG ? parseFloat(spoolWeightG) : undefined,
       measuredColorHex: colorHex || undefined,
       measuredColorLabL: stationData?.colorLabL ?? undefined,
       measuredColorLabA: stationData?.colorLabA ?? undefined,
       measuredColorLabB: stationData?.colorLabB ?? undefined,
       measuredHeightMm: height ? parseFloat(height) : undefined,
+      measuredSpoolOuterDiameterMm: spoolOuterDia ? parseFloat(spoolOuterDia) : undefined,
+      measuredSpoolInnerDiameterMm: spoolInnerDia ? parseFloat(spoolInnerDia) : undefined,
+      measuredSpoolWidthMm: spoolWidth ? parseFloat(spoolWidth) : undefined,
+      measuredSpoolHubHoleDiameterMm: spoolHubHoleDia ? parseFloat(spoolHubHoleDia) : undefined,
+      measuredSpoolWeightG: spoolMeasuredWeight ? parseFloat(spoolMeasuredWeight) : undefined,
       packageType: packageType ?? undefined,
       purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
       purchaseCurrency: purchaseCurrency || undefined,
@@ -231,6 +255,7 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       serialNumber: serialNumber || undefined,
       rating: rating ?? undefined,
       notes: notesParts.join("\n") || undefined,
+      storageLocation: storageLocation || undefined,
     });
 
     setSaving(false);
@@ -533,6 +558,16 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
                 onChange={(e) => setLotNumber(e.target.value)}
               />
             </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Serial Number" value={serialNumber}
+                onChange={(e) => setSerialNumber(e.target.value)}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Storage Location" value={storageLocation}
+                onChange={(e) => setStorageLocation(e.target.value)} placeholder="Freetext (if no slot)"
+              />
+            </Grid>
           </Grid>
 
           {/* Rating */}
@@ -546,6 +581,45 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
           />
         </CardContent>
       </Card>
+
+      {/* ═══ 5b. Weight & Dimensions (expandable) ═════════════════════════ */}
+      <Accordion disableGutters variant="outlined" sx={{ "&:before": { display: "none" } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
+          <Typography variant="subtitle2" color="text.secondary">Weight & Spool Dimensions</Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 0 }}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 4 }}>
+              <TextField fullWidth size="small" label="Net Filament (g)" type="number"
+                value={netFilamentWeightG} onChange={(e) => setNetFilamentWeightG(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 4 }}>
+              <TextField fullWidth size="small" label="Spool/Pkg Weight (g)" type="number"
+                value={spoolWeightG} onChange={(e) => setSpoolWeightG(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 4 }}>
+              <TextField fullWidth size="small" label="Measured Spool (g)" type="number"
+                value={spoolMeasuredWeight} onChange={(e) => setSpoolMeasuredWeight(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 3 }}>
+              <TextField fullWidth size="small" label="Outer Dia. (mm)" type="number"
+                value={spoolOuterDia} onChange={(e) => setSpoolOuterDia(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 3 }}>
+              <TextField fullWidth size="small" label="Inner Dia. (mm)" type="number"
+                value={spoolInnerDia} onChange={(e) => setSpoolInnerDia(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 3 }}>
+              <TextField fullWidth size="small" label="Width (mm)" type="number"
+                value={spoolWidth} onChange={(e) => setSpoolWidth(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 3 }}>
+              <TextField fullWidth size="small" label="Hub Hole (mm)" type="number"
+                value={spoolHubHoleDia} onChange={(e) => setSpoolHubHoleDia(e.target.value)} />
+            </Grid>
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
 
       {/* ═══ 6. Storage Location ══════════════════════════════════════════ */}
       <Card variant="outlined">

@@ -32,6 +32,7 @@ void NfcScanner::begin() {
     _state = NFC_IDLE;
     _nextSector = 0xFF;
     _nextPage = 0xFF;
+    _retryPass = 0;
 
 #ifdef BOARD_SCAN_TOUCH
     // ── NFC via Pico I2C coprocessor ──
@@ -90,6 +91,8 @@ void NfcScanner::_startRead() {
     memcpy(_tagData.uid, _tag.uid, _tag.uid_len);
     _tagData.uid_len = _tag.uid_len;
 
+    _retryPass = 0;
+
     if (_tag.uid_len == 4) {
         _tagData.type = TAG_MIFARE_CLASSIC;
         bambuDeriveKeys(_tag.uid, cachedKeys);
@@ -116,8 +119,22 @@ void NfcScanner::_continueRead() {
         _nextSector += count;
 
         if (_nextSector >= TagData::NUM_SECTORS) {
-            _nextSector = 0xFF;
-            _finishRead();
+            // Check if all sectors were read
+            bool allOk = (_tagData.sectors_read >= TagData::NUM_SECTORS);
+            if (!allOk && _retryPass < MAX_RETRY_PASSES) {
+                // Retry failed sectors — start another pass
+                _retryPass++;
+                _nextSector = 0;
+                Serial.printf("Scan: retry pass %d (%d/%d sectors OK)\n",
+                    _retryPass, _tagData.sectors_read, TagData::NUM_SECTORS);
+            } else {
+                _nextSector = 0xFF;
+                if (!allOk) {
+                    Serial.printf("Scan: %d/%d sectors after %d retries\n",
+                        _tagData.sectors_read, TagData::NUM_SECTORS, _retryPass);
+                }
+                _finishRead();
+            }
         }
     } else if (_tagData.type == TAG_NTAG && _nextPage < TagData::MAX_PAGES) {
         uint8_t end = _nextPage + PAGES_PER_POLL;

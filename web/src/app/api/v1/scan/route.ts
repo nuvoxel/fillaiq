@@ -152,7 +152,8 @@ export async function POST(request: NextRequest) {
       body.nfc.rawData,
       body.nfc.tagType ?? null,
       body.nfc.sectorsRead ?? null,
-      body.nfc.pagesRead ?? null
+      body.nfc.pagesRead ?? null,
+      body.nfc.sectorOk ?? null,
     );
     updates.nfcTagFormat = format;
     if (parsed) {

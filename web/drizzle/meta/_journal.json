@@ -78,6 +78,13 @@
       "when": 1773377182065,
       "tag": "0010_print_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774301306833,
+      "tag": "0011_cute_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

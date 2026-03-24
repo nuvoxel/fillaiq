@@ -88,6 +88,8 @@ type EditorState = {
   showPrice: boolean;
   showPurchaseDate: boolean;
   showLotNumber: boolean;
+  showDryingInfo: boolean;
+  showFilamentId: boolean;
   qrCodeBaseUrl: string;
 };
 
@@ -108,14 +110,18 @@ const DEFAULT_STATE: EditorState = {
   showPrice: false,
   showPurchaseDate: false,
   showLotNumber: false,
+  showDryingInfo: true,
+  showFilamentId: true,
   qrCodeBaseUrl: "app.fillaiq.com/item/",
 };
 
 const SIZE_PRESETS = [
-  { label: "50 x 30 mm", w: 50, h: 30 },
-  { label: "40 x 70 mm", w: 40, h: 70 },
-  { label: "40 x 30 mm", w: 40, h: 30 },
-  { label: "25 x 50 mm", w: 25, h: 50 },
+  { label: "40 x 30 mm (Classic)", w: 40, h: 30 },
+  { label: "50 x 30 mm (Expanded)", w: 50, h: 30 },
+  { label: "40 x 25 mm (Compact)", w: 40, h: 25 },
+  { label: "40 x 12 mm (Slim)", w: 40, h: 12 },
+  { label: "30 x 40 mm (Vertical)", w: 30, h: 40 },
+  { label: "25 x 40 mm (Vert. Compact)", w: 25, h: 40 },
 ];
 
 const FORMAT_OPTIONS: { value: LabelFormat; label: string }[] = [
@@ -137,6 +143,8 @@ const CONTENT_TOGGLES: { key: keyof EditorState; label: string }[] = [
   { key: "showPrice", label: "Price" },
   { key: "showPurchaseDate", label: "Purchase date" },
   { key: "showLotNumber", label: "Lot number" },
+  { key: "showDryingInfo", label: "Drying info" },
+  { key: "showFilamentId", label: "Filament ID" },
 ];
 
 function rowToEditor(row: TemplateRow): EditorState {
@@ -157,6 +165,8 @@ function rowToEditor(row: TemplateRow): EditorState {
     showPrice: row.showPrice ?? false,
     showPurchaseDate: row.showPurchaseDate ?? false,
     showLotNumber: row.showLotNumber ?? false,
+    showDryingInfo: (row as any).showDryingInfo ?? true,
+    showFilamentId: (row as any).showFilamentId ?? true,
     qrCodeBaseUrl: row.qrCodeBaseUrl ?? "app.fillaiq.com/item/",
   };
 }
@@ -176,6 +186,8 @@ function editorToPreview(state: EditorState): LabelPreviewSettings {
     showPrice: state.showPrice,
     showPurchaseDate: state.showPurchaseDate,
     showLotNumber: state.showLotNumber,
+    showDryingInfo: state.showDryingInfo,
+    showFilamentId: state.showFilamentId,
   };
 }
 

@@ -331,7 +331,7 @@ export async function getRackTopology(id: string) {
                       limit: 1,
                       with: {
                         product: {
-                          with: { brand: true },
+                          with: { brand: true, material: true, filamentProfile: true },
                         },
                       },
                     },
@@ -545,6 +545,55 @@ export async function createSlot(input: unknown) {
   if (ownership) return ownership;
   return slotsCrud.create(data);
 }
+export async function getSlotWithDetails(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  const ownerId = await getOwnerBySlotId(id);
+  if (!ownerId) return err("Not found");
+  const ownership = assertOwnership(guard.data, ownerId);
+  if (ownership) return ownership;
+  try {
+    const row = await db.query.slots.findFirst({
+      where: eq(slots.id, id),
+      with: {
+        status: true,
+        items: {
+          limit: 1,
+          with: {
+            product: {
+              with: { brand: true, material: true, filamentProfile: true },
+            },
+          },
+        },
+        bay: {
+          with: {
+            shelf: {
+              with: {
+                rack: {
+                  with: { zone: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!row) return err("Not found");
+    // If no items via relation but slotStatus has a userItemId, fetch it as fallback
+    const result = row as any;
+    if ((!result.items || result.items.length === 0) && result.status?.userItemId) {
+      const fallback = await db.query.userItems.findFirst({
+        where: eq(userItems.id, result.status.userItemId),
+        with: { product: { with: { brand: true, material: true, filamentProfile: true } } },
+      });
+      if (fallback) result.items = [fallback];
+    }
+    return ok(result);
+  } catch (e) {
+    return err((e as Error).message);
+  }
+}
+
 export async function getSlotById(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;

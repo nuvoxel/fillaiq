@@ -557,7 +557,11 @@ export async function createIntakeItem(input: {
   barcodeFormat?: string;
   nfcUid?: string;
   nfcTagFormat?: string;
+  nfcTagWritten?: boolean;
+  bambuTrayUid?: string;
   initialWeightG?: number;
+  netFilamentWeightG?: number;
+  spoolWeightG?: number;
   // Station sensor measurements
   measuredColorHex?: string;
   measuredColorLabL?: number;
@@ -565,6 +569,11 @@ export async function createIntakeItem(input: {
   measuredColorLabB?: number;
   measuredSpectralData?: any;
   measuredHeightMm?: number;
+  measuredSpoolOuterDiameterMm?: number;
+  measuredSpoolInnerDiameterMm?: number;
+  measuredSpoolWidthMm?: number;
+  measuredSpoolHubHoleDiameterMm?: number;
+  measuredSpoolWeightG?: number;
   // Purchase info
   purchasePrice?: number;
   purchaseCurrency?: string;
@@ -574,6 +583,7 @@ export async function createIntakeItem(input: {
   serialNumber?: string;
   rating?: number;
   notes?: string;
+  storageLocation?: string;
 }) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;
@@ -591,8 +601,12 @@ export async function createIntakeItem(input: {
         barcodeFormat: input.barcodeFormat ?? null,
         nfcUid: input.nfcUid ?? null,
         nfcTagFormat: input.nfcTagFormat as any ?? null,
+        nfcTagWritten: input.nfcTagWritten ?? false,
+        bambuTrayUid: input.bambuTrayUid ?? null,
         initialWeightG: input.initialWeightG ?? null,
         currentWeightG: input.initialWeightG ?? null,
+        netFilamentWeightG: input.netFilamentWeightG ?? null,
+        spoolWeightG: input.spoolWeightG ?? null,
         // Station sensor data
         measuredColorHex: input.measuredColorHex ?? null,
         measuredColorLabL: input.measuredColorLabL ?? null,
@@ -600,6 +614,12 @@ export async function createIntakeItem(input: {
         measuredColorLabB: input.measuredColorLabB ?? null,
         measuredSpectralData: input.measuredSpectralData ?? null,
         measuredHeightMm: input.measuredHeightMm ?? null,
+        measuredSpoolOuterDiameterMm: input.measuredSpoolOuterDiameterMm ?? null,
+        measuredSpoolInnerDiameterMm: input.measuredSpoolInnerDiameterMm ?? null,
+        measuredSpoolWidthMm: input.measuredSpoolWidthMm ?? null,
+        measuredSpoolHubHoleDiameterMm: input.measuredSpoolHubHoleDiameterMm ?? null,
+        measuredSpoolWeightG: input.measuredSpoolWeightG ?? null,
+        storageLocation: input.storageLocation ?? null,
         // Purchase info
         purchasePrice: input.purchasePrice ?? null,
         purchaseCurrency: input.purchaseCurrency ?? null,

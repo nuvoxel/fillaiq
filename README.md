@@ -37,6 +37,10 @@ pio run -e scan_station             # DevKitC + PN532
 
 - **[nuvoxel/pn5180-nfc](https://github.com/nuvoxel/pn5180-nfc)** — PN5180 NFC Arduino library + RP2040 Pico I2C coprocessor. Open source (LGPL-2.1+ / MIT).
 
+## Acknowledgments
+
+- **Filament label design** inspired by [3D Filament Profiles](https://3dfilamentprofiles.com/). The label layout — brand logo, material on inverted strip, color name, temperature ranges, drying info, flow ratio, QR code — follows the format established by their label generator.
+
 ## License
 
 Proprietary. Copyright (c) 2025-2026 Filla IQ / Nuvoxel.

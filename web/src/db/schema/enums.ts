@@ -112,6 +112,11 @@ export const packageTypeEnum = pgEnum("package_type", [
   "bottle",
   "bag",
   "cartridge",
+  "tool",
+  "bolt",
+  "nut",
+  "screw",
+  "electronic_component",
   "other",
 ]);
 

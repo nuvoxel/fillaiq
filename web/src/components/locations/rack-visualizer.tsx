@@ -29,6 +29,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
+import BuildIcon from "@mui/icons-material/Build";
+import ScienceIcon from "@mui/icons-material/Science";
+import MemoryIcon from "@mui/icons-material/Memory";
+import HardwareIcon from "@mui/icons-material/Hardware";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -113,6 +117,16 @@ const SPOOL_COLORS: Record<string, { base: string; mid: string; hub: string }> =
   removed: { base: "#6B7280", mid: "#4B5563", hub: "#374151" },
 };
 const DEFAULT_COLORS = SPOOL_COLORS.empty;
+
+// Icon + color config for non-spool/box package types
+const ICON_PACKAGE_TYPES: Record<string, { icon: typeof BuildIcon; bg: string; fg: string }> = {
+  tool:                 { icon: BuildIcon,    bg: "linear-gradient(180deg, #546E7A 0%, #37474F 100%)", fg: "#CFD8DC" },
+  bolt:                 { icon: HardwareIcon, bg: "linear-gradient(180deg, #78909C 0%, #455A64 100%)", fg: "#ECEFF1" },
+  nut:                  { icon: HardwareIcon, bg: "linear-gradient(180deg, #8D6E63 0%, #5D4037 100%)", fg: "#D7CCC8" },
+  screw:                { icon: HardwareIcon, bg: "linear-gradient(180deg, #90A4AE 0%, #607D8B 100%)", fg: "#ECEFF1" },
+  electronic_component: { icon: MemoryIcon,   bg: "linear-gradient(180deg, #1B5E20 0%, #0D3B13 100%)", fg: "#A5D6A7" },
+  bottle:               { icon: ScienceIcon,  bg: "linear-gradient(180deg, #4FC3F7 0%, #0288D1 100%)", fg: "#E1F5FE" },
+};
 
 // ── Slot selection context (avoids threading props through every component) ──
 
@@ -450,7 +464,8 @@ function SlotCell({
         const flangeR = Math.round(spoolH * 0.12);
         return (
         <Box
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
@@ -514,7 +529,8 @@ function SlotCell({
         const r = Math.round(size * 0.08);
         return (
         <Box
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
@@ -548,9 +564,45 @@ function SlotCell({
           {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
         </Box>
         );
+      })() : state === "active" && packageType && ICON_PACKAGE_TYPES[packageType] ? (() => {
+        // Icon-based rendering for tool, bolt, nut, screw, electronic_component, bottle
+        const { icon: PkgIcon, bg, fg } = ICON_PACKAGE_TYPES[packageType];
+        const cellW = Math.round(size * 0.85);
+        const cellH = Math.round(size * 0.95);
+        const r = Math.round(size * 0.12);
+        const iconSize = Math.round(size * 0.45);
+        return (
+        <Box
+          onClick={(e) => {
+            e.stopPropagation();
+            if (selection.onSlotClick) selection.onSlotClick(slot);
+            else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
+          }}
+          sx={{
+            position: "relative", width: cellW, height: cellH, flexShrink: 0,
+            cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
+            outline: isSelected ? "3px solid" : "none",
+            outlineColor: isSelected ? "primary.main" : "transparent",
+            outlineOffset: 2,
+            borderRadius: `${r}px`,
+            background: bg,
+            boxShadow: "0 2px 5px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "transform 0.12s ease, outline 0.12s ease",
+            "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
+          }}
+        >
+          <PkgIcon sx={{ fontSize: iconSize, color: fg, opacity: 0.85 }} />
+          {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
+        </Box>
+        );
       })() : (
       <Box
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           if (selection.onSlotClick) {
             selection.onSlotClick(slot);
           } else if (onSaveLabel) {

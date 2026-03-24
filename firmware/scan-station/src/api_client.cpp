@@ -283,11 +283,14 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
         // Hex-encode raw tag data (pre-allocated buffer to avoid String fragmentation)
         if (tagData->valid) {
             if (tagData->type == TAG_MIFARE_CLASSIC) {
-                int hexLen = tagData->sectors_read * 3 * 16 * 2;
+                // Encode ALL NUM_SECTORS so sector indices stay aligned.
+                // Failed sectors will contain zeros — sectorOk bitmask tells the
+                // server which sectors actually have valid data.
+                int hexLen = TagData::NUM_SECTORS * 3 * 16 * 2;
                 char* hexBuf = (char*)malloc(hexLen + 1);
                 if (hexBuf) {
                     int pos = 0;
-                    for (int s = 0; s < tagData->sectors_read; s++) {
+                    for (int s = 0; s < TagData::NUM_SECTORS; s++) {
                         for (int b = 0; b < 3; b++) {
                             for (int i = 0; i < 16; i++) {
                                 pos += snprintf(hexBuf + pos, hexLen - pos + 1, "%02X",
@@ -300,6 +303,12 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
                     free(hexBuf);
                 }
                 nfc["sectorsRead"] = tagData->sectors_read;
+                // Send sector_ok bitmask so server knows which sectors are valid
+                uint16_t sectorOkBits = 0;
+                for (int i = 0; i < TagData::NUM_SECTORS; i++) {
+                    if (tagData->sector_ok[i]) sectorOkBits |= (1 << i);
+                }
+                nfc["sectorOk"] = sectorOkBits;
             } else if (tagData->type == TAG_ISO15693 || tagData->type == TAG_NTAG) {
                 int hexLen = tagData->pages_read * 4 * 2;
                 char* hexBuf = (char*)malloc(hexLen + 1);
