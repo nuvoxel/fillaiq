@@ -13,10 +13,32 @@ import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import Autocomplete from "@mui/material/Autocomplete";
+import Divider from "@mui/material/Divider";
 import { createMachine, updateMachine, listMyStations } from "@/lib/actions/user-library";
+import { listHardwareModels } from "@/lib/actions/hardware-catalog";
 import { enumToOptions, machineTypeLabels } from "./enum-labels";
 
 const typeOptions = enumToOptions(machineTypeLabels);
+
+type CatalogModel = {
+  id: string;
+  manufacturer: string;
+  model: string;
+  category: string;
+  buildVolumeX: number | null;
+  buildVolumeY: number | null;
+  buildVolumeZ: number | null;
+  maxNozzleTemp: number | null;
+  maxBedTemp: number | null;
+  hasEnclosure: boolean | null;
+  hasFilamentChanger: boolean | null;
+  filamentChangerSlots: number | null;
+  hasWifi: boolean | null;
+  hasMqtt: boolean | null;
+  protocol: string | null;
+  [key: string]: unknown;
+};
 
 type Props = {
   open: boolean;
@@ -55,14 +77,27 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [stations, setStations] = useState<Array<{ id: string; name: string; hardwareId: string }>>([]);
+  const [catalogModels, setCatalogModels] = useState<CatalogModel[]>([]);
+  const [selectedCatalog, setSelectedCatalog] = useState<CatalogModel | null>(null);
 
   useEffect(() => {
     if (open) {
       listMyStations().then((r) => {
         if (r.data) setStations(r.data as any[]);
       });
+      if (!existing) {
+        listHardwareModels({ limit: 200 }).then((r) => {
+          if (r.data) {
+            // Filter to machine-type categories (not label printers, scan stations, etc.)
+            const machineCategories = ["fdm_printer", "resin_printer", "cnc", "laser_cutter", "laser_engraver"];
+            setCatalogModels(
+              (r.data as CatalogModel[]).filter((m) => machineCategories.includes(m.category))
+            );
+          }
+        });
+      }
     }
-  }, [open]);
+  }, [open, existing]);
 
   useEffect(() => {
     if (!open) return;
@@ -120,9 +155,30 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       setScanStationId("");
       setAccessCode("");
       setNotes("");
+      setSelectedCatalog(null);
     }
     setError(null);
   }, [open, existing]);
+
+  const categoryToType: Record<string, string> = {
+    fdm_printer: "fdm", resin_printer: "resin", cnc: "cnc",
+    laser_cutter: "laser", laser_engraver: "laser",
+  };
+
+  const applyCatalogModel = (m: CatalogModel | null) => {
+    setSelectedCatalog(m);
+    if (!m) return;
+    setName(`${m.manufacturer} ${m.model}`);
+    setMachineType(categoryToType[m.category] ?? "fdm");
+    setManufacturer(m.manufacturer ?? "");
+    setModel(m.model ?? "");
+    if (m.buildVolumeX != null) setBuildVolumeX(String(m.buildVolumeX));
+    if (m.buildVolumeY != null) setBuildVolumeY(String(m.buildVolumeY));
+    if (m.buildVolumeZ != null) setBuildVolumeZ(String(m.buildVolumeZ));
+    setHasFilamentChanger(m.hasFilamentChanger ?? false);
+    if (m.filamentChangerSlots != null) setFilamentChangerSlotCount(String(m.filamentChangerSlots));
+    if (m.hasEnclosure) setEnclosureType("enclosed");
+  };
 
   const isFdmLike = machineType === "fdm" || machineType === "resin" || machineType === "multi";
   const isFdmOrMulti = machineType === "fdm" || machineType === "multi";
@@ -193,6 +249,25 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
+
+          {/* Catalog picker (new machines only) */}
+          {!existing && catalogModels.length > 0 && (
+            <>
+              <Autocomplete
+                options={catalogModels}
+                value={selectedCatalog}
+                onChange={(_, v) => applyCatalogModel(v)}
+                getOptionLabel={(o) => `${o.manufacturer} ${o.model}`}
+                groupBy={(o) => o.manufacturer}
+                renderInput={(params) => (
+                  <TextField {...params} label="Start from catalog model" size="small" placeholder="Search models..." />
+                )}
+                size="small"
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+              />
+              <Divider>or fill in manually</Divider>
+            </>
+          )}
 
           {/* Common fields */}
           <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
