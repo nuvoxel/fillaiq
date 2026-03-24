@@ -523,7 +523,7 @@ export default async function ProductDetailPage({
               });
 
             const cheapest = equivalents.find((e: any) => e.bestPrice != null);
-            const isCheapest = !cheapest || (thisPrice != null && thisPrice <= cheapest.bestPrice);
+            const isCheapest = !cheapest || (thisPrice != null && cheapest.bestPrice != null && thisPrice <= cheapest.bestPrice);
 
             return (
               <Card className="rounded-xl md:col-span-2">
