@@ -32,9 +32,8 @@ permissions:
 
 jobs:
   build-and-deploy:
-    # Using ubuntu-latest with QEMU for ARM64 cross-compilation
-    # TODO: Switch to ARM642 runner once it's available for this repo
-    runs-on: ubuntu-latest
+    # GitHub-hosted ARM64 larger runner for native ARM64 compilation
+    runs-on: ARM642
 
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'Production' }}
@@ -127,15 +126,25 @@ jobs:
     # DOCKER BUILD TOOLS
     # ============================================================================
 
-    - name: Set up QEMU for ARM64 cross-compilation
+    - name: Install Docker
       if: steps.changes.outputs.web_changed == 'true' || steps.changes.outputs.mqtt_changed == 'true'
-      uses: docker/setup-qemu-action@v3
-      with:
-        platforms: arm64
+      run: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+        sudo usermod -aG docker $USER
+        sudo systemctl start docker
+        sudo docker --version
 
     - name: Set up Docker Buildx
       if: steps.changes.outputs.web_changed == 'true' || steps.changes.outputs.mqtt_changed == 'true'
       uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
+          image=moby/buildkit:latest
+        buildkitd-config-inline: |
+          [worker.oci]
+            max-parallelism = 1
 
     # ============================================================================
     # KUBERNETES AUTHENTICATION
