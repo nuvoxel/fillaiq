@@ -252,24 +252,67 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
 
           {/* Catalog picker (new machines only) */}
           {!existing && catalogModels.length > 0 && (
-            <>
-              <Autocomplete
-                options={catalogModels}
-                value={selectedCatalog}
-                onChange={(_, v) => applyCatalogModel(v)}
-                getOptionLabel={(o) => `${o.manufacturer} ${o.model}`}
-                groupBy={(o) => o.manufacturer}
-                renderInput={(params) => (
-                  <TextField {...params} label="Start from catalog model" size="small" placeholder="Search models..." />
-                )}
-                size="small"
-                isOptionEqualToValue={(o, v) => o.id === v.id}
-              />
-              <Divider>or fill in manually</Divider>
-            </>
+            <Autocomplete
+              options={catalogModels}
+              value={selectedCatalog}
+              onChange={(_, v) => applyCatalogModel(v)}
+              getOptionLabel={(o) => `${o.manufacturer} ${o.model}`}
+              groupBy={(o) => o.manufacturer}
+              renderInput={(params) => (
+                <TextField {...params} label="Select a model" size="small" placeholder="Search models..." />
+              )}
+              size="small"
+              isOptionEqualToValue={(o, v) => o.id === v.id}
+            />
           )}
 
-          {/* Common fields */}
+          {/* Catalog model selected — streamlined form */}
+          {!existing && selectedCatalog ? (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                {selectedCatalog.manufacturer} {selectedCatalog.model}
+                {selectedCatalog.buildVolumeX && ` — ${selectedCatalog.buildVolumeX}x${selectedCatalog.buildVolumeY}x${selectedCatalog.buildVolumeZ}mm`}
+                {selectedCatalog.hasFilamentChanger && ` — ${selectedCatalog.filamentChangerSlots} AMS slots`}
+                {selectedCatalog.hasEnclosure && ` — Enclosed`}
+              </Typography>
+              <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
+              <Stack direction="row" spacing={2}>
+                <TextField label="Serial Number" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} size="small" fullWidth />
+                <TextField label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} size="small" fullWidth />
+              </Stack>
+              {/* MQTT bridge — for models with MQTT support */}
+              {selectedCatalog.hasMqtt && (
+                <Stack direction="row" spacing={2}>
+                  <TextField
+                    select
+                    label="Scan Station (relay)"
+                    value={scanStationId}
+                    onChange={(e) => setScanStationId(e.target.value)}
+                    size="small"
+                    fullWidth
+                    helperText="Station on the same LAN that relays printer status"
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {stations.map((s) => (
+                      <MenuItem key={s.id} value={s.id}>{s.name} ({s.hardwareId})</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    label="LAN Access Code"
+                    value={accessCode}
+                    onChange={(e) => setAccessCode(e.target.value)}
+                    size="small"
+                    fullWidth
+                    type="password"
+                    helperText="From printer Network settings"
+                  />
+                </Stack>
+              )}
+              <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline rows={2} size="small" />
+            </>
+          ) : (
+          <>
+          {/* Full manual form (editing or no catalog selection) */}
           <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
           <TextField
             select
@@ -386,6 +429,8 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
           )}
 
           <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline rows={2} size="small" />
+          </>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>
