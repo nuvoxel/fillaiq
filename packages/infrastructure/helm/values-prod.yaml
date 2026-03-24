@@ -35,13 +35,14 @@ ingress:
 postgres:
   enabled: false
 
-# External Database (shared with Hydrogen on Azure PostgreSQL Flexible Server)
+# External Database (Azure PostgreSQL Flexible Server)
+# Host, user, and database are injected via --set from GitHub Secrets
 externalDatabase:
-  host: "hydrogen-db.postgres.database.azure.com"
-  user: "fillaiqadmin"
-  database: "fillaiq"
+  host: ""
+  user: ""
+  database: ""
   sslmode: "require"
-  url: ""  # Set via --set with password included
+  url: ""
 
 # Application Configuration
 app:

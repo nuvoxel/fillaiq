@@ -20,7 +20,7 @@ Place an item on the scan station. It reads the NFC tag (Bambu, Creality, NTAG, 
 
 ## Web Dashboard
 
-Built with Next.js 16, MUI, Drizzle ORM, PostgreSQL.
+Built with Next.js 16, Tailwind CSS, shadcn/ui, Drizzle ORM, PostgreSQL.
 
 ### Inventory & Catalog
 - **7,000+ filament products** pre-loaded from SpoolmanDB, plus standard imperial/metric fasteners, sheet goods, resins, CNC stock, and laser materials
@@ -62,7 +62,7 @@ Built with Next.js 16, MUI, Drizzle ORM, PostgreSQL.
 - Machine accessories tracking (nozzles, build plates, tool heads, filament changers)
 
 ### Real-Time Communication
-- MQTT backbone (Azure Cloud / Mosquitto) for all device ↔ server messaging
+- MQTT backbone (Mosquitto on AKS) for all device ↔ server messaging
 - Scan submission via MQTT (eliminates HTTP overhead on ESP32)
 - Live device heartbeat and online/offline status
 - Printer status relay (scan station bridges local printer protocols to cloud MQTT)
@@ -142,10 +142,10 @@ pio run -e scan_station             # DevKitC + PN532
 | Layer | Technology |
 |-------|------------|
 | Web | Next.js 16 (App Router, Turbopack), React, TypeScript |
-| UI | MUI (Material UI) v7, LVGL (firmware displays) |
-| Database | PostgreSQL (Azure), Drizzle ORM |
+| UI | Tailwind CSS + shadcn/ui, LVGL (firmware displays) |
+| Database | PostgreSQL (Azure Flexible Server), Drizzle ORM |
 | Auth | better-auth (session + API key) |
-| Messaging | MQTT (Azure IoT / Mosquitto) via mqtt.js + ESP-IDF |
+| Messaging | MQTT (Mosquitto on AKS) via mqtt.js + ESP-IDF |
 | Firmware | ESP32-S3 (PlatformIO + Arduino), RP2040 (arduino-pico) |
 | Label rendering | 1-bit thermal bitmap generation (server-side), QR via `qrcode` |
 | NFC crypto | HKDF-SHA256 (BearSSL on RP2040, server-side Node.js) |

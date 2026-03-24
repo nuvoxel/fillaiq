@@ -290,6 +290,9 @@ jobs:
           --set secrets.githubClientSecret="${{ secrets.GH_OAUTH_CLIENT_SECRET }}" \
           --set secrets.mqttBrokerUrl="${{ secrets.MQTT_BROKER_URL }}" \
           --set postgres.password="${{ secrets.POSTGRES_PASSWORD }}" \
+          --set externalDatabase.host="${{ secrets.DB_HOST }}" \
+          --set externalDatabase.user="${{ secrets.DB_USER }}" \
+          --set externalDatabase.database="${{ secrets.DB_NAME }}" \
           --timeout 5m \
           --wait=false; then
 
