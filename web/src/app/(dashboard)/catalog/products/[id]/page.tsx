@@ -532,7 +532,7 @@ export default async function ProductDetailPage({
                     <SectionTitle>Equivalent Products</SectionTitle>
                     {cheapest && !isCheapest && (
                       <Badge className="bg-green-100 text-green-800 border-green-200">
-                        Cheaper option: ${cheapest.bestPrice.toFixed(2)} at {cheapest.brandName ?? "other brand"}
+                        Cheaper option: ${cheapest.bestPrice!.toFixed(2)} at {cheapest.brandName ?? "other brand"}
                       </Badge>
                     )}
                     {isCheapest && thisPrice != null && equivalents.length > 0 && (
