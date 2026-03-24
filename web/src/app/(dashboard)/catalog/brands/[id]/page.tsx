@@ -17,6 +17,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import Button from "@mui/material/Button";
 import { getBrandById, listProducts } from "@/lib/actions/central-catalog";
 import { PageHeader } from "@/components/layout/page-header";
+import { BrandLogoUpload } from "@/components/catalog/brand-logo-upload";
 
 const validationColors: Record<string, "default" | "info" | "success" | "error"> = {
   draft: "default",
@@ -53,7 +54,8 @@ export default async function BrandDetailPage({
       {/* Header */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
         {brand.logoUrl ? (
-          <Avatar src={brand.logoUrl} sx={{ width: 64, height: 64 }} />
+          <Box component="img" src={brand.logoUrl} alt={brand.name}
+            sx={{ height: 48, maxWidth: 160, objectFit: "contain" }} />
         ) : (
           <Avatar sx={{ width: 64, height: 64, bgcolor: "primary.light", color: "primary.main", fontSize: 24 }}>
             {brand.name[0]}
@@ -83,6 +85,17 @@ export default async function BrandDetailPage({
             <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>
               Details
             </Typography>
+
+            {/* Logo Upload */}
+            <Box sx={{ py: 1, mb: 1 }}>
+              <BrandLogoUpload
+                brandId={brand.id}
+                brandName={brand.name}
+                logoUrl={brand.logoUrl}
+                logoBwUrl={(brand as any).logoBwUrl}
+              />
+            </Box>
+
             {brand.website && (
               <Box sx={{ py: 0.75 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.25 }}>

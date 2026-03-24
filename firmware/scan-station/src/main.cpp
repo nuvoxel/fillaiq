@@ -1311,6 +1311,7 @@ void printStatus() {
         Serial.println("    WiFi: disconnected");
     }
     Serial.printf("    API:  %s\n", apiClient.getApiUrl());
+    Serial.printf("    MQTT: %s\n", fillaiqMqtt.isConnected() ? "connected" : "disconnected");
     Serial.printf("    Paired: %s", apiClient.isPaired() ? "yes" : "no");
     if (apiClient.getPairingCode()[0] != '\0')
         Serial.printf("  (code: %s)", apiClient.getPairingCode());

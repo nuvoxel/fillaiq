@@ -29,32 +29,17 @@ export async function findOrCreateSession(
   scanEvent: ScanEvent,
   forceNew = false
 ): Promise<ScanSession> {
-  // Close any existing active session on this station
-  // Each scan button press = new session
-  const [existing] = await db
-    .select()
-    .from(scanSessions)
+  // Abandon any existing active session on this station —
+  // each scan button press is a new session.
+  await db
+    .update(scanSessions)
+    .set({ status: "abandoned", updatedAt: new Date() })
     .where(
       and(
         eq(scanSessions.stationId, stationId),
         eq(scanSessions.status, "active")
       )
-    )
-    .orderBy(desc(scanSessions.updatedAt))
-    .limit(1);
-
-  if (existing) {
-    if (forceNew || (scanEvent.nfcUid && existing.nfcUid && scanEvent.nfcUid !== existing.nfcUid)) {
-      // Close old session
-      await db
-        .update(scanSessions)
-        .set({ status: "abandoned", updatedAt: new Date() })
-        .where(eq(scanSessions.id, existing.id));
-    } else {
-      // Same item still on the station — update existing session
-      return existing;
-    }
-  }
+    );
 
   // Create new session
   const [session] = await db

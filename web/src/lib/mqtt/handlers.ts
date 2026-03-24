@@ -43,7 +43,7 @@ export function handleMqttMessage(topic: string, raw: Buffer): void {
   try {
     payload = JSON.parse(raw.toString());
   } catch {
-    console.error(`[MQTT] Invalid JSON on ${topic}`);
+    console.error(`[MQTT] Invalid JSON on ${topic}: ${raw.toString().slice(0, 200)}`);
     return;
   }
 

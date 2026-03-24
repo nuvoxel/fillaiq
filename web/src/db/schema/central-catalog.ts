@@ -34,6 +34,7 @@ export const brands = pgTable(
     slug: varchar("slug", { length: 255 }).notNull(),
     website: varchar("website", { length: 512 }),
     logoUrl: varchar("logo_url", { length: 512 }),
+    logoBwUrl: varchar("logo_bw_url", { length: 512 }),
     countryOfOrigin: varchar("country_of_origin", { length: 2 }),
     parentBrandId: uuid("parent_brand_id"), // for sub-brands / OEM relationships
     validationStatus: validationStatusEnum("validation_status")
