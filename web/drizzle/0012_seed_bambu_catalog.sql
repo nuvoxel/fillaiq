@@ -240,3 +240,22 @@ INSERT INTO hardware_models (
   '{"compatibleModels": ["P1P"]}',
   'validated'
 ) ON CONFLICT (slug) DO NOTHING;
+
+-- P2
+INSERT INTO hardware_models (
+  category, manufacturer, model, slug, description,
+  build_volume_x, build_volume_y, build_volume_z,
+  max_nozzle_temp, max_bed_temp,
+  has_enclosure, has_filament_changer, filament_changer_slots,
+  has_wifi, has_mqtt, protocol,
+  capabilities, validation_status
+) VALUES (
+  'fdm_printer', 'Bambu Lab', 'P2', 'bambu-lab-p2',
+  'Enclosed CoreXY FDM printer with AMS support. Successor to P1S. 256x256x256mm build volume.',
+  256, 256, 256,
+  300, 100,
+  true, true, 16,
+  true, true, 'bambu_mqtt',
+  '{"cameraBuiltIn": true, "maxAmsUnits": 4}',
+  'validated'
+) ON CONFLICT (slug) DO NOTHING;
