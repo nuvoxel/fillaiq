@@ -276,10 +276,7 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
                 {selectedCatalog.hasEnclosure && ` — Enclosed`}
               </Typography>
               <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
-              <Stack direction="row" spacing={2}>
-                <TextField label="Serial Number" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} size="small" fullWidth />
-                <TextField label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} size="small" fullWidth />
-              </Stack>
+              <TextField label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} size="small" />
               {/* MQTT bridge — for models with MQTT support */}
               {selectedCatalog.hasMqtt && (
                 <Stack direction="row" spacing={2}>
