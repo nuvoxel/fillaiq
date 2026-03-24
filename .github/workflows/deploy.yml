@@ -1,93 +1,413 @@
-name: Deploy to Azure Container Apps
+name: Deploy to Environment
 
 on:
   push:
-    branches: [main]
-    paths: [web/**, mosquitto/**]
+    branches: [ main ]
+    paths:
+      - 'web/**'
+      - 'mosquitto/**'
+      - 'packages/infrastructure/**'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'Production'
+        type: choice
+        options:
+          - Dev
+          - Production
+      force_rebuild:
+        description: 'Force rebuild all Docker images'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
+  contents: write
   id-token: write
-  contents: read
-
-env:
-  REGISTRY: fillaiqacr.azurecr.io
-  IMAGE_NAME: fillaiq-web
-  MQTT_IMAGE_NAME: fillaiq-mqtt
-  RESOURCE_GROUP: fillaiq-rg
-  CONTAINER_APP: fillaiq-web
-  MQTT_CONTAINER_APP: fillaiq-mqtt
-  ENVIRONMENT: fillaiq-env
+  packages: write
+  deployments: write
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
-    environment: prod
+    # Using GitHub Enterprise ARM64 runner for native ARM64 compilation
+    # Native ARM64 builds without emulation overhead (2-3 min vs 15-20 min with QEMU)
+    runs-on: ARM642
+
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'Production' }}
+      REGISTRY: ghcr.io
+      IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
     steps:
-      - uses: actions/checkout@v4
+    # ============================================================================
+    # CHECKOUT AND SETUP
+    # ============================================================================
 
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
 
-      - name: ACR login
-        run: az acr login --name fillaiqacr
+    - name: Set environment variables
+      id: set-env
+      run: |
+        ENV="${{ env.ENVIRONMENT }}"
 
-      # ── Build and push web app ─────────────────────────────────────
-      - name: Build and push web image
-        run: |
-          cd web
-          docker build --build-arg APP_VERSION=${{ github.sha }} \
-                       -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-                       -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        case "$ENV" in
+          "Dev")
+            HELM_ENV="dev"
+            ;;
+          "Production")
+            HELM_ENV="prod"
+            ;;
+          *)
+            echo "Unknown environment: $ENV"
+            exit 1
+            ;;
+        esac
 
-      # ── Build and push Mosquitto ───────────────────────────────────
-      - name: Build and push MQTT broker image
-        run: |
-          cd mosquitto
-          docker build -t ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }} \
-                       -t ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:latest .
-          docker push ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:latest
+        echo "HELM_ENV=$HELM_ENV" >> $GITHUB_ENV
+        echo "HELM_NAMESPACE=fillaiq-$HELM_ENV" >> $GITHUB_ENV
+        echo "HELM_RELEASE_NAME=fillaiq-$HELM_ENV" >> $GITHUB_ENV
 
-      # ── Deploy Mosquitto broker ────────────────────────────────────
-      - name: Deploy MQTT broker
-        run: |
-          # Create if not exists, update if exists
-          if az containerapp show --name ${{ env.MQTT_CONTAINER_APP }} --resource-group ${{ env.RESOURCE_GROUP }} &>/dev/null; then
-            az containerapp update \
-              --name ${{ env.MQTT_CONTAINER_APP }} \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --image ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }}
+        echo "GitHub Environment: $ENV"
+        echo "Helm Environment: $HELM_ENV"
+        echo "Namespace: fillaiq-$HELM_ENV"
+
+    # ============================================================================
+    # CHANGE DETECTION
+    # ============================================================================
+
+    - name: Detect changes
+      id: changes
+      run: |
+        echo "Detecting which services need rebuilding..."
+
+        if [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
+          echo "Force rebuild requested"
+          echo "web_changed=true" >> $GITHUB_OUTPUT
+          echo "mqtt_changed=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        if [ "${{ github.event_name }}" = "push" ]; then
+          git diff --name-only HEAD~1 HEAD > changed_files.txt || git diff --name-only HEAD HEAD > changed_files.txt
+        else
+          git diff --name-only HEAD~5 HEAD > changed_files.txt 2>/dev/null || {
+            echo "Could not detect changes, forcing full rebuild"
+            echo "web_changed=true" >> $GITHUB_OUTPUT
+            echo "mqtt_changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          }
+        fi
+
+        echo "Changed files:"
+        cat changed_files.txt
+
+        if grep -q "web/" changed_files.txt || grep -q ".github/workflows/deploy.yml" changed_files.txt; then
+          echo "web_changed=true" >> $GITHUB_OUTPUT
+          echo "Web needs rebuild"
+        else
+          echo "web_changed=false" >> $GITHUB_OUTPUT
+          echo "Web unchanged, will use existing image"
+        fi
+
+        if grep -q "mosquitto/" changed_files.txt || grep -q ".github/workflows/deploy.yml" changed_files.txt; then
+          echo "mqtt_changed=true" >> $GITHUB_OUTPUT
+          echo "MQTT needs rebuild"
+        else
+          echo "mqtt_changed=false" >> $GITHUB_OUTPUT
+          echo "MQTT unchanged, will use existing image"
+        fi
+
+    # ============================================================================
+    # DOCKER BUILD TOOLS
+    # ============================================================================
+
+    - name: Install Docker
+      if: steps.changes.outputs.web_changed == 'true' || steps.changes.outputs.mqtt_changed == 'true'
+      run: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+        sudo usermod -aG docker $USER
+        sudo systemctl start docker
+        sudo docker --version
+
+    - name: Set up Docker Buildx
+      if: steps.changes.outputs.web_changed == 'true' || steps.changes.outputs.mqtt_changed == 'true'
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
+          image=moby/buildkit:latest
+        buildkitd-config-inline: |
+          [worker.oci]
+            max-parallelism = 1
+
+    # ============================================================================
+    # KUBERNETES AUTHENTICATION
+    # ============================================================================
+
+    - name: Set up kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    # ============================================================================
+    # CONTAINER REGISTRY SETUP
+    # ============================================================================
+
+    - name: Login to GitHub Container Registry
+      if: steps.changes.outputs.web_changed == 'true' || steps.changes.outputs.mqtt_changed == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # ============================================================================
+    # BUILD AND PUSH IMAGES
+    # ============================================================================
+
+    - name: Get version tag
+      id: version
+      run: |
+        SEMANTIC_VERSION=$(node -p "require('./web/package.json').version" 2>/dev/null || echo "1.0.0")
+        GIT_SHA=$(git rev-parse --short HEAD)
+        VERSION_TAG="${SEMANTIC_VERSION}-${GIT_SHA}"
+
+        echo "Version Tag: $VERSION_TAG"
+        echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_OUTPUT
+        echo "SEMANTIC_VERSION=$SEMANTIC_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Build and push images
+      run: |
+        VERSION_TAG="${{ steps.version.outputs.VERSION_TAG }}"
+        BUILD_PLATFORM="linux/arm64"
+
+        # Build Web image
+        if [ "${{ steps.changes.outputs.web_changed }}" = "true" ]; then
+          echo "Building Web image..."
+          docker buildx build \
+            --platform $BUILD_PLATFORM \
+            --cache-from=type=gha,scope=fillaiq-web-arm64 \
+            --cache-to=type=gha,mode=max,scope=fillaiq-web-arm64 \
+            --tag ${{ env.IMAGE_PREFIX }}/fillaiq-web:latest \
+            --tag ${{ env.IMAGE_PREFIX }}/fillaiq-web:$VERSION_TAG \
+            --file web/Dockerfile \
+            --progress=plain \
+            --push \
+            web/
+          echo "Web image built and pushed"
+          echo "WEB_IMAGE_TAG=$VERSION_TAG" >> $GITHUB_ENV
+        else
+          echo "Skipping web build, using latest image"
+          echo "WEB_IMAGE_TAG=latest" >> $GITHUB_ENV
+        fi
+
+        # Build MQTT image
+        if [ "${{ steps.changes.outputs.mqtt_changed }}" = "true" ]; then
+          echo "Building MQTT image..."
+          docker buildx build \
+            --platform $BUILD_PLATFORM \
+            --cache-from=type=gha,scope=fillaiq-mqtt-arm64 \
+            --cache-to=type=gha,mode=max,scope=fillaiq-mqtt-arm64 \
+            --tag ${{ env.IMAGE_PREFIX }}/fillaiq-mqtt:latest \
+            --tag ${{ env.IMAGE_PREFIX }}/fillaiq-mqtt:$VERSION_TAG \
+            --file mosquitto/Dockerfile \
+            --progress=plain \
+            --push \
+            mosquitto/
+          echo "MQTT image built and pushed"
+          echo "MQTT_IMAGE_TAG=$VERSION_TAG" >> $GITHUB_ENV
+        else
+          echo "Skipping MQTT build, using latest image"
+          echo "MQTT_IMAGE_TAG=latest" >> $GITHUB_ENV
+        fi
+
+    # ============================================================================
+    # HELM DEPLOYMENT
+    # ============================================================================
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Create namespace if not exists
+      run: |
+        kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Create Docker Registry Secret
+      run: |
+        kubectl create secret docker-registry ghcr-secret \
+          --docker-server=ghcr.io \
+          --docker-username=${{ github.actor }} \
+          --docker-password=${{ secrets.GHCR_PAT }} \
+          --namespace ${{ env.HELM_NAMESPACE }} \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy with Helm
+      run: |
+        cd packages/infrastructure
+
+        case "${{ env.HELM_ENV }}" in
+          "dev")
+            VALUES_FILES="-f helm/values.yaml"
+            ;;
+          "prod")
+            VALUES_FILES="-f helm/values.yaml -f helm/values-prod.yaml"
+            ;;
+          *)
+            echo "Unknown Helm environment: ${{ env.HELM_ENV }}"
+            exit 1
+            ;;
+        esac
+
+        echo "Deploying Helm release..."
+        echo "Namespace: ${{ env.HELM_NAMESPACE }}"
+        echo "Values files: $VALUES_FILES"
+
+        WEB_IMAGE_TAG="${{ env.WEB_IMAGE_TAG }}"
+        MQTT_IMAGE_TAG="${{ env.MQTT_IMAGE_TAG }}"
+
+        if ! helm upgrade ${{ env.HELM_RELEASE_NAME }} helm/ \
+          --install \
+          --namespace ${{ env.HELM_NAMESPACE }} \
+          $VALUES_FILES \
+          --set environment=${{ env.HELM_ENV }} \
+          --set web.imageTag=$WEB_IMAGE_TAG \
+          --set mqtt.imageTag=$MQTT_IMAGE_TAG \
+          --set-json 'imagePullSecrets=["ghcr-secret"]' \
+          --set secrets.betterAuthSecret="${{ secrets.BETTER_AUTH_SECRET }}" \
+          --set secrets.msClientId="${{ secrets.MS_CLIENT_ID }}" \
+          --set secrets.msClientSecret="${{ secrets.MS_CLIENT_SECRET }}" \
+          --set secrets.msTenantId="${{ secrets.MS_TENANT_ID }}" \
+          --set secrets.githubClientId="${{ secrets.GH_OAUTH_CLIENT_ID }}" \
+          --set secrets.githubClientSecret="${{ secrets.GH_OAUTH_CLIENT_SECRET }}" \
+          --set secrets.mqttBrokerUrl="${{ secrets.MQTT_BROKER_URL }}" \
+          --set postgres.password="${{ secrets.POSTGRES_PASSWORD }}" \
+          --timeout 5m \
+          --wait=false; then
+
+          echo "Deployment failed, checking for stuck operation..."
+          if helm status ${{ env.HELM_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} 2>&1 | grep -q "another operation"; then
+            echo "Stuck operation detected, force cleaning up..."
+            helm delete ${{ env.HELM_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} || true
+            sleep 5
+
+            echo "Retrying deployment after cleanup..."
+            helm upgrade ${{ env.HELM_RELEASE_NAME }} helm/ \
+              --install \
+              --namespace ${{ env.HELM_NAMESPACE }} \
+              $VALUES_FILES \
+              --set environment=${{ env.HELM_ENV }} \
+              --set web.imageTag=$WEB_IMAGE_TAG \
+              --set mqtt.imageTag=$MQTT_IMAGE_TAG \
+              --set-json 'imagePullSecrets=["ghcr-secret"]' \
+              --set secrets.betterAuthSecret="${{ secrets.BETTER_AUTH_SECRET }}" \
+              --set secrets.msClientId="${{ secrets.MS_CLIENT_ID }}" \
+              --set secrets.msClientSecret="${{ secrets.MS_CLIENT_SECRET }}" \
+              --set secrets.msTenantId="${{ secrets.MS_TENANT_ID }}" \
+              --set secrets.githubClientId="${{ secrets.GH_OAUTH_CLIENT_ID }}" \
+              --set secrets.githubClientSecret="${{ secrets.GH_OAUTH_CLIENT_SECRET }}" \
+              --set secrets.mqttBrokerUrl="${{ secrets.MQTT_BROKER_URL }}" \
+              --set postgres.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --timeout 5m \
+              --wait=false
           else
-            az containerapp create \
-              --name ${{ env.MQTT_CONTAINER_APP }} \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --environment ${{ env.ENVIRONMENT }} \
-              --image ${{ env.REGISTRY }}/${{ env.MQTT_IMAGE_NAME }}:${{ github.sha }} \
-              --registry-server ${{ env.REGISTRY }} \
-              --target-port 1883 \
-              --transport tcp \
-              --ingress external \
-              --min-replicas 1 \
-              --max-replicas 1 \
-              --cpu 0.25 \
-              --memory 0.5Gi
+            echo "Deployment failed for other reasons"
+            exit 1
           fi
+        fi
 
-      # ── Deploy web app ─────────────────────────────────────────────
-      - name: Deploy web app
-        run: |
-          # Get MQTT broker internal FQDN for web app to connect
-          MQTT_FQDN=$(az containerapp show --name ${{ env.MQTT_CONTAINER_APP }} --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+    # ============================================================================
+    # DEPLOYMENT VERIFICATION
+    # ============================================================================
 
-          az containerapp update \
-            --name ${{ env.CONTAINER_APP }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --set-env-vars "MQTT_BROKER_URL=mqtt://${MQTT_FQDN}:1883"
+    - name: Verify deployment
+      continue-on-error: true
+      run: |
+        echo "=== Deployment Status ==="
+        helm status ${{ env.HELM_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }}
+
+        echo "=== Pod Status ==="
+        kubectl get pods -n ${{ env.HELM_NAMESPACE }}
+
+        echo "=== Service Status ==="
+        kubectl get services -n ${{ env.HELM_NAMESPACE }}
+
+        echo "=== Ingress Status ==="
+        kubectl get ingress -n ${{ env.HELM_NAMESPACE }} || true
+
+        echo "=== Waiting for web deployment ==="
+        kubectl rollout status deployment/fillaiq-web -n ${{ env.HELM_NAMESPACE }} --timeout=120s || true
+
+    - name: Get deployment information
+      run: |
+        echo "=== Deployment Information ==="
+        echo "Version: v${{ steps.version.outputs.SEMANTIC_VERSION }}"
+        echo "Environment: ${{ env.ENVIRONMENT }}"
+        echo "Namespace: ${{ env.HELM_NAMESPACE }}"
+        echo "Release: ${{ env.HELM_RELEASE_NAME }}"
+        echo "Web Image: ${{ env.IMAGE_PREFIX }}/fillaiq-web:${{ env.WEB_IMAGE_TAG }}"
+        echo "MQTT Image: ${{ env.IMAGE_PREFIX }}/fillaiq-mqtt:${{ env.MQTT_IMAGE_TAG }}"
+
+        INGRESS_HOST=$(kubectl get ingress fillaiq-ingress -n ${{ env.HELM_NAMESPACE }} -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "Not configured")
+        echo "Ingress Host: $INGRESS_HOST"
+
+        if [ "$INGRESS_HOST" != "Not configured" ] && [ "$INGRESS_HOST" != "" ]; then
+          echo "URL: https://$INGRESS_HOST"
+        fi
+
+    # ============================================================================
+    # POST-DEPLOYMENT TASKS
+    # ============================================================================
+
+    - name: Run database migrations
+      run: |
+        echo "=== Database Migration ==="
+        kubectl wait --for=condition=available deployment/fillaiq-web -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "Web not ready yet, skipping migrations"
+
+        echo "Running database migrations..."
+        kubectl exec -n ${{ env.HELM_NAMESPACE }} deployment/fillaiq-web -- npx drizzle-kit migrate || echo "Migrations completed or not needed"
+
+    - name: Create deployment tag
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+
+        ENV="${{ env.ENVIRONMENT }}"
+        SEMANTIC_VERSION="${{ steps.version.outputs.SEMANTIC_VERSION }}"
+        VERSION_TAG="${{ steps.version.outputs.VERSION_TAG }}"
+        RUN_NUMBER="${{ github.run_number }}"
+        RUN_ATTEMPT="${{ github.run_attempt }}"
+        TAG_NAME="deploy-${ENV}-v${SEMANTIC_VERSION}-run${RUN_NUMBER}.${RUN_ATTEMPT}"
+
+        echo "Creating deployment tag: $TAG_NAME"
+        git tag -a "$TAG_NAME" -m "Deployment to $ENV environment v${SEMANTIC_VERSION}
+
+        Version: ${SEMANTIC_VERSION}
+        Image Tag: ${VERSION_TAG}
+        Commit: ${{ github.sha }}
+        Deployed by: ${{ github.actor }}
+        Workflow: ${{ github.run_number }}"
+
+        git push origin "$TAG_NAME"
+
+    - name: Create deployment summary
+      run: |
+        ENV="${{ env.ENVIRONMENT }}"
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: v${{ steps.version.outputs.SEMANTIC_VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: $ENV" >> $GITHUB_STEP_SUMMARY
+        echo "- **Namespace**: ${{ env.HELM_NAMESPACE }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Release**: ${{ env.HELM_RELEASE_NAME }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Image Versions" >> $GITHUB_STEP_SUMMARY
+        echo "- **Web**: \`${{ env.WEB_IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **MQTT**: \`${{ env.MQTT_IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,110 @@
+{{- if .Values.ingress.enabled }}
+# ── Web Ingress ──────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fillaiq-ingress
+  namespace: {{ .Values.namespacePrefix }}-{{ .Values.environment }}
+  labels:
+    app: fillaiq
+    environment: {{ .Values.environment }}
+  annotations:
+    {{- if .Values.ingress.tlsEnabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.certManagerIssuer | quote }}
+    {{- end }}
+    {{- if eq .Values.ingress.className "nginx" }}
+    {{- if .Values.ingress.tlsEnabled }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    {{- else }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsEnabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.domain }}
+        - www.{{ .Values.ingress.domain }}
+      secretName: fillaiq-web-tls-{{ .Values.environment }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fillaiq-web
+                port:
+                  number: 3000
+    - host: www.{{ .Values.ingress.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fillaiq-web
+                port:
+                  number: 3000
+
+{{- if .Values.ingress.mqttDomain }}
+---
+# ── MQTT WebSocket Ingress ───────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fillaiq-mqtt-ingress
+  namespace: {{ .Values.namespacePrefix }}-{{ .Values.environment }}
+  labels:
+    app: fillaiq
+    component: mqtt
+    environment: {{ .Values.environment }}
+  annotations:
+    {{- if .Values.ingress.tlsEnabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.certManagerIssuer | quote }}
+    {{- end }}
+    {{- if eq .Values.ingress.className "nginx" }}
+    {{- if .Values.ingress.tlsEnabled }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    {{- end }}
+    # WebSocket support for MQTT
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsEnabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.mqttDomain }}
+      secretName: fillaiq-mqtt-tls-{{ .Values.environment }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.mqttDomain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fillaiq-mqtt
+                port:
+                  number: 9001
+{{- end }}
+{{- end }}

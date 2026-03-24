@@ -1,0 +1,48 @@
+# Production Environment Overrides
+# Deploy with: helm install fillaiq . -f values.yaml -f values-prod.yaml
+
+environment: prod
+
+web:
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 50m
+    limits:
+      memory: 512Mi
+      cpu: 250m
+
+mqtt:
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 25m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+  storage:
+    size: 2Gi
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  tlsEnabled: true
+  certManagerIssuer: letsencrypt-prod-dns01
+  domain: fillaiq.com
+  mqttDomain: mqtt.fillaiq.com
+
+# PostgreSQL - DISABLED in prod (using Azure PostgreSQL Flexible Server)
+postgres:
+  enabled: false
+
+# External Database (shared with Hydrogen on Azure PostgreSQL Flexible Server)
+externalDatabase:
+  host: "hydrogen-db.postgres.database.azure.com"
+  user: "fillaiqadmin"
+  database: "fillaiq"
+  sslmode: "require"
+  url: ""  # Set via --set with password included
+
+# Application Configuration
+app:
+  nodeEnv: production

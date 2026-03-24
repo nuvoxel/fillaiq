@@ -1,0 +1,115 @@
+# Filla IQ Application Configuration - Base Values
+# Override with environment-specific values files:
+#   helm install fillaiq . -f values.yaml -f values-prod.yaml
+
+# Environment identifier
+environment: dev
+
+# Namespace prefix (actual namespace will be: fillaiq-{environment})
+namespacePrefix: fillaiq
+
+# Container Images (GitHub Container Registry - cloud-agnostic)
+images:
+  registry: ghcr.io/nuvoxel
+  pullPolicy: Always
+  tag: latest
+
+# Image pull secrets for private registries
+imagePullSecrets:
+  - ghcr-secret
+
+web:
+  replicas: 1
+  port: 3000
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 50m
+    limits:
+      memory: 512Mi
+      cpu: 250m
+
+mqtt:
+  replicas: 1
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 25m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+  storage:
+    size: 1Gi
+    storageClass: ""
+  nodeSelector: {}
+  tolerations: []
+
+# Cert-manager configuration (for automatic TLS)
+certManager:
+  email: mike@delucafamily.org
+
+# Ingress Configuration (provider-agnostic, assumes cert-manager is installed)
+ingress:
+  enabled: false  # Disabled for dev
+  className: nginx
+  tlsEnabled: false
+  certManagerIssuer: letsencrypt-staging
+  domain: ""
+  mqttDomain: ""
+  annotations: {}
+
+# External Database (Azure PostgreSQL Flexible Server)
+# Used when postgres.enabled: false
+externalDatabase:
+  host: ""
+  user: ""
+  database: ""
+  sslmode: "require"
+  url: ""
+
+# PostgreSQL (in-cluster, official postgres image)
+# Set enabled: false to use externalDatabase instead
+postgres:
+  enabled: true
+  version: "18"
+  database: fillaiq
+  user: fillaiq
+  password: dev_password_123
+  nodeSelector: {}
+  tolerations: []
+  maxConnections: 100
+  sharedBuffers: "128MB"
+  workMem: "4MB"
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  storage:
+    size: 10Gi
+    storageClass: ""
+
+# Application Configuration
+app:
+  nodeEnv: development
+  emailFrom: "Filla IQ <hello@fillaiq.com>"
+
+# Secrets Configuration (K8s secrets)
+# IMPORTANT: Override these values using --set or external secrets management
+secrets:
+  # Better Auth
+  betterAuthSecret: CHANGE_ME_GENERATE_RANDOM_SECRET
+
+  # Microsoft OAuth
+  msClientId: ""
+  msClientSecret: ""
+  msTenantId: ""
+
+  # GitHub OAuth
+  githubClientId: ""
+  githubClientSecret: ""
+
+  # MQTT Broker URL (WebSocket URL for frontend/devices)
+  mqttBrokerUrl: ""

@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fillaiq-web
+  namespace: {{ .Values.namespacePrefix }}-{{ .Values.environment }}
+  labels:
+    app: fillaiq
+    component: web
+    environment: {{ .Values.environment }}
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      app: fillaiq
+      component: web
+  template:
+    metadata:
+      labels:
+        app: fillaiq
+        component: web
+    spec:
+      serviceAccountName: fillaiq-web
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.imagePullSecrets }}
+        - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: web
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            {{- if ne .Values.environment "local" }}
+            readOnlyRootFilesystem: true
+            {{- end }}
+            runAsNonRoot: true
+            runAsUser: 65534
+          image: {{ .Values.images.registry }}/{{ .Values.web.imageName | default "fillaiq-web" }}:{{ .Values.web.imageTag | default .Values.images.tag }}
+          imagePullPolicy: {{ if eq .Values.environment "local" }}IfNotPresent{{ else }}Always{{ end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.port }}
+              protocol: TCP
+          env:
+            # Database connection
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.postgres.enabled }}
+                  name: postgres-credentials
+                  key: database-url
+                  {{- else }}
+                  name: database-connection
+                  key: DATABASE_URL
+                  {{- end }}
+
+            # Application environment
+            - name: NODE_ENV
+              value: {{ .Values.app.nodeEnv | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+
+            # Better Auth
+            - name: BETTER_AUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: BETTER_AUTH_URL
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: BETTER_AUTH_SECRET
+            - name: TRUST_HOST
+              value: "true"
+
+            # Microsoft OAuth
+            - name: MS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MS_CLIENT_ID
+            - name: MS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MS_CLIENT_SECRET
+            - name: MS_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MS_TENANT_ID
+
+            # GitHub OAuth
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GITHUB_CLIENT_ID
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GITHUB_CLIENT_SECRET
+
+            # MQTT Broker URL (WebSocket for frontend/devices)
+            - name: MQTT_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MQTT_BROKER_URL
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
