@@ -83,7 +83,13 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   useEffect(() => {
     if (open) {
       listMyStations().then((r) => {
-        if (r.data) setStations(r.data as any[]);
+        if (r.data) {
+          setStations(r.data as any[]);
+          // Auto-select first station if user has one and no station is set
+          if (!existing && r.data.length > 0 && !scanStationId) {
+            setScanStationId((r.data as any[])[0].id);
+          }
+        }
       });
       if (!existing) {
         listHardwareModels({ limit: 200 }).then((r) => {
