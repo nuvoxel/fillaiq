@@ -260,8 +260,9 @@ export async function getProductWithRelations(id: string) {
         filamentProfile: true,
         skuMappings: true,
         nfcTagPatterns: true,
-        aliases: { with: { relatedProduct: { with: { brand: true } } } },
-        aliasedBy: { with: { product: { with: { brand: true } } } },
+        aliases: { with: { relatedProduct: { with: { brand: true, resellerLinks: true } } } },
+        aliasedBy: { with: { product: { with: { brand: true, resellerLinks: true } } } },
+        resellerLinks: { with: { priceTiers: true } },
       },
     });
     if (!row) return err("Not found");

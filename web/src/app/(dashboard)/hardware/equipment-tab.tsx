@@ -1,21 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
-import Skeleton from "@mui/material/Skeleton";
-import Snackbar from "@mui/material/Snackbar";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Pencil, Trash2, Package } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listMyEquipment, removeEquipment, createEquipment } from "@/lib/actions/user-library";
 import { EquipmentDialog } from "@/components/hardware/equipment-dialog";
 import { useDeleteWithUndo } from "@/components/hardware/use-delete-with-undo";
+import { toast } from "sonner";
 
 type Equipment = {
   id: string;
@@ -28,13 +29,6 @@ type Equipment = {
   hasHumidityControl: boolean | null;
   notes: string | null;
   [key: string]: unknown;
-};
-
-const typeColors: Record<string, "primary" | "secondary" | "default" | "success"> = {
-  drybox: "primary",
-  enclosure: "secondary",
-  storage_bin: "default",
-  other: "default",
 };
 
 export function EquipmentTab({ refreshKey }: { refreshKey?: number }) {
@@ -63,125 +57,96 @@ export function EquipmentTab({ refreshKey }: { refreshKey?: number }) {
       entityLabel: "Equipment",
     });
 
-  const columns: GridColDef[] = [
-    {
-      field: "name",
-      headerName: "Name",
-      width: 200,
-      renderCell: (params) => (
-        <Typography variant="body2" fontWeight={500}>{params.value}</Typography>
-      ),
-    },
-    {
-      field: "type",
-      headerName: "Type",
-      width: 140,
-      renderCell: (params) => (
-        <Chip
-          label={params.value.replace(/_/g, " ")}
-          size="small"
-          color={typeColors[params.value as string] ?? "default"}
-          sx={{ textTransform: "capitalize" }}
-        />
-      ),
-    },
-    {
-      field: "manufacturer",
-      headerName: "Manufacturer",
-      width: 160,
-      valueFormatter: (v: string | null) => v ?? "—",
-    },
-    {
-      field: "model",
-      headerName: "Model",
-      width: 140,
-      valueFormatter: (v: string | null) => v ?? "—",
-    },
-    {
-      field: "capacity",
-      headerName: "Capacity",
-      width: 100,
-      valueFormatter: (v: number | null) => v != null ? `${v} spools` : "—",
-    },
-    {
-      field: "maxTemp",
-      headerName: "Max Temp",
-      width: 110,
-      valueFormatter: (v: number | null) => v != null ? `${v}°C` : "—",
-    },
-    {
-      field: "actions",
-      headerName: "",
-      width: 100,
-      sortable: false,
-      filterable: false,
-      disableColumnMenu: true,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={0.5}>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingEquipment(params.row as Equipment);
-              setDialogOpen(true);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(params.row as Equipment);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-      ),
-    },
-  ];
+  // Show toast when snackbar triggers
+  useEffect(() => {
+    if (snackbarOpen && snackbarMessage) {
+      toast(snackbarMessage, {
+        action: { label: "UNDO", onClick: handleUndo },
+        duration: 6000,
+        onAutoClose: () => handleSnackbarClose(),
+        onDismiss: () => handleSnackbarClose(),
+      });
+    }
+  }, [snackbarOpen, snackbarMessage, handleUndo, handleSnackbarClose]);
 
   if (loading) {
     return (
-      <Stack spacing={1}>
+      <div className="flex flex-col gap-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={52} />
+          <Skeleton key={i} className="h-13 rounded-lg" />
         ))}
-      </Stack>
+      </div>
     );
   }
 
   if (equipment.length === 0) {
     return (
-      <Box sx={{ textAlign: "center", py: 8 }}>
-        <InventoryIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-        <Typography variant="subtitle1" fontWeight={500}>
-          No equipment configured
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+      <div className="text-center py-8">
+        <Package className="size-12 text-muted-foreground mx-auto mb-1" />
+        <p className="font-medium">No equipment configured</p>
+        <p className="text-sm text-muted-foreground">
           Add dryers, storage bins, and other equipment.
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
   return (
     <>
-      <DataGrid
-        rows={equipment}
-        columns={columns}
-        initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-        pageSizeOptions={[10]}
-        disableRowSelectionOnClick
-        autoHeight
-        sx={{
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 3,
-          "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
-        }}
-      />
+      <div className="border rounded-xl overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Manufacturer</TableHead>
+              <TableHead>Model</TableHead>
+              <TableHead>Capacity</TableHead>
+              <TableHead>Max Temp</TableHead>
+              <TableHead className="w-24" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {equipment.map((eq) => (
+              <TableRow key={eq.id}>
+                <TableCell className="font-medium">{eq.name}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="capitalize">
+                    {eq.type.replace(/_/g, " ")}
+                  </Badge>
+                </TableCell>
+                <TableCell>{eq.manufacturer ?? "\u2014"}</TableCell>
+                <TableCell>{eq.model ?? "\u2014"}</TableCell>
+                <TableCell>{eq.capacity != null ? `${eq.capacity} spools` : "\u2014"}</TableCell>
+                <TableCell>{eq.maxTemp != null ? `${eq.maxTemp}\u00b0C` : "\u2014"}</TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <button
+                      className="p-1 rounded-md hover:bg-muted text-muted-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingEquipment(eq);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      className="p-1 rounded-md hover:bg-muted text-muted-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(eq);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       <EquipmentDialog
         open={dialogOpen}
         onClose={() => {
@@ -190,17 +155,6 @@ export function EquipmentTab({ refreshKey }: { refreshKey?: number }) {
         }}
         onSaved={loadData}
         existing={editingEquipment}
-      />
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-        message={snackbarMessage}
-        action={
-          <Button color="inherit" size="small" onClick={handleUndo}>
-            UNDO
-          </Button>
-        }
       />
     </>
   );

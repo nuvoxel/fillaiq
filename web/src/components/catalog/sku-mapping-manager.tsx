@@ -1,34 +1,34 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Grid from "@mui/material/Grid";
-import IconButton from "@mui/material/IconButton";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import {
   listSkusByProduct,
   createSkuMapping,
   removeSkuMapping,
 } from "@/lib/actions/central-catalog";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// Types
 
 type SkuRow = {
   id: string;
@@ -44,7 +44,7 @@ type SkuRow = {
   priceCurrency: string | null;
 };
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// Component
 
 type Props = {
   productId: string;
@@ -90,109 +90,104 @@ export function SkuMappingManager({ productId }: Props) {
   };
 
   return (
-    <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Typography variant="subtitle1" fontWeight={600}>
-          SKU / Barcode Mappings
-        </Typography>
-        <Button
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={() => setDialogOpen(true)}
-        >
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-base font-semibold">SKU / Barcode Mappings</p>
+        <Button size="sm" variant="ghost" onClick={() => setDialogOpen(true)}>
+          <Plus className="size-4 mr-1" />
           Add Mapping
         </Button>
-      </Stack>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 1 }}>
-          {error}
+        <Alert variant="destructive" className="mb-2">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-          <CircularProgress size={24} />
-        </Box>
+        <div className="flex justify-center py-6">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
       ) : mappings.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+        <p className="text-sm text-muted-foreground py-4">
           No SKU mappings defined for this product.
-        </Typography>
+        </p>
       ) : (
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>SKU</TableCell>
-                <TableCell>Barcode</TableCell>
-                <TableCell>GTIN</TableCell>
-                <TableCell>Retailer</TableCell>
-                <TableCell align="right">Price</TableCell>
-                <TableCell align="center">Pack Qty</TableCell>
-                <TableCell align="right" />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {mappings.map((mapping) => (
-                <TableRow key={mapping.id}>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace">
-                      {mapping.sku || "-"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Stack>
-                      <Typography variant="body2" fontFamily="monospace">
-                        {mapping.barcode || "-"}
-                      </Typography>
-                      {mapping.barcodeFormat && (
-                        <Typography variant="caption" color="text.secondary">
-                          {mapping.barcodeFormat}
-                        </Typography>
-                      )}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace">
-                      {mapping.gtin || "-"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{mapping.retailer || "-"}</TableCell>
-                  <TableCell align="right">
-                    {formatPrice(mapping.priceAmount, mapping.priceCurrency)}
-                  </TableCell>
-                  <TableCell align="center">{mapping.packQuantity ?? 1}</TableCell>
-                  <TableCell align="right">
-                    {confirmDeleteId === mapping.id ? (
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Button
-                          size="small"
-                          color="error"
-                          onClick={() => handleDelete(mapping.id)}
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          size="small"
-                          onClick={() => setConfirmDeleteId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </Stack>
-                    ) : (
-                      <IconButton
-                        size="small"
-                        onClick={() => setConfirmDeleteId(mapping.id)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>SKU</TableHead>
+              <TableHead>Barcode</TableHead>
+              <TableHead>GTIN</TableHead>
+              <TableHead>Retailer</TableHead>
+              <TableHead className="text-right">Price</TableHead>
+              <TableHead className="text-center">Pack Qty</TableHead>
+              <TableHead className="text-right" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {mappings.map((mapping) => (
+              <TableRow key={mapping.id}>
+                <TableCell>
+                  <span className="text-sm font-mono">
+                    {mapping.sku || "-"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div>
+                    <span className="text-sm font-mono">
+                      {mapping.barcode || "-"}
+                    </span>
+                    {mapping.barcodeFormat && (
+                      <span className="block text-xs text-muted-foreground">
+                        {mapping.barcodeFormat}
+                      </span>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm font-mono">
+                    {mapping.gtin || "-"}
+                  </span>
+                </TableCell>
+                <TableCell>{mapping.retailer || "-"}</TableCell>
+                <TableCell className="text-right">
+                  {formatPrice(mapping.priceAmount, mapping.priceCurrency)}
+                </TableCell>
+                <TableCell className="text-center">{mapping.packQuantity ?? 1}</TableCell>
+                <TableCell className="text-right">
+                  {confirmDeleteId === mapping.id ? (
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDelete(mapping.id)}
+                      >
+                        Confirm
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setConfirmDeleteId(mapping.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       <AddSkuMappingDialog
@@ -201,11 +196,11 @@ export function SkuMappingManager({ productId }: Props) {
         productId={productId}
         onSaved={loadMappings}
       />
-    </Box>
+    </div>
   );
 }
 
-// ── Add SKU Mapping Dialog ─────────────────────────────────────────────────────
+// Add SKU Mapping Dialog
 
 function AddSkuMappingDialog({
   open,
@@ -231,7 +226,6 @@ function AddSkuMappingDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Reset form on open
   useEffect(() => {
     if (open) {
       setSku("");
@@ -276,114 +270,77 @@ function AddSkuMappingDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add SKU / Barcode Mapping</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add SKU / Barcode Mapping</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <TextField
-            label="SKU"
-            value={sku}
-            onChange={(e) => setSku(e.target.value)}
-            size="small"
-            fullWidth
-            helperText="Retailer or manufacturer SKU code"
-          />
+          <div>
+            <Label className="mb-1">SKU</Label>
+            <Input value={sku} onChange={(e) => setSku(e.target.value)} />
+            <p className="text-[0.625rem] text-muted-foreground mt-0.5">Retailer or manufacturer SKU code</p>
+          </div>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label="Barcode"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Format"
-                value={barcodeFormat}
-                onChange={(e) => setBarcodeFormat(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="e.g. EAN-13, UPC-A"
-              />
-            </Grid>
-          </Grid>
+          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-3">
+            <div>
+              <Label className="mb-1">Barcode</Label>
+              <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+            </div>
+            <div>
+              <Label className="mb-1">Format</Label>
+              <Input value={barcodeFormat} onChange={(e) => setBarcodeFormat(e.target.value)} />
+              <p className="text-[0.625rem] text-muted-foreground mt-0.5">e.g. EAN-13, UPC-A</p>
+            </div>
+          </div>
 
-          <TextField
-            label="GTIN"
-            value={gtin}
-            onChange={(e) => setGtin(e.target.value)}
-            size="small"
-            fullWidth
-            inputProps={{ maxLength: 14 }}
-            helperText="Global Trade Item Number (8, 12, 13, or 14 digits)"
-          />
+          <div>
+            <Label className="mb-1">GTIN</Label>
+            <Input value={gtin} onChange={(e) => setGtin(e.target.value)} maxLength={14} />
+            <p className="text-[0.625rem] text-muted-foreground mt-0.5">Global Trade Item Number (8, 12, 13, or 14 digits)</p>
+          </div>
 
-          <TextField
-            label="Retailer"
-            value={retailer}
-            onChange={(e) => setRetailer(e.target.value)}
-            size="small"
-            fullWidth
-            helperText="e.g. Amazon, MicroCenter, Prusa Store"
-          />
+          <div>
+            <Label className="mb-1">Retailer</Label>
+            <Input value={retailer} onChange={(e) => setRetailer(e.target.value)} />
+            <p className="text-[0.625rem] text-muted-foreground mt-0.5">e.g. Amazon, MicroCenter, Prusa Store</p>
+          </div>
 
-          <TextField
-            label="Product URL"
-            value={productUrl}
-            onChange={(e) => setProductUrl(e.target.value)}
-            size="small"
-            fullWidth
-          />
+          <div>
+            <Label className="mb-1">Product URL</Label>
+            <Input value={productUrl} onChange={(e) => setProductUrl(e.target.value)} />
+          </div>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Price"
-                value={priceAmount}
-                onChange={(e) => setPriceAmount(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 3 }}>
-              <TextField
-                label="Currency"
-                value={priceCurrency}
-                onChange={(e) => setPriceCurrency(e.target.value)}
-                size="small"
-                fullWidth
-                inputProps={{ maxLength: 3 }}
-              />
-            </Grid>
-            <Grid size={{ xs: 3 }}>
-              <TextField
-                label="Pack Qty"
-                value={packQuantity}
-                onChange={(e) => setPackQuantity(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-          </Grid>
-        </Stack>
+          <div className="grid grid-cols-[2fr_1fr_1fr] gap-3">
+            <div>
+              <Label className="mb-1">Price</Label>
+              <Input value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} type="number" />
+            </div>
+            <div>
+              <Label className="mb-1">Currency</Label>
+              <Input value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)} maxLength={3} />
+            </div>
+            <div>
+              <Label className="mb-1">Pack Qty</Label>
+              <Input value={packQuantity} onChange={(e) => setPackQuantity(e.target.value)} type="number" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
+            Cancel
+          </DialogClose>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Add Mapping"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={saving}
-        >
-          {saving ? "Saving..." : "Add Mapping"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

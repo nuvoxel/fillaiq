@@ -1,39 +1,29 @@
-import Stack from "@mui/material/Stack";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import HistoryIcon from "@mui/icons-material/History";
+import { History } from "lucide-react";
 import type { AuditLogWithActor } from "@/lib/actions/audit";
 import { AuditCard } from "./audit-card";
 
 export function AuditFeed({ items }: { items: AuditLogWithActor[] }) {
   if (items.length === 0) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          py: 8,
-          gap: 1.5,
-        }}
-      >
-        <HistoryIcon sx={{ fontSize: 40, color: "text.disabled" }} />
-        <Typography variant="subtitle1" fontWeight={500}>
-          No audit logs found
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+      <div className="flex flex-col items-center justify-center py-8 gap-1.5">
+        <History className="size-10 text-muted-foreground/50" />
+        <p className="text-base font-medium">No audit logs found</p>
+        <p className="text-sm text-muted-foreground">
           Adjust your filters or check back later.
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
   return (
-    <Stack spacing={1.5}>
-      {items.map((log) => (
-        <AuditCard key={log.id} log={log} />
+    <div className="relative p-4 md:p-6 before:content-[''] before:absolute before:left-[35px] md:before:left-[39px] before:top-8 before:bottom-8 before:w-0.5 before:bg-border">
+      {items.map((log, idx) => (
+        <AuditCard
+          key={log.id}
+          log={log}
+          isLast={idx === items.length - 1}
+        />
       ))}
-    </Stack>
+    </div>
   );
 }

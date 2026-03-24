@@ -1,22 +1,20 @@
-import Box from "@mui/material/Box";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HardwareLoading() {
   return (
     <div>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Skeleton variant="text" width={120} height={40} />
-          <Skeleton variant="text" width={260} height={20} />
-        </Box>
-        <Skeleton variant="rounded" width={120} height={40} />
-      </Box>
-      <Stack spacing={2}>
+      <div className="flex justify-between mb-6">
+        <div>
+          <Skeleton className="h-10 w-[120px] mb-1" />
+          <Skeleton className="h-5 w-[260px]" />
+        </div>
+        <Skeleton className="h-10 w-[120px] rounded" />
+      </div>
+      <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={140} />
+          <Skeleton key={i} className="h-[140px] w-full rounded" />
         ))}
-      </Stack>
+      </div>
     </div>
   );
 }

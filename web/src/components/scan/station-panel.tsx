@@ -1,25 +1,25 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import LinearProgress from "@mui/material/LinearProgress";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import Stack from "@mui/material/Stack";
-import Fade from "@mui/material/Fade";
-import ScaleIcon from "@mui/icons-material/Scale";
-import NfcIcon from "@mui/icons-material/Nfc";
-import PaletteIcon from "@mui/icons-material/Palette";
-import HeightIcon from "@mui/icons-material/Height";
-import WifiIcon from "@mui/icons-material/Wifi";
-import WifiOffIcon from "@mui/icons-material/WifiOff";
-import SensorsIcon from "@mui/icons-material/Sensors";
+import {
+  Scale,
+  Nfc,
+  Palette,
+  Ruler,
+  Wifi,
+  WifiOff,
+  Radio,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { listMyStations, pollStationScan } from "@/lib/actions/scan";
 
 export type StationScanData = {
@@ -74,7 +74,6 @@ export function StationPanel({ onScanData, onStationChange }: Props) {
       if (result.data) {
         const s = result.data as StationOption[];
         setStations(s);
-        // Auto-select first online station
         const online = s.find((st) => st.isOnline);
         if (online) {
           setSelectedStationId(online.id);
@@ -104,7 +103,6 @@ export function StationPanel({ onScanData, onStationChange }: Props) {
       if (result.data) {
         const { scanEvent, autoIdentified, session } = result.data;
 
-        // Prefer session-level aggregated data when available
         const data: StationScanData = {
           scanEventId: scanEvent.id,
           sessionId: session?.id ?? scanEvent.sessionId ?? null,
@@ -154,168 +152,139 @@ export function StationPanel({ onScanData, onStationChange }: Props) {
 
   return (
     <Card
-      variant="outlined"
-      sx={{
-        borderColor: selectedStation?.isOnline ? "success.main" : "divider",
-        borderWidth: selectedStation?.isOnline ? 2 : 1,
-      }}
+      className={`${
+        selectedStation?.isOnline
+          ? "border-2 border-green-500"
+          : "border border-border"
+      }`}
     >
-      <CardContent sx={{ pb: "12px !important" }}>
+      <CardContent className="pb-3">
         {/* Station selector */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-          <SensorsIcon
-            color={selectedStation?.isOnline ? "success" : "disabled"}
-            fontSize="small"
+        <div className="flex items-center gap-2 mb-3">
+          <Radio
+            className={`size-4 ${
+              selectedStation?.isOnline
+                ? "text-green-500"
+                : "text-muted-foreground"
+            }`}
           />
-          <Typography variant="subtitle2" sx={{ flex: 1 }}>
-            Scan Station
-          </Typography>
+          <span className="text-xs font-semibold flex-1">Scan Station</span>
           {stations.length > 1 ? (
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <Select
-                value={selectedStationId}
-                onChange={(e) => handleStationSelect(e.target.value)}
-                displayEmpty
-              >
-                <MenuItem value="" disabled>
-                  Select station
-                </MenuItem>
+            <Select value={selectedStationId} onValueChange={(v) => v && handleStationSelect(v)}>
+              <SelectTrigger className="min-w-[160px]">
+                <SelectValue placeholder="Select station" />
+              </SelectTrigger>
+              <SelectContent>
                 {stations.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-1.5">
                       {s.isOnline ? (
-                        <WifiIcon fontSize="small" color="success" />
+                        <Wifi className="size-3.5 text-green-500" />
                       ) : (
-                        <WifiOffIcon fontSize="small" color="disabled" />
+                        <WifiOff className="size-3.5 text-muted-foreground" />
                       )}
                       {s.name}
-                    </Box>
-                  </MenuItem>
+                    </div>
+                  </SelectItem>
                 ))}
-              </Select>
-            </FormControl>
+              </SelectContent>
+            </Select>
           ) : (
-            <Chip
-              icon={
-                selectedStation?.isOnline ? (
-                  <WifiIcon fontSize="small" />
-                ) : (
-                  <WifiOffIcon fontSize="small" />
-                )
-              }
-              label={selectedStation?.name ?? "No station"}
-              size="small"
-              color={selectedStation?.isOnline ? "success" : "default"}
-              variant="outlined"
-            />
+            <Badge variant={selectedStation?.isOnline ? "default" : "outline"}>
+              {selectedStation?.isOnline ? (
+                <Wifi className="size-3 mr-1" />
+              ) : (
+                <WifiOff className="size-3 mr-1" />
+              )}
+              {selectedStation?.name ?? "No station"}
+            </Badge>
           )}
-        </Box>
+        </div>
 
         {/* Polling indicator */}
         {polling && !currentScan && (
-          <Box sx={{ mb: 1 }}>
-            <Typography variant="caption" color="text.secondary">
+          <div className="mb-2">
+            <p className="text-xs text-muted-foreground mb-1">
               Waiting for spool on station...
-            </Typography>
-            <LinearProgress
-              sx={{ mt: 0.5, borderRadius: 1 }}
-              color="primary"
-            />
-          </Box>
+            </p>
+            <Progress value={null} className="h-1" />
+          </div>
         )}
 
         {/* Sensor readings */}
         {currentScan && (
-          <Fade in>
-            <Stack spacing={1}>
-              <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                STATION READINGS
-              </Typography>
+          <div className="space-y-2 animate-in fade-in">
+            <p className="text-[0.65rem] font-semibold text-muted-foreground uppercase tracking-wider">
+              Station Readings
+            </p>
 
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {/* Weight */}
-                <SensorChip
-                  icon={<ScaleIcon fontSize="small" />}
-                  label={
-                    currentScan.weightG != null
-                      ? `${currentScan.weightG.toFixed(1)}g${currentScan.weightStable ? "" : " ~"}`
-                      : "No weight"
-                  }
-                  active={currentScan.weightG != null}
-                  stable={currentScan.weightStable ?? false}
-                />
+            <div className="flex flex-wrap gap-1.5">
+              {/* Weight */}
+              <SensorChip
+                icon={<Scale className="size-3.5" />}
+                label={
+                  currentScan.weightG != null
+                    ? `${currentScan.weightG.toFixed(1)}g${currentScan.weightStable ? "" : " ~"}`
+                    : "No weight"
+                }
+                active={currentScan.weightG != null}
+                stable={currentScan.weightStable ?? false}
+              />
 
-                {/* NFC */}
-                <SensorChip
-                  icon={<NfcIcon fontSize="small" />}
-                  label={
-                    currentScan.nfcPresent
-                      ? currentScan.nfcUid
-                        ? `NFC: ${currentScan.nfcUid.slice(0, 12)}...`
-                        : "NFC detected"
-                      : "No NFC"
-                  }
-                  active={currentScan.nfcPresent ?? false}
-                />
+              {/* NFC */}
+              <SensorChip
+                icon={<Nfc className="size-3.5" />}
+                label={
+                  currentScan.nfcPresent
+                    ? currentScan.nfcUid
+                      ? `NFC: ${currentScan.nfcUid.slice(0, 12)}...`
+                      : "NFC detected"
+                    : "No NFC"
+                }
+                active={currentScan.nfcPresent ?? false}
+              />
 
-                {/* Color */}
-                <SensorChip
-                  icon={
-                    currentScan.colorHex ? (
-                      <Box
-                        sx={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: "50%",
-                          bgcolor: currentScan.colorHex,
-                          border: "1px solid",
-                          borderColor: "divider",
-                        }}
-                      />
-                    ) : (
-                      <PaletteIcon fontSize="small" />
-                    )
-                  }
-                  label={currentScan.colorHex ?? "No color"}
-                  active={currentScan.colorHex != null}
-                />
+              {/* Color */}
+              <SensorChip
+                icon={
+                  currentScan.colorHex ? (
+                    <div
+                      className="size-4 rounded-full border border-border shrink-0"
+                      style={{ backgroundColor: currentScan.colorHex }}
+                    />
+                  ) : (
+                    <Palette className="size-3.5" />
+                  )
+                }
+                label={currentScan.colorHex ?? "No color"}
+                active={currentScan.colorHex != null}
+              />
 
-                {/* Height */}
-                <SensorChip
-                  icon={<HeightIcon fontSize="small" />}
-                  label={
-                    currentScan.heightMm != null
-                      ? `${currentScan.heightMm.toFixed(0)}mm`
-                      : "No height"
-                  }
-                  active={currentScan.heightMm != null}
-                />
-              </Box>
+              {/* Height */}
+              <SensorChip
+                icon={<Ruler className="size-3.5" />}
+                label={
+                  currentScan.heightMm != null
+                    ? `${currentScan.heightMm.toFixed(0)}mm`
+                    : "No height"
+                }
+                active={currentScan.heightMm != null}
+              />
+            </div>
 
-              {/* NFC parsed info */}
-              {currentScan.nfcParsedData && (
-                <Box
-                  sx={{
-                    p: 1,
-                    bgcolor: "action.hover",
-                    borderRadius: 1,
-                    fontFamily: "monospace",
-                    fontSize: "0.75rem",
-                    maxHeight: 80,
-                    overflow: "auto",
-                  }}
-                >
-                  {Object.entries(currentScan.nfcParsedData).map(
-                    ([key, value]) => (
-                      <Box key={key}>
-                        <strong>{key}:</strong> {String(value)}
-                      </Box>
-                    )
-                  )}
-                </Box>
-              )}
-            </Stack>
-          </Fade>
+            {/* NFC parsed info */}
+            {currentScan.nfcParsedData && (
+              <div className="p-2 bg-muted/50 rounded font-mono text-xs max-h-20 overflow-auto">
+                {Object.entries(currentScan.nfcParsedData).map(
+                  ([key, value]) => (
+                    <div key={key}>
+                      <strong>{key}:</strong> {String(value)}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -333,14 +302,20 @@ function SensorChip({
   active: boolean;
   stable?: boolean;
 }) {
+  const colorClass = active
+    ? stable === false
+      ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300"
+      : "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300"
+    : "bg-transparent text-muted-foreground border-border";
+
   return (
-    <Chip
-      icon={icon as any}
-      label={label}
-      size="small"
-      variant={active ? "filled" : "outlined"}
-      color={active ? (stable === false ? "warning" : "success") : "default"}
-      sx={{ fontFamily: active ? "monospace" : undefined }}
-    />
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${colorClass} ${
+        active ? "font-mono" : ""
+      }`}
+    >
+      {icon}
+      {label}
+    </span>
   );
 }

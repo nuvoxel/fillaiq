@@ -1,14 +1,8 @@
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardHeader from "@mui/material/CardHeader";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import Divider from "@mui/material/Divider";
-import Stack from "@mui/material/Stack";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { getUserProfile, listApiKeys, getUserPreferences } from "@/lib/actions/dashboard";
 import { SettingsPreferences } from "./preferences";
@@ -16,7 +10,6 @@ import { LabelTemplatesCard } from "@/components/settings/label-templates-card";
 import { OrganizationCard } from "@/components/settings/organization-card";
 import { ProfileCard } from "@/components/settings/profile-card";
 import { ApiKeysCard } from "@/components/settings/api-keys-card";
-// Print jobs moved to Hardware > Printers tab
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -49,10 +42,10 @@ export default async function SettingsPage() {
     <div>
       <PageHeader
         title="Settings"
-        description="Manage your account and preferences."
+        description="Configure your workspace identity, preferences, and developer tools."
       />
 
-      <Stack spacing={3}>
+      <div className="flex flex-col gap-3 max-w-[720px]">
         {/* Profile */}
         {user && (
           <ProfileCard
@@ -83,27 +76,30 @@ export default async function SettingsPage() {
         <ApiKeysCard initialApiKeys={apiKeys} />
 
         {/* Danger Zone */}
-        <Card sx={{ borderColor: "error.main" }}>
-          <CardHeader
-            title="Danger Zone"
-            titleTypographyProps={{ fontWeight: 600, color: "error.main" }}
-          />
-          <Divider sx={{ borderColor: "error.light" }} />
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Box>
-                <Typography fontWeight={500}>Delete Account</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Permanently delete your account and all associated data.
-                </Typography>
-              </Box>
-              <Button variant="outlined" color="error" startIcon={<DeleteIcon />}>
+        <Card className="rounded-xl shadow-sm border-2 border-destructive bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <AlertTriangle className="size-5 text-destructive" />
+              <h3 className="font-display font-bold text-xl text-destructive">
+                Danger Zone
+              </h3>
+            </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="max-w-[420px]">
+                <p className="text-sm font-semibold mb-0.5">Delete Account</p>
+                <p className="text-sm text-muted-foreground">
+                  Permanently remove all your organization data, spools, and
+                  analytics. This action is irreversible.
+                </p>
+              </div>
+              <Button variant="destructive" className="shrink-0">
+                <Trash2 className="size-4 mr-1" />
                 Delete Account
               </Button>
-            </Box>
+            </div>
           </CardContent>
         </Card>
-      </Stack>
+      </div>
     </div>
   );
 }

@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 
 type UsageSession = {
   id: string;
@@ -42,48 +45,67 @@ type UserItemMovement = {
 };
 
 const fmtDate = (v: string | Date | null) =>
-  v ? new Date(v).toLocaleString() : "—";
-
-const usageColumns: GridColDef[] = [
-  { field: "printJobId", headerName: "Print Job", width: 160, valueFormatter: (v: string | null) => v ?? "—" },
-  { field: "filamentUsedG", headerName: "Used (g)", width: 100, valueFormatter: (v: number | null) => v != null ? `${v.toFixed(1)}g` : "—" },
-  { field: "weightBeforeG", headerName: "Before (g)", width: 110, valueFormatter: (v: number | null) => v != null ? `${Math.round(v)}g` : "—" },
-  { field: "weightAfterG", headerName: "After (g)", width: 110, valueFormatter: (v: number | null) => v != null ? `${Math.round(v)}g` : "—" },
-  { field: "removedAt", headerName: "Removed", width: 170, valueFormatter: (v: string | Date | null) => fmtDate(v) },
-  { field: "returnedAt", headerName: "Returned", width: 170, valueFormatter: (v: string | Date | null) => fmtDate(v) },
-];
-
-const dryingColumns: GridColDef[] = [
-  { field: "temperatureC", headerName: "Temp (C)", width: 100, valueFormatter: (v: number | null) => v != null ? `${v}°C` : "—" },
-  { field: "durationMinutes", headerName: "Duration", width: 110, valueFormatter: (v: number | null) => v != null ? `${Math.floor(v / 60)}h ${v % 60}m` : "—" },
-  { field: "moistureLostG", headerName: "Moisture (g)", width: 120, valueFormatter: (v: number | null) => v != null ? `${v.toFixed(1)}g` : "—" },
-  { field: "weightBeforeG", headerName: "Before (g)", width: 110, valueFormatter: (v: number | null) => v != null ? `${Math.round(v)}g` : "—" },
-  { field: "weightAfterG", headerName: "After (g)", width: 110, valueFormatter: (v: number | null) => v != null ? `${Math.round(v)}g` : "—" },
-  { field: "startedAt", headerName: "Started", width: 170, valueFormatter: (v: string | Date | null) => fmtDate(v) },
-  { field: "completedAt", headerName: "Completed", width: 170, valueFormatter: (v: string | Date | null) => fmtDate(v) },
-];
-
-const movementColumns: GridColDef[] = [
-  { field: "fromSlotId", headerName: "From Slot", width: 120, valueFormatter: (v: string | null) => v ? v.slice(0, 8) : "—" },
-  { field: "toSlotId", headerName: "To Slot", width: 120, valueFormatter: (v: string | null) => v ? v.slice(0, 8) : "—" },
-  { field: "weightAtMoveG", headerName: "Weight (g)", width: 110, valueFormatter: (v: number | null) => v != null ? `${Math.round(v)}g` : "—" },
-  { field: "createdAt", headerName: "Date", width: 200, valueFormatter: (v: string | Date) => fmtDate(v) },
-];
-
-const gridSx = {
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 2,
-  "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
-};
+  v ? new Date(v).toLocaleString() : "\u2014";
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <Box sx={{ textAlign: "center", py: 4 }}>
-      <Typography variant="body2" color="text.secondary">
-        {text}
-      </Typography>
-    </Box>
+    <div className="text-center py-8">
+      <p className="text-sm text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function PaginatedTable<T extends { id: string }>({
+  data,
+  pageSize,
+  renderHeader,
+  renderRow,
+}: {
+  data: T[];
+  pageSize: number;
+  renderHeader: () => React.ReactNode;
+  renderRow: (item: T) => React.ReactNode;
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+  const paginated = data.slice(page * pageSize, (page + 1) * pageSize);
+
+  return (
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow>{renderHeader()}</TableRow>
+        </TableHeader>
+        <TableBody>
+          {paginated.map((item) => (
+            <TableRow key={item.id}>{renderRow(item)}</TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-2 border-t text-xs text-muted-foreground">
+          <span>
+            {page * pageSize + 1}-{Math.min((page + 1) * pageSize, data.length)} of {data.length}
+          </span>
+          <div className="flex gap-1">
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+              className="px-2 py-1 rounded border border-border disabled:opacity-50 hover:bg-muted"
+            >
+              Prev
+            </button>
+            <button
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-2 py-1 rounded border border-border disabled:opacity-50 hover:bg-muted"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -95,82 +117,117 @@ export function UserItemEventsTabs({
   usageSessions: UsageSession[];
   dryingSessions: DryingSession[];
   movements: UserItemMovement[];
-})
- {
-  const [tab, setTab] = useState(0);
-
+}) {
   return (
     <Card>
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, pt: 1 }}>
-        <Tab
-          label={
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Tabs defaultValue="usage">
+        <div className="px-4 pt-2">
+          <TabsList>
+            <TabsTrigger value="usage">
               Usage Sessions
-              <Chip label={usageSessions.length} size="small" variant="outlined" />
-            </Box>
-          }
-        />
-        <Tab
-          label={
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Badge variant="outline" className="ml-1">{usageSessions.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="drying">
               Drying
-              <Chip label={dryingSessions.length} size="small" variant="outlined" />
-            </Box>
-          }
-        />
-        <Tab
-          label={
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Badge variant="outline" className="ml-1">{dryingSessions.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="movements">
               Movements
-              <Chip label={movements.length} size="small" variant="outlined" />
-            </Box>
-          }
-        />
+              <Badge variant="outline" className="ml-1">{movements.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+        </div>
+        <CardContent>
+          <TabsContent value="usage">
+            {usageSessions.length === 0 ? (
+              <EmptyState text="No usage sessions recorded." />
+            ) : (
+              <PaginatedTable
+                data={usageSessions}
+                pageSize={5}
+                renderHeader={() => (
+                  <>
+                    <TableHead>Print Job</TableHead>
+                    <TableHead>Used (g)</TableHead>
+                    <TableHead>Before (g)</TableHead>
+                    <TableHead>After (g)</TableHead>
+                    <TableHead>Removed</TableHead>
+                    <TableHead>Returned</TableHead>
+                  </>
+                )}
+                renderRow={(row) => (
+                  <>
+                    <TableCell>{row.printJobId ?? "\u2014"}</TableCell>
+                    <TableCell>{row.filamentUsedG != null ? `${row.filamentUsedG.toFixed(1)}g` : "\u2014"}</TableCell>
+                    <TableCell>{row.weightBeforeG != null ? `${Math.round(row.weightBeforeG)}g` : "\u2014"}</TableCell>
+                    <TableCell>{row.weightAfterG != null ? `${Math.round(row.weightAfterG)}g` : "\u2014"}</TableCell>
+                    <TableCell>{fmtDate(row.removedAt)}</TableCell>
+                    <TableCell>{fmtDate(row.returnedAt)}</TableCell>
+                  </>
+                )}
+              />
+            )}
+          </TabsContent>
+          <TabsContent value="drying">
+            {dryingSessions.length === 0 ? (
+              <EmptyState text="No drying sessions recorded." />
+            ) : (
+              <PaginatedTable
+                data={dryingSessions}
+                pageSize={5}
+                renderHeader={() => (
+                  <>
+                    <TableHead>Temp (C)</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Moisture (g)</TableHead>
+                    <TableHead>Before (g)</TableHead>
+                    <TableHead>After (g)</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Completed</TableHead>
+                  </>
+                )}
+                renderRow={(row) => (
+                  <>
+                    <TableCell>{row.temperatureC != null ? `${row.temperatureC}\u00B0C` : "\u2014"}</TableCell>
+                    <TableCell>{row.durationMinutes != null ? `${Math.floor(row.durationMinutes / 60)}h ${row.durationMinutes % 60}m` : "\u2014"}</TableCell>
+                    <TableCell>{row.moistureLostG != null ? `${row.moistureLostG.toFixed(1)}g` : "\u2014"}</TableCell>
+                    <TableCell>{row.weightBeforeG != null ? `${Math.round(row.weightBeforeG)}g` : "\u2014"}</TableCell>
+                    <TableCell>{row.weightAfterG != null ? `${Math.round(row.weightAfterG)}g` : "\u2014"}</TableCell>
+                    <TableCell>{fmtDate(row.startedAt)}</TableCell>
+                    <TableCell>{fmtDate(row.completedAt)}</TableCell>
+                  </>
+                )}
+              />
+            )}
+          </TabsContent>
+          <TabsContent value="movements">
+            {movements.length === 0 ? (
+              <EmptyState text="No movements recorded." />
+            ) : (
+              <PaginatedTable
+                data={movements}
+                pageSize={5}
+                renderHeader={() => (
+                  <>
+                    <TableHead>From Slot</TableHead>
+                    <TableHead>To Slot</TableHead>
+                    <TableHead>Weight (g)</TableHead>
+                    <TableHead>Date</TableHead>
+                  </>
+                )}
+                renderRow={(row) => (
+                  <>
+                    <TableCell>{row.fromSlotId ? row.fromSlotId.slice(0, 8) : "\u2014"}</TableCell>
+                    <TableCell>{row.toSlotId ? row.toSlotId.slice(0, 8) : "\u2014"}</TableCell>
+                    <TableCell>{row.weightAtMoveG != null ? `${Math.round(row.weightAtMoveG)}g` : "\u2014"}</TableCell>
+                    <TableCell>{fmtDate(row.createdAt)}</TableCell>
+                  </>
+                )}
+              />
+            )}
+          </TabsContent>
+        </CardContent>
       </Tabs>
-      <CardContent>
-        {tab === 0 &&
-          (usageSessions.length === 0 ? (
-            <EmptyState text="No usage sessions recorded." />
-          ) : (
-            <DataGrid
-              rows={usageSessions}
-              columns={usageColumns}
-              initialState={{ pagination: { paginationModel: { pageSize: 5 } } }}
-              pageSizeOptions={[5, 10]}
-              disableRowSelectionOnClick
-              autoHeight
-              sx={gridSx}
-            />
-          ))}
-        {tab === 1 &&
-          (dryingSessions.length === 0 ? (
-            <EmptyState text="No drying sessions recorded." />
-          ) : (
-            <DataGrid
-              rows={dryingSessions}
-              columns={dryingColumns}
-              initialState={{ pagination: { paginationModel: { pageSize: 5 } } }}
-              pageSizeOptions={[5, 10]}
-              disableRowSelectionOnClick
-              autoHeight
-              sx={gridSx}
-            />
-          ))}
-        {tab === 2 &&
-          (movements.length === 0 ? (
-            <EmptyState text="No movements recorded." />
-          ) : (
-            <DataGrid
-              rows={movements}
-              columns={movementColumns}
-              initialState={{ pagination: { paginationModel: { pageSize: 5 } } }}
-              pageSizeOptions={[5, 10]}
-              disableRowSelectionOnClick
-              autoHeight
-              sx={gridSx}
-            />
-          ))}
-      </CardContent>
     </Card>
   );
 }

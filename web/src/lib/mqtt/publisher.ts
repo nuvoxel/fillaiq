@@ -78,7 +78,35 @@ export function publishPairStatus(
   publish(hardwareId, "pair/status", status);
 }
 
-// ── Bambu printer config push to scan station ────────────────────────
+// ── Machine bridge config push to scan station ──────────────────────────
+// Sends protocol-specific connection config so the scan station knows
+// how to connect to and relay status from a machine on the local network.
+
+export function publishMachineConfig(
+  hardwareId: string,
+  machineId: string,
+  config: Record<string, unknown> | null
+): void {
+  publish(
+    hardwareId,
+    `machine/${machineId}/config`,
+    config ?? { machineId, protocol: null },
+    { retain: true }
+  );
+}
+
+// ── NFC lookup result ─────────────────────────────────────────────────────
+
+export function publishNfcLookupResult(
+  hardwareId: string,
+  result: Record<string, unknown>
+): void {
+  publish(hardwareId, "nfc/known", result);
+}
+
+// ── Bambu printer config push to scan station (legacy) ──────────────
+// Kept for backward compatibility with older firmware.
+// New firmware should use the generic machine/{id}/config topic.
 
 export function publishBambuConfig(
   hardwareId: string,

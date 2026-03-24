@@ -1,38 +1,30 @@
-import Box from "@mui/material/Box";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AuditLoading() {
   return (
     <div>
       {/* Page header skeleton */}
-      <Box sx={{ mb: 3 }}>
-        <Skeleton variant="text" width={144} height={40} />
-        <Skeleton variant="text" width={256} height={20} />
-      </Box>
+      <div className="mb-6">
+        <Skeleton className="h-10 w-[144px] mb-1" />
+        <Skeleton className="h-5 w-[256px]" />
+      </div>
 
       {/* Filter pills skeleton */}
-      <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
+      <div className="flex gap-2 mb-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton
-            key={i}
-            variant="rounded"
-            width={64}
-            height={32}
-            sx={{ borderRadius: 9999 }}
-          />
+          <Skeleton key={i} className="h-8 w-16 rounded-full" />
         ))}
-      </Box>
-      <Box sx={{ mb: 3 }}>
-        <Skeleton variant="rounded" width={200} height={40} />
-      </Box>
+      </div>
+      <div className="mb-6">
+        <Skeleton className="h-10 w-[200px] rounded" />
+      </div>
 
       {/* Card skeletons */}
-      <Stack spacing={1.5}>
+      <div className="space-y-3">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={96} />
+          <Skeleton key={i} className="h-24 w-full rounded" />
         ))}
-      </Stack>
+      </div>
     </div>
   );
 }

@@ -48,6 +48,9 @@ public:
     // Relay 3D printer status (from local Bambu MQTT)
     void publishMachineStatus(const char* machineId, const char* json);
 
+    // NFC UID lookup (lightweight pre-scan identification)
+    void publishNfcLookup(const char* uid);
+
     // ── Incoming message callbacks ──
     // Set these before calling begin(). They fire on the esp_mqtt task context.
     // Handlers should copy data and signal the main loop (e.g., via queue or flag).
@@ -57,6 +60,7 @@ public:
     std::function<void(const char* json, int len)> onOta;
     std::function<void(const char* json, int len)> onPrintJob;
     std::function<void(const char* json, int len)> onPairStatus;
+    std::function<void(const char* json, int len)> onNfcLookupResult;
 
     // Access hardware ID for topic building
     const char* getHardwareId() const { return _hardwareId; }

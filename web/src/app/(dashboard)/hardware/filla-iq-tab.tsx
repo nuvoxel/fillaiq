@@ -2,47 +2,48 @@
 
 import { useState, useEffect, useTransition, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
-import Button from "@mui/material/Button";
-import TextField from "@mui/material/TextField";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import Alert from "@mui/material/Alert";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
-import Tooltip from "@mui/material/Tooltip";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import Stack from "@mui/material/Stack";
-import Grid from "@mui/material/Grid";
-import Divider from "@mui/material/Divider";
-import Slider from "@mui/material/Slider";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
-import DevicesIcon from "@mui/icons-material/Devices";
-import ThermostatIcon from "@mui/icons-material/Thermostat";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import PrintIcon from "@mui/icons-material/Print";
-import SettingsIcon from "@mui/icons-material/Settings";
-import InfoIcon from "@mui/icons-material/Info";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import {
+  Trash2, Plus, Monitor, Thermometer, ChevronDown,
+  Printer, Settings, Info, Circle,
+  X, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice, getStationEnvironment, updateDeviceConfig } from "@/lib/actions/scan";
 import { listMyPrinters, listMyPrintJobs, cancelPrintJob, deletePrintJob, deletePrinter, cancelAllPendingPrintJobs, clearCompletedPrintJobs } from "@/lib/actions/user-library";
-import CloseIcon from "@mui/icons-material/Close";
-import BatteryFullIcon from "@mui/icons-material/BatteryFull";
-import Battery5BarIcon from "@mui/icons-material/Battery5Bar";
-import Battery2BarIcon from "@mui/icons-material/Battery2Bar";
-import BatteryAlertIcon from "@mui/icons-material/BatteryAlert";
 import EnvironmentChart from "@/components/charts/environment-chart";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// -- Types --
 
 type SensorDetail = {
   detected?: boolean;
@@ -104,41 +105,42 @@ type Station = {
   createdAt: string;
 };
 
-// ── Small components ─────────────────────────────────────────────────────────
+// -- Small components --
 
 function InfoRow({ label, value, mono }: { label: string; value?: React.ReactNode; mono?: boolean }) {
   if (!value) return null;
   return (
-    <Box sx={{ display: "flex", gap: 1, alignItems: "baseline" }}>
-      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 100, flexShrink: 0 }}>
-        {label}
-      </Typography>
-      <Typography variant="body2" fontFamily={mono ? "monospace" : undefined}>
-        {value}
-      </Typography>
-    </Box>
+    <div className="flex gap-2 items-baseline">
+      <span className="text-sm text-muted-foreground min-w-[100px] shrink-0">{label}</span>
+      <span className={`text-sm ${mono ? "font-mono" : ""}`}>{value}</span>
+    </div>
   );
 }
 
 function SensorRow({ label, sensor }: { label: string; sensor?: SensorDetail }) {
   if (!sensor?.detected) return null;
-  const details = [sensor.chip, sensor.interface, sensor.address].filter(Boolean).join(" · ");
+  const details = [sensor.chip, sensor.interface, sensor.address].filter(Boolean).join(" \u00b7 ");
   const pins = [
     sensor.pin != null ? `GPIO${sensor.pin}` : null,
     sensor.pin2 != null ? `GPIO${sensor.pin2}` : null,
   ].filter(Boolean).join(", ");
   return (
-    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-      <Chip label={label} size="small" variant="outlined" sx={{ minWidth: 60 }} />
-      <Typography variant="body2" color="text.secondary">
+    <div className="flex gap-2 items-center">
+      <Badge variant="outline" className="min-w-[60px] justify-center">{label}</Badge>
+      <span className="text-sm text-muted-foreground">
         {details}
-        {pins && <Typography component="span" variant="body2" color="text.disabled" sx={{ ml: 0.5 }}>({pins})</Typography>}
-      </Typography>
-    </Box>
+        {pins && <span className="text-muted-foreground/60 ml-1">({pins})</span>}
+      </span>
+    </div>
   );
 }
 
-// ── Station Card ─────────────────────────────────────────────────────────────
+function CapBadge({ label, detected }: { label: string; detected?: boolean }) {
+  if (!detected) return null;
+  return <Badge variant="outline" className="h-5 text-[0.7rem] px-1.5">{label}</Badge>;
+}
+
+// -- Station Card --
 
 function StationCard({
   station,
@@ -169,7 +171,6 @@ function StationCard({
 }) {
   const caps = (station.config as StationConfig)?.capabilities;
   const settings = (station.config as StationConfig)?.deviceSettings ?? {};
-  const printer = caps?.printer;
 
   const [configValues, setConfigValues] = useState({
     envReportIntervalMs: (settings.envReportIntervalMs ?? 300000) / 60000,
@@ -199,227 +200,192 @@ function StationCard({
   };
 
   return (
-    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-      {/* ── Station Header ──────────────────────────────────────────── */}
-      <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 2, bgcolor: "grey.50" }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="subtitle1" fontWeight={600} noWrap>
-              {station.name}
-            </Typography>
-            <Chip
-              icon={<FiberManualRecordIcon sx={{ fontSize: "10px !important" }} />}
-              label={station.isOnline ? "Online" : "Offline"}
-              size="small"
-              color={station.isOnline ? "success" : "default"}
-              variant="outlined"
-            />
-          </Box>
-          <Box sx={{ display: "flex", gap: 2, mt: 0.25, flexWrap: "wrap" }}>
-            <Typography variant="caption" color="text.secondary">
-              {station.deviceSku ?? "filla-scan"} &middot; {station.hardwareId}
-            </Typography>
-            <Typography variant="caption" fontFamily="monospace" color="text.secondary">
-              FW {station.firmwareVersion ?? "—"}
-            </Typography>
-            {station.ipAddress && (
-              <Typography variant="caption" fontFamily="monospace" color="text.secondary">
-                {station.ipAddress}
-              </Typography>
-            )}
-            {station.lastSeenAt && (
-              <Typography variant="caption" color="text.secondary">
-                Last seen {new Date(station.lastSeenAt).toLocaleString()}
-              </Typography>
-            )}
-          </Box>
-        </Box>
+    <div className="border rounded-lg overflow-hidden">
+      {/* Station Header */}
+      <div className="px-3 py-2 flex items-center gap-3 bg-muted/50">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold truncate">{station.name}</span>
+            <Badge variant={station.isOnline ? "default" : "outline"}>
+              <Circle className="size-2.5 mr-1" style={{ fill: station.isOnline ? "#00E676" : "#94A3B8" }} />
+              {station.isOnline ? "Online" : "Offline"}
+            </Badge>
+          </div>
+          <div className="flex gap-3 mt-0.5 flex-wrap text-xs text-muted-foreground">
+            <span>{station.deviceSku ?? "filla-scan"} &middot; {station.hardwareId}</span>
+            <span className="font-mono">FW {station.firmwareVersion ?? "\u2014"}</span>
+            {station.ipAddress && <span className="font-mono">{station.ipAddress}</span>}
+            {station.lastSeenAt && <span>Last seen {new Date(station.lastSeenAt).toLocaleString()}</span>}
+          </div>
+        </div>
         <Select
-          size="small"
           value={station.firmwareChannel ?? "stable"}
-          onChange={(e) => onChannelChange(station.id, e.target.value)}
-          disabled={isPending}
-          sx={{ minWidth: 90, fontSize: "0.8125rem" }}
+          onValueChange={(v) => v && onChannelChange(station.id, v)}
         >
-          <MenuItem value="stable">Stable</MenuItem>
-          <MenuItem value="beta">Beta</MenuItem>
-          <MenuItem value="dev">Dev</MenuItem>
+          <SelectTrigger className="w-24" size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="stable">Stable</SelectItem>
+            <SelectItem value="beta">Beta</SelectItem>
+            <SelectItem value="dev">Dev</SelectItem>
+          </SelectContent>
         </Select>
-        <IconButton
-          size="small"
-          color="error"
+        <button
+          className="p-1.5 rounded-md text-destructive hover:bg-destructive/10"
           onClick={() => onRevoke(station.id, station.name)}
           disabled={isPending}
           title="Revoke device"
         >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Box>
+          <Trash2 className="size-4" />
+        </button>
+      </div>
 
-      {/* ── Capabilities accordion ──────────────────────────────────── */}
-      <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <InfoIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-            <Typography variant="body2" fontWeight={500}>Capabilities</Typography>
-            {caps && (
-              <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexWrap: "wrap" }}>
-                {caps.nfc?.detected && <Chip label="NFC" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.scale?.detected && <Chip label="Scale" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.tof?.detected && <Chip label="TOF" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.colorSensor?.detected && <Chip label="Color" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.display?.detected && <Chip label="Display" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.leds?.detected && <Chip label="LED" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.environment?.detected && <Chip label="Env" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.touch?.detected && <Chip label="Touch" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.sdCard?.detected && <Chip label="SD" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.audio?.detected && <Chip label="Audio" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.battery?.detected && <Chip label="Battery" size="small" variant="outlined" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-                {caps.printer?.detected && <Chip label="Printer" size="small" variant="outlined" color="secondary" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />}
-              </Box>
-            )}
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Stack spacing={0.75}>
-            <SensorRow label="NFC" sensor={caps?.nfc} />
-            <SensorRow label="Scale" sensor={caps?.scale} />
-            <SensorRow label="TOF" sensor={caps?.tof} />
-            <SensorRow label="Color" sensor={caps?.colorSensor} />
-            <SensorRow label="Display" sensor={caps?.display} />
-            <SensorRow label="LEDs" sensor={caps?.leds} />
-            <SensorRow label="Env" sensor={caps?.environment} />
-            <SensorRow label="Touch" sensor={caps?.touch} />
-            <SensorRow label="SD Card" sensor={caps?.sdCard} />
-            <SensorRow label="Audio" sensor={caps?.audio} />
-            <SensorRow label="Battery" sensor={caps?.battery} />
-            {caps?.turntable && <Chip label="Turntable" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
-            {caps?.camera && <Chip label="Camera" size="small" variant="outlined" sx={{ alignSelf: "flex-start" }} />}
-          </Stack>
-        </AccordionDetails>
+      {/* Capabilities accordion */}
+      <Accordion>
+        <AccordionItem value="caps">
+          <AccordionTrigger className="px-3">
+            <div className="flex items-center gap-2">
+              <Info className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Capabilities</span>
+              {caps && (
+                <div className="flex gap-1 ml-2 flex-wrap">
+                  <CapBadge label="NFC" detected={caps.nfc?.detected} />
+                  <CapBadge label="Scale" detected={caps.scale?.detected} />
+                  <CapBadge label="TOF" detected={caps.tof?.detected} />
+                  <CapBadge label="Color" detected={caps.colorSensor?.detected} />
+                  <CapBadge label="Display" detected={caps.display?.detected} />
+                  <CapBadge label="LED" detected={caps.leds?.detected} />
+                  <CapBadge label="Env" detected={caps.environment?.detected} />
+                  <CapBadge label="Touch" detected={caps.touch?.detected} />
+                  <CapBadge label="SD" detected={caps.sdCard?.detected} />
+                  <CapBadge label="Audio" detected={caps.audio?.detected} />
+                  <CapBadge label="Battery" detected={caps.battery?.detected} />
+                  {caps.printer?.detected && <Badge variant="secondary" className="h-5 text-[0.7rem] px-1.5">Printer</Badge>}
+                </div>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-3">
+            <div className="flex flex-col gap-1.5">
+              <SensorRow label="NFC" sensor={caps?.nfc} />
+              <SensorRow label="Scale" sensor={caps?.scale} />
+              <SensorRow label="TOF" sensor={caps?.tof} />
+              <SensorRow label="Color" sensor={caps?.colorSensor} />
+              <SensorRow label="Display" sensor={caps?.display} />
+              <SensorRow label="LEDs" sensor={caps?.leds} />
+              <SensorRow label="Env" sensor={caps?.environment} />
+              <SensorRow label="Touch" sensor={caps?.touch} />
+              <SensorRow label="SD Card" sensor={caps?.sdCard} />
+              <SensorRow label="Audio" sensor={caps?.audio} />
+              <SensorRow label="Battery" sensor={caps?.battery} />
+              {caps?.turntable && <Badge variant="outline" className="self-start">Turntable</Badge>}
+              {caps?.camera && <Badge variant="outline" className="self-start">Camera</Badge>}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
 
-      {/* ── Environment chart accordion ─────────────────────────────── */}
+      {/* Environment chart accordion */}
       {caps?.environment?.detected && (
         <>
-          <Divider />
-          <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <ThermostatIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-                <Typography variant="body2" fontWeight={500}>Environment</Typography>
-                {envData && (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    {[
-                      envData.temperatureC != null ? `${envData.temperatureC.toFixed(1)}\u00b0C` : null,
-                      envData.humidity != null ? `${envData.humidity.toFixed(0)}% RH` : null,
-                      envData.pressureHPa != null ? `${envData.pressureHPa.toFixed(0)} hPa` : null,
-                    ].filter(Boolean).join(" \u00b7 ")}
-                  </Typography>
-                )}
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <EnvironmentChart stationId={station.id} />
-            </AccordionDetails>
+          <Separator />
+          <Accordion>
+            <AccordionItem value="env">
+              <AccordionTrigger className="px-3">
+                <div className="flex items-center gap-2">
+                  <Thermometer className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Environment</span>
+                  {envData && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {[
+                        envData.temperatureC != null ? `${envData.temperatureC.toFixed(1)}\u00b0C` : null,
+                        envData.humidity != null ? `${envData.humidity.toFixed(0)}% RH` : null,
+                        envData.pressureHPa != null ? `${envData.pressureHPa.toFixed(0)} hPa` : null,
+                      ].filter(Boolean).join(" \u00b7 ")}
+                    </span>
+                  )}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-3">
+                <EnvironmentChart stationId={station.id} />
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
         </>
       )}
 
-      <Divider />
+      <Separator />
 
-      {/* ── Settings accordion ──────────────────────────────────────── */}
-      <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <SettingsIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-            <Typography variant="body2" fontWeight={500}>Settings</Typography>
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-            Settings are pushed to the device on the next heartbeat check.
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Env Report (min)"
-                type="number"
-                size="small"
-                fullWidth
-                value={configValues.envReportIntervalMs}
-                onChange={(e) => setConfigValues(v => ({ ...v, envReportIntervalMs: Number(e.target.value) }))}
-                slotProps={{ htmlInput: { min: 1, max: 60 } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="OTA Check (min)"
-                type="number"
-                size="small"
-                fullWidth
-                value={configValues.otaCheckIntervalMs}
-                onChange={(e) => setConfigValues(v => ({ ...v, otaCheckIntervalMs: Number(e.target.value) }))}
-                slotProps={{ htmlInput: { min: 1, max: 60 } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Weight Calibration"
-                type="number"
-                size="small"
-                fullWidth
-                value={configValues.weightCalibration}
-                onChange={(e) => setConfigValues(v => ({ ...v, weightCalibration: e.target.value }))}
-                slotProps={{ htmlInput: { step: 0.0001 } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }} />
-            <Grid size={{ xs: 6 }}>
-              <Typography variant="caption" color="text.secondary">Display Brightness ({configValues.displayBrightness})</Typography>
-              <Slider
-                value={configValues.displayBrightness}
-                onChange={(_, v) => setConfigValues(vals => ({ ...vals, displayBrightness: v as number }))}
-                min={0} max={255} step={1} size="small"
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <Typography variant="caption" color="text.secondary">LED Brightness ({configValues.ledBrightness})</Typography>
-              <Slider
-                value={configValues.ledBrightness}
-                onChange={(_, v) => setConfigValues(vals => ({ ...vals, ledBrightness: v as number }))}
-                min={0} max={255} step={1} size="small"
-              />
-            </Grid>
-            {caps?.audio?.detected && (
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary">Audio Volume ({configValues.audioVolume}%{configValues.audioVolume === 0 ? " — Muted" : ""})</Typography>
-                <Slider
-                  value={configValues.audioVolume}
-                  onChange={(_, v) => setConfigValues(vals => ({ ...vals, audioVolume: v as number }))}
-                  min={0} max={100} step={5} size="small"
-                />
-              </Grid>
-            )}
-            <Grid size={{ xs: 12 }}>
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <Button size="small" variant="contained" onClick={handleSave} disabled={isPending}>
+      {/* Settings accordion */}
+      <Accordion>
+        <AccordionItem value="settings">
+          <AccordionTrigger className="px-3">
+            <div className="flex items-center gap-2">
+              <Settings className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Settings</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-3">
+            <p className="text-xs text-muted-foreground mb-3">
+              Settings are pushed to the device on the next heartbeat check.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Env Report (min)</Label>
+                <Input type="number" className="h-7" value={configValues.envReportIntervalMs}
+                  onChange={(e) => setConfigValues(v => ({ ...v, envReportIntervalMs: Number(e.target.value) }))}
+                  min={1} max={60} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">OTA Check (min)</Label>
+                <Input type="number" className="h-7" value={configValues.otaCheckIntervalMs}
+                  onChange={(e) => setConfigValues(v => ({ ...v, otaCheckIntervalMs: Number(e.target.value) }))}
+                  min={1} max={60} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Weight Calibration</Label>
+                <Input type="number" className="h-7" value={configValues.weightCalibration}
+                  onChange={(e) => setConfigValues(v => ({ ...v, weightCalibration: e.target.value }))}
+                  step={0.0001} />
+              </div>
+              <div />
+              <div className="space-y-1">
+                <Label className="text-xs">Display Brightness ({configValues.displayBrightness})</Label>
+                <input type="range" className="w-full" value={configValues.displayBrightness}
+                  onChange={(e) => setConfigValues(v => ({ ...v, displayBrightness: Number(e.target.value) }))}
+                  min={0} max={255} step={1} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">LED Brightness ({configValues.ledBrightness})</Label>
+                <input type="range" className="w-full" value={configValues.ledBrightness}
+                  onChange={(e) => setConfigValues(v => ({ ...v, ledBrightness: Number(e.target.value) }))}
+                  min={0} max={255} step={1} />
+              </div>
+              {caps?.audio?.detected && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Audio Volume ({configValues.audioVolume}%{configValues.audioVolume === 0 ? " -- Muted" : ""})</Label>
+                  <input type="range" className="w-full" value={configValues.audioVolume}
+                    onChange={(e) => setConfigValues(v => ({ ...v, audioVolume: Number(e.target.value) }))}
+                    min={0} max={100} step={5} />
+                </div>
+              )}
+              <div className="col-span-2 flex justify-end">
+                <Button size="sm" onClick={handleSave} disabled={isPending}>
                   {isPending ? "Saving..." : "Save Settings"}
                 </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </AccordionDetails>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
 
-      {/* ── Printers under this station ──────────────────────────────── */}
+      {/* Printers under this station */}
       {printers.length > 0 && (
-        <Box sx={{ px: 2, pb: 2 }}>
-          <Divider sx={{ mb: 1.5 }} />
-          <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: "block" }}>
-            LABEL PRINTERS
-          </Typography>
-          <Stack spacing={1.5}>
+        <div className="px-3 pb-3">
+          <Separator className="mb-2" />
+          <span className="text-xs text-muted-foreground font-semibold block mb-2">LABEL PRINTERS</span>
+          <div className="flex flex-col gap-3">
             {printers.map((p) => (
               <PrinterCard
                 key={p.id}
@@ -435,14 +401,14 @@ function StationCard({
                 onDelete={() => onDeletePrinter(p.id)}
               />
             ))}
-          </Stack>
-        </Box>
+          </div>
+        </div>
       )}
-    </Paper>
+    </div>
   );
 }
 
-// ── Printer types & card ─────────────────────────────────────────────────────
+// -- Printer types & card --
 
 type UserPrinterRow = {
   id: string;
@@ -464,18 +430,18 @@ type UserPrinterRow = {
   createdAt: string;
 };
 
-const JOB_STATUS_COLOR: Record<string, "default" | "warning" | "success" | "error" | "info"> = {
-  pending: "warning",
-  sent: "info",
-  printing: "info",
-  printed: "success",
-  done: "success",
-  failed: "error",
-  cancelled: "default",
+const JOB_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  pending: "outline",
+  sent: "secondary",
+  printing: "secondary",
+  printed: "default",
+  done: "default",
+  failed: "destructive",
+  cancelled: "outline",
 };
 
 function PrinterCard({
-  printer, stationName, stationOnline, stationConfig, jobs, isPending, onCancelJob, onDeleteJob, onClearAll, onSaveSettings, onDelete,
+  printer, stationOnline, stationConfig, jobs, isPending, onCancelJob, onDeleteJob, onClearAll, onSaveSettings, onDelete,
 }: {
   printer: UserPrinterRow;
   stationName?: string;
@@ -499,223 +465,167 @@ function PrinterCard({
   const allJobs = [...activeJobs, ...recentJobs];
 
   return (
-    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-      <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 2, bgcolor: "grey.50" }}>
-        <PrintIcon sx={{ color: "secondary.main" }} />
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="subtitle1" fontWeight={600} noWrap>
-              {printer.name}
-            </Typography>
-            <Chip
-              icon={<FiberManualRecordIcon sx={{ fontSize: "10px !important" }} />}
-              label={isOnline ? "Online" : "Offline"}
-              size="small"
-              color={isOnline ? "success" : "default"}
-              variant="outlined"
-            />
+    <div className="border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 flex items-center gap-3 bg-muted/50">
+        <Printer className="size-5 text-secondary-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold truncate">{printer.name}</span>
+            <Badge variant={isOnline ? "default" : "outline"}>
+              <Circle className="size-2.5 mr-1" style={{ fill: isOnline ? "#00E676" : "#94A3B8" }} />
+              {isOnline ? "Online" : "Offline"}
+            </Badge>
             {activeJobs.length > 0 && (
-              <Chip label={`${activeJobs.length} queued`} size="small" color="warning" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }} />
+              <Badge variant="outline" className="h-5 text-[0.7rem]">{activeJobs.length} queued</Badge>
             )}
-          </Box>
-          <Box sx={{ display: "flex", gap: 2, mt: 0.25, flexWrap: "wrap" }}>
-            {printer.modelName && (
-              <Typography variant="caption" color="text.secondary">
-                {printer.manufacturer ? `${printer.manufacturer} ` : ""}{printer.modelName}
-              </Typography>
-            )}
-            {printer.bleAddress && (
-              <Typography variant="caption" fontFamily="monospace" color="text.secondary">
-                BLE {printer.bleAddress}
-              </Typography>
-            )}
-            {printer.lastSeenAt && (
-              <Typography variant="caption" color="text.secondary">
-                Last seen {new Date(printer.lastSeenAt).toLocaleString()}
-              </Typography>
-            )}
-          </Box>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          </div>
+          <div className="flex gap-3 mt-0.5 flex-wrap text-xs text-muted-foreground">
+            {printer.modelName && <span>{printer.manufacturer ? `${printer.manufacturer} ` : ""}{printer.modelName}</span>}
+            {printer.bleAddress && <span className="font-mono">BLE {printer.bleAddress}</span>}
+            {printer.lastSeenAt && <span>Last seen {new Date(printer.lastSeenAt).toLocaleString()}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           {printer.batteryPercent != null && (
-            <Chip
-              icon={
-                printer.batteryPercent <= 10 ? <BatteryAlertIcon /> :
-                printer.batteryPercent <= 30 ? <Battery2BarIcon /> :
-                printer.batteryPercent <= 70 ? <Battery5BarIcon /> :
-                <BatteryFullIcon />
-              }
-              label={`${printer.batteryPercent}%`}
-              size="small"
-              variant="outlined"
-              color={printer.batteryPercent <= 10 ? "error" : printer.batteryPercent <= 25 ? "warning" : "default"}
-            />
+            <Badge variant={printer.batteryPercent <= 10 ? "destructive" : "outline"}>
+              {printer.batteryPercent <= 10 ? <BatteryWarning className="size-3 mr-1" /> :
+               printer.batteryPercent <= 30 ? <BatteryLow className="size-3 mr-1" /> :
+               printer.batteryPercent <= 70 ? <BatteryMedium className="size-3 mr-1" /> :
+               <BatteryFull className="size-3 mr-1" />}
+              {printer.batteryPercent}%
+            </Badge>
           )}
           {onDelete && (
-            <Tooltip title="Remove printer">
-              <IconButton size="small" onClick={onDelete} disabled={isPending} sx={{ color: "text.disabled", "&:hover": { color: "error.main" } }}>
-                <DeleteIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
+            <button
+              className="p-1 rounded-md text-muted-foreground hover:text-destructive"
+              onClick={onDelete}
+              disabled={isPending}
+              title="Remove printer"
+            >
+              <Trash2 className="size-4" />
+            </button>
           )}
-        </Box>
-      </Box>
-      {/* ── Status indicators ── */}
-      <Box sx={{ px: 2, py: 1, display: "flex", gap: 1, flexWrap: "wrap", borderTop: 1, borderColor: "divider" }}>
+        </div>
+      </div>
+      {/* Status indicators */}
+      <div className="px-3 py-1 flex gap-1 flex-wrap border-t border-border">
         {printer.paperLoaded != null && (
-          <Chip
-            label={printer.paperLoaded ? "Paper OK" : "No Paper"}
-            size="small"
-            color={printer.paperLoaded ? "success" : "warning"}
-            variant="outlined"
-            sx={{ height: 22 }}
-          />
+          <Badge variant={printer.paperLoaded ? "default" : "outline"} className="h-5">{printer.paperLoaded ? "Paper OK" : "No Paper"}</Badge>
         )}
         {printer.coverClosed != null && (
-          <Chip
-            label={printer.coverClosed ? "Cover Closed" : "Cover Open"}
-            size="small"
-            color={printer.coverClosed ? "success" : "warning"}
-            variant="outlined"
-            sx={{ height: 22 }}
-          />
+          <Badge variant={printer.coverClosed ? "default" : "outline"} className="h-5">{printer.coverClosed ? "Cover Closed" : "Cover Open"}</Badge>
         )}
         {printer.lastConnectedVia && (
-          <Chip label={printer.lastConnectedVia.toUpperCase()} size="small" variant="outlined" sx={{ height: 22 }} />
+          <Badge variant="outline" className="h-5 uppercase">{printer.lastConnectedVia}</Badge>
         )}
         {printer.firmwareVersion && (
-          <Chip label={`FW ${printer.firmwareVersion}`} size="small" variant="outlined" sx={{ height: 22 }} />
+          <Badge variant="outline" className="h-5">FW {printer.firmwareVersion}</Badge>
         )}
-      </Box>
-      {/* ── Device info + settings ── */}
-      <Accordion disableGutters elevation={0} sx={{ borderTop: 1, borderColor: "divider", "&:before": { display: "none" } }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 36, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <SettingsIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-            <Typography variant="caption" fontWeight={600} color="text.secondary">
-              Details & Settings
-            </Typography>
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails sx={{ pt: 0 }}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
-                Device Info
-              </Typography>
-              <Stack spacing={0.5}>
-                {printer.modelName && (
-                  <InfoRow label="Model" value={`${printer.manufacturer ? printer.manufacturer + " " : ""}${printer.modelName}`} />
-                )}
-                <InfoRow label="Name" value={printer.name} />
-                {caps?.connection && <InfoRow label="Connection" value={caps.connection} />}
-                {caps?.protocol && <InfoRow label="Protocol" value={caps.protocol.toUpperCase()} />}
-                {caps?.dpi && <InfoRow label="Resolution" value={`${caps.dpi} DPI`} />}
-                {caps?.labelWidthMm && caps?.labelHeightMm && (
-                  <InfoRow label="Label Size" value={`${caps.labelWidthMm} x ${caps.labelHeightMm} mm`} />
-                )}
-                {printer.bleAddress && <InfoRow label="BLE Address" value={printer.bleAddress} mono />}
-                {printer.serialNumber && <InfoRow label="Serial" value={printer.serialNumber} mono />}
-              </Stack>
-            </Grid>
-            {onSaveSettings && (
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", mb: 1 }}>
-                  Print Settings
-                </Typography>
-                <Stack spacing={1.5}>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Print Speed ({printerSpeed})
-                    </Typography>
-                    <Slider
-                      value={printerSpeed}
-                      onChange={(_, v) => setPrinterSpeed(v as number)}
-                      min={1} max={5} step={1} size="small"
-                      marks={[{ value: 1, label: "Slow" }, { value: 3, label: "Normal" }, { value: 5, label: "Fast" }]}
-                    />
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Print Density ({printerDensity})
-                    </Typography>
-                    <Slider
-                      value={printerDensity}
-                      onChange={(_, v) => setPrinterDensity(v as number)}
-                      min={1} max={15} step={1} size="small"
-                      marks={[{ value: 1, label: "Light" }, { value: 8, label: "Normal" }, { value: 15, label: "Dark" }]}
-                    />
-                  </Box>
-                  <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-                    <Button size="small" variant="contained" disabled={isPending}
-                      onClick={() => onSaveSettings({ printerSpeed, printerDensity })}>
-                      {isPending ? "Saving..." : "Save Settings"}
-                    </Button>
-                  </Box>
-                </Stack>
-              </Grid>
-            )}
-          </Grid>
-        </AccordionDetails>
+      </div>
+      {/* Device info + settings */}
+      <Accordion>
+        <AccordionItem value="printer-details">
+          <AccordionTrigger className="px-3 py-1">
+            <div className="flex items-center gap-1">
+              <Settings className="size-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground">Details & Settings</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-xs text-muted-foreground font-semibold block mb-1">Device Info</span>
+                <div className="flex flex-col gap-1">
+                  {printer.modelName && <InfoRow label="Model" value={`${printer.manufacturer ? printer.manufacturer + " " : ""}${printer.modelName}`} />}
+                  <InfoRow label="Name" value={printer.name} />
+                  {caps?.connection && <InfoRow label="Connection" value={caps.connection} />}
+                  {caps?.protocol && <InfoRow label="Protocol" value={caps.protocol.toUpperCase()} />}
+                  {caps?.dpi && <InfoRow label="Resolution" value={`${caps.dpi} DPI`} />}
+                  {caps?.labelWidthMm && caps?.labelHeightMm && <InfoRow label="Label Size" value={`${caps.labelWidthMm} x ${caps.labelHeightMm} mm`} />}
+                  {printer.bleAddress && <InfoRow label="BLE Address" value={printer.bleAddress} mono />}
+                  {printer.serialNumber && <InfoRow label="Serial" value={printer.serialNumber} mono />}
+                </div>
+              </div>
+              {onSaveSettings && (
+                <div>
+                  <span className="text-xs text-muted-foreground font-semibold block mb-1">Print Settings</span>
+                  <div className="flex flex-col gap-2">
+                    <div>
+                      <Label className="text-xs">Print Speed ({printerSpeed})</Label>
+                      <input type="range" className="w-full" value={printerSpeed}
+                        onChange={(e) => setPrinterSpeed(Number(e.target.value))}
+                        min={1} max={5} step={1} />
+                      <div className="flex justify-between text-[0.6rem] text-muted-foreground">
+                        <span>Slow</span><span>Normal</span><span>Fast</span>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Print Density ({printerDensity})</Label>
+                      <input type="range" className="w-full" value={printerDensity}
+                        onChange={(e) => setPrinterDensity(Number(e.target.value))}
+                        min={1} max={15} step={1} />
+                      <div className="flex justify-between text-[0.6rem] text-muted-foreground">
+                        <span>Light</span><span>Normal</span><span>Dark</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-end mt-1">
+                      <Button size="sm" disabled={isPending}
+                        onClick={() => onSaveSettings({ printerSpeed, printerDensity })}>
+                        {isPending ? "Saving..." : "Save Settings"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
-      {/* ── Print queue ── */}
-      <Box sx={{ borderTop: 1, borderColor: "divider" }}>
-        <Box sx={{ px: 2, py: 0.75, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "grey.50" }}>
-          <Typography variant="caption" fontWeight={600} color="text.secondary">
-            Print Queue
-          </Typography>
+      {/* Print queue */}
+      <div className="border-t border-border">
+        <div className="px-3 py-1 flex items-center justify-between bg-muted/50">
+          <span className="text-xs font-semibold text-muted-foreground">Print Queue</span>
           {allJobs.length > 0 && (
-            <Button size="small" color="error" onClick={onClearAll} disabled={isPending} sx={{ fontSize: "0.7rem", minWidth: 0, py: 0 }}>
+            <Button variant="destructive" size="xs" onClick={onClearAll} disabled={isPending}>
               Clear All
             </Button>
           )}
-        </Box>
+        </div>
         {allJobs.length === 0 ? (
-          <Box sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: "divider" }}>
-            <Typography variant="caption" color="text.disabled">
-              No print jobs
-            </Typography>
-          </Box>
+          <div className="px-3 py-2 border-t border-border">
+            <span className="text-xs text-muted-foreground">No print jobs</span>
+          </div>
         ) : (
           allJobs.map((job) => (
-            <Box
-              key={job.id}
-              sx={{
-                px: 2, py: 0.75,
-                display: "flex", alignItems: "center", gap: 1,
-                borderTop: 1, borderColor: "divider",
-              }}
-            >
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" fontSize="0.8rem" noWrap>
+            <div key={job.id} className="px-3 py-1 flex items-center gap-2 border-t border-border">
+              <div className="flex-1 min-w-0">
+                <span className="text-sm truncate block">
                   {(job.labelData as any)?.label || (job.labelData as any)?.location || "Print job"}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
+                </span>
+                <span className="text-xs text-muted-foreground">
                   {new Date(job.createdAt).toLocaleString()}
-                </Typography>
-              </Box>
-              <Chip
-                label={job.status}
-                size="small"
-                color={JOB_STATUS_COLOR[job.status] ?? "default"}
-                variant="outlined"
-                sx={{ height: 20, textTransform: "capitalize", "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
-              />
-              <Tooltip title="Delete">
-                <IconButton size="small" disabled={isPending} sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main" } }}
-                  onClick={() => onDeleteJob?.(job.id)}>
-                  <DeleteIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
+                </span>
+              </div>
+              <Badge variant={JOB_STATUS_VARIANT[job.status] ?? "outline"} className="capitalize h-5 text-[0.7rem]">
+                {job.status}
+              </Badge>
+              <button
+                className="p-0.5 rounded text-muted-foreground hover:text-destructive"
+                disabled={isPending}
+                onClick={() => onDeleteJob?.(job.id)}
+                title="Delete"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
           ))
         )}
-      </Box>
-    </Paper>
+      </div>
+    </div>
   );
 }
 
-// ── Main Tab ─────────────────────────────────────────────────────────────────
+// -- Main Tab --
 
 type PrintJobRow = {
   id: string;
@@ -826,104 +736,66 @@ export function FillaIqTab() {
   };
 
   return (
-    <>
-      {/* ── Scan Stations ── */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-        <Typography variant="h6" fontWeight={600}>
-          Scan Stations
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => { setPairOpen(true); setPairError(""); setPairingCode(""); }}
-        >
-          Pair Device
-        </Button>
-      </Box>
+    <TooltipProvider>
+      <>
+        {/* Scan Stations */}
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-lg font-semibold">Scan Stations</h2>
+          <Button onClick={() => { setPairOpen(true); setPairError(""); setPairingCode(""); }}>
+            <Plus className="size-4 mr-1" />
+            Pair Device
+          </Button>
+        </div>
 
-      {loading ? (
-        <Box sx={{ textAlign: "center", py: 6 }}>
-          <Typography variant="body2" color="text.secondary">Loading...</Typography>
-        </Box>
-      ) : stations.length === 0 ? (
-        <Box sx={{ textAlign: "center", py: 6 }}>
-          <DevicesIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-          <Typography variant="body2" color="text.secondary">
-            No devices paired. Power on a device and enter the pairing code to connect it.
-          </Typography>
-        </Box>
-      ) : (
-        <Stack spacing={2}>
-          {stations.map((station) => {
-            const stationPrinters = printers.filter((p) => p.scanStationId === station.id);
-            const stationJobs = printJobs.filter(
-              (j) => !j.stationId || j.stationId === station.id
-            );
-            return (
-              <StationCard
-                key={station.id}
-                station={station}
-                envData={envData[station.id]}
-                printers={stationPrinters}
-                jobs={stationJobs}
-                isPending={isPending}
-                onChannelChange={handleChannelChange}
-                onRevoke={handleRevoke}
-                onSaveConfig={handleSaveConfig}
-                onCancelJob={(id) => {
-                  startTransition(async () => {
-                    await cancelPrintJob(id);
-                    fetchStations();
-                  });
-                }}
-                onDeleteJob={(id) => {
-                  startTransition(async () => {
-                    await deletePrintJob(id);
-                    fetchStations();
-                  });
-                }}
-                onDeletePrinter={(id) => {
-                  if (!confirm("Remove this printer? It will reappear next time the station detects it.")) return;
-                  startTransition(async () => {
-                    await deletePrinter(id);
-                    fetchStations();
-                  });
-                }}
-                onClearAllJobs={() => {
-                  startTransition(async () => {
-                    await cancelAllPendingPrintJobs();
-                    await clearCompletedPrintJobs();
-                    fetchStations();
-                  });
-                }}
-              />
-            );
-          })}
-        </Stack>
-      )}
-
-      {/* Printers without a station (orphaned) */}
-      {!loading && printers.filter((p) => !p.scanStationId || !stations.find((s) => s.id === p.scanStationId)).length > 0 && (
-        <>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 3, mb: 1 }}>
-            Unassigned Printers
-          </Typography>
-          <Stack spacing={2}>
-            {printers
-              .filter((p) => !p.scanStationId || !stations.find((s) => s.id === p.scanStationId))
-              .map((p) => (
-                <PrinterCard
-                  key={p.id}
-                  printer={p}
-                  jobs={printJobs.filter((j) => !j.stationId)}
+        {loading ? (
+          <div className="text-center py-6">
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        ) : stations.length === 0 ? (
+          <div className="text-center py-6">
+            <Monitor className="size-12 text-muted-foreground mx-auto mb-1" />
+            <p className="text-sm text-muted-foreground">
+              No devices paired. Power on a device and enter the pairing code to connect it.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {stations.map((station) => {
+              const stationPrinters = printers.filter((p) => p.scanStationId === station.id);
+              const stationJobs = printJobs.filter(
+                (j) => !j.stationId || j.stationId === station.id
+              );
+              return (
+                <StationCard
+                  key={station.id}
+                  station={station}
+                  envData={envData[station.id]}
+                  printers={stationPrinters}
+                  jobs={stationJobs}
                   isPending={isPending}
+                  onChannelChange={handleChannelChange}
+                  onRevoke={handleRevoke}
+                  onSaveConfig={handleSaveConfig}
                   onCancelJob={(id) => {
                     startTransition(async () => {
                       await cancelPrintJob(id);
                       fetchStations();
                     });
                   }}
-                  onClearAll={() => {
+                  onDeleteJob={(id) => {
+                    startTransition(async () => {
+                      await deletePrintJob(id);
+                      fetchStations();
+                    });
+                  }}
+                  onDeletePrinter={(id) => {
+                    if (!confirm("Remove this printer? It will reappear next time the station detects it.")) return;
+                    startTransition(async () => {
+                      await deletePrinter(id);
+                      fetchStations();
+                    });
+                  }}
+                  onClearAllJobs={() => {
                     startTransition(async () => {
                       await cancelAllPendingPrintJobs();
                       await clearCompletedPrintJobs();
@@ -931,37 +803,75 @@ export function FillaIqTab() {
                     });
                   }}
                 />
-              ))}
-          </Stack>
-        </>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      {/* Pair dialog */}
-      <Dialog open={pairOpen} onClose={() => setPairOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Pair Device</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Enter the 6-character pairing code shown on your device.
-          </Typography>
-          {pairError && <Alert severity="error" sx={{ mb: 2 }}>{pairError}</Alert>}
-          <TextField
-            autoFocus
-            fullWidth
-            label="Pairing Code"
-            value={pairingCode}
-            onChange={(e) => setPairingCode(e.target.value.toUpperCase().slice(0, 6))}
-            onKeyDown={(e) => { if (e.key === "Enter" && pairingCode.length === 6) handlePair(); }}
-            inputProps={{ maxLength: 6, style: { fontFamily: "monospace", fontSize: "1.5rem", textAlign: "center", letterSpacing: "0.3em" } }}
-            placeholder="ABC123"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPairOpen(false)}>Cancel</Button>
-          <Button onClick={handlePair} variant="contained" disabled={isPending || pairingCode.length !== 6}>
-            {isPending ? "Pairing..." : "Pair"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
+        {/* Printers without a station (orphaned) */}
+        {!loading && printers.filter((p) => !p.scanStationId || !stations.find((s) => s.id === p.scanStationId)).length > 0 && (
+          <>
+            <p className="text-sm font-semibold text-muted-foreground mt-4 mb-2">Unassigned Printers</p>
+            <div className="flex flex-col gap-3">
+              {printers
+                .filter((p) => !p.scanStationId || !stations.find((s) => s.id === p.scanStationId))
+                .map((p) => (
+                  <PrinterCard
+                    key={p.id}
+                    printer={p}
+                    jobs={printJobs.filter((j) => !j.stationId)}
+                    isPending={isPending}
+                    onCancelJob={(id) => {
+                      startTransition(async () => {
+                        await cancelPrintJob(id);
+                        fetchStations();
+                      });
+                    }}
+                    onClearAll={() => {
+                      startTransition(async () => {
+                        await cancelAllPendingPrintJobs();
+                        await clearCompletedPrintJobs();
+                        fetchStations();
+                      });
+                    }}
+                  />
+                ))}
+            </div>
+          </>
+        )}
+
+        {/* Pair dialog */}
+        <Dialog open={pairOpen} onOpenChange={(o) => { if (!o) setPairOpen(false); }}>
+          <DialogContent className="sm:max-w-xs">
+            <DialogHeader>
+              <DialogTitle>Pair Device</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground mb-2">
+              Enter the 6-character pairing code shown on your device.
+            </p>
+            {pairError && (
+              <Alert variant="destructive" className="mb-2">
+                <AlertDescription>{pairError}</AlertDescription>
+              </Alert>
+            )}
+            <Input
+              autoFocus
+              value={pairingCode}
+              onChange={(e) => setPairingCode(e.target.value.toUpperCase().slice(0, 6))}
+              onKeyDown={(e) => { if (e.key === "Enter" && pairingCode.length === 6) handlePair(); }}
+              maxLength={6}
+              placeholder="ABC123"
+              className="text-center text-2xl font-mono font-semibold tracking-widest"
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPairOpen(false)}>Cancel</Button>
+              <Button onClick={handlePair} disabled={isPending || pairingCode.length !== 6}>
+                {isPending ? "Pairing..." : "Pair"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    </TooltipProvider>
   );
 }

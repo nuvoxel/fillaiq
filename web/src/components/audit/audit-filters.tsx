@@ -1,12 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import Box from "@mui/material/Box";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
-import Button from "@mui/material/Button";
+import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import type { AuditAction } from "@/lib/design-tokens";
 import { colors } from "@/lib/design-tokens";
 
@@ -56,21 +52,25 @@ export function AuditFilters() {
   const activeActions = searchParams.getAll("action");
   const activeResourceType = searchParams.get("resourceType") ?? "";
 
-  function handleActionsChange(
-    _: React.MouseEvent<HTMLElement>,
-    newActions: string[],
-  ) {
+  function toggleAction(action: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("page");
+    const current = params.getAll("action");
     params.delete("action");
-    newActions.forEach((a) => params.append("action", a));
+    if (current.includes(action)) {
+      current
+        .filter((a) => a !== action)
+        .forEach((a) => params.append("action", a));
+    } else {
+      [...current, action].forEach((a) => params.append("action", a));
+    }
     router.push(`?${params.toString()}`);
   }
 
   function setResourceType(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("page");
-    if (value) {
+    if (value && value !== "all") {
       params.set("resourceType", value);
     } else {
       params.delete("resourceType");
@@ -85,62 +85,66 @@ export function AuditFilters() {
   const hasFilters = activeActions.length > 0 || activeResourceType;
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mb: 3 }}>
-      <ToggleButtonGroup
-        value={activeActions}
-        onChange={handleActionsChange}
-        size="small"
-      >
-        {actionTypes.map(({ value, label }) => {
-          const actionColor = colors.action[value];
-          return (
-            <ToggleButton
-              key={value}
-              value={value}
-              sx={{
-                textTransform: "none",
-                fontWeight: 500,
-                px: 2,
-                "&.Mui-selected": {
-                  bgcolor: actionColor.bg,
-                  color: actionColor.DEFAULT,
-                  borderColor: actionColor.DEFAULT,
-                },
-                "&.Mui-selected:hover": {
-                  bgcolor: actionColor.bg,
-                },
-              }}
-            >
-              {label}
-            </ToggleButton>
-          );
-        })}
-      </ToggleButtonGroup>
+    <div className="bg-card p-2.5 rounded-xl mb-3 shadow-sm flex flex-wrap items-end gap-3">
+      {/* Action Type */}
+      <div className="flex-1 min-w-60">
+        <p className="text-[0.625rem] uppercase tracking-[0.1em] font-bold text-muted-foreground/60 mb-1.5 px-0.5">
+          Action Type
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {actionTypes.map(({ value, label }) => {
+            const actionColor = colors.action[value];
+            const isActive = activeActions.includes(value);
+            return (
+              <button
+                key={value}
+                onClick={() => toggleAction(value)}
+                className="px-2 py-1 text-[0.8125rem] font-semibold rounded-lg transition-colors"
+                style={
+                  isActive
+                    ? { backgroundColor: actionColor.bg, color: actionColor.DEFAULT }
+                    : { backgroundColor: "var(--muted)", color: "var(--muted-foreground)" }
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-        <TextField
-          select
-          size="small"
-          value={activeResourceType}
-          onChange={(e) => setResourceType(e.target.value)}
-          sx={{ minWidth: 200 }}
+      {/* Resource Type */}
+      <div className="min-w-[200px]">
+        <p className="text-[0.625rem] uppercase tracking-[0.1em] font-bold text-muted-foreground/60 mb-1.5 px-0.5">
+          Resource Type
+        </p>
+        <Select value={activeResourceType || "all"} onValueChange={(v) => setResourceType(v ?? "")}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Resources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Resources</SelectItem>
+            {resourceTypes.map((rt) => (
+              <SelectItem key={rt} value={rt}>
+                {rt
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c) => c.toUpperCase())}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Clear */}
+      {hasFilters && (
+        <Button
+          size="sm"
+          onClick={clearAll}
+          className="bg-[#1A2530] text-white hover:bg-[#2c3e50]"
         >
-          <MenuItem value="">All resource types</MenuItem>
-          {resourceTypes.map((rt) => (
-            <MenuItem key={rt} value={rt}>
-              {rt
-                .replace(/_/g, " ")
-                .replace(/\b\w/g, (c) => c.toUpperCase())}
-            </MenuItem>
-          ))}
-        </TextField>
-
-        {hasFilters && (
-          <Button variant="text" size="small" onClick={clearAll}>
-            Clear all
-          </Button>
-        )}
-      </Box>
-    </Box>
+          Clear Filters
+        </Button>
+      )}
+    </div>
   );
 }

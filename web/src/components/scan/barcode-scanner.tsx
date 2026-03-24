@@ -1,16 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
-import CloseIcon from "@mui/icons-material/Close";
-import FlipCameraIosIcon from "@mui/icons-material/FlipCameraIos";
-import CheckIcon from "@mui/icons-material/Check";
+import { X, SwitchCamera, Check, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { BarcodeDetector as BarcodeDetectorPolyfill } from "barcode-detector";
 
 export type DetectedCode = {
@@ -30,9 +23,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [facingMode, setFacingMode] = useState<"environment" | "user">(
-    "environment"
-  );
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
 
   const stopCamera = useCallback(() => {
@@ -67,7 +58,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
     return stopCamera;
   }, [startCamera, stopCamera]);
 
-  // Barcode detection loop — accumulates all unique codes
+  // Barcode detection loop
   useEffect(() => {
     if (!scanning) return;
 
@@ -133,7 +124,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#FF5C2E";
+    ctx.strokeStyle = "#00D2FF";
     ctx.lineWidth = 4;
 
     for (const barcode of barcodes) {
@@ -161,123 +152,74 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   };
 
   return (
-    <Box
-      sx={{
-        position: "relative",
-        width: "100%",
-        maxWidth: 500,
-        mx: "auto",
-        borderRadius: 3,
-        overflow: "hidden",
-        bgcolor: "black",
-      }}
-    >
+    <div className="relative w-full max-w-[500px] mx-auto rounded-xl overflow-hidden bg-black">
       {/* Controls overlay */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 8,
-          left: 8,
-          right: 8,
-          display: "flex",
-          justifyContent: "space-between",
-          zIndex: 2,
-        }}
-      >
-        <IconButton
+      <div className="absolute top-2 left-2 right-2 flex justify-between z-10">
+        <button
           onClick={onClose}
-          sx={{ color: "white", bgcolor: "rgba(0,0,0,0.5)" }}
+          className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
         >
-          <CloseIcon />
-        </IconButton>
-        <IconButton
+          <X className="size-5" />
+        </button>
+        <button
           onClick={() =>
             setFacingMode((f) => (f === "environment" ? "user" : "environment"))
           }
-          sx={{ color: "white", bgcolor: "rgba(0,0,0,0.5)" }}
+          className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
         >
-          <FlipCameraIosIcon />
-        </IconButton>
-      </Box>
+          <SwitchCamera className="size-5" />
+        </button>
+      </div>
 
       {error ? (
-        <Box sx={{ p: 4, textAlign: "center" }}>
-          <Typography color="error" variant="body2">
-            {error}
-          </Typography>
-        </Box>
+        <div className="p-6 text-center">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
       ) : (
-        <Box sx={{ position: "relative", width: "100%", aspectRatio: "4/3" }}>
+        <div className="relative w-full aspect-[4/3]">
           <video
             ref={videoRef}
             playsInline
             muted
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
+            className="w-full h-full object-cover"
           />
           <canvas
             ref={canvasRef}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              pointerEvents: "none",
-            }}
+            className="absolute top-0 left-0 w-full h-full pointer-events-none"
           />
-        </Box>
+        </div>
       )}
 
       {/* Detected codes list + done button */}
-      <Box sx={{ p: 1.5, bgcolor: "rgba(0,0,0,0.85)" }}>
+      <div className="p-3 bg-black/85">
         {detectedCodes.length === 0 ? (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 1,
-              py: 0.5,
-            }}
-          >
-            {scanning && <CircularProgress size={14} sx={{ color: "white" }} />}
-            <Typography variant="body2" sx={{ color: "grey.400" }}>
+          <div className="flex items-center justify-center gap-2 py-1">
+            {scanning && <Loader2 className="size-3.5 animate-spin text-white" />}
+            <span className="text-sm text-gray-400">
               {scanning ? "Scanning for barcodes & QR codes..." : "Starting camera..."}
-            </Typography>
-          </Box>
+            </span>
+          </div>
         ) : (
-          <Stack spacing={1}>
-            <Stack direction="row" flexWrap="wrap" gap={0.5}>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1">
               {detectedCodes.map((code) => (
-                <Chip
+                <Badge
                   key={code.value}
-                  label={`${code.value} (${code.format})`}
-                  size="small"
-                  onDelete={() => handleRemoveCode(code.value)}
-                  sx={{
-                    bgcolor: "rgba(255,255,255,0.15)",
-                    color: "white",
-                    "& .MuiChip-deleteIcon": { color: "grey.400" },
-                  }}
-                />
+                  variant="secondary"
+                  className="bg-white/15 text-white cursor-pointer"
+                  onClick={() => handleRemoveCode(code.value)}
+                >
+                  {code.value} ({code.format})
+                </Badge>
               ))}
-            </Stack>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<CheckIcon />}
-              onClick={handleDone}
-              fullWidth
-            >
+            </div>
+            <Button size="sm" onClick={handleDone} className="w-full">
+              <Check className="size-4 mr-1" />
               Done ({detectedCodes.length} code{detectedCodes.length !== 1 ? "s" : ""})
             </Button>
-          </Stack>
+          </div>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

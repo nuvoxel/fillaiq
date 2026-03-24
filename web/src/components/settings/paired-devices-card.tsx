@@ -1,32 +1,35 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import Card from "@mui/material/Card";
-import CardHeader from "@mui/material/CardHeader";
-import CardContent from "@mui/material/CardContent";
-import Divider from "@mui/material/Divider";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import IconButton from "@mui/material/IconButton";
-import Button from "@mui/material/Button";
-import TextField from "@mui/material/TextField";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import Alert from "@mui/material/Alert";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
-import DevicesIcon from "@mui/icons-material/Devices";
+import { Trash2, Plus, Monitor } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import { listMyStations, revokeDevice, updateStationChannel, claimDevice } from "@/lib/actions/scan";
 
 type Station = {
@@ -94,134 +97,141 @@ export function PairedDevicesCard() {
 
   return (
     <Card>
-      <CardHeader
-        title="Devices"
-        titleTypographyProps={{ fontWeight: 600 }}
-        action={
+      <CardHeader className="border-b">
+        <CardTitle className="font-semibold">Devices</CardTitle>
+        <CardAction>
           <Button
-            size="small"
-            startIcon={<AddIcon />}
+            size="sm"
+            variant="outline"
             onClick={() => { setPairOpen(true); setPairError(""); setPairingCode(""); }}
           >
+            <Plus className="size-4 mr-1" />
             Pair Device
           </Button>
-        }
-      />
-      <Divider />
-      <CardContent sx={{ p: 0 }}>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="p-0">
         {loading ? (
-          <Box sx={{ textAlign: "center", py: 4 }}>
-            <Typography variant="body2" color="text.secondary">Loading...</Typography>
-          </Box>
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
         ) : stations.length === 0 ? (
-          <Box sx={{ textAlign: "center", py: 4 }}>
-            <DevicesIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
-            <Typography variant="body2" color="text.secondary">
+          <div className="text-center py-8">
+            <Monitor className="mx-auto size-10 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">
               No devices paired. Power on a device and enter the pairing code to connect it.
-            </Typography>
-          </Box>
+            </p>
+          </div>
         ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Hardware ID</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Firmware</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Channel</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>IP Address</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Last Seen</TableCell>
-                  <TableCell />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="font-semibold">Name</TableHead>
+                <TableHead className="font-semibold">Hardware ID</TableHead>
+                <TableHead className="font-semibold">Firmware</TableHead>
+                <TableHead className="font-semibold">Channel</TableHead>
+                <TableHead className="font-semibold">IP Address</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="font-semibold">Last Seen</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stations.map((station) => (
+                <TableRow key={station.id}>
+                  <TableCell>{station.name}</TableCell>
+                  <TableCell>
+                    <span className="text-sm font-mono text-muted-foreground">
+                      {station.hardwareId}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm font-mono text-muted-foreground">
+                      {station.firmwareVersion ?? "\u2014"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={station.firmwareChannel ?? "stable"}
+                      onValueChange={(val) => val && handleChannelChange(station.id, val)}
+                      disabled={isPending}
+                    >
+                      <SelectTrigger className="min-w-[90px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="stable">Stable</SelectItem>
+                        <SelectItem value="beta">Beta</SelectItem>
+                        <SelectItem value="dev">Dev</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm font-mono text-muted-foreground">
+                      {station.ipAddress ?? "\u2014"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={station.isOnline ? "default" : "outline"}>
+                      {station.isOnline ? "Online" : "Offline"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {station.lastSeenAt
+                      ? new Date(station.lastSeenAt).toLocaleString()
+                      : "Never"}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleRevoke(station.id, station.name)}
+                      disabled={isPending}
+                      title="Revoke device access"
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {stations.map((station) => (
-                  <TableRow key={station.id}>
-                    <TableCell>{station.name}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                        {station.hardwareId}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                        {station.firmwareVersion ?? "—"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        size="small"
-                        value={station.firmwareChannel ?? "stable"}
-                        onChange={(e) => handleChannelChange(station.id, e.target.value)}
-                        disabled={isPending}
-                        sx={{ minWidth: 90, fontSize: "0.8125rem" }}
-                      >
-                        <MenuItem value="stable">Stable</MenuItem>
-                        <MenuItem value="beta">Beta</MenuItem>
-                        <MenuItem value="dev">Dev</MenuItem>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                        {station.ipAddress ?? "—"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={station.isOnline ? "Online" : "Offline"}
-                        size="small"
-                        color={station.isOnline ? "success" : "default"}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {station.lastSeenAt
-                        ? new Date(station.lastSeenAt).toLocaleString()
-                        : "Never"}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleRevoke(station.id, station.name)}
-                        disabled={isPending}
-                        title="Revoke device access"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
 
-      <Dialog open={pairOpen} onClose={() => setPairOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Pair Device</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Enter the 6-character pairing code shown on your device.
-          </Typography>
-          {pairError && <Alert severity="error" sx={{ mb: 2 }}>{pairError}</Alert>}
-          <TextField
-            autoFocus
-            fullWidth
-            label="Pairing Code"
-            value={pairingCode}
-            onChange={(e) => setPairingCode(e.target.value.toUpperCase().slice(0, 6))}
-            onKeyDown={(e) => { if (e.key === "Enter" && pairingCode.length === 6) handlePair(); }}
-            inputProps={{ maxLength: 6, style: { fontFamily: "monospace", fontSize: "1.5rem", textAlign: "center", letterSpacing: "0.3em" } }}
-            placeholder="ABC123"
-          />
+      <Dialog open={pairOpen} onOpenChange={(o) => { if (!o) setPairOpen(false); }}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Pair Device</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Enter the 6-character pairing code shown on your device.
+            </p>
+            {pairError && (
+              <Alert variant="destructive">
+                <AlertDescription>{pairError}</AlertDescription>
+              </Alert>
+            )}
+            <Input
+              autoFocus
+              value={pairingCode}
+              onChange={(e) => setPairingCode(e.target.value.toUpperCase().slice(0, 6))}
+              onKeyDown={(e) => { if (e.key === "Enter" && pairingCode.length === 6) handlePair(); }}
+              maxLength={6}
+              className="font-mono text-2xl text-center tracking-[0.3em]"
+              placeholder="ABC123"
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button onClick={handlePair} disabled={isPending || pairingCode.length !== 6}>
+              {isPending ? "Pairing..." : "Pair"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPairOpen(false)}>Cancel</Button>
-          <Button onClick={handlePair} variant="contained" disabled={isPending || pairingCode.length !== 6}>
-            {isPending ? "Pairing..." : "Pair"}
-          </Button>
-        </DialogActions>
       </Dialog>
     </Card>
   );

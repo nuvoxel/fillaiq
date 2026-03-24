@@ -1,16 +1,8 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import CloseIcon from "@mui/icons-material/Close";
-import FlipCameraIosIcon from "@mui/icons-material/FlipCameraIos";
-import CameraAltIcon from "@mui/icons-material/CameraAlt";
-import ReplayIcon from "@mui/icons-material/Replay";
-import CheckIcon from "@mui/icons-material/Check";
+import { X, SwitchCamera, Camera, RotateCcw, Check, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export type CapturedColor = {
   hex: string;
@@ -30,7 +22,6 @@ function extractColorAtPoint(
   canvasWidth: number,
   canvasHeight: number
 ): CapturedColor {
-  // Sample a region around the tap point (~8% of the shorter dimension)
   const radius = Math.floor(Math.min(canvasWidth, canvasHeight) * 0.08);
   const x0 = Math.max(0, Math.floor(px - radius));
   const y0 = Math.max(0, Math.floor(py - radius));
@@ -40,7 +31,6 @@ function extractColorAtPoint(
   const imageData = ctx.getImageData(x0, y0, w, h);
   const { data } = imageData;
 
-  // Collect pixels within circle
   const pixels: [number, number, number][] = [];
   const cx = px - x0;
   const cy = py - y0;
@@ -60,7 +50,6 @@ function extractColorAtPoint(
     return { hex: "#808080", r: 128, g: 128, b: 128 };
   }
 
-  // K-means with k=3
   const k = Math.min(3, pixels.length);
   const centroids: [number, number, number][] = [];
   for (let i = 0; i < k; i++) {
@@ -106,7 +95,6 @@ function extractColorAtPoint(
     }
   }
 
-  // Pick largest non-background cluster
   const counts = new Array(k).fill(0);
   for (let i = 0; i < assignments.length; i++) {
     counts[assignments[i]]++;
@@ -191,7 +179,6 @@ export function ColorCapture({ onCapture, onClose }: Props) {
     return stopCamera;
   }, [startCamera, stopCamera]);
 
-  // Freeze frame: draw video to canvas and pause
   const handleFreeze = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -208,7 +195,6 @@ export function ColorCapture({ onCapture, onClose }: Props) {
     setPickPoint(null);
   }, []);
 
-  // Tap on frozen frame to pick color
   const handleCanvasTap = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       if (!frozen) return;
@@ -225,7 +211,6 @@ export function ColorCapture({ onCapture, onClose }: Props) {
         clientY = e.clientY;
       }
 
-      // Map from display coords to canvas pixel coords
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
       const px = (clientX - rect.left) * scaleX;
@@ -236,7 +221,6 @@ export function ColorCapture({ onCapture, onClose }: Props) {
 
       const color = extractColorAtPoint(ctx, px, py, canvas.width, canvas.height);
       setPickedColor(color);
-      // Store pick point in display-relative percentages for the indicator
       setPickPoint({
         x: ((clientX - rect.left) / rect.width) * 100,
         y: ((clientY - rect.top) / rect.height) * 100,
@@ -258,57 +242,35 @@ export function ColorCapture({ onCapture, onClose }: Props) {
   };
 
   return (
-    <Box
-      sx={{
-        position: "relative",
-        width: "100%",
-        maxWidth: 500,
-        mx: "auto",
-        borderRadius: 3,
-        overflow: "hidden",
-        bgcolor: "black",
-      }}
-    >
+    <div className="relative w-full max-w-[500px] mx-auto rounded-xl overflow-hidden bg-black">
       {/* Controls overlay */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 8,
-          left: 8,
-          right: 8,
-          display: "flex",
-          justifyContent: "space-between",
-          zIndex: 3,
-        }}
-      >
-        <IconButton
+      <div className="absolute top-2 left-2 right-2 flex justify-between z-30">
+        <button
           onClick={onClose}
-          sx={{ color: "white", bgcolor: "rgba(0,0,0,0.5)" }}
+          className="p-2 rounded-full text-white bg-black/50 hover:bg-black/70 transition-colors"
         >
-          <CloseIcon />
-        </IconButton>
+          <X className="size-5" />
+        </button>
         {!frozen && (
-          <IconButton
+          <button
             onClick={() =>
               setFacingMode((f) =>
                 f === "environment" ? "user" : "environment"
               )
             }
-            sx={{ color: "white", bgcolor: "rgba(0,0,0,0.5)" }}
+            className="p-2 rounded-full text-white bg-black/50 hover:bg-black/70 transition-colors"
           >
-            <FlipCameraIosIcon />
-          </IconButton>
+            <SwitchCamera className="size-5" />
+          </button>
         )}
-      </Box>
+      </div>
 
       {error ? (
-        <Box sx={{ p: 4, textAlign: "center" }}>
-          <Typography color="error" variant="body2">
-            {error}
-          </Typography>
-        </Box>
+        <div className="p-8 text-center">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
       ) : (
-        <Box sx={{ position: "relative", width: "100%", aspectRatio: "4/3" }}>
+        <div className="relative w-full" style={{ aspectRatio: "4/3" }}>
           {/* Live video (hidden when frozen) */}
           <video
             ref={videoRef}
@@ -339,171 +301,84 @@ export function ColorCapture({ onCapture, onClose }: Props) {
 
           {/* Tap-point indicator */}
           {frozen && pickPoint && (
-            <Box
-              sx={{
-                position: "absolute",
+            <div
+              className="absolute w-9 h-9 rounded-full border-[3px] border-white pointer-events-none z-20"
+              style={{
                 left: `${pickPoint.x}%`,
                 top: `${pickPoint.y}%`,
                 transform: "translate(-50%, -50%)",
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                border: "3px solid white",
                 boxShadow: "0 0 0 2px rgba(0,0,0,0.4)",
-                pointerEvents: "none",
-                zIndex: 2,
               }}
             />
           )}
 
           {/* Instruction overlay */}
           {frozen && !pickedColor && (
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: 16,
-                left: "50%",
-                transform: "translateX(-50%)",
-                bgcolor: "rgba(0,0,0,0.7)",
-                color: "white",
-                px: 2,
-                py: 1,
-                borderRadius: 2,
-                zIndex: 2,
-              }}
-            >
-              <Typography variant="body2" textAlign="center">
-                Tap the filament color
-              </Typography>
-            </Box>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-lg z-20">
+              <p className="text-sm text-center">Tap the filament color</p>
+            </div>
           )}
 
           {/* Capture button (live mode) */}
           {!frozen && ready && (
             <>
-              {/* Center crosshair hint */}
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  border: "2px solid rgba(255,255,255,0.5)",
-                  pointerEvents: "none",
-                  zIndex: 1,
-                }}
-              />
-              <Box
-                sx={{
-                  position: "absolute",
-                  bottom: 16,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  zIndex: 2,
-                }}
-              >
-                <IconButton
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-white/50 pointer-events-none z-10" />
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+                <button
                   onClick={handleFreeze}
-                  sx={{
-                    bgcolor: "white",
-                    width: 64,
-                    height: 64,
-                    border: "4px solid rgba(255,255,255,0.5)",
-                    "&:hover": { bgcolor: "grey.200" },
-                  }}
+                  className="w-16 h-16 rounded-full bg-white border-4 border-white/50 hover:bg-gray-200 transition-colors flex items-center justify-center"
                 >
-                  <CameraAltIcon sx={{ fontSize: 28, color: "grey.800" }} />
-                </IconButton>
-              </Box>
+                  <Camera className="size-7 text-gray-800" />
+                </button>
+              </div>
             </>
           )}
 
           {/* Loading spinner before camera ready */}
           {!frozen && !ready && !error && (
-            <Box
-              sx={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-              }}
-            >
-              <CircularProgress sx={{ color: "white" }} />
-            </Box>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <Loader2 className="size-8 animate-spin text-white" />
+            </div>
           )}
 
           {/* Color result bar */}
           {pickedColor && (
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                p: 2,
-                background: "linear-gradient(transparent, rgba(0,0,0,0.85))",
-                zIndex: 2,
-              }}
+            <div
+              className="absolute bottom-0 left-0 right-0 p-4 z-20"
+              style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.85))" }}
             >
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  mb: 1.5,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "50%",
-                    bgcolor: pickedColor.hex,
-                    border: "3px solid white",
-                    flexShrink: 0,
-                  }}
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="w-12 h-12 rounded-full border-[3px] border-white shrink-0"
+                  style={{ backgroundColor: pickedColor.hex }}
                 />
-                <Box>
-                  <Typography
-                    variant="body1"
-                    fontWeight={700}
-                    sx={{ color: "white" }}
-                  >
+                <div>
+                  <p className="text-base font-bold text-white">
                     {pickedColor.hex.toUpperCase()}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "grey.400" }}>
+                  </p>
+                  <p className="text-xs text-gray-400">
                     RGB({pickedColor.r}, {pickedColor.g}, {pickedColor.b})
-                  </Typography>
-                </Box>
-              </Box>
-              <Box sx={{ display: "flex", gap: 1 }}>
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
                 <Button
-                  variant="outlined"
-                  startIcon={<ReplayIcon />}
+                  variant="outline"
                   onClick={handleRetake}
-                  sx={{
-                    color: "white",
-                    borderColor: "rgba(255,255,255,0.5)",
-                  }}
+                  className="text-white border-white/50 hover:bg-white/10"
                 >
+                  <RotateCcw className="size-4 mr-1.5" />
                   Retake
                 </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<CheckIcon />}
-                  onClick={handleAccept}
-                  sx={{ flex: 1 }}
-                >
+                <Button onClick={handleAccept} className="flex-1">
+                  <Check className="size-4 mr-1.5" />
                   Use This Color
                 </Button>
-              </Box>
-            </Box>
+              </div>
+            </div>
           )}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

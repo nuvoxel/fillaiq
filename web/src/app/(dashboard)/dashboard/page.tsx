@@ -1,14 +1,6 @@
 import Link from "next/link";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import WarehouseIcon from "@mui/icons-material/Warehouse";
-import SendIcon from "@mui/icons-material/Send";
-import { BarChart } from "@mui/x-charts/BarChart";
+import { Circle, CheckCircle, Warehouse, Send } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { listAuditLogsFiltered } from "@/lib/actions/audit";
 import { AuditFeed } from "@/components/audit/audit-feed";
@@ -21,30 +13,34 @@ const statCards = [
   {
     label: "Total Spools",
     href: "/spools",
-    icon: <CircleOutlinedIcon />,
-    color: "#FF5C2E",
-    bg: "#FFF0EB",
+    icon: <Circle className="size-5" />,
+    color: "text-primary",
+    bgColor: "bg-primary/5",
+    hoverBg: "group-hover:bg-primary group-hover:text-white",
   },
   {
     label: "Active Spools",
     href: "/spools",
-    icon: <CheckCircleIcon />,
-    color: "#16A34A",
-    bg: "#F0FDF4",
+    icon: <CheckCircle className="size-5" />,
+    color: "text-primary",
+    bgColor: "bg-primary/5",
+    hoverBg: "group-hover:bg-primary group-hover:text-white",
   },
   {
     label: "Locations",
     href: "/locations",
-    icon: <WarehouseIcon />,
-    color: "#2563EB",
-    bg: "#EFF6FF",
+    icon: <Warehouse className="size-5" />,
+    color: "text-primary",
+    bgColor: "bg-primary/5",
+    hoverBg: "group-hover:bg-primary group-hover:text-white",
   },
   {
     label: "Pending Submissions",
     href: "/submissions",
-    icon: <SendIcon />,
-    color: "#7C3AED",
-    bg: "#EDE9FE",
+    icon: <Send className="size-5" />,
+    color: "text-[#FF2A5F]",
+    bgColor: "bg-[#FF2A5F]/5",
+    hoverBg: "group-hover:bg-[#FF2A5F] group-hover:text-white",
   },
 ];
 
@@ -84,119 +80,120 @@ export default async function DashboardPage() {
 
   const counts = [userItems.length, activeUserItems.length, zones.length, pending.length];
 
-  const chartLabels = materialWeights.map((m) => m.material);
-  const chartData = materialWeights.map((m) => Math.round(m.totalWeightG));
+  const maxWeight =
+    materialWeights.length > 0
+      ? Math.max(...materialWeights.map((m) => m.totalWeightG))
+      : 1;
 
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="Overview of your filament monitoring system."
+        title="Factory Overview"
+        description="Real-time inventory telemetry for your additive manufacturing hub."
       />
 
       {/* Stat Cards */}
-      <Grid container spacing={2} sx={{ mb: 4 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         {statCards.map((card, i) => (
-          <Grid key={card.label} size={{ xs: 12, sm: 6, md: 3 }}>
-            <Link href={card.href} style={{ textDecoration: "none" }}>
-              <Card
-                sx={{
-                  borderLeft: 4,
-                  borderLeftColor: card.color,
-                  cursor: "pointer",
-                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                  "&:hover": {
-                    transform: "translateY(-2px)",
-                    boxShadow: 4,
-                  },
-                }}
-              >
-                <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      bgcolor: card.bg,
-                      color: card.color,
-                    }}
+          <Link key={card.label} href={card.href} className="no-underline group">
+            <Card className="p-6 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+              <CardContent className="p-0">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground mb-1">
+                      {card.label}
+                    </p>
+                    <p className="font-display text-4xl font-extrabold leading-tight text-foreground">
+                      {counts[i]}
+                    </p>
+                  </div>
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${card.color} ${card.bgColor} ${card.hoverBg}`}
                   >
                     {card.icon}
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>
-                      {counts[i]}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {card.label}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Link>
-          </Grid>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
-      </Grid>
+      </div>
 
-      <Grid container spacing={3}>
-        {/* Weight Chart */}
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-                Filament by Material (g)
-              </Typography>
-              {chartLabels.length > 0 ? (
-                <BarChart
-                  xAxis={[{ scaleType: "band", data: chartLabels }]}
-                  series={[
-                    {
-                      data: chartData,
-                      color: "#FF5C2E",
-                    },
-                  ]}
-                  height={300}
-                />
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        {/* Filament by Material -- Horizontal Bar Chart */}
+        <div className="md:col-span-7">
+          <Card className="p-8">
+            <CardContent className="p-0">
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="font-display font-bold text-xl flex items-center gap-2">
+                  <span className="w-1 h-5 bg-primary rounded-full shrink-0" />
+                  Filament by Material
+                </h3>
+                <span className="text-xs font-mono text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                  Weight in Grams (g)
+                </span>
+              </div>
+
+              {materialWeights.length > 0 ? (
+                <div className="flex flex-col gap-6">
+                  {materialWeights.map((m) => {
+                    const weight = Math.round(m.totalWeightG);
+                    const pct = Math.round((weight / maxWeight) * 100);
+                    return (
+                      <div key={m.material}>
+                        <div className="flex justify-between mb-1.5">
+                          <span className="text-xs font-semibold text-foreground">
+                            {m.material}
+                          </span>
+                          <span className="text-xs font-mono font-semibold text-foreground">
+                            {weight.toLocaleString()}g
+                          </span>
+                        </div>
+                        <div className="h-3 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
-                <Box
-                  sx={{
-                    height: 300,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Typography color="text.secondary">
+                <div className="h-[300px] flex items-center justify-center">
+                  <p className="text-muted-foreground">
                     No data yet. Add spools to see weight breakdown.
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
-        </Grid>
+        </div>
 
         {/* Recent Activity */}
-        <Grid size={{ xs: 12, md: 5 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-                Recent Activity
-              </Typography>
-              <AuditFeed items={auditItems} />
-              <Box sx={{ mt: 2, textAlign: "center" }}>
-                <Link href="/dashboard?tab=audit" style={{ textDecoration: "none" }}>
-                  <Typography variant="body2" color="primary">
-                    View full audit log →
-                  </Typography>
+        <div className="md:col-span-5">
+          <Card className="p-8 flex flex-col">
+            <CardContent className="p-0 flex flex-col flex-1">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-display font-bold text-xl flex items-center gap-2">
+                  <span className="w-1 h-5 bg-[#00677F] rounded-full shrink-0" />
+                  Recent Activity
+                </h3>
+                <Link
+                  href="/dashboard?tab=audit"
+                  className="text-xs font-semibold text-[#00677F] hover:underline no-underline"
+                >
+                  View All
                 </Link>
-              </Box>
+              </div>
+
+              <div className="flex-1">
+                <AuditFeed items={auditItems} />
+              </div>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
     </div>
   );
 }

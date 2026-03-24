@@ -40,6 +40,11 @@ struct ScanResponse {
     char nfcTagFormat[20];  // "bambu_mifare", "ntag", etc.
     char colorHex[8];       // "#RRGGBB" from spectral conversion
 
+    // Spool return flow — existing item in inventory
+    bool isExisting;            // true if NFC UID matched an existing user item
+    char returnLocation[128];   // "Workshop / Rack A / Shelf 2 / Bay 3"
+    char existingItemId[64];    // UUID of the existing user_item
+
     void clear() {
         identified = false;
         confidence = 0;
@@ -54,6 +59,9 @@ struct ScanResponse {
         nozzleTempMin = nozzleTempMax = bedTemp = 0;
         memset(nfcTagFormat, 0, sizeof(nfcTagFormat));
         memset(colorHex, 0, sizeof(colorHex));
+        isExisting = false;
+        memset(returnLocation, 0, sizeof(returnLocation));
+        memset(existingItemId, 0, sizeof(existingItemId));
     }
 };
 
@@ -205,7 +213,7 @@ private:
     void saveConfig();
 public:
     // Exposed for MQTT scan flow (build payload, parse response)
-    String buildScanPayload(const ScanResult& scan, const TagData* tagData);
+    String buildScanPayload(const ScanResult& scan, const TagData* tagData, const char* targetSlotId = nullptr);
     bool parseResponse(const String& json, ScanResponse& response);
 };
 

@@ -2,16 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Skeleton from "@mui/material/Skeleton";
-import Button from "@mui/material/Button";
-import Alert from "@mui/material/Alert";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { ArrowLeft, HelpCircle, CheckCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { IntakeForm, type StationData } from "@/components/scan/intake-form";
 
@@ -50,28 +45,29 @@ export default function ScanSessionPage() {
 
   if (loading) {
     return (
-      <Box>
-        <Skeleton variant="rounded" height={48} sx={{ mb: 2 }} />
-        <Skeleton variant="rounded" height={200} sx={{ mb: 2 }} />
-        <Skeleton variant="rounded" height={300} />
-      </Box>
+      <div>
+        <Skeleton className="h-12 mb-2 rounded-lg" />
+        <Skeleton className="h-48 mb-2 rounded-lg" />
+        <Skeleton className="h-72 rounded-lg" />
+      </div>
     );
   }
 
   if (error && !data) {
     return (
-      <Box>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => router.push("/scan")} sx={{ mb: 2 }}>
+      <div>
+        <Button variant="ghost" onClick={() => router.push("/scan")} className="mb-2">
+          <ArrowLeft className="size-4 mr-1" />
           Back to Scans
         </Button>
-        <Card sx={{ textAlign: "center", py: 6 }}>
-          <CardContent>
-            <HelpOutlineIcon sx={{ fontSize: 48, color: "text.disabled", mb: 2 }} />
-            <Typography variant="h6" gutterBottom>Session Not Found</Typography>
-            <Typography variant="body2" color="text.secondary">{error}</Typography>
+        <Card className="text-center py-6">
+          <CardContent className="flex flex-col items-center gap-2">
+            <HelpCircle className="size-12 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">Session Not Found</h3>
+            <p className="text-sm text-muted-foreground">{error}</p>
           </CardContent>
         </Card>
-      </Box>
+      </div>
     );
   }
 
@@ -103,12 +99,9 @@ export default function ScanSessionPage() {
   };
 
   return (
-    <Box>
-      <Button
-        startIcon={<ArrowBackIcon />}
-        onClick={() => router.push("/scan")}
-        sx={{ mb: 1, textTransform: "none" }}
-      >
+    <div>
+      <Button variant="ghost" onClick={() => router.push("/scan")} className="mb-1">
+        <ArrowLeft className="size-4 mr-1" />
         Back to Scans
       </Button>
 
@@ -128,12 +121,16 @@ export default function ScanSessionPage() {
       />
 
       {isResolved ? (
-        <Alert severity="success" variant="filled" icon={<CheckCircleIcon />}>
-          This session has been resolved and saved to inventory.
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="size-4 text-green-600" />
+          <AlertTitle className="text-green-800">Complete</AlertTitle>
+          <AlertDescription className="text-green-700">
+            This session has been resolved and saved to inventory.
+          </AlertDescription>
         </Alert>
       ) : (
         <IntakeForm stationData={stationData} />
       )}
-    </Box>
+    </div>
   );
 }

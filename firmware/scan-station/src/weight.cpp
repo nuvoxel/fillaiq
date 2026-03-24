@@ -35,6 +35,8 @@ void ScaleDriver::begin() {
 
     // Try NAU7802 on I2C first (preferred — no GPIO bit-banging)
     if (_nau.begin(Wire, true)) {
+        // Keep default LDO setting from begin() — 3.0V LDO needs >3.3V DVDD
+        // which isn't guaranteed on all ESP32-S3 boards
         _nau.setGain(NAU7802_GAIN_128);
         _nau.setSampleRate(NAU7802_SPS_80);
         delay(500);  // NAU7802 needs settling time after reset + config
@@ -109,9 +111,12 @@ void ScaleDriver::pollOnce() {
 
     long raw = 0;
     bool gotReading = false;
-    if (_driverType == WEIGHT_NAU7802 && _nau.available()) {
-        raw = _nau.getReading();
-        gotReading = true;
+
+    if (_driverType == WEIGHT_NAU7802) {
+        if (_nau.available()) {
+            raw = _nau.getReading();
+            gotReading = true;
+        }
     } else if (_driverType == WEIGHT_HX711 && _hx.is_ready()) {
         raw = _hx.read();
         gotReading = true;

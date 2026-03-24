@@ -2,24 +2,27 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Tabs from "@mui/material/Tabs";
-import Tab from "@mui/material/Tab";
-import TextField from "@mui/material/TextField";
-import Chip from "@mui/material/Chip";
-import Avatar from "@mui/material/Avatar";
-import Typography from "@mui/material/Typography";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
-import SearchIcon from "@mui/icons-material/Search";
-import InputAdornment from "@mui/material/InputAdornment";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { Search, Plus, Pencil, Trash2, Usb, Bluetooth, Wifi } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/page-header";
 import { listBrands, removeBrand, listMaterials, removeMaterial, listProducts, removeProduct } from "@/lib/actions/central-catalog";
 import { listHardwareModels, removeHardwareModel } from "@/lib/actions/hardware-catalog";
@@ -28,249 +31,23 @@ import { BrandDialog } from "@/components/catalog/brand-dialog";
 import { MaterialDialog } from "@/components/catalog/material-dialog";
 import { ProductDialog } from "@/components/catalog/product-dialog";
 import { hardwareCategoryLabels } from "@/components/hardware/enum-labels";
-import UsbIcon from "@mui/icons-material/Usb";
-import BluetoothIcon from "@mui/icons-material/Bluetooth";
-import WifiIcon from "@mui/icons-material/Wifi";
 
-const validationColors: Record<string, "default" | "info" | "success" | "error"> = {
-  draft: "default",
-  submitted: "info",
-  validated: "success",
-  deprecated: "error",
+/* ── Status badge styling ──────────────────────────────────────────── */
+const statusVariants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+  validated: "default",
+  submitted: "outline",
+  draft: "secondary",
+  deprecated: "destructive",
 };
 
-const materialClassColors: Record<string, "primary" | "secondary"> = {
-  fff: "primary",
+const materialClassVariants: Record<string, "default" | "secondary"> = {
+  fff: "default",
   sla: "secondary",
 };
 
-const brandColumns: GridColDef[] = [
-  {
-    field: "logoUrl",
-    headerName: "",
-    width: 56,
-    sortable: false,
-    filterable: false,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-        <Avatar
-          src={params.value as string}
-          sx={{ width: 32, height: 32, bgcolor: "primary.light", color: "primary.main", fontSize: 14 }}
-        >
-          {(params.row.name as string)?.[0]}
-        </Avatar>
-      </Box>
-    ),
-  },
-  { field: "name", headerName: "Name", flex: 1, minWidth: 160 },
-  { field: "slug", headerName: "Slug", width: 140 },
-  {
-    field: "website",
-    headerName: "Website",
-    width: 200,
-    renderCell: (params) =>
-      params.value ? (
-        <Typography variant="body2" color="info.main" sx={{ textDecoration: "underline" }}>
-          {(params.value as string).replace(/^https?:\/\//, "")}
-        </Typography>
-      ) : (
-        "—"
-      ),
-  },
-  {
-    field: "validationStatus",
-    headerName: "Status",
-    width: 130,
-    renderCell: (params) => (
-      <Chip
-        label={params.value}
-        size="small"
-        color={validationColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-];
-
-const materialColumns: GridColDef[] = [
-  { field: "name", headerName: "Name", flex: 1, minWidth: 160 },
-  { field: "abbreviation", headerName: "Abbrev.", width: 100 },
-  { field: "category", headerName: "Category", width: 140 },
-  {
-    field: "materialClass",
-    headerName: "Class",
-    width: 100,
-    renderCell: (params) =>
-      params.value ? (
-        <Chip
-          label={(params.value as string).toUpperCase()}
-          size="small"
-          color={materialClassColors[params.value as string] ?? "default"}
-        />
-      ) : (
-        "—"
-      ),
-  },
-  {
-    field: "density",
-    headerName: "Density",
-    width: 100,
-    valueFormatter: (value: number | null) => (value != null ? `${value} g/cm³` : "—"),
-  },
-];
-
-const productColumns: GridColDef[] = [
-  {
-    field: "colorHex",
-    headerName: "",
-    width: 48,
-    sortable: false,
-    filterable: false,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-        <Box
-          sx={{
-            width: 24,
-            height: 24,
-            borderRadius: "50%",
-            bgcolor: (params.value as string) || "#ccc",
-            border: 1,
-            borderColor: "divider",
-          }}
-        />
-      </Box>
-    ),
-  },
-  { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
-  { field: "colorName", headerName: "Color", width: 120 },
-  {
-    field: "diameter",
-    headerName: "Diameter",
-    width: 100,
-    valueFormatter: (value: number | null) => (value != null ? `${value}mm` : "—"),
-  },
-  {
-    field: "netWeightG",
-    headerName: "Weight",
-    width: 100,
-    valueFormatter: (value: number | null) => (value != null ? `${value}g` : "—"),
-  },
-  {
-    field: "validationStatus",
-    headerName: "Status",
-    width: 130,
-    renderCell: (params) => (
-      <Chip
-        label={params.value}
-        size="small"
-        color={validationColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-];
-
-const hardwareCategoryColors: Record<string, "primary" | "secondary" | "default" | "success" | "warning" | "info"> = {
-  label_printer: "secondary",
-  scan_station: "primary",
-  shelf_station: "primary",
-  fdm_printer: "success",
-  resin_printer: "success",
-  cnc: "warning",
-  laser_cutter: "warning",
-  laser_engraver: "warning",
-  drybox: "info",
-  filament_changer: "info",
-  enclosure: "default",
-  other: "default",
-};
-
-const hardwareColumns: GridColDef[] = [
-  {
-    field: "imageUrl",
-    headerName: "",
-    width: 56,
-    sortable: false,
-    filterable: false,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-        {params.value ? (
-          <Avatar src={params.value as string} variant="rounded" sx={{ width: 32, height: 32 }} />
-        ) : (
-          <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: "grey.200", color: "grey.500", fontSize: 12 }}>
-            {(params.row.model as string)?.[0]}
-          </Avatar>
-        )}
-      </Box>
-    ),
-  },
-  {
-    field: "category",
-    headerName: "Category",
-    width: 150,
-    renderCell: (params) => (
-      <Chip
-        label={hardwareCategoryLabels[params.value as string] ?? params.value}
-        size="small"
-        color={hardwareCategoryColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-  {
-    field: "manufacturer",
-    headerName: "Manufacturer",
-    width: 160,
-    renderCell: (params) => (
-      <Typography variant="body2" fontWeight={500}>{params.value}</Typography>
-    ),
-  },
-  { field: "model", headerName: "Model", width: 160 },
-  {
-    field: "specs",
-    headerName: "Specs",
-    width: 200,
-    sortable: false,
-    valueGetter: (_value: unknown, row: any) => {
-      if (row.category === "label_printer") {
-        const parts = [];
-        if (row.printDpi) parts.push(`${row.printDpi} DPI`);
-        if (row.printWidthMm) parts.push(`${row.printWidthMm}mm`);
-        return parts.join(" · ") || "—";
-      }
-      if (row.buildVolumeX && row.buildVolumeY && row.buildVolumeZ) {
-        return `${row.buildVolumeX}×${row.buildVolumeY}×${row.buildVolumeZ} mm`;
-      }
-      return "—";
-    },
-  },
-  {
-    field: "connectivity",
-    headerName: "Connectivity",
-    width: 140,
-    sortable: false,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
-        {params.row.hasUsb && <UsbIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
-        {params.row.hasBle && <BluetoothIcon sx={{ fontSize: 16, color: "primary.main" }} />}
-        {params.row.hasWifi && <WifiIcon sx={{ fontSize: 16, color: "success.main" }} />}
-      </Box>
-    ),
-  },
-  {
-    field: "validationStatus",
-    headerName: "Status",
-    width: 130,
-    renderCell: (params) => (
-      <Chip
-        label={params.value}
-        size="small"
-        color={validationColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-];
-
 export default function CatalogPage() {
   const router = useRouter();
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState("brands");
   const [search, setSearch] = useState("");
   const [brands, setBrands] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -286,6 +63,10 @@ export default function CatalogPage() {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const handleDeleteHardware = async (id: string) => {
     if (!confirm("Delete this hardware model?")) return;
@@ -319,56 +100,18 @@ export default function CatalogPage() {
     load();
   };
 
-  const hwActionsColumn: GridColDef = {
-    field: "actions",
-    headerName: "",
-    width: 90,
-    sortable: false,
-    filterable: false,
-    disableColumnMenu: true,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", gap: 0.25 }}>
-        <Tooltip title="Edit">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingHardware(params.row);
-              setHardwareDialogOpen(true);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-          <IconButton
-            size="small"
-            color="error"
-            disabled={deleting === params.row.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteHardware(params.row.id);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
-  };
-
   const load = useCallback(async () => {
     setLoading(true);
-    if (tab === 0) {
+    if (tab === "brands") {
       const r = await listBrands({ search: search || undefined });
       if (r.data) setBrands(r.data);
-    } else if (tab === 1) {
+    } else if (tab === "materials") {
       const r = await listMaterials({ search: search || undefined });
       if (r.data) setMaterials(r.data);
-    } else if (tab === 2) {
+    } else if (tab === "products") {
       const r = await listProducts({ search: search || undefined });
       if (r.data) setProducts(r.data);
-    } else if (tab === 3) {
+    } else if (tab === "hardware") {
       const r = await listHardwareModels();
       if (r.data) setHardwareModelsData(r.data);
     }
@@ -376,251 +119,355 @@ export default function CatalogPage() {
   }, [tab, search]);
 
   useEffect(() => {
+    setPage(0);
     load();
   }, [load]);
 
-  const brandActionsColumn: GridColDef = {
-    field: "actions",
-    headerName: "",
-    width: 90,
-    sortable: false,
-    filterable: false,
-    disableColumnMenu: true,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", gap: 0.25 }}>
-        <Tooltip title="Edit">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingBrand(params.row);
-              setBrandDialogOpen(true);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-          <IconButton
-            size="small"
-            color="error"
-            disabled={deleting === params.row.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteBrand(params.row.id);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
+  const rows = tab === "brands" ? brands : tab === "materials" ? materials : tab === "products" ? products : hardwareModelsData;
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const pagedRows = rows.slice(page * pageSize, (page + 1) * pageSize);
+
+  const addLabels: Record<string, string> = { brands: "Brand", materials: "Material", products: "Product", hardware: "Model" };
+  const addHandlers: Record<string, () => void> = {
+    brands: () => { setEditingBrand(null); setBrandDialogOpen(true); },
+    materials: () => { setEditingMaterial(null); setMaterialDialogOpen(true); },
+    products: () => { setEditingProduct(null); setProductDialogOpen(true); },
+    hardware: () => { setEditingHardware(null); setHardwareDialogOpen(true); },
   };
 
-  const materialActionsColumn: GridColDef = {
-    field: "actions",
-    headerName: "",
-    width: 90,
-    sortable: false,
-    filterable: false,
-    disableColumnMenu: true,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", gap: 0.25 }}>
-        <Tooltip title="Edit">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingMaterial(params.row);
-              setMaterialDialogOpen(true);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-          <IconButton
-            size="small"
-            color="error"
-            disabled={deleting === params.row.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteMaterial(params.row.id);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
+  const handleRowClick = (row: any) => {
+    if (tab === "brands") router.push(`/catalog/brands/${row.id}`);
+    else if (tab === "materials") router.push(`/catalog/materials/${row.id}`);
+    else if (tab === "products") router.push(`/catalog/products/${row.id}`);
   };
 
-  const productActionsColumn: GridColDef = {
-    field: "actions",
-    headerName: "",
-    width: 90,
-    sortable: false,
-    filterable: false,
-    disableColumnMenu: true,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", gap: 0.25 }}>
-        <Tooltip title="Edit">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingProduct(params.row);
-              setProductDialogOpen(true);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-          <IconButton
-            size="small"
-            color="error"
-            disabled={deleting === params.row.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteProduct(params.row.id);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
+  const getEditHandler = (row: any) => {
+    if (tab === "brands") return () => { setEditingBrand(row); setBrandDialogOpen(true); };
+    if (tab === "materials") return () => { setEditingMaterial(row); setMaterialDialogOpen(true); };
+    if (tab === "products") return () => { setEditingProduct(row); setProductDialogOpen(true); };
+    if (tab === "hardware") return () => { setEditingHardware(row); setHardwareDialogOpen(true); };
+    return () => {};
   };
 
-  const rows = tab === 0 ? brands : tab === 1 ? materials : tab === 2 ? products : hardwareModelsData;
-  const cols = tab === 0 ? [...brandColumns, brandActionsColumn] : tab === 1 ? [...materialColumns, materialActionsColumn] : tab === 2 ? [...productColumns, productActionsColumn] : [...hardwareColumns, hwActionsColumn];
+  const getDeleteHandler = (row: any) => {
+    if (tab === "brands") return () => handleDeleteBrand(row.id);
+    if (tab === "materials") return () => handleDeleteMaterial(row.id);
+    if (tab === "products") return () => handleDeleteProduct(row.id);
+    if (tab === "hardware") return () => handleDeleteHardware(row.id);
+    return () => {};
+  };
 
   return (
-    <div>
-      <PageHeader
-        title="Catalog"
-        description="Browse the central product and hardware catalog."
-        action={
-          tab === 0 ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingBrand(null); setBrandDialogOpen(true); }}>
-              Add Brand
-            </Button>
-          ) : tab === 1 ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingMaterial(null); setMaterialDialogOpen(true); }}>
-              Add Material
-            </Button>
-          ) : tab === 2 ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingProduct(null); setProductDialogOpen(true); }}>
-              Add Product
-            </Button>
-          ) : tab === 3 ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingHardware(null); setHardwareDialogOpen(true); }}>
-              Add Model
-            </Button>
-          ) : undefined
-        }
-      />
+    <TooltipProvider>
+      <div>
+        <PageHeader
+          title="Catalog"
+          description="Browse the central product and hardware catalog."
+        />
 
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => { setTab(v); setSearch(""); }}
-          sx={{
-            "& .MuiTab-root": { textTransform: "none", fontWeight: 500 },
-          }}
-        >
-          <Tab label="Brands" />
-          <Tab label="Materials" />
-          <Tab label="Products" />
-          <Tab label="Hardware" />
+        <Tabs value={tab} onValueChange={(v) => { setTab(v); setSearch(""); setPage(0); }}>
+          <div className="flex items-center justify-between border-b border-border mb-3">
+            <TabsList variant="line">
+              <TabsTrigger value="brands">Brands</TabsTrigger>
+              <TabsTrigger value="materials">Materials</TabsTrigger>
+              <TabsTrigger value="products">Products</TabsTrigger>
+              <TabsTrigger value="hardware">Hardware</TabsTrigger>
+            </TabsList>
+
+            <div className="flex items-center gap-2 pb-1">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
+                <Input
+                  placeholder={`Search ${tab}...`}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-64 pl-8 rounded-full bg-muted/50 border-transparent focus-visible:border-ring"
+                />
+              </div>
+              <Button onClick={addHandlers[tab]} className="bg-[#00D2FF] text-[#001F28] hover:bg-[#00D2FF]/90">
+                <Plus className="size-4 mr-1" />
+                Add {addLabels[tab]}
+              </Button>
+            </div>
+          </div>
+
+          {/* Data table for all tabs */}
+          {loading ? (
+            <div className="bg-card rounded-xl shadow-sm p-2">
+              <div className="flex flex-col gap-1">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 rounded-lg" />
+                ))}
+              </div>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="bg-card rounded-xl shadow-sm text-center py-10">
+              <p className="text-base font-semibold font-display">No results found</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Try adjusting your search query.</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-card rounded-xl shadow-sm overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {/* Dynamic headers per tab */}
+                      {tab === "brands" && (
+                        <>
+                          <TableHead className="w-14" />
+                          <TableHead>Brand Name</TableHead>
+                          <TableHead>Slug</TableHead>
+                          <TableHead>Website</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-20" />
+                        </>
+                      )}
+                      {tab === "materials" && (
+                        <>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Abbrev.</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Class</TableHead>
+                          <TableHead>Density</TableHead>
+                          <TableHead className="w-20" />
+                        </>
+                      )}
+                      {tab === "products" && (
+                        <>
+                          <TableHead className="w-12" />
+                          <TableHead>Name</TableHead>
+                          <TableHead>Color</TableHead>
+                          <TableHead>Diameter</TableHead>
+                          <TableHead>Weight</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-20" />
+                        </>
+                      )}
+                      {tab === "hardware" && (
+                        <>
+                          <TableHead className="w-14" />
+                          <TableHead>Category</TableHead>
+                          <TableHead>Manufacturer</TableHead>
+                          <TableHead>Model</TableHead>
+                          <TableHead>Specs</TableHead>
+                          <TableHead>Connectivity</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-20" />
+                        </>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedRows.map((row: any) => (
+                      <TableRow
+                        key={row.id}
+                        className={tab !== "hardware" ? "cursor-pointer" : ""}
+                        onClick={() => tab !== "hardware" && handleRowClick(row)}
+                      >
+                        {/* Brands */}
+                        {tab === "brands" && (
+                          <>
+                            <TableCell>
+                              <Avatar className="size-8 rounded-lg">
+                                {row.logoUrl && <AvatarImage src={row.logoUrl} />}
+                                <AvatarFallback className="rounded-lg text-xs">
+                                  {row.name?.[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                            </TableCell>
+                            <TableCell className="font-semibold">{row.name}</TableCell>
+                            <TableCell><span className="font-mono text-xs text-muted-foreground">{row.slug}</span></TableCell>
+                            <TableCell>
+                              {row.website ? (
+                                <span className="text-sm text-[#00677F] hover:underline">
+                                  {row.website.replace(/^https?:\/\//, "")}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/50">\u2014</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={statusVariants[row.validationStatus] ?? "secondary"}>
+                                {row.validationStatus}
+                              </Badge>
+                            </TableCell>
+                          </>
+                        )}
+
+                        {/* Materials */}
+                        {tab === "materials" && (
+                          <>
+                            <TableCell className="font-semibold">{row.name}</TableCell>
+                            <TableCell>{row.abbreviation ?? "\u2014"}</TableCell>
+                            <TableCell>{row.category ?? "\u2014"}</TableCell>
+                            <TableCell>
+                              {row.materialClass ? (
+                                <Badge variant={materialClassVariants[row.materialClass] ?? "secondary"}>
+                                  {row.materialClass.toUpperCase()}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground/50">\u2014</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{row.density != null ? `${row.density} g/cm\u00B3` : "\u2014"}</TableCell>
+                          </>
+                        )}
+
+                        {/* Products */}
+                        {tab === "products" && (
+                          <>
+                            <TableCell>
+                              <div
+                                className="w-6 h-6 rounded-full border border-border shadow-inner"
+                                style={{ backgroundColor: row.colorHex || "#ccc" }}
+                              />
+                            </TableCell>
+                            <TableCell className="font-semibold">{row.name}</TableCell>
+                            <TableCell>{row.colorName ?? "\u2014"}</TableCell>
+                            <TableCell>{row.diameter != null ? `${row.diameter}mm` : "\u2014"}</TableCell>
+                            <TableCell>{row.netWeightG != null ? `${row.netWeightG}g` : "\u2014"}</TableCell>
+                            <TableCell>
+                              <Badge variant={statusVariants[row.validationStatus] ?? "secondary"}>
+                                {row.validationStatus}
+                              </Badge>
+                            </TableCell>
+                          </>
+                        )}
+
+                        {/* Hardware */}
+                        {tab === "hardware" && (
+                          <>
+                            <TableCell>
+                              <Avatar className="size-8 rounded-lg">
+                                {row.imageUrl && <AvatarImage src={row.imageUrl} />}
+                                <AvatarFallback className="rounded-lg text-xs">
+                                  {row.model?.[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">
+                                {hardwareCategoryLabels[row.category] ?? row.category}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-semibold">{row.manufacturer}</TableCell>
+                            <TableCell>{row.model}</TableCell>
+                            <TableCell>
+                              {(() => {
+                                if (row.category === "label_printer") {
+                                  const parts = [];
+                                  if (row.printDpi) parts.push(`${row.printDpi} DPI`);
+                                  if (row.printWidthMm) parts.push(`${row.printWidthMm}mm`);
+                                  return parts.join(" \u00B7 ") || "\u2014";
+                                }
+                                if (row.buildVolumeX && row.buildVolumeY && row.buildVolumeZ) {
+                                  return `${row.buildVolumeX}\u00D7${row.buildVolumeY}\u00D7${row.buildVolumeZ} mm`;
+                                }
+                                return "\u2014";
+                              })()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1 items-center">
+                                {row.hasUsb && <Usb className="size-4 text-muted-foreground" />}
+                                {row.hasBle && <Bluetooth className="size-4 text-blue-500" />}
+                                {row.hasWifi && <Wifi className="size-4 text-green-500" />}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={statusVariants[row.validationStatus] ?? "secondary"}>
+                                {row.validationStatus}
+                              </Badge>
+                            </TableCell>
+                          </>
+                        )}
+
+                        {/* Action buttons */}
+                        <TableCell>
+                          <div className="flex gap-0.5">
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    onClick={(e) => { e.stopPropagation(); getEditHandler(row)(); }}
+                                  />
+                                }
+                              >
+                                <Pencil className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipContent>Edit</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    disabled={deleting === row.id}
+                                    onClick={(e) => { e.stopPropagation(); getDeleteHandler(row)(); }}
+                                    className="hover:text-destructive"
+                                  />
+                                }
+                              >
+                                <Trash2 className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipContent>Delete</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-sm text-muted-foreground">
+                    Page {page + 1} of {totalPages} ({rows.length} total)
+                  </p>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                      Previous
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </Tabs>
-      </Box>
 
-      <Box sx={{ mb: 2 }}>
-        <TextField
-          size="small"
-          placeholder={`Search ${["brands", "materials", "products", "hardware"][tab]}...`}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-          sx={{ width: 320 }}
+        {/* Dialogs */}
+        <BrandDialog
+          open={brandDialogOpen}
+          onClose={() => { setBrandDialogOpen(false); setEditingBrand(null); }}
+          onSaved={load}
+          existing={editingBrand}
         />
-      </Box>
-
-      {loading ? (
-        <Stack spacing={1}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={52} />
-          ))}
-        </Stack>
-      ) : rows.length === 0 ? (
-        <Box sx={{ textAlign: "center", py: 8 }}>
-          <Typography variant="subtitle1" fontWeight={500}>
-            No results found
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Try adjusting your search query.
-          </Typography>
-        </Box>
-      ) : (
-        <DataGrid
-          rows={rows}
-          columns={cols}
-          initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-          pageSizeOptions={[10, 25, 50]}
-          disableRowSelectionOnClick
-          autoHeight
-          onRowClick={(params) => {
-            if (tab === 0) router.push(`/catalog/brands/${params.id}`);
-            else if (tab === 1) router.push(`/catalog/materials/${params.id}`);
-            else if (tab === 2) router.push(`/catalog/products/${params.id}`);
-          }}
-          sx={{
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 3,
-            "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
-            ...(tab < 3 ? { "& .MuiDataGrid-row": { cursor: "pointer" } } : {}),
-          }}
+        <MaterialDialog
+          open={materialDialogOpen}
+          onClose={() => { setMaterialDialogOpen(false); setEditingMaterial(null); }}
+          onSaved={load}
+          existing={editingMaterial}
         />
-      )}
-
-      <BrandDialog
-        open={brandDialogOpen}
-        onClose={() => { setBrandDialogOpen(false); setEditingBrand(null); }}
-        onSaved={load}
-        existing={editingBrand}
-      />
-
-      <MaterialDialog
-        open={materialDialogOpen}
-        onClose={() => { setMaterialDialogOpen(false); setEditingMaterial(null); }}
-        onSaved={load}
-        existing={editingMaterial}
-      />
-
-      <ProductDialog
-        open={productDialogOpen}
-        onClose={() => { setProductDialogOpen(false); setEditingProduct(null); }}
-        onSaved={load}
-        existing={editingProduct}
-      />
-
-      <HardwareModelDialog
-        open={hardwareDialogOpen}
-        onClose={() => { setHardwareDialogOpen(false); setEditingHardware(null); }}
-        onSaved={load}
-        existing={editingHardware}
-      />
-    </div>
+        <ProductDialog
+          open={productDialogOpen}
+          onClose={() => { setProductDialogOpen(false); setEditingProduct(null); }}
+          onSaved={load}
+          existing={editingProduct}
+        />
+        <HardwareModelDialog
+          open={hardwareDialogOpen}
+          onClose={() => { setHardwareDialogOpen(false); setEditingHardware(null); }}
+          onSaved={load}
+          existing={editingHardware}
+        />
+      </div>
+    </TooltipProvider>
   );
 }

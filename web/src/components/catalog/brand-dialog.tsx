@@ -1,17 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Box from "@mui/material/Box";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createBrand, updateBrand } from "@/lib/actions/central-catalog";
 import { ImageUpload } from "@/components/image-upload";
 
@@ -106,13 +113,20 @@ export function BrandDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{existing ? "Edit Brand" : "Add Brand"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Brand" : "Add Brand"}</DialogTitle>
+        </DialogHeader>
 
-          <Box sx={{ display: "flex", gap: 2 }}>
+        <div className="flex flex-col gap-3">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-2">
             <ImageUpload
               value={logoUrl}
               onChange={setLogoUrl}
@@ -122,79 +136,70 @@ export function BrandDialog({ open, onClose, onSaved, existing }: Props) {
               height={80}
               circular
             />
-            <Grid container spacing={2} sx={{ flex: 1 }}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Name"
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium block mb-1">Name *</label>
+                <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  size="small"
-                  fullWidth
                 />
-              </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Slug"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                required
-                size="small"
-                fullWidth
-                helperText="Auto-generated URL identifier"
-              />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                label="Website"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                size="small"
-                fullWidth
-                placeholder="https://example.com"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Country of Origin"
-                value={countryOfOrigin}
-                onChange={(e) => setCountryOfOrigin(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="2-letter country code (e.g. US, CN)"
-                inputProps={{ maxLength: 2 }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                label="Validation Status"
-                value={validationStatus}
-                onChange={(e) => setValidationStatus(e.target.value)}
-                size="small"
-                fullWidth
-              >
-                {validationStatusOptions.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>
-                    {o.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            </Grid>
-          </Box>
-        </Stack>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">Slug *</label>
+                <Input
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  required
+                />
+                <p className="text-[0.625rem] text-muted-foreground mt-0.5">Auto-generated URL identifier</p>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium block mb-1">Website</label>
+                <Input
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="https://example.com"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">Country of Origin</label>
+                <Input
+                  value={countryOfOrigin}
+                  onChange={(e) => setCountryOfOrigin(e.target.value)}
+                  maxLength={2}
+                />
+                <p className="text-[0.625rem] text-muted-foreground mt-0.5">2-letter country code (e.g. US, CN)</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">Validation Status</label>
+                <Select value={validationStatus} onValueChange={(v) => v && setValidationStatus(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {validationStatusOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <Button
+            onClick={handleSave}
+            disabled={!name || !slug || saving}
+          >
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={!name || !slug || saving}
-        >
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

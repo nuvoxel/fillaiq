@@ -1,11 +1,7 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Avatar from "@mui/material/Avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 type ProductInfo = {
   product: {
@@ -29,55 +25,45 @@ export function ProductCard({ data }: { data: ProductInfo }) {
   const { product, brand } = data;
 
   return (
-    <Card variant="outlined" sx={{ mb: 2 }}>
-      <CardContent sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+    <Card className="mb-2">
+      <CardContent className="flex gap-3 items-center">
         {/* Color swatch */}
-        <Avatar
-          sx={{
-            width: 48,
-            height: 48,
-            bgcolor: product.colorHex ?? "#ccc",
-            border: "2px solid",
-            borderColor: "divider",
-            fontSize: 0,
-          }}
+        <div
+          className="w-12 h-12 rounded-full border-2 border-border shrink-0 overflow-hidden"
+          style={{ backgroundColor: product.colorHex ?? "#ccc" }}
         >
           {product.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={product.imageUrl}
               alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              className="w-full h-full object-cover"
             />
           ) : null}
-        </Avatar>
+        </div>
 
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={600} noWrap>
-            {product.name}
-          </Typography>
-          <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.5 }}>
-            {brand && (
-              <Chip label={brand.name} size="small" variant="outlined" />
-            )}
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold truncate">{product.name}</p>
+          <div className="flex gap-1 flex-wrap mt-1">
+            {brand && <Badge variant="outline">{brand.name}</Badge>}
             {product.colorName && (
-              <Chip
-                label={product.colorName}
-                size="small"
-                sx={{
-                  bgcolor: product.colorHex ?? undefined,
+              <Badge
+                style={{
+                  backgroundColor: product.colorHex ?? undefined,
                   color: product.colorHex
                     ? getContrastColor(product.colorHex)
                     : undefined,
                 }}
-              />
+              >
+                {product.colorName}
+              </Badge>
             )}
             {product.netWeightG && (
-              <Chip label={`${product.netWeightG}g`} size="small" variant="outlined" />
+              <Badge variant="outline">{product.netWeightG}g</Badge>
             )}
-            <Chip label={product.category} size="small" variant="outlined" />
-          </Box>
-        </Box>
+            <Badge variant="outline">{product.category}</Badge>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

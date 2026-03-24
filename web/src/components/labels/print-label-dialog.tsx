@@ -1,20 +1,25 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import PrintIcon from "@mui/icons-material/Print";
+import { Printer, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import {
   LabelPreview,
   type LabelPreviewData,
@@ -134,7 +139,6 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
       ]);
       if (tRes.data) {
         setTemplates(tRes.data as TemplateRow[]);
-        // Auto-select default template
         const def = (tRes.data as TemplateRow[]).find((t) => t.isDefault);
         if (def) setSelectedTemplate(def.id);
         else if (tRes.data.length > 0)
@@ -142,7 +146,6 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
       }
       if (sRes.data) {
         setStations(sRes.data as StationRow[]);
-        // Auto-select first online station
         const online = (sRes.data as StationRow[]).find((s) => s.isOnline);
         if (online) setSelectedStation(online.id);
         else if (sRes.data.length > 0)
@@ -168,8 +171,7 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
     if (previewItem.material) params.set("material", previewItem.material);
     if (previewItem.color) params.set("colorHex", previewItem.color);
     if (previewItem.nozzleTemp) {
-      // nozzleTemp may be "215°C" or "200-220°C" — parse out numbers
-      const tempMatch = previewItem.nozzleTemp.match(/(\d+)\s*[-–]\s*(\d+)/);
+      const tempMatch = previewItem.nozzleTemp.match(/(\d+)\s*[-\u2013]\s*(\d+)/);
       if (tempMatch) {
         params.set("nozzleTempMin", tempMatch[1]);
         params.set("nozzleTempMax", tempMatch[2]);
@@ -232,98 +234,99 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
     (isBatch ? `Print ${items.length} Labels` : "Print Label");
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{dialogTitle}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           {success && (
-            <Alert severity="success">
-              {isBatch
-                ? `${items.length} print jobs queued!`
-                : "Print job queued!"}
+            <Alert>
+              <AlertDescription>
+                {isBatch
+                  ? `${items.length} print jobs queued!`
+                  : "Print job queued!"}
+              </AlertDescription>
             </Alert>
           )}
 
           {loading ? (
-            <Typography color="text.secondary">Loading...</Typography>
+            <p className="text-sm text-muted-foreground">Loading...</p>
           ) : (
             <>
               {/* Template picker */}
               {templates.length === 0 ? (
-                <Alert severity="info">
-                  No label templates configured. Create one in Settings &gt;
-                  Labels first.
+                <Alert>
+                  <AlertDescription>
+                    No label templates configured. Create one in Settings &gt;
+                    Labels first.
+                  </AlertDescription>
                 </Alert>
               ) : (
-                <TextField
-                  select
-                  label="Label Template"
-                  value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(e.target.value)}
-                  size="small"
-                  fullWidth
-                >
-                  {templates.map((t) => (
-                    <MenuItem key={t.id} value={t.id}>
-                      {t.name}
-                      {t.widthMm && t.heightMm
-                        ? ` (${t.widthMm}×${t.heightMm}mm)`
-                        : ""}
-                      {t.isDefault ? " ★" : ""}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Label Template</label>
+                  <Select value={selectedTemplate} onValueChange={(v) => v && setSelectedTemplate(v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                          {t.widthMm && t.heightMm
+                            ? ` (${t.widthMm}\u00d7${t.heightMm}mm)`
+                            : ""}
+                          {t.isDefault ? " \u2605" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
 
               {/* Station picker */}
               {stations.length === 0 ? (
-                <Alert severity="info">
-                  No scan stations found. Pair a FillaScan device first.
+                <Alert>
+                  <AlertDescription>
+                    No scan stations found. Pair a FillaScan device first.
+                  </AlertDescription>
                 </Alert>
               ) : (
-                <TextField
-                  select
-                  label="Print Station"
-                  value={selectedStation}
-                  onChange={(e) => setSelectedStation(e.target.value)}
-                  size="small"
-                  fullWidth
-                >
-                  {stations.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      {s.name}
-                      {s.isOnline ? " (online)" : " (offline)"}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Print Station</label>
+                  <Select value={selectedStation} onValueChange={(v) => v && setSelectedStation(v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stations.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.isOnline ? " (online)" : " (offline)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
 
               {/* Preview */}
               {settings && (
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    sx={{ mb: 1 }}
-                  >
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
                     Preview
-                  </Typography>
+                  </p>
                   {previewUrl && !previewError ? (
-                    <Box sx={{ position: "relative", textAlign: "center" }}>
+                    <div className="relative text-center">
                       {previewLoading && (
-                        <Box
-                          sx={{
-                            position: "absolute",
-                            inset: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            zIndex: 1,
-                          }}
-                        >
-                          <CircularProgress size={24} />
-                        </Box>
+                        <div className="absolute inset-0 z-10 flex items-center justify-center">
+                          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                        </div>
                       )}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -337,82 +340,72 @@ export function PrintLabelDialog({ open, onClose, items, title }: Props) {
                         style={{
                           maxWidth: "100%",
                           imageRendering: "pixelated",
-                          border: "1px solid #ccc",
-                          borderRadius: 4,
                           opacity: previewLoading ? 0.3 : 1,
                           transition: "opacity 0.2s",
                         }}
+                        className="rounded border border-border"
                       />
-                    </Box>
+                    </div>
                   ) : (
-                    /* Fall back to CSS preview if BMP fails */
                     <LabelPreview
                       settings={settings}
                       data={previewItem as LabelPreviewData}
                       maxWidth={350}
                     />
                   )}
-                </Box>
+                </div>
               )}
 
               {/* Batch info */}
               {isBatch && (
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-xs text-muted-foreground">
                     {items.length} labels:
-                  </Typography>
+                  </span>
                   {items.slice(0, 10).map((item, i) => (
-                    <Chip
-                      key={i}
-                      label={
-                        item.label ??
+                    <Badge key={i} variant="outline">
+                      {item.label ??
                         item.material ??
                         item.brand ??
-                        `Label ${i + 1}`
-                      }
-                      size="small"
-                      variant="outlined"
-                    />
+                        `Label ${i + 1}`}
+                    </Badge>
                   ))}
                   {items.length > 10 && (
-                    <Chip
-                      label={`+${items.length - 10} more`}
-                      size="small"
-                      variant="outlined"
-                    />
+                    <Badge variant="outline">
+                      +{items.length - 10} more
+                    </Badge>
                   )}
-                </Box>
+                </div>
               )}
             </>
           )}
-        </Stack>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />} disabled={sending}>
+            Cancel
+          </DialogClose>
+          <Button
+            onClick={handlePrint}
+            disabled={
+              sending ||
+              success ||
+              loading ||
+              templates.length === 0 ||
+              stations.length === 0 ||
+              !selectedTemplate
+            }
+          >
+            <Printer className="size-4 mr-1.5" />
+            {sending
+              ? "Sending..."
+              : success
+              ? "Sent!"
+              : isBatch
+              ? `Print ${items.length} Labels`
+              : "Print"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={sending}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handlePrint}
-          variant="contained"
-          startIcon={<PrintIcon />}
-          disabled={
-            sending ||
-            success ||
-            loading ||
-            templates.length === 0 ||
-            stations.length === 0 ||
-            !selectedTemplate
-          }
-        >
-          {sending
-            ? "Sending..."
-            : success
-            ? "Sent!"
-            : isBatch
-            ? `Print ${items.length} Labels`
-            : "Print"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

@@ -2,50 +2,28 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardHeader from "@mui/material/CardHeader";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import TextField from "@mui/material/TextField";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import InputLabel from "@mui/material/InputLabel";
-import FormControl from "@mui/material/FormControl";
-import Typography from "@mui/material/Typography";
-import Divider from "@mui/material/Divider";
-import Stack from "@mui/material/Stack";
-import List from "@mui/material/List";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import Chip from "@mui/material/Chip";
-import Alert from "@mui/material/Alert";
-import Skeleton from "@mui/material/Skeleton";
-import Grid from "@mui/material/Grid";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import SaveIcon from "@mui/icons-material/Save";
-import StarIcon from "@mui/icons-material/Star";
-import StarBorderIcon from "@mui/icons-material/StarBorder";
-import LabelIcon from "@mui/icons-material/Label";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import Link from "next/link";
+import { Plus, Trash2, Save, Star, StarOff, Tag, ArrowLeft } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   listLabelTemplates,
   createLabelTemplate,
   updateLabelTemplate,
   removeLabelTemplate,
-  getLabelTemplateById,
 } from "@/lib/actions/user-library";
 import {
   LabelPreview,
   type LabelPreviewSettings,
 } from "@/components/labels/label-preview";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// -- Types --
 
 type LabelFormat = "labelife_image" | "labelife_native" | "png" | "pdf";
 
@@ -191,7 +169,7 @@ function editorToPreview(state: EditorState): LabelPreviewSettings {
   };
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// -- Component --
 
 export function LabelDesigner() {
   const searchParams = useSearchParams();
@@ -207,7 +185,6 @@ export function LabelDesigner() {
     message: string;
   } | null>(null);
 
-  // Load templates
   const loadTemplates = useCallback(async () => {
     const result = await listLabelTemplates();
     if (result.data) {
@@ -220,7 +197,6 @@ export function LabelDesigner() {
     loadTemplates();
   }, [loadTemplates]);
 
-  // Handle ?id= param
   useEffect(() => {
     const idParam = searchParams.get("id");
     if (idParam && templates.length > 0) {
@@ -294,9 +270,7 @@ export function LabelDesigner() {
           await loadTemplates();
           const created = result.data as TemplateRow;
           setSelectedId(created.id);
-          router.replace(`/settings/labels?id=${created.id}`, {
-            scroll: false,
-          });
+          router.replace(`/settings/labels?id=${created.id}`, { scroll: false });
         }
       }
     } catch {
@@ -326,330 +300,245 @@ export function LabelDesigner() {
   );
 
   return (
-    <Grid container spacing={3}>
-      {/* ── Template List (left sidebar) ──────────────────────────────── */}
-      <Grid size={{ xs: 12, md: 3 }}>
-        <Card sx={{ position: "sticky", top: 16 }}>
-          <CardHeader
-            title="Templates"
-            titleTypographyProps={{ variant: "subtitle1", fontWeight: 600 }}
-            action={
-              <IconButton size="small" onClick={startNew} title="New template">
-                <AddIcon />
-              </IconButton>
-            }
-            sx={{ pb: 0 }}
-          />
-          <Divider sx={{ mt: 1 }} />
-          <CardContent sx={{ p: 0 }}>
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+      {/* Template List (left sidebar) */}
+      <div className="md:col-span-3">
+        <Card className="sticky top-4">
+          <div className="flex items-center justify-between p-3 pb-0">
+            <h3 className="text-base font-semibold">Templates</h3>
+            <Button variant="ghost" size="icon-sm" onClick={startNew} title="New template">
+              <Plus className="size-4" />
+            </Button>
+          </div>
+          <div className="border-t border-border mt-2" />
+          <div>
             {loading ? (
-              <Box sx={{ p: 2 }}>
-                <Skeleton variant="rounded" height={80} />
-              </Box>
+              <div className="p-2">
+                <Skeleton className="h-20 rounded-lg" />
+              </div>
             ) : templates.length === 0 ? (
-              <Box sx={{ textAlign: "center", py: 3 }}>
-                <LabelIcon
-                  sx={{ fontSize: 32, color: "text.disabled", mb: 0.5 }}
-                />
-                <Typography variant="body2" color="text.secondary">
-                  No templates yet
-                </Typography>
-              </Box>
+              <div className="text-center py-3">
+                <Tag className="size-8 text-muted-foreground/40 mx-auto mb-0.5" />
+                <p className="text-sm text-muted-foreground">No templates yet</p>
+              </div>
             ) : (
-              <List dense disablePadding>
+              <div className="flex flex-col">
                 {templates.map((tmpl) => (
-                  <ListItemButton
+                  <button
                     key={tmpl.id}
-                    selected={tmpl.id === selectedId}
                     onClick={() => selectTemplate(tmpl)}
+                    className={`flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                      tmpl.id === selectedId ? "bg-muted" : "hover:bg-muted/50"
+                    }`}
                   >
-                    <ListItemIcon sx={{ minWidth: 32 }}>
-                      {tmpl.isDefault ? (
-                        <StarIcon
-                          sx={{ fontSize: 18, color: "warning.main" }}
-                        />
-                      ) : (
-                        <LabelIcon sx={{ fontSize: 18, color: "action.active" }} />
-                      )}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={tmpl.name}
-                      secondary={
-                        tmpl.widthMm && tmpl.heightMm
-                          ? `${tmpl.widthMm}\u00d7${tmpl.heightMm}mm`
-                          : "No size set"
-                      }
-                      primaryTypographyProps={{
-                        variant: "body2",
-                        fontWeight: 500,
-                        noWrap: true,
-                      }}
-                      secondaryTypographyProps={{
-                        variant: "caption",
-                        sx: { textTransform: "capitalize" },
-                      }}
-                    />
-                  </ListItemButton>
+                    {tmpl.isDefault ? (
+                      <Star className="size-4 text-amber-500 fill-amber-500 shrink-0" />
+                    ) : (
+                      <Tag className="size-4 text-muted-foreground shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{tmpl.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {tmpl.widthMm && tmpl.heightMm
+                          ? `${tmpl.widthMm}\u00D7${tmpl.heightMm}mm`
+                          : "No size set"}
+                      </p>
+                    </div>
+                  </button>
                 ))}
-              </List>
+              </div>
             )}
-            <Divider />
-            <Box sx={{ p: 1 }}>
-              <Button
-                fullWidth
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={startNew}
-              >
+            <div className="border-t border-border" />
+            <div className="p-1">
+              <Button variant="ghost" className="w-full" size="sm" onClick={startNew}>
+                <Plus className="size-4 mr-1" />
                 New Template
               </Button>
-            </Box>
-          </CardContent>
+            </div>
+          </div>
         </Card>
 
-        <Button
-          size="small"
-          startIcon={<ArrowBackIcon />}
-          href="/settings"
-          sx={{ mt: 1 }}
-        >
+        <Button variant="ghost" size="sm" render={<Link href="/settings" />} className="mt-1">
+          <ArrowLeft className="size-4 mr-1" />
           Back to Settings
         </Button>
-      </Grid>
+      </div>
 
-      {/* ── Label Preview (center) ────────────────────────────────────── */}
-      <Grid size={{ xs: 12, md: 5 }}>
+      {/* Label Preview (center) */}
+      <div className="md:col-span-5">
         <Card>
-          <CardHeader
-            title="Preview"
-            titleTypographyProps={{ variant: "subtitle1", fontWeight: 600 }}
-            subheader={`${editor.widthMm} \u00d7 ${editor.heightMm} mm`}
-          />
-          <Divider />
-          <CardContent>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 200,
-                p: 2,
-                bgcolor: "grey.50",
-                borderRadius: 1,
-                border: "1px solid",
-                borderColor: "grey.200",
-              }}
-            >
+          <div className="p-3 pb-0">
+            <h3 className="text-base font-semibold">Preview</h3>
+            <p className="text-xs text-muted-foreground">{editor.widthMm} \u00D7 {editor.heightMm} mm</p>
+          </div>
+          <div className="border-t border-border mt-2" />
+          <CardContent className="p-3">
+            <div className="flex items-center justify-center min-h-[200px] p-2 bg-muted/50 rounded-lg border border-border">
               <LabelPreview
                 settings={editorToPreview(editor)}
                 maxWidth={360}
               />
-            </Box>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", textAlign: "center", mt: 1 }}
-            >
+            </div>
+            <p className="text-xs text-muted-foreground text-center mt-1">
               Preview rendered at 4px/mm. Actual print may vary.
-            </Typography>
+            </p>
           </CardContent>
         </Card>
-      </Grid>
+      </div>
 
-      {/* ── Template Settings (right sidebar) ─────────────────────────── */}
-      <Grid size={{ xs: 12, md: 4 }}>
+      {/* Template Settings (right sidebar) */}
+      <div className="md:col-span-4">
         <Card>
-          <CardHeader
-            title={selectedId ? "Edit Template" : "New Template"}
-            titleTypographyProps={{ variant: "subtitle1", fontWeight: 600 }}
-          />
-          <Divider />
-          <CardContent>
-            <Stack spacing={2.5}>
+          <div className="p-3 pb-0">
+            <h3 className="text-base font-semibold">
+              {selectedId ? "Edit Template" : "New Template"}
+            </h3>
+          </div>
+          <div className="border-t border-border mt-2" />
+          <CardContent className="p-3">
+            <div className="flex flex-col gap-2.5">
               {/* Feedback */}
               {feedback && (
-                <Alert
-                  severity={feedback.type}
-                  onClose={() => setFeedback(null)}
-                >
-                  {feedback.message}
+                <Alert variant={feedback.type === "error" ? "destructive" : "default"}>
+                  <AlertDescription>{feedback.message}</AlertDescription>
                 </Alert>
               )}
 
               {/* Name */}
-              <TextField
-                label="Template Name"
-                size="small"
-                fullWidth
-                value={editor.name}
-                onChange={(e) => updateField("name", e.target.value)}
-              />
+              <div>
+                <label className="text-xs font-medium block mb-1">Template Name</label>
+                <Input
+                  value={editor.name}
+                  onChange={(e) => updateField("name", e.target.value)}
+                />
+              </div>
 
               {/* Size presets */}
-              <Box>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mb: 0.5, display: "block" }}
-                >
-                  Label Size
-                </Typography>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Label Size</p>
+                <div className="flex flex-wrap gap-1 mb-1">
                   {SIZE_PRESETS.map((p) => (
-                    <Chip
+                    <button
                       key={p.label}
-                      label={p.label}
-                      size="small"
-                      variant={
-                        matchingPreset === p ? "filled" : "outlined"
-                      }
-                      color={matchingPreset === p ? "primary" : "default"}
                       onClick={() => {
                         updateField("widthMm", p.w);
                         updateField("heightMm", p.h);
                       }}
-                    />
+                      className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                        matchingPreset === p
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-transparent border-border text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
                   ))}
-                </Box>
-                <Box sx={{ display: "flex", gap: 1 }}>
-                  <TextField
-                    label="Width (mm)"
-                    size="small"
-                    type="number"
-                    value={editor.widthMm}
-                    onChange={(e) =>
-                      updateField(
-                        "widthMm",
-                        Math.max(10, parseInt(e.target.value) || 10)
-                      )
-                    }
-                    slotProps={{ htmlInput: { min: 10, max: 200 } }}
-                    sx={{ flex: 1 }}
-                  />
-                  <TextField
-                    label="Height (mm)"
-                    size="small"
-                    type="number"
-                    value={editor.heightMm}
-                    onChange={(e) =>
-                      updateField(
-                        "heightMm",
-                        Math.max(10, parseInt(e.target.value) || 10)
-                      )
-                    }
-                    slotProps={{ htmlInput: { min: 10, max: 200 } }}
-                    sx={{ flex: 1 }}
-                  />
-                </Box>
-              </Box>
+                </div>
+                <div className="flex gap-1">
+                  <div className="flex-1">
+                    <label className="text-xs font-medium block mb-1">Width (mm)</label>
+                    <Input
+                      type="number"
+                      value={editor.widthMm}
+                      onChange={(e) =>
+                        updateField("widthMm", Math.max(10, parseInt(e.target.value) || 10))
+                      }
+                      min={10}
+                      max={200}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs font-medium block mb-1">Height (mm)</label>
+                    <Input
+                      type="number"
+                      value={editor.heightMm}
+                      onChange={(e) =>
+                        updateField("heightMm", Math.max(10, parseInt(e.target.value) || 10))
+                      }
+                      min={10}
+                      max={200}
+                    />
+                  </div>
+                </div>
+              </div>
 
-              <Divider />
+              <div className="border-t border-border" />
 
               {/* Content toggles */}
-              <Box>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mb: 0.5, display: "block" }}
-                >
-                  Content Fields
-                </Typography>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 0,
-                  }}
-                >
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Content Fields</p>
+                <div className="grid grid-cols-2 gap-y-1">
                   {CONTENT_TOGGLES.map(({ key, label }) => (
-                    <FormControlLabel
-                      key={key}
-                      control={
-                        <Switch
-                          size="small"
-                          checked={editor[key] as boolean}
-                          onChange={(e) =>
-                            updateField(key, e.target.checked as never)
-                          }
-                        />
-                      }
-                      label={
-                        <Typography variant="body2">{label}</Typography>
-                      }
-                      sx={{ mr: 0 }}
-                    />
+                    <label key={key} className="flex items-center gap-1.5 cursor-pointer">
+                      <Switch
+                        size="sm"
+                        checked={editor[key] as boolean}
+                        onCheckedChange={(checked) => updateField(key, checked as never)}
+                      />
+                      <span className="text-sm">{label}</span>
+                    </label>
                   ))}
-                </Box>
-              </Box>
+                </div>
+              </div>
 
-              <Divider />
+              <div className="border-t border-border" />
 
               {/* QR code URL */}
-              <TextField
-                label="QR Code Base URL"
-                size="small"
-                fullWidth
-                value={editor.qrCodeBaseUrl}
-                onChange={(e) =>
-                  updateField("qrCodeBaseUrl", e.target.value)
-                }
-                helperText="Item ID will be appended to this URL"
-              />
+              <div>
+                <label className="text-xs font-medium block mb-1">QR Code Base URL</label>
+                <Input
+                  value={editor.qrCodeBaseUrl}
+                  onChange={(e) => updateField("qrCodeBaseUrl", e.target.value)}
+                />
+                <p className="text-[0.625rem] text-muted-foreground mt-0.5">Item ID will be appended to this URL</p>
+              </div>
 
               {/* Default toggle */}
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={editor.isDefault}
-                    onChange={(e) =>
-                      updateField("isDefault", e.target.checked)
-                    }
-                  />
-                }
-                label={
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    {editor.isDefault ? (
-                      <StarIcon sx={{ fontSize: 18, color: "warning.main" }} />
-                    ) : (
-                      <StarBorderIcon sx={{ fontSize: 18 }} />
-                    )}
-                    <Typography variant="body2">Set as default template</Typography>
-                  </Box>
-                }
-              />
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Switch
+                  checked={editor.isDefault}
+                  onCheckedChange={(checked) => updateField("isDefault", checked)}
+                />
+                <span className="flex items-center gap-1 text-sm">
+                  {editor.isDefault ? (
+                    <Star className="size-4 text-amber-500 fill-amber-500" />
+                  ) : (
+                    <StarOff className="size-4" />
+                  )}
+                  Set as default template
+                </span>
+              </label>
 
-              <Divider />
+              <div className="border-t border-border" />
 
               {/* Action buttons */}
-              <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+              <div className="flex gap-1 justify-end">
                 {selectedId && (
                   <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<DeleteIcon />}
+                    variant="destructive"
                     onClick={handleDelete}
                     disabled={saving}
                   >
+                    <Trash2 className="size-4 mr-1" />
                     Delete
                   </Button>
                 )}
                 <Button
-                  variant="contained"
-                  startIcon={<SaveIcon />}
                   onClick={handleSave}
                   disabled={saving || !editor.name.trim()}
                 >
+                  <Save className="size-4 mr-1" />
                   {saving
                     ? "Saving..."
                     : selectedId
                       ? "Save Changes"
                       : "Create Template"}
                 </Button>
-              </Box>
-            </Stack>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      </Grid>
-    </Grid>
+      </div>
+    </div>
   );
 }

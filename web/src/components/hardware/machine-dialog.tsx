@@ -1,25 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import Autocomplete from "@mui/material/Autocomplete";
-import Divider from "@mui/material/Divider";
+import { useState, useEffect, useMemo } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  SelectGroup,
+  SelectLabel,
+} from "@/components/ui/select";
 import { createMachine, updateMachine, listMyStations } from "@/lib/actions/user-library";
 import { listHardwareModels } from "@/lib/actions/hardware-catalog";
-import { enumToOptions, machineTypeLabels } from "./enum-labels";
+import { enumToOptions, machineTypeLabels, machineProtocolLabels } from "./enum-labels";
+import { getAllPlugins, type ConnectionFieldDef } from "@/lib/machines";
 
 const typeOptions = enumToOptions(machineTypeLabels);
+const protocolOptions = enumToOptions(machineProtocolLabels);
 
 type CatalogModel = {
   id: string;
@@ -47,8 +58,15 @@ type Props = {
   existing?: Record<string, any> | null;
 };
 
+// Build a map of protocol -> connectionFields for rendering dynamic forms
+const pluginFieldsMap: Record<string, ConnectionFieldDef[]> = {};
+for (const plugin of getAllPlugins()) {
+  pluginFieldsMap[plugin.protocol] = plugin.connectionFields;
+}
+
 export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   const [machineType, setMachineType] = useState("fdm");
+  const [protocol, setProtocol] = useState("manual");
   const [name, setName] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
@@ -72,7 +90,7 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   const [laserPowerW, setLaserPowerW] = useState("");
   const [laserWavelengthNm, setLaserWavelengthNm] = useState("");
   const [scanStationId, setScanStationId] = useState("");
-  const [accessCode, setAccessCode] = useState("");
+  const [connectionConfig, setConnectionConfig] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -80,12 +98,25 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   const [catalogModels, setCatalogModels] = useState<CatalogModel[]>([]);
   const [selectedCatalog, setSelectedCatalog] = useState<CatalogModel | null>(null);
 
+  // Connection fields for the currently selected protocol
+  const connectionFields = useMemo(() => pluginFieldsMap[protocol] ?? [], [protocol]);
+
+  // Filter protocol options to those that support the current machine type
+  const filteredProtocolOptions = useMemo(() => {
+    const allPlugins = getAllPlugins();
+    const supported = allPlugins
+      .filter((p) => p.supportedMachineTypes.includes(machineType as any))
+      .map((p) => p.protocol);
+    return protocolOptions.filter(
+      (o) => o.value === "manual" || supported.includes(o.value)
+    );
+  }, [machineType]);
+
   useEffect(() => {
     if (open) {
       listMyStations().then((r) => {
         if (r.data) {
           setStations(r.data as any[]);
-          // Auto-select first station if user has one and no station is set
           if (!existing && r.data.length > 0 && !scanStationId) {
             setScanStationId((r.data as any[])[0].id);
           }
@@ -94,7 +125,6 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       if (!existing) {
         listHardwareModels({ limit: 200 }).then((r) => {
           if (r.data) {
-            // Filter to machine-type categories (not label printers, scan stations, etc.)
             const machineCategories = ["fdm_printer", "resin_printer", "cnc", "laser_cutter", "laser_engraver"];
             setCatalogModels(
               (r.data as CatalogModel[]).filter((m) => machineCategories.includes(m.category))
@@ -109,6 +139,7 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
     if (!open) return;
     if (existing) {
       setMachineType(existing.machineType);
+      setProtocol(existing.protocol ?? "manual");
       setName(existing.name);
       setManufacturer(existing.manufacturer ?? "");
       setModel(existing.model ?? "");
@@ -132,10 +163,11 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       setLaserPowerW(existing.laserPowerW != null ? String(existing.laserPowerW) : "");
       setLaserWavelengthNm(existing.laserWavelengthNm != null ? String(existing.laserWavelengthNm) : "");
       setScanStationId(existing.scanStationId ?? "");
-      setAccessCode(existing.accessCode ?? "");
+      setConnectionConfig((existing.connectionConfig as Record<string, string>) ?? {});
       setNotes(existing.notes ?? "");
     } else {
       setMachineType("fdm");
+      setProtocol("manual");
       setName("");
       setManufacturer("");
       setModel("");
@@ -159,7 +191,7 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       setLaserPowerW("");
       setLaserWavelengthNm("");
       setScanStationId("");
-      setAccessCode("");
+      setConnectionConfig({});
       setNotes("");
       setSelectedCatalog(null);
     }
@@ -184,19 +216,41 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
     setHasFilamentChanger(m.hasFilamentChanger ?? false);
     if (m.filamentChangerSlots != null) setFilamentChangerSlotCount(String(m.filamentChangerSlots));
     if (m.hasEnclosure) setEnclosureType("enclosed");
+    if (m.protocol) setProtocol(m.protocol);
+    else if (m.hasMqtt) setProtocol("bambu");
+  };
+
+  const updateConnectionField = (key: string, value: string) => {
+    setConnectionConfig((prev) => ({ ...prev, [key]: value }));
   };
 
   const isFdmLike = machineType === "fdm" || machineType === "resin" || machineType === "multi";
   const isFdmOrMulti = machineType === "fdm" || machineType === "multi";
   const isCncLike = machineType === "cnc" || machineType === "multi";
   const isLaserLike = machineType === "laser" || machineType === "multi";
+  const hasProtocol = protocol !== "manual";
+
+  // Group catalog models by manufacturer
+  const catalogByManufacturer = useMemo(() => {
+    const map = new Map<string, CatalogModel[]>();
+    for (const m of catalogModels) {
+      const arr = map.get(m.manufacturer) ?? [];
+      arr.push(m);
+      map.set(m.manufacturer, arr);
+    }
+    return map;
+  }, [catalogModels]);
 
   const handleSave = async () => {
     setError(null);
     setSaving(true);
+
+    const finalConnectionConfig: Record<string, unknown> = { ...connectionConfig };
+
     const payload: Record<string, unknown> = {
       name,
       machineType,
+      protocol,
       manufacturer: manufacturer || null,
       model: model || null,
       serialNumber: serialNumber || null,
@@ -204,7 +258,8 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
       ipAddress: ipAddress || null,
       mqttTopic: mqttTopic || null,
       scanStationId: scanStationId || null,
-      accessCode: accessCode || null,
+      connectionConfig: hasProtocol ? finalConnectionConfig : null,
+      accessCode: protocol === "bambu" ? (connectionConfig.accessCode || null) : null,
       notes: notes || null,
     };
 
@@ -250,198 +305,350 @@ export function MachineDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{existing ? "Edit Machine" : "Add Machine"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Machine" : "Add Machine"}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Catalog picker (new machines only) */}
           {!existing && catalogModels.length > 0 && (
-            <Autocomplete
-              options={catalogModels}
-              value={selectedCatalog}
-              onChange={(_, v) => applyCatalogModel(v)}
-              getOptionLabel={(o) => `${o.manufacturer} ${o.model}`}
-              groupBy={(o) => o.manufacturer}
-              renderInput={(params) => (
-                <TextField {...params} label="Select a model" size="small" placeholder="Search models..." />
-              )}
-              size="small"
-              isOptionEqualToValue={(o, v) => o.id === v.id}
-            />
+            <div className="space-y-1.5">
+              <Label>Select a model</Label>
+              <Select
+                value={selectedCatalog?.id ?? "_none"}
+                onValueChange={(v) => {
+                  if (v === "_none") { setSelectedCatalog(null); return; }
+                  const found = catalogModels.find((m) => m.id === v);
+                  if (found) applyCatalogModel(found);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Search models..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">-- Select --</SelectItem>
+                  {Array.from(catalogByManufacturer.entries()).map(([mfr, models]) => (
+                    <SelectGroup key={mfr}>
+                      <SelectLabel>{mfr}</SelectLabel>
+                      {models.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.manufacturer} {m.model}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
-          {/* Catalog model selected — streamlined form */}
+          {/* Catalog model selected -- streamlined form */}
           {!existing && selectedCatalog ? (
             <>
-              <Typography variant="body2" color="text.secondary">
+              <p className="text-sm text-muted-foreground">
                 {selectedCatalog.manufacturer} {selectedCatalog.model}
-                {selectedCatalog.buildVolumeX && ` — ${selectedCatalog.buildVolumeX}x${selectedCatalog.buildVolumeY}x${selectedCatalog.buildVolumeZ}mm`}
-                {selectedCatalog.hasFilamentChanger && ` — ${selectedCatalog.filamentChangerSlots} AMS slots`}
-                {selectedCatalog.hasEnclosure && ` — Enclosed`}
-              </Typography>
-              <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
-              <TextField label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} size="small" />
-              {/* MQTT bridge — for models with MQTT support */}
-              {selectedCatalog.hasMqtt && (
-                <Stack direction="row" spacing={2}>
-                  <TextField
-                    select
-                    label="Scan Station (relay)"
-                    value={scanStationId}
-                    onChange={(e) => setScanStationId(e.target.value)}
-                    size="small"
-                    fullWidth
-                    helperText="Station on the same LAN that relays printer status"
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {stations.map((s) => (
-                      <MenuItem key={s.id} value={s.id}>{s.name} ({s.hardwareId})</MenuItem>
+                {selectedCatalog.buildVolumeX && ` -- ${selectedCatalog.buildVolumeX}x${selectedCatalog.buildVolumeY}x${selectedCatalog.buildVolumeZ}mm`}
+                {selectedCatalog.hasFilamentChanger && ` -- ${selectedCatalog.filamentChangerSlots} AMS slots`}
+                {selectedCatalog.hasEnclosure && ` -- Enclosed`}
+              </p>
+              <div className="space-y-1.5">
+                <Label>Name *</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>IP Address</Label>
+                <Input value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} />
+              </div>
+
+              {/* Protocol selector */}
+              <div className="space-y-1.5">
+                <Label>Connection Protocol</Label>
+                <Select value={protocol} onValueChange={(v) => { if (v) { setProtocol(v); setConnectionConfig({}); } }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredProtocolOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                     ))}
-                  </TextField>
-                  <TextField
-                    label="LAN Access Code"
-                    value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value)}
-                    size="small"
-                    fullWidth
-                    type="password"
-                    helperText="From printer Network settings"
-                  />
-                </Stack>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Protocol-specific connection fields */}
+              {hasProtocol && connectionFields.length > 0 && (
+                <>
+                  {connectionFields.map((field) => (
+                    <div key={field.key} className="space-y-1.5">
+                      <Label>{field.label}{field.required ? " *" : ""}</Label>
+                      <Input
+                        value={connectionConfig[field.key] ?? ""}
+                        onChange={(e) => updateConnectionField(field.key, e.target.value)}
+                        type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
+                        placeholder={field.placeholder}
+                      />
+                      {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+                    </div>
+                  ))}
+                </>
               )}
-              <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline rows={2} size="small" />
+
+              {/* Scan station bridge selector */}
+              {hasProtocol && (
+                <div className="space-y-1.5">
+                  <Label>Scan Station (bridge)</Label>
+                  <Select value={scanStationId || "_none"} onValueChange={(v) => v && setScanStationId(v === "_none" ? "" : v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">None</SelectItem>
+                      {stations.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name} ({s.hardwareId})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Station on the same LAN that relays machine status</p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label>Notes</Label>
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+              </div>
             </>
           ) : (
           <>
           {/* Full manual form (editing or no catalog selection) */}
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
-          <TextField
-            select
-            label="Machine Type"
-            value={machineType}
-            onChange={(e) => setMachineType(e.target.value)}
-            required
-            size="small"
-          >
-            {typeOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-          <Stack direction="row" spacing={2}>
-            <TextField label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} size="small" fullWidth />
-            <TextField label="Model" value={model} onChange={(e) => setModel(e.target.value)} size="small" fullWidth />
-          </Stack>
-          <Stack direction="row" spacing={2}>
-            <TextField label="Serial Number" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} size="small" fullWidth />
-            <TextField label="Firmware Version" value={firmwareVersion} onChange={(e) => setFirmwareVersion(e.target.value)} size="small" fullWidth />
-          </Stack>
-          <Stack direction="row" spacing={2}>
-            <TextField label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} size="small" fullWidth />
-            <TextField label="MQTT Topic" value={mqttTopic} onChange={(e) => setMqttTopic(e.target.value)} size="small" fullWidth />
-          </Stack>
-
-          {/* Network / MQTT bridge — show when IP is entered */}
-          {ipAddress && (
-            <>
-              <Typography variant="subtitle2" fontWeight={600}>MQTT Bridge</Typography>
-              <Stack direction="row" spacing={2}>
-                <TextField
-                  select
-                  label="Scan Station (relay)"
-                  value={scanStationId}
-                  onChange={(e) => setScanStationId(e.target.value)}
-                  size="small"
-                  fullWidth
-                  helperText="Station on the same LAN that relays printer status"
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {stations.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>{s.name} ({s.hardwareId})</MenuItem>
+          <div className="space-y-1.5">
+            <Label>Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label>Machine Type *</Label>
+              <Select value={machineType} onValueChange={(v) => v && setMachineType(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {typeOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
-                </TextField>
-                <TextField
-                  label="LAN Access Code"
-                  value={accessCode}
-                  onChange={(e) => setAccessCode(e.target.value)}
-                  size="small"
-                  fullWidth
-                  type="password"
-                  helperText="From printer Network settings"
-                />
-              </Stack>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>Connection Protocol</Label>
+              <Select value={protocol} onValueChange={(v) => { if (v) { setProtocol(v); setConnectionConfig({}); } }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredProtocolOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label>Manufacturer</Label>
+              <Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>Model</Label>
+              <Input value={model} onChange={(e) => setModel(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label>Serial Number</Label>
+              <Input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>Firmware Version</Label>
+              <Input value={firmwareVersion} onChange={(e) => setFirmwareVersion(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label>IP Address</Label>
+              <Input value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>MQTT Topic</Label>
+              <Input value={mqttTopic} onChange={(e) => setMqttTopic(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Protocol-specific connection fields */}
+          {hasProtocol && connectionFields.length > 0 && (
+            <>
+              <Separator />
+              <p className="text-sm font-semibold">
+                {machineProtocolLabels[protocol] ?? protocol} Connection
+              </p>
+              {connectionFields.map((field) => (
+                <div key={field.key} className="space-y-1.5">
+                  <Label>{field.label}{field.required ? " *" : ""}</Label>
+                  <Input
+                    value={connectionConfig[field.key] ?? ""}
+                    onChange={(e) => updateConnectionField(field.key, e.target.value)}
+                    type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
+                    placeholder={field.placeholder}
+                  />
+                  {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Scan station bridge selector */}
+          {hasProtocol && (
+            <>
+              <Separator />
+              <p className="text-sm font-semibold">Bridge</p>
+              <div className="space-y-1.5">
+                <Label>Scan Station (bridge)</Label>
+                <Select value={scanStationId || "_none"} onValueChange={(v) => v && setScanStationId(v === "_none" ? "" : v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">None</SelectItem>
+                    {stations.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name} ({s.hardwareId})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Station on the same LAN that relays machine status</p>
+              </div>
             </>
           )}
 
           {/* FDM / Resin / Multi: build volume & nozzle */}
           {isFdmLike && (
             <>
-              <Typography variant="subtitle2" fontWeight={600}>Build Volume</Typography>
-              <Stack direction="row" spacing={2}>
-                <TextField label="X (mm)" value={buildVolumeX} onChange={(e) => setBuildVolumeX(e.target.value)} type="number" size="small" fullWidth />
-                <TextField label="Y (mm)" value={buildVolumeY} onChange={(e) => setBuildVolumeY(e.target.value)} type="number" size="small" fullWidth />
-                <TextField label="Z (mm)" value={buildVolumeZ} onChange={(e) => setBuildVolumeZ(e.target.value)} type="number" size="small" fullWidth />
-              </Stack>
-              <TextField label="Nozzle Diameter (mm)" value={nozzleDiameterMm} onChange={(e) => setNozzleDiameterMm(e.target.value)} type="number" size="small" />
+              <Separator />
+              <p className="text-sm font-semibold">Build Volume</p>
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label>X (mm)</Label>
+                  <Input value={buildVolumeX} onChange={(e) => setBuildVolumeX(e.target.value)} type="number" />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label>Y (mm)</Label>
+                  <Input value={buildVolumeY} onChange={(e) => setBuildVolumeY(e.target.value)} type="number" />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label>Z (mm)</Label>
+                  <Input value={buildVolumeZ} onChange={(e) => setBuildVolumeZ(e.target.value)} type="number" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nozzle Diameter (mm)</Label>
+                <Input value={nozzleDiameterMm} onChange={(e) => setNozzleDiameterMm(e.target.value)} type="number" />
+              </div>
             </>
           )}
 
           {/* FDM / Multi: changer & tool head */}
           {isFdmOrMulti && (
             <>
-              <FormControlLabel
-                control={<Switch checked={hasFilamentChanger} onChange={(e) => setHasFilamentChanger(e.target.checked)} />}
-                label="Filament Changer"
-              />
+              <div className="flex items-center gap-2">
+                <Switch checked={hasFilamentChanger} onCheckedChange={setHasFilamentChanger} />
+                <Label>Filament Changer</Label>
+              </div>
               {hasFilamentChanger && (
-                <Stack direction="row" spacing={2}>
-                  <TextField label="Changer Model" value={filamentChangerModel} onChange={(e) => setFilamentChangerModel(e.target.value)} size="small" fullWidth />
-                  <TextField label="Slot Count" value={filamentChangerSlotCount} onChange={(e) => setFilamentChangerSlotCount(e.target.value)} type="number" size="small" fullWidth />
-                  <TextField label="Unit Count" value={filamentChangerUnitCount} onChange={(e) => setFilamentChangerUnitCount(e.target.value)} type="number" size="small" fullWidth />
-                </Stack>
+                <div className="flex gap-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Label>Changer Model</Label>
+                    <Input value={filamentChangerModel} onChange={(e) => setFilamentChangerModel(e.target.value)} />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <Label>Slot Count</Label>
+                    <Input value={filamentChangerSlotCount} onChange={(e) => setFilamentChangerSlotCount(e.target.value)} type="number" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <Label>Unit Count</Label>
+                    <Input value={filamentChangerUnitCount} onChange={(e) => setFilamentChangerUnitCount(e.target.value)} type="number" />
+                  </div>
+                </div>
               )}
-              <Stack direction="row" spacing={2}>
-                <TextField label="Tool Head Type" value={toolHeadType} onChange={(e) => setToolHeadType(e.target.value)} size="small" fullWidth />
-                <TextField label="Nozzle Swap System" value={nozzleSwapSystem} onChange={(e) => setNozzleSwapSystem(e.target.value)} size="small" fullWidth />
-              </Stack>
-              <TextField label="Enclosure Type" value={enclosureType} onChange={(e) => setEnclosureType(e.target.value)} size="small" />
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label>Tool Head Type</Label>
+                  <Input value={toolHeadType} onChange={(e) => setToolHeadType(e.target.value)} />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label>Nozzle Swap System</Label>
+                  <Input value={nozzleSwapSystem} onChange={(e) => setNozzleSwapSystem(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Enclosure Type</Label>
+                <Input value={enclosureType} onChange={(e) => setEnclosureType(e.target.value)} />
+              </div>
             </>
           )}
 
           {/* CNC / Multi */}
           {isCncLike && (
             <>
-              <Typography variant="subtitle2" fontWeight={600}>Spindle</Typography>
-              <Stack direction="row" spacing={2}>
-                <TextField label="Max RPM" value={spindleMaxRpm} onChange={(e) => setSpindleMaxRpm(e.target.value)} type="number" size="small" fullWidth />
-                <TextField label="Power (W)" value={spindlePowerW} onChange={(e) => setSpindlePowerW(e.target.value)} type="number" size="small" fullWidth />
-              </Stack>
+              <Separator />
+              <p className="text-sm font-semibold">Spindle</p>
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label>Max RPM</Label>
+                  <Input value={spindleMaxRpm} onChange={(e) => setSpindleMaxRpm(e.target.value)} type="number" />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label>Power (W)</Label>
+                  <Input value={spindlePowerW} onChange={(e) => setSpindlePowerW(e.target.value)} type="number" />
+                </div>
+              </div>
             </>
           )}
 
           {/* Laser / Multi */}
           {isLaserLike && (
             <>
-              <Typography variant="subtitle2" fontWeight={600}>Laser</Typography>
-              <Stack direction="row" spacing={2}>
-                <TextField label="Power (W)" value={laserPowerW} onChange={(e) => setLaserPowerW(e.target.value)} type="number" size="small" fullWidth />
-                <TextField label="Wavelength (nm)" value={laserWavelengthNm} onChange={(e) => setLaserWavelengthNm(e.target.value)} type="number" size="small" fullWidth />
-              </Stack>
+              <Separator />
+              <p className="text-sm font-semibold">Laser</p>
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label>Power (W)</Label>
+                  <Input value={laserPowerW} onChange={(e) => setLaserPowerW(e.target.value)} type="number" />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label>Wavelength (nm)</Label>
+                  <Input value={laserWavelengthNm} onChange={(e) => setLaserWavelengthNm(e.target.value)} type="number" />
+                </div>
+              </div>
             </>
           )}
 
-          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline rows={2} size="small" />
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
           </>
           )}
-        </Stack>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!name || saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={!name || saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

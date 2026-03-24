@@ -1,16 +1,14 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import LinearProgress from "@mui/material/LinearProgress";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import OpacityIcon from "@mui/icons-material/Opacity";
-import LightbulbIcon from "@mui/icons-material/Lightbulb";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { Droplets, Lightbulb, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// Types
 
 export interface ColorDetailsProps {
   colorHex?: string | null;
@@ -35,37 +33,23 @@ export interface ColorDetailsProps {
   tdVoteCount?: number | null;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 
-/** Returns black or white depending on which contrasts better with the given hex. */
-function contrastText(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  // W3C relative luminance
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#000" : "#fff";
-}
-
-/** Normalise a hex value to always start with # */
 function normaliseHex(hex: string): string {
   return hex.startsWith("#") ? hex : `#${hex}`;
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────────
+// Sub-components
 
 function ColorSwatch({ hex, size = 64 }: { hex: string; size?: number }) {
   const normalised = normaliseHex(hex);
   return (
-    <Box
-      sx={{
+    <div
+      className="shrink-0 rounded-lg border border-border"
+      style={{
         width: size,
         height: size,
-        borderRadius: 2,
         backgroundColor: normalised,
-        border: "1px solid",
-        borderColor: "divider",
-        flexShrink: 0,
       }}
     />
   );
@@ -79,56 +63,45 @@ function MultiColorSwatches({
   direction?: string | null;
 }) {
   if (direction === "coaxial") {
-    // Concentric circles
     const outerSize = 48;
     const step = outerSize / (hexes.length + 1);
     return (
-      <Box sx={{ position: "relative", width: outerSize, height: outerSize }}>
+      <div className="relative" style={{ width: outerSize, height: outerSize }}>
         {hexes.map((hex, i) => {
           const size = outerSize - i * step;
           const offset = (outerSize - size) / 2;
           return (
-            <Box
+            <div
               key={i}
-              sx={{
-                position: "absolute",
+              className="absolute rounded-full border border-border"
+              style={{
                 top: offset,
                 left: offset,
                 width: size,
                 height: size,
-                borderRadius: "50%",
                 backgroundColor: normaliseHex(hex),
-                border: "1px solid",
-                borderColor: "divider",
               }}
             />
           );
         })}
-      </Box>
+      </div>
     );
   }
 
-  // Longitudinal (side-by-side gradient) — default
   return (
-    <Stack direction="row" spacing={0.5} alignItems="center">
+    <div className="flex items-center gap-1">
       {hexes.map((hex, i) => (
-        <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box
-            sx={{
-              width: 24,
-              height: 24,
-              borderRadius: 1,
-              backgroundColor: normaliseHex(hex),
-              border: "1px solid",
-              borderColor: "divider",
-            }}
+        <div key={i} className="flex items-center gap-1">
+          <div
+            className="w-6 h-6 rounded border border-border"
+            style={{ backgroundColor: normaliseHex(hex) }}
           />
           {i < hexes.length - 1 && (
-            <ArrowForwardIcon sx={{ fontSize: 14, color: "text.disabled" }} />
+            <ArrowRight className="size-3.5 text-muted-foreground/50" />
           )}
-        </Box>
+        </div>
       ))}
-    </Stack>
+    </div>
   );
 }
 
@@ -143,64 +116,53 @@ function TransmissionDistanceBar({
   const percent = Math.min((value / maxTd) * 100, 100);
 
   return (
-    <Box sx={{ width: "100%" }}>
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="baseline"
-        sx={{ mb: 0.5 }}
-      >
-        <Typography variant="caption" color="text.secondary">
+    <div className="w-full">
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-xs text-muted-foreground">
           Transmission Distance
-        </Typography>
-        <Stack direction="row" spacing={0.5} alignItems="baseline">
-          <Typography variant="body2" fontWeight={600}>
+        </span>
+        <div className="flex items-baseline gap-1">
+          <span className="text-sm font-semibold">
             {value.toFixed(1)} mm
-          </Typography>
+          </span>
           {voteCount != null && voteCount > 0 && (
-            <Typography variant="caption" color="text.secondary">
+            <span className="text-xs text-muted-foreground">
               ({voteCount} vote{voteCount !== 1 ? "s" : ""})
-            </Typography>
+            </span>
           )}
-        </Stack>
-      </Stack>
-      <Tooltip
-        title={`${value.toFixed(1)} mm — ${percent < 25 ? "opaque" : percent < 60 ? "semi-translucent" : "translucent"}`}
-      >
-        <Box sx={{ position: "relative" }}>
-          <LinearProgress
-            variant="determinate"
-            value={percent}
-            sx={{
-              height: 10,
-              borderRadius: 1,
-              backgroundColor: "grey.300",
-              "& .MuiLinearProgress-bar": {
-                borderRadius: 1,
-                background: `linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(255,255,255,0.3) 100%)`,
-              },
-            }}
-          />
-          {/* Scale labels */}
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            sx={{ mt: 0.25 }}
-          >
-            <Typography variant="caption" color="text.disabled" fontSize={10}>
-              0 (opaque)
-            </Typography>
-            <Typography variant="caption" color="text.disabled" fontSize={10}>
-              200 mm (translucent)
-            </Typography>
-          </Stack>
-        </Box>
+        </div>
+      </div>
+      <Tooltip>
+        <TooltipTrigger className="w-full">
+          <div className="relative">
+            <div className="h-2.5 w-full rounded bg-muted overflow-hidden">
+              <div
+                className="h-full rounded"
+                style={{
+                  width: `${percent}%`,
+                  background: "linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(255,255,255,0.3) 100%)",
+                }}
+              />
+            </div>
+            <div className="flex justify-between mt-0.5">
+              <span className="text-[10px] text-muted-foreground/50">
+                0 (opaque)
+              </span>
+              <span className="text-[10px] text-muted-foreground/50">
+                200 mm (translucent)
+              </span>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          {value.toFixed(1)} mm &mdash; {percent < 25 ? "opaque" : percent < 60 ? "semi-translucent" : "translucent"}
+        </TooltipContent>
       </Tooltip>
-    </Box>
+    </div>
   );
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// Main component
 
 export default function ColorDetails(props: ColorDetailsProps) {
   const {
@@ -253,139 +215,105 @@ export default function ColorDetails(props: ColorDetailsProps) {
       : null;
 
   return (
-    <Stack spacing={2}>
-      {/* ── Swatch + Name + Hex ──────────────────────────────────── */}
+    <div className="flex flex-col gap-4">
+      {/* Swatch + Name + Hex */}
       {(displayHex || colorName) && (
-        <Stack direction="row" spacing={2} alignItems="center">
+        <div className="flex items-center gap-4">
           {displayHex && <ColorSwatch hex={displayHex} />}
-          <Stack spacing={0.25}>
+          <div className="space-y-0.5">
             {colorName && (
-              <Typography variant="subtitle1" fontWeight={600}>
-                {colorName}
-              </Typography>
+              <p className="text-base font-semibold">{colorName}</p>
             )}
             {displayHex && (
-              <Typography
-                variant="body2"
-                fontFamily="monospace"
-                color="text.secondary"
-              >
+              <p className="text-sm font-mono text-muted-foreground">
                 {displayHex.toUpperCase()}
-              </Typography>
+              </p>
             )}
-          </Stack>
-        </Stack>
+          </div>
+        </div>
       )}
 
-      {/* ── RGB row ──────────────────────────────────────────────── */}
+      {/* RGB row */}
       {colorR != null && colorG != null && colorB != null && (
-        <Stack direction="row" spacing={2}>
-          <Typography variant="caption" color="text.secondary">
-            R: {colorR}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            G: {colorG}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            B: {colorB}
-          </Typography>
-        </Stack>
+        <div className="flex gap-4">
+          <span className="text-xs text-muted-foreground">R: {colorR}</span>
+          <span className="text-xs text-muted-foreground">G: {colorG}</span>
+          <span className="text-xs text-muted-foreground">B: {colorB}</span>
+        </div>
       )}
 
-      {/* ── Lab row ──────────────────────────────────────────────── */}
+      {/* Lab row */}
       {hasLab && (
-        <Stack direction="row" spacing={2}>
-          <Typography variant="caption" color="text.secondary">
-            L*: {colorLabL!.toFixed(1)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            a*: {colorLabA!.toFixed(1)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            b*: {colorLabB!.toFixed(1)}
-          </Typography>
-        </Stack>
+        <div className="flex gap-4">
+          <span className="text-xs text-muted-foreground">L*: {colorLabL!.toFixed(1)}</span>
+          <span className="text-xs text-muted-foreground">a*: {colorLabA!.toFixed(1)}</span>
+          <span className="text-xs text-muted-foreground">b*: {colorLabB!.toFixed(1)}</span>
+        </div>
       )}
 
-      {/* ── Industry matches ─────────────────────────────────────── */}
+      {/* Industry matches */}
       {hasIndustry && (
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {closestPantone && (
-            <Chip label={`Pantone ${closestPantone}`} size="small" />
-          )}
-          {closestRal && <Chip label={`RAL ${closestRal}`} size="small" />}
-          {closestPms && <Chip label={`PMS ${closestPms}`} size="small" />}
-        </Stack>
+        <div className="flex flex-wrap gap-1.5">
+          {closestPantone && <Badge variant="secondary">Pantone {closestPantone}</Badge>}
+          {closestRal && <Badge variant="secondary">RAL {closestRal}</Badge>}
+          {closestPms && <Badge variant="secondary">PMS {closestPms}</Badge>}
+        </div>
       )}
 
-      {/* ── Color parent ─────────────────────────────────────────── */}
+      {/* Color parent */}
       {colorParent && (
-        <Chip
-          label={colorParent}
-          size="small"
-          variant="outlined"
-          sx={{ alignSelf: "flex-start" }}
-        />
+        <Badge variant="outline" className="self-start">{colorParent}</Badge>
       )}
 
-      {/* ── Multi-color ──────────────────────────────────────────── */}
+      {/* Multi-color */}
       {hasMultiColor && (
-        <Stack spacing={0.5}>
-          <Typography variant="caption" color="text.secondary">
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">
             Multi-color
             {multiColorDirection ? ` (${multiColorDirection})` : ""}
-          </Typography>
+          </span>
           <MultiColorSwatches
             hexes={multiColorHexes!}
             direction={multiColorDirection}
           />
-        </Stack>
+        </div>
       )}
 
-      {/* ── Properties row ───────────────────────────────────────── */}
+      {/* Properties row */}
       {hasProperties && (
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <div className="flex flex-wrap gap-1.5">
           {translucent && (
-            <Chip
-              icon={<OpacityIcon />}
-              label="Translucent"
-              size="small"
-              variant="outlined"
-            />
+            <Badge variant="outline">
+              <Droplets className="size-3 mr-1" />
+              Translucent
+            </Badge>
           )}
           {glow && (
-            <Chip
-              icon={<LightbulbIcon />}
-              label="Glow"
-              size="small"
-              variant="outlined"
-              color="warning"
-            />
+            <Badge variant="outline" className="text-amber-600 border-amber-300">
+              <Lightbulb className="size-3 mr-1" />
+              Glow
+            </Badge>
           )}
           {finish && (
-            <Chip
-              label={finish.charAt(0).toUpperCase() + finish.slice(1)}
-              size="small"
-              variant="outlined"
-            />
+            <Badge variant="outline">
+              {finish.charAt(0).toUpperCase() + finish.slice(1)}
+            </Badge>
           )}
           {pattern && pattern !== "solid" && (
-            <Chip
-              label={pattern.charAt(0).toUpperCase() + pattern.slice(1)}
-              size="small"
-              variant="outlined"
-            />
+            <Badge variant="outline">
+              {pattern.charAt(0).toUpperCase() + pattern.slice(1)}
+            </Badge>
           )}
-        </Stack>
+        </div>
       )}
 
-      {/* ── Transmission distance ────────────────────────────────── */}
+      {/* Transmission distance */}
       {hasTd && (
         <TransmissionDistanceBar
           value={transmissionDistance!}
           voteCount={tdVoteCount}
         />
       )}
-    </Stack>
+    </div>
   );
 }

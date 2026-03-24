@@ -1,12 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import CircularProgress from "@mui/material/CircularProgress";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { Upload, Trash2, Loader2 } from "lucide-react";
 
 type Props = {
   value: string | null;
@@ -55,7 +50,7 @@ export function ImageUpload({
   };
 
   return (
-    <Box>
+    <div>
       <input
         ref={inputRef}
         type="file"
@@ -68,75 +63,55 @@ export function ImageUpload({
         }}
       />
       {value ? (
-        <Box sx={{ position: "relative", display: "inline-block" }}>
-          <Box
-            component="img"
+        <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={value}
             alt=""
-            sx={{
+            className="cursor-pointer border border-border bg-muted/30 object-contain"
+            style={{
               width,
               height,
-              objectFit: "contain",
-              borderRadius: circular ? "50%" : 2,
-              border: 1,
-              borderColor: "divider",
-              bgcolor: "grey.50",
-              cursor: "pointer",
+              borderRadius: circular ? "50%" : 8,
             }}
             onClick={() => inputRef.current?.click()}
           />
-          <IconButton
-            size="small"
-            sx={{
-              position: "absolute",
-              top: -8,
-              right: -8,
-              bgcolor: "background.paper",
-              boxShadow: 1,
-              "&:hover": { bgcolor: "error.light", color: "white" },
-            }}
+          <button
+            className="absolute -top-2 -right-2 flex items-center justify-center rounded-full border bg-background shadow-sm hover:bg-destructive hover:text-white transition-colors"
+            style={{ width: 22, height: 22 }}
             onClick={() => onChange(null)}
           >
-            <DeleteIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Box>
+            <Trash2 className="size-3" />
+          </button>
+        </div>
       ) : (
-        <Box
+        <div
           onClick={() => !uploading && inputRef.current?.click()}
-          sx={{
+          className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed transition-all ${
+            error ? "border-destructive" : "border-border hover:border-primary hover:bg-muted/50"
+          } ${uploading ? "cursor-default" : "cursor-pointer"}`}
+          style={{
             width,
             height,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 0.5,
-            borderRadius: circular ? "50%" : 2,
-            border: "2px dashed",
-            borderColor: error ? "error.main" : "divider",
-            bgcolor: "grey.50",
-            cursor: uploading ? "default" : "pointer",
-            "&:hover": uploading ? {} : { borderColor: "primary.main", bgcolor: "action.hover" },
-            transition: "all 0.2s",
+            borderRadius: circular ? "50%" : 8,
+            backgroundColor: "var(--color-muted)",
           }}
         >
           {uploading ? (
-            <CircularProgress size={24} />
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
           ) : (
             <>
-              <CloudUploadIcon sx={{ fontSize: 24, color: "text.disabled" }} />
-              <Typography variant="caption" color="text.disabled" textAlign="center" px={1}>
+              <Upload className="size-6 text-muted-foreground/50" />
+              <span className="text-[0.65rem] text-muted-foreground/50 text-center px-1">
                 {label}
-              </Typography>
+              </span>
             </>
           )}
-        </Box>
+        </div>
       )}
       {error && (
-        <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
-          {error}
-        </Typography>
+        <p className="mt-1 text-xs text-destructive">{error}</p>
       )}
-    </Box>
+    </div>
   );
 }

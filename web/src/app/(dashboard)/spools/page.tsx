@@ -1,23 +1,37 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import LinearProgress from "@mui/material/LinearProgress";
-import Typography from "@mui/material/Typography";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
-import PrintIcon from "@mui/icons-material/Print";
-import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import {
+  Plus,
+  Pencil,
+  Printer,
+  Search,
+  BarChart3,
+  AlertTriangle,
+  Shapes,
+  Circle,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/page-header";
 import { SpoolDialog } from "@/components/spools/spool-dialog";
 import {
@@ -26,17 +40,60 @@ import {
 } from "@/components/labels/print-label-dialog";
 import { listMyItems, type MyItem } from "@/lib/actions/user-library";
 
-const statusColors: Record<string, "success" | "warning" | "default"> = {
-  active: "success",
-  empty: "warning",
-  archived: "default",
-};
+/* -- Design tokens -- */
+const MAKER_CYAN = "#00D2FF";
+const LIVE_GREEN = "#00E676";
+const ALERT_ROSE = "#FF2A5F";
+
+/* -- Status tab definitions -- */
+type StatusTab = { label: string; value: string | null };
+const STATUS_TABS: StatusTab[] = [
+  { label: "All Spools", value: null },
+  { label: "Active", value: "active" },
+  { label: "Empty", value: "empty" },
+  { label: "Archived", value: "archived" },
+];
+
+const PAGE_SIZE = 10;
+
+/* -- Helpers -- */
+function formatRelativeTime(date: Date | string | null | undefined): string {
+  if (!date) return "\u2014";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
+}
+
+function statusDotColor(status: string): string {
+  if (status === "active") return LIVE_GREEN;
+  if (status === "empty") return ALERT_ROSE;
+  return "#B0BEC5";
+}
+
+function progressBarColor(pct: number): string {
+  if (pct > 50) return MAKER_CYAN;
+  if (pct > 20) return "#FFB229";
+  return ALERT_ROSE;
+}
+
+/* ================================================================ */
 
 export default function SpoolsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("updatedAt");
   const [userItems, setMyItems] = useState<MyItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,148 +131,90 @@ export default function SpoolsPage() {
     loadItems();
   };
 
-  const filtered = statusFilter
-    ? userItems.filter((s) => s.status === statusFilter)
-    : userItems;
+  /* -- Filtering, search, sort -- */
+  const processed = useMemo(() => {
+    let list = userItems;
 
-  const columns: GridColDef[] = [
-    {
-      field: "colorHex",
-      headerName: "",
-      width: 48,
-      sortable: false,
-      filterable: false,
-      renderCell: (params) => {
-        const hex = (params.row.colorHex ?? params.row.measuredColorHex) as string | null;
+    // status filter
+    if (statusFilter) {
+      list = list.filter((s) => s.status === statusFilter);
+    }
+
+    // search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (s) =>
+          (s.brandName ?? "").toLowerCase().includes(q) ||
+          (s.productName ?? "").toLowerCase().includes(q) ||
+          (s.materialName ?? "").toLowerCase().includes(q) ||
+          (s.colorName ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    // sort
+    list = [...list].sort((a, b) => {
+      if (sortBy === "updatedAt") {
         return (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            {hex ? (
-              <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: hex, border: 1, borderColor: "divider" }} />
-            ) : (
-              <CircleOutlinedIcon sx={{ color: "text.disabled" }} />
-            )}
-          </Box>
+          new Date(b.updatedAt ?? 0).getTime() -
+          new Date(a.updatedAt ?? 0).getTime()
         );
-      },
-    },
-    {
-      field: "brandName",
-      headerName: "Brand",
-      width: 120,
-      valueFormatter: (value: string | null) => value ?? "\u2014",
-    },
-    {
-      field: "productName",
-      headerName: "Product",
-      flex: 1,
-      minWidth: 160,
-      valueFormatter: (value: string | null) => value ?? "\u2014",
-    },
-    {
-      field: "materialName",
-      headerName: "Material",
-      width: 100,
-      valueFormatter: (value: string | null) => value ?? "\u2014",
-    },
-    { field: "status", headerName: "Status", width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={params.value}
-          size="small"
-          color={statusColors[params.value as string] ?? "default"}
-        />
-      ),
-    },
-    {
-      field: "percentRemaining",
-      headerName: "Weight",
-      width: 180,
-      renderCell: (params) => {
-        const pct = params.value as number | null;
-        return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
-            <LinearProgress
-              variant="determinate"
-              value={pct ?? 0}
-              sx={{
-                flex: 1,
-                height: 8,
-                borderRadius: 4,
-                bgcolor: "grey.200",
-                "& .MuiLinearProgress-bar": {
-                  bgcolor: (pct ?? 0) > 50 ? "success.main" : (pct ?? 0) > 20 ? "warning.main" : "error.main",
-                },
-              }}
-            />
-            <Typography variant="caption" sx={{ minWidth: 36 }}>
-              {pct ?? 0}%
-            </Typography>
-          </Box>
-        );
-      },
-    },
-    {
-      field: "currentWeightG",
-      headerName: "Current (g)",
-      width: 120,
-      valueFormatter: (value: number | null) => value != null ? `${Math.round(value)}g` : "\u2014",
-    },
-    {
-      field: "netFilamentWeightG",
-      headerName: "Net (g)",
-      width: 120,
-      valueFormatter: (value: number | null) => value != null ? `${Math.round(value)}g` : "\u2014",
-    },
-    {
-      field: "updatedAt",
-      headerName: "Last Updated",
-      width: 180,
-      valueFormatter: (value: Date) =>
-        value ? new Date(value).toLocaleDateString() : "\u2014",
-    },
-    {
-      field: "actions",
-      headerName: "",
-      width: 90,
-      sortable: false,
-      filterable: false,
-      disableColumnMenu: true,
-      renderCell: (params) => {
-        const row = params.row as MyItem;
-        return (
-          <Box sx={{ display: "flex", gap: 0.25 }}>
-            <Tooltip title="Print label">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPrintItem({
-                    brand: row.brandName ?? undefined,
-                    material: row.materialName ?? row.productName ?? undefined,
-                    color: row.colorHex ?? (row as any).measuredColorHex ?? undefined,
-                    weight: row.currentWeightG ? `${Math.round(row.currentWeightG)}g` : undefined,
-                  });
-                }}
-              >
-                <PrintIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Edit">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenEdit(row);
-                }}
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        );
-      },
-    },
-  ];
+      }
+      if (sortBy === "weight") {
+        return (b.currentWeightG ?? 0) - (a.currentWeightG ?? 0);
+      }
+      if (sortBy === "material") {
+        return (a.materialName ?? "").localeCompare(b.materialName ?? "");
+      }
+      return 0;
+    });
+
+    return list;
+  }, [userItems, statusFilter, searchQuery, sortBy]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [statusFilter, searchQuery, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(processed.length / PAGE_SIZE));
+  const paginated = processed.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  /* -- Summary stats -- */
+  const totalStockKg = useMemo(() => {
+    const g = userItems.reduce((sum, s) => sum + (s.currentWeightG ?? 0), 0);
+    return (g / 1000).toFixed(1);
+  }, [userItems]);
+
+  const lowInventoryCount = useMemo(
+    () =>
+      userItems.filter(
+        (s) =>
+          s.status === "active" &&
+          s.percentRemaining != null &&
+          s.percentRemaining <= 20
+      ).length,
+    [userItems]
+  );
+
+  const mostUsedMaterial = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of userItems) {
+      const m = s.materialName ?? "Unknown";
+      counts[m] = (counts[m] ?? 0) + 1;
+    }
+    let best = "\u2014";
+    let max = 0;
+    for (const [k, v] of Object.entries(counts)) {
+      if (v > max) {
+        best = k;
+        max = v;
+      }
+    }
+    return best;
+  }, [userItems]);
+
+  /* ================================================================ */
 
   return (
     <div>
@@ -223,64 +222,387 @@ export default function SpoolsPage() {
         title="Spools"
         description="Manage your filament spool inventory."
         action={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
-            Add Spool
+          <Button
+            onClick={handleOpenCreate}
+            className="bg-[#00677F] hover:bg-[#005266]"
+          >
+            <Plus className="size-4" />
+            Add Material
           </Button>
         }
       />
 
-      <Box sx={{ mb: 2 }}>
-        <ToggleButtonGroup
-          value={statusFilter}
-          exclusive
-          onChange={(_, val) => setStatusFilter(val)}
-          size="small"
-        >
-          <ToggleButton value="active" sx={{ color: "success.main", "&.Mui-selected": { bgcolor: "success.light", color: "success.dark" } }}>
-            Active
-          </ToggleButton>
-          <ToggleButton value="empty" sx={{ color: "warning.main", "&.Mui-selected": { bgcolor: "warning.light", color: "warning.dark" } }}>
-            Empty
-          </ToggleButton>
-          <ToggleButton value="archived" sx={{ color: "text.secondary", "&.Mui-selected": { bgcolor: "grey.200" } }}>
-            Archived
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
+      {/* -- Filter tabs + toolbar -- */}
+      <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
+        {/* Pill-style tabs */}
+        <div className="flex p-1 bg-[#F4F6F8] rounded-xl w-fit">
+          {STATUS_TABS.map((tab) => {
+            const active = statusFilter === tab.value;
+            return (
+              <button
+                key={tab.label}
+                onClick={() => setStatusFilter(tab.value)}
+                className={`px-6 py-2 rounded-lg text-[0.8125rem] font-medium transition-all ${
+                  active
+                    ? "bg-white text-[#00677F] font-bold shadow-sm"
+                    : "text-muted-foreground hover:bg-black/[0.04]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
+        {/* Right side: search + sort + export */}
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
+            <input
+              type="text"
+              placeholder="Search inventory..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-60 h-9 pl-9 pr-3 rounded-xl bg-[#F4F6F8] border-none text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground">
+              Sort by:
+            </span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="text-[0.8125rem] font-semibold text-[#00677F] bg-transparent border-none focus:outline-none cursor-pointer"
+            >
+              <option value="updatedAt">Last Updated</option>
+              <option value="weight">Weight (High to Low)</option>
+              <option value="material">Material Type</option>
+            </select>
+          </div>
+
+          <Button variant="outline" size="sm">
+            <Download className="size-3.5" />
+            Export
+          </Button>
+        </div>
+      </div>
+
+      {/* -- Table -- */}
       {loading ? (
-        <Stack spacing={1}>
+        <div className="flex flex-col gap-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={52} />
+            <Skeleton key={i} className="h-[52px] rounded-lg" />
           ))}
-        </Stack>
-      ) : filtered.length === 0 ? (
-        <Box sx={{ textAlign: "center", py: 8 }}>
-          <CircleOutlinedIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-          <Typography variant="subtitle1" fontWeight={500}>
-            No spools found
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {statusFilter ? "Try a different filter." : "Add your first spool to get started."}
-          </Typography>
-        </Box>
+        </div>
+      ) : processed.length === 0 ? (
+        <div className="text-center py-16">
+          <Circle className="size-12 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="font-medium">No spools found</p>
+          <p className="text-sm text-muted-foreground">
+            {statusFilter
+              ? "Try a different filter."
+              : "Add your first spool to get started."}
+          </p>
+        </div>
       ) : (
-        <DataGrid
-          rows={filtered}
-          columns={columns}
-          initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-          pageSizeOptions={[10, 25, 50]}
-          disableRowSelectionOnClick
-          autoHeight
-          onRowClick={(params) => router.push(`/spools/${params.id}`)}
-          sx={{
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 3,
-            "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
-            "& .MuiDataGrid-row": { cursor: "pointer" },
-          }}
-        />
+        <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-[#F4F6F8]">
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Color</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Brand &amp; Product</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Material</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Status</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Remaining</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Weight Data</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4">Updated</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-widest font-bold px-6 py-4 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TooltipProvider>
+                {paginated.map((item) => {
+                  const hex =
+                    item.colorHex ?? (item as any).measuredColorHex ?? null;
+                  const pct = item.percentRemaining ?? 0;
+                  const currentG = item.currentWeightG
+                    ? Math.round(item.currentWeightG)
+                    : null;
+
+                  return (
+                    <TableRow
+                      key={item.id}
+                      onClick={() => router.push(`/spools/${item.id}`)}
+                      className="cursor-pointer hover:bg-[#00D2FF]/[0.03] [&_td]:py-4 [&_td]:px-6 [&_td]:border-b [&_td]:border-gray-50"
+                    >
+                      {/* Color swatch */}
+                      <TableCell>
+                        {hex ? (
+                          <div
+                            className="w-6 h-6 rounded shadow-inner"
+                            style={{
+                              backgroundColor: hex,
+                              border:
+                                hex.toUpperCase() === "#FFFFFF" ||
+                                hex.toUpperCase() === "#F4F4F4" ||
+                                hex.toUpperCase() === "#FFF"
+                                  ? "1px solid var(--border)"
+                                  : "none",
+                            }}
+                          />
+                        ) : (
+                          <Circle className="size-6 text-muted-foreground/30" />
+                        )}
+                      </TableCell>
+
+                      {/* Brand & Product */}
+                      <TableCell>
+                        <div>
+                          <p className="text-sm font-bold text-foreground leading-tight">
+                            {item.brandName ?? "\u2014"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.productName ?? "\u2014"}
+                          </p>
+                        </div>
+                      </TableCell>
+
+                      {/* Material chip */}
+                      <TableCell>
+                        {item.materialName ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-[#F4F6F8] text-[#00677F] text-[0.625rem] uppercase font-bold h-6 rounded px-2"
+                          >
+                            {item.materialName}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">
+                            \u2014
+                          </span>
+                        )}
+                      </TableCell>
+
+                      {/* Status */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: statusDotColor(item.status) }}
+                          />
+                          <span
+                            className={`text-xs font-medium capitalize ${
+                              item.status === "active"
+                                ? "text-foreground"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      {/* Remaining progress bar */}
+                      <TableCell className="w-[180px]">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between">
+                            <span className="text-[0.625rem] font-mono text-muted-foreground">
+                              {pct}%
+                            </span>
+                            <span className="text-[0.625rem] font-mono text-muted-foreground">
+                              {currentG != null ? `${currentG}g` : "\u2014"}
+                            </span>
+                          </div>
+                          <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: progressBarColor(pct),
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Weight data */}
+                      <TableCell>
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {item.netFilamentWeightG
+                            ? `${Math.round(item.netFilamentWeightG)}g Net`
+                            : "\u2014"}
+                        </span>
+                      </TableCell>
+
+                      {/* Updated */}
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {formatRelativeTime(item.updatedAt)}
+                        </span>
+                      </TableCell>
+
+                      {/* Actions */}
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  className="p-1.5 rounded-md text-muted-foreground/50 hover:text-[#00677F] hover:bg-muted transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPrintItem({
+                                      brand: item.brandName ?? undefined,
+                                      material:
+                                        item.materialName ??
+                                        item.productName ??
+                                        undefined,
+                                      color:
+                                        item.colorHex ??
+                                        (item as any).measuredColorHex ??
+                                        undefined,
+                                      weight: item.currentWeightG
+                                        ? `${Math.round(item.currentWeightG)}g`
+                                        : undefined,
+                                    });
+                                  }}
+                                />
+                              }
+                            >
+                              <Printer className="size-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>Print label</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  className="p-1.5 rounded-md text-muted-foreground/50 hover:text-[#00677F] hover:bg-muted transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEdit(item);
+                                  }}
+                                />
+                              }
+                            >
+                              <Pencil className="size-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>Edit</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TooltipProvider>
+            </TableBody>
+          </Table>
+
+          {/* -- Pagination footer -- */}
+          <div className="px-6 py-4 flex items-center justify-between border-t border-border bg-[#F4F6F8]/25">
+            <span className="text-xs font-medium text-muted-foreground">
+              Showing {page * PAGE_SIZE + 1}-
+              {Math.min((page + 1) * PAGE_SIZE, processed.length)} of{" "}
+              {processed.length} spools
+            </span>
+            <div className="flex gap-1">
+              <button
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+                className="w-8 h-8 flex items-center justify-center border border-border rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i;
+                } else if (page < 3) {
+                  pageNum = i;
+                } else if (page > totalPages - 4) {
+                  pageNum = totalPages - 5 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+                const isActive = pageNum === page;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-all ${
+                      isActive
+                        ? "bg-[#00D2FF] text-[#0F1F23] font-bold shadow-sm"
+                        : "border border-border text-muted-foreground hover:bg-white"
+                    }`}
+                  >
+                    {pageNum + 1}
+                  </button>
+                );
+              })}
+              <button
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+                className="w-8 h-8 flex items-center justify-center border border-border rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -- Summary insight cards -- */}
+      {!loading && userItems.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          {/* Total Stock */}
+          <div className="p-6 rounded-xl bg-[rgba(0,103,127,0.04)] border border-[rgba(0,103,127,0.10)] flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-[#00D2FF]/10 flex items-center justify-center text-[#00677F]">
+              <BarChart3 className="size-5" />
+            </div>
+            <div>
+              <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground">
+                Total Stock
+              </p>
+              <p className="font-display font-bold text-2xl text-[#00677F]">
+                {totalStockKg}{" "}
+                <span className="text-sm font-normal text-muted-foreground">kg</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Low Inventory */}
+          <div className="p-6 rounded-xl bg-[#FF2A5F]/[0.03] border border-[#FF2A5F]/10 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-[#FF2A5F]/[0.08] flex items-center justify-center text-[#FF2A5F]">
+              <AlertTriangle className="size-5" />
+            </div>
+            <div>
+              <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground">
+                Low Inventory
+              </p>
+              <p className="font-display font-bold text-2xl text-[#FF2A5F]">
+                {lowInventoryCount}{" "}
+                <span className="text-sm font-normal text-muted-foreground">spools</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Most Used */}
+          <div className="p-6 rounded-xl bg-[rgba(15,31,35,0.03)] border border-border flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-[rgba(15,31,35,0.08)] flex items-center justify-center text-foreground">
+              <Shapes className="size-5" />
+            </div>
+            <div>
+              <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground">
+                Most Used
+              </p>
+              <p className="font-display font-bold text-2xl text-foreground">
+                {mostUsedMaterial}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       <SpoolDialog

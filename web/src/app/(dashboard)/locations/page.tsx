@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
+import { Plus, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/page-header";
 import { LocationDialog } from "@/components/locations/location-dialog";
 import { RackTopologyTab } from "../hardware/rack-topology-tab";
@@ -22,25 +19,28 @@ export default function LocationsPage() {
         title="Dashboard"
         description="Your storage layout and what's where."
         action={
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Tooltip title={editing ? "Done editing" : "Edit layout"}>
-              <IconButton
-                onClick={() => setEditing((v) => !v)}
-                sx={editing ? { bgcolor: "primary.main", color: "white", "&:hover": { bgcolor: "primary.dark" } } : {}}
+          <div className="flex gap-1">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant={editing ? "default" : "ghost"}
+                    size="icon"
+                    onClick={() => setEditing((v) => !v)}
+                  />
+                }
               >
-                <EditIcon />
-              </IconButton>
+                <Pencil className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>{editing ? "Done editing" : "Edit layout"}</TooltipContent>
             </Tooltip>
             {editing && (
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => setZoneDialogOpen(true)}
-              >
+              <Button onClick={() => setZoneDialogOpen(true)}>
+                <Plus className="size-4" data-icon="inline-start" />
                 Add Zone
               </Button>
             )}
-          </Box>
+          </div>
         }
       />
 

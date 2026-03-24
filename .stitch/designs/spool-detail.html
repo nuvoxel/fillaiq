@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FillaIQ | Spool Detail</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary": "#ffffff",
+              "surface-bright": "#f7f9ff",
+              "on-tertiary-container": "#6c4700",
+              "surface-tint": "#00677f",
+              "tertiary-container": "#ffb229",
+              "tertiary-fixed": "#ffddb1",
+              "surface-container": "#e3effe",
+              "on-secondary-fixed": "#0e1e22",
+              "surface-container-high": "#dee9f8",
+              "inverse-surface": "#26313d",
+              "primary-container": "#00d2ff",
+              "on-surface": "#111d27",
+              "on-primary-fixed-variant": "#004e60",
+              "surface-variant": "#d8e4f3",
+              "primary-fixed": "#b6ebff",
+              "on-background": "#111d27",
+              "surface-dim": "#d0dbea",
+              "on-error-container": "#93000a",
+              "on-secondary-fixed-variant": "#39494e",
+              "tertiary-fixed-dim": "#ffba4a",
+              "primary": "#00677f",
+              "background": "#f7f9ff",
+              "on-tertiary-fixed-variant": "#624000",
+              "on-tertiary-fixed": "#291800",
+              "on-secondary-container": "#57676c",
+              "error-container": "#ffdad6",
+              "surface-container-low": "#edf4ff",
+              "on-error": "#ffffff",
+              "secondary-fixed": "#d4e6eb",
+              "error": "#ba1a1a",
+              "secondary": "#516166",
+              "outline": "#6c797f",
+              "primary-fixed-dim": "#47d6ff",
+              "on-primary-container": "#00566a",
+              "inverse-primary": "#47d6ff",
+              "surface": "#f7f9ff",
+              "secondary-container": "#d4e6eb",
+              "on-secondary": "#ffffff",
+              "tertiary": "#815600",
+              "surface-container-lowest": "#ffffff",
+              "on-primary-fixed": "#001f28",
+              "inverse-on-surface": "#e8f2ff",
+              "secondary-fixed-dim": "#b8c9cf",
+              "surface-container-highest": "#d8e4f3",
+              "outline-variant": "#bbc9cf",
+              "on-surface-variant": "#3c494e",
+              "on-primary": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Space Grotesk"],
+              "technical": ["DM Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .active-pill {
+        position: relative;
+      }
+      .active-pill::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 25%;
+        height: 50%;
+        width: 4px;
+        background-color: #00D2FF;
+        border-radius: 0 4px 4px 0;
+      }
+    </style>
+</head>
+<body class="bg-surface-container-low font-body text-on-surface flex min-h-screen">
+<!-- SideNavBar (rail_with_header) -->
+<aside class="h-screen w-64 fixed left-0 top-0 overflow-y-auto bg-[#0F1F23] flex flex-col py-6 z-50 shadow-[4px_0_12px_rgba(15,31,35,0.1)]">
+<div class="px-6 mb-10 flex items-center gap-3">
+<div class="w-8 h-8 bg-primary-container rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-[#0F1F23]" style="font-variation-settings: 'FILL' 1;">precision_manufacturing</span>
+</div>
+<div>
+<h1 class="text-xl font-bold tracking-tight text-white font-headline">FillaIQ</h1>
+<p class="text-[10px] text-slate-400 uppercase tracking-widest font-medium">Modern Maker</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-2">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-[#1A2E33] transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-[#1A2E33] transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-medium">The Rack</span>
+</a>
+<!-- Active Tab: Spool Detail -->
+<a class="flex items-center gap-3 px-4 py-3 text-[#00D2FF] bg-[#1A2E33] border-l-4 border-[#00D2FF] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">texture</span>
+<span class="font-medium">Spool Detail</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-[#1A2E33] transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<span class="font-medium">Machine Fleet</span>
+</a>
+</nav>
+<div class="px-4 mt-auto space-y-4">
+<button class="w-full bg-primary-container text-on-primary-container py-3 rounded-xl font-bold font-headline flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+                Add Filament
+            </button>
+<div class="pt-4 border-t border-slate-800 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="text-sm">Support</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<!-- TopNavBar (breadcrumb_style) -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] z-40 bg-[#F7F9FF]/80 backdrop-blur-md h-16 px-8 flex justify-between items-center">
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-primary">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<nav class="flex items-center gap-2 text-sm font-medium">
+<span class="text-slate-500">Inventory</span>
+<span class="text-slate-400">/</span>
+<span class="text-slate-500">Spools</span>
+<span class="text-slate-400">/</span>
+<span class="text-[#00677F] font-bold">Bambu PLA Basic — Orange</span>
+</nav>
+</div>
+<div class="flex items-center gap-3">
+<div class="relative mr-4">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-sm">search</span>
+<input class="pl-9 pr-4 py-1.5 bg-white border-none rounded-full text-sm w-64 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Search inventory..." type="text"/>
+</div>
+<button class="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-outline-variant text-slate-600 hover:bg-surface-container transition-colors text-sm font-semibold">
+<span class="material-symbols-outlined text-sm">print</span>
+                    Print Label
+                </button>
+<button class="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-primary text-white hover:bg-opacity-90 transition-colors text-sm font-semibold">
+<span class="material-symbols-outlined text-sm">edit</span>
+                    Edit
+                </button>
+<div class="h-8 w-[1px] bg-outline-variant mx-2"></div>
+<button class="p-2 text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden ml-2 ring-2 ring-white">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="professional headshot of a maker wearing a tech apron soft studio lighting clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB1QNs-3QP5IH0JxvXP9xChSIMcHt6x4pPK0PoRR9FughwbhbtDGiu95MoMn3fQcqr9rcvz6ORPEdniuPWbefAU0H2phSOcoiF1JcLni5yFF3jygyWcb3iiQezNznmM5ECLhL647QYYzHfuP8bCGHFmDH49-hHAD-RytTYgNoRQ3s9uhpa8PujQKvA82La_hKsQV6vEvr5wYUT0RHxKZaSDJrC82IZl9xb3UwfrlQph9hXKD268TxoVfxabt-u87lgGH4MFW3hFWI"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="mt-16 p-8 space-y-8 max-w-7xl mx-auto w-full">
+<!-- Hero Stats Row -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Left Card: Spool Info -->
+<div class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-8 shadow-[0_4px_12px_rgba(26,37,48,0.04)] relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1.5 h-full bg-primary"></div>
+<div class="flex justify-between items-start mb-8">
+<div>
+<h2 class="text-2xl font-headline font-bold text-on-surface mb-1">Bambu PLA Basic</h2>
+<div class="flex items-center gap-3">
+<span class="px-3 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                    Active
+                                </span>
+<span class="text-sm text-slate-400 font-medium">SKU: BP-PLA-ORG-001</span>
+</div>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-low px-4 py-2 rounded-lg">
+<div class="w-6 h-6 rounded-full bg-[#FF6B00] shadow-sm"></div>
+<span class="font-semibold text-on-surface">Orange</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-y-6 gap-x-12">
+<div class="space-y-1">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">NFC UID</p>
+<p class="font-technical text-primary font-medium tracking-tight">04:A3:2B:1A:7C:80</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">NFC Format</p>
+<p class="font-body text-on-surface font-semibold">Bambu RFID</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Purchase Date</p>
+<p class="font-body text-on-surface font-semibold">Oct 12, 2023</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Opened Date</p>
+<p class="font-body text-on-surface font-semibold">Oct 15, 2023</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Lot Number</p>
+<p class="font-technical text-on-surface">L-ORG-23X-09</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Cost</p>
+<p class="font-body text-on-surface font-bold text-lg">$24.99</p>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-surface-container-low">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-2">Notes</p>
+<p class="text-sm text-slate-600 italic">"High flow rate enabled. Optimized for 0.4mm hardened steel nozzle. Used for mechanical prototypes."</p>
+</div>
+</div>
+<!-- Right Card: Quick Stats -->
+<div class="bg-surface-container-lowest rounded-xl p-8 shadow-[0_4px_12px_rgba(26,37,48,0.04)] flex flex-col items-center text-center">
+<div class="relative w-48 h-48 mb-6 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-low" cx="96" cy="96" fill="transparent" r="88" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary-container transition-all duration-1000" cx="96" cy="96" fill="transparent" r="88" stroke="currentColor" stroke-dasharray="552.9" stroke-dashoffset="149.2" stroke-width="12"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="text-5xl font-headline font-bold text-on-surface">73%</span>
+<span class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Remaining</span>
+</div>
+</div>
+<div class="w-full space-y-4">
+<div class="flex justify-between items-center px-4 py-3 bg-surface-container-low rounded-lg">
+<span class="text-xs text-slate-500 font-semibold">Current Weight</span>
+<span class="font-headline font-bold text-primary">584g</span>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="px-3 py-2 bg-white rounded-lg border border-surface-container flex flex-col items-start">
+<span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Net Filament</span>
+<span class="font-semibold text-sm">800g</span>
+</div>
+<div class="px-3 py-2 bg-white rounded-lg border border-surface-container flex flex-col items-start">
+<span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Spool Tare</span>
+<span class="font-semibold text-sm">216g</span>
+</div>
+</div>
+<div class="flex items-center gap-3 mt-4 text-left p-4 bg-surface-container rounded-xl">
+<span class="material-symbols-outlined text-primary-fixed-dim bg-primary rounded-lg p-2">location_on</span>
+<div>
+<p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Location</p>
+<p class="text-sm font-bold text-on-surface">Rack A / Bay 2 / Slot 3</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Weight History Chart -->
+<section class="bg-surface-container-lowest rounded-xl p-8 shadow-[0_4px_12px_rgba(26,37,48,0.04)]">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h3 class="font-headline font-bold text-xl">Weight Consumption History</h3>
+<p class="text-sm text-slate-400">Track filament depletion over time across all print jobs.</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 text-xs font-bold bg-surface-container-low rounded-md">7D</button>
+<button class="px-3 py-1.5 text-xs font-bold text-slate-400">1M</button>
+<button class="px-3 py-1.5 text-xs font-bold text-slate-400">All</button>
+</div>
+</div>
+<!-- Mockup Chart -->
+<div class="relative h-64 w-full">
+<svg class="w-full h-full" preserveaspectratio="none">
+<defs>
+<lineargradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#00D2FF" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#00D2FF" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<path class="w-full h-full" d="M0,40 L150,55 L300,50 L450,80 L600,75 L750,110 L900,105 L1050,140 L1200,135" fill="none" stroke="#00D2FF" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"></path>
+<path d="M0,40 L150,55 L300,50 L450,80 L600,75 L750,110 L900,105 L1050,140 L1200,135 L1200,256 L0,256 Z" fill="url(#chartGradient)"></path>
+<!-- Dots -->
+<circle cx="150" cy="55" fill="#00D2FF" r="4" stroke="white" stroke-width="2"></circle>
+<circle cx="450" cy="80" fill="#00D2FF" r="4" stroke="white" stroke-width="2"></circle>
+<circle cx="750" cy="110" fill="#00D2FF" r="4" stroke="white" stroke-width="2"></circle>
+<circle cx="1050" cy="140" fill="#00D2FF" r="4" stroke="white" stroke-width="2"></circle>
+</svg>
+<!-- Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-5">
+<div class="border-b border-on-surface h-0 w-full"></div>
+<div class="border-b border-on-surface h-0 w-full"></div>
+<div class="border-b border-on-surface h-0 w-full"></div>
+<div class="border-b border-on-surface h-0 w-full"></div>
+</div>
+</div>
+<div class="mt-4 flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">
+<span>Oct 15</span>
+<span>Oct 18</span>
+<span>Oct 21</span>
+<span>Oct 24</span>
+<span>Oct 27</span>
+<span>Today</span>
+</div>
+</section>
+<!-- Tabbed Interface Sections -->
+<section class="space-y-6">
+<div class="flex items-center gap-8 border-b border-surface-container-high">
+<button class="pb-4 text-sm font-bold text-primary border-b-2 border-primary active-pill">Usage Sessions</button>
+<button class="pb-4 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Drying Sessions</button>
+<button class="pb-4 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Movements</button>
+</div>
+<!-- Usage Sessions Table -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.04)] overflow-hidden">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-6 py-4 text-[10px] uppercase tracking-widest text-slate-500 font-bold">Timestamp</th>
+<th class="px-6 py-4 text-[10px] uppercase tracking-widest text-slate-500 font-bold">Duration</th>
+<th class="px-6 py-4 text-[10px] uppercase tracking-widest text-slate-500 font-bold">Weight Change</th>
+<th class="px-6 py-4 text-[10px] uppercase tracking-widest text-slate-500 font-bold">Machine</th>
+<th class="px-6 py-4 text-[10px] uppercase tracking-widest text-slate-500 font-bold text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-low">
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold text-on-surface">Oct 28, 2023 · 14:32</p>
+<p class="text-[10px] text-slate-400">Status: Completed</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-sm font-technical text-slate-600">4h 12m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-error">trending_down</span>
+<span class="text-sm font-bold text-error">-142g</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">print</span>
+</div>
+<span class="text-sm font-medium">Bambu Lab X1-Carbon</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold text-on-surface">Oct 27, 2023 · 09:15</p>
+<p class="text-[10px] text-slate-400">Status: Completed</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-sm font-technical text-slate-600">1h 45m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-error">trending_down</span>
+<span class="text-sm font-bold text-error">-48g</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">print</span>
+</div>
+<span class="text-sm font-medium">Voron 2.4 (350mm)</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold text-on-surface">Oct 25, 2023 · 20:45</p>
+<p class="text-[10px] text-slate-400">Status: Completed</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-sm font-technical text-slate-600">8h 22m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-error">trending_down</span>
+<span class="text-sm font-bold text-error">-210g</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">print</span>
+</div>
+<span class="text-sm font-medium">Bambu Lab X1-Carbon</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="p-4 bg-surface-container-lowest border-t border-surface-container-low flex justify-between items-center px-8">
+<span class="text-xs text-slate-500 font-medium">Showing 3 of 14 sessions</span>
+<div class="flex gap-2">
+<button class="p-2 rounded hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<button class="p-2 rounded hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>

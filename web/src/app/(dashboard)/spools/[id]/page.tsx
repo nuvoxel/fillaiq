@@ -1,18 +1,11 @@
 import { notFound } from "next/navigation";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardHeader from "@mui/material/CardHeader";
-import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import Grid from "@mui/material/Grid";
-import LinearProgress from "@mui/material/LinearProgress";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { PageHeader } from "@/components/layout/page-header";
+import Link from "next/link";
+import { ArrowLeft, MapPin } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SpoolActions } from "@/components/spools/spool-actions";
+import { ProgressRing } from "@/components/spools/progress-ring";
 import { WeightChart } from "@/components/spools/weight-chart";
 import { UserItemEventsTabs } from "@/components/spools/spool-events-tabs";
 import { getUserItemWithRelations } from "@/lib/actions/user-library";
@@ -23,11 +16,53 @@ import {
   listItemMovementsByUserItemId,
 } from "@/lib/actions/events";
 
-const statusColors: Record<string, "success" | "warning" | "default"> = {
-  active: "success",
-  empty: "warning",
-  archived: "default",
-};
+/* -- Helpers -- */
+
+function InfoField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="mb-1">
+      <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground mb-1">
+        {label}
+      </p>
+      <p
+        className={`text-sm ${
+          mono
+            ? "font-mono font-medium text-primary"
+            : "font-semibold text-foreground"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function StatTile({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div
+      className={`px-4 py-3 rounded-lg ${
+        highlight
+          ? "bg-[#F4F6F8]"
+          : "bg-background border border-border"
+      }`}
+    >
+      <p className="text-[0.5625rem] uppercase tracking-wider font-bold text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={`font-bold ${
+          highlight
+            ? "font-display text-primary text-base"
+            : "text-foreground text-sm"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* -- Page -- */
 
 export default async function SpoolDetailPage({
   params,
@@ -83,257 +118,176 @@ export default async function SpoolDetailPage({
 
   const brandName = product?.brand?.name ?? undefined;
   const materialName = product?.material?.name ?? undefined;
+  const productName = product?.name ?? "Unknown Spool";
+
+  const statusVariant =
+    userItem.status === "active"
+      ? "bg-green-500/10 text-green-600"
+      : userItem.status === "empty"
+        ? "bg-[#FF2A5F]/10 text-[#FF2A5F]"
+        : "bg-slate-400/15 text-slate-400";
 
   return (
-    <div>
-      <Box
-        sx={{
-          mb: 2,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 1,
-        }}
-      >
-        <Button
-          href="/spools"
-          startIcon={<ArrowBackIcon />}
-          size="small"
-        >
-          Back to Spools
-        </Button>
+    <div className="flex flex-col gap-6">
+      {/* -- Breadcrumb header -- */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" render={<Link href="/spools" />}>
+            <ArrowLeft className="size-4" />
+            Spools
+          </Button>
+          <span className="text-sm text-muted-foreground">/</span>
+          <span className="text-sm font-bold text-primary">
+            {productName} {product?.colorName ? `\u2014 ${product.colorName}` : ""}
+          </span>
+        </div>
         <SpoolActions
           spool={userItem as any}
           product={product ?? null}
           brandName={brandName}
           materialName={materialName}
         />
-      </Box>
-      <PageHeader title="Spool Details" />
+      </div>
 
-      <Grid container spacing={3}>
-        {/* Spool Info Card */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card>
-            <CardHeader
-              title="Spool Info"
-              titleTypographyProps={{ fontWeight: 600, variant: "subtitle1" }}
-            />
-            <Divider />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Product
-                  </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
-                    {product?.colorHex && (
-                      <Box
-                        sx={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: "50%",
-                          bgcolor: product.colorHex,
-                          border: 1,
-                          borderColor: "divider",
-                        }}
-                      />
+      {/* -- Hero: Info + Stats -- */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left: Spool Info Card */}
+        <div className="lg:col-span-8">
+          <Card className="relative overflow-hidden p-0">
+            {/* Left accent bar */}
+            <div className="absolute left-0 top-0 w-1.5 h-full bg-primary rounded-l-xl" />
+            <CardContent className="p-8 pl-10">
+              {/* Header row */}
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h2 className="font-display font-bold text-xl mb-1">
+                    {productName}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="secondary"
+                      className={`${statusVariant} text-[0.625rem] uppercase tracking-wider font-bold h-[22px]`}
+                    >
+                      {userItem.status}
+                    </Badge>
+                    {(userItem as any).sku && (
+                      <span className="text-xs text-muted-foreground font-medium">
+                        SKU: {(userItem as any).sku}
+                      </span>
                     )}
-                    <Typography variant="body2" fontWeight={500}>
-                      {product?.name ?? "Unknown"}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Color
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {product?.colorName ?? "—"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Status
-                  </Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <Chip
-                      label={userItem.status}
-                      size="small"
-                      color={statusColors[userItem.status] ?? "default"}
+                  </div>
+                </div>
+                {/* Color swatch */}
+                {product?.colorHex && (
+                  <div className="flex items-center gap-3 bg-[#F4F6F8] px-4 py-2 rounded-lg">
+                    <div
+                      className="w-6 h-6 rounded-full shadow-sm"
+                      style={{ backgroundColor: product.colorHex }}
                     />
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    NFC UID
-                  </Typography>
-                  <Typography variant="body2" fontFamily="monospace">
-                    {userItem.nfcUid ?? "—"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    NFC Format
-                  </Typography>
-                  <Typography variant="body2">
-                    {userItem.nfcTagFormat ?? "—"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Purchased
-                  </Typography>
-                  <Typography variant="body2">
-                    {userItem.purchasedAt
-                      ? new Date(userItem.purchasedAt).toLocaleDateString()
-                      : "—"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Opened
-                  </Typography>
-                  <Typography variant="body2">
-                    {userItem.openedAt
-                      ? new Date(userItem.openedAt).toLocaleDateString()
-                      : "—"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Lot Number
-                  </Typography>
-                  <Typography variant="body2">
-                    {userItem.lotNumber ?? "—"}
-                  </Typography>
-                </Grid>
-                {userItem.notes && (
-                  <Grid size={{ xs: 12 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Notes
-                    </Typography>
-                    <Typography variant="body2">{userItem.notes}</Typography>
-                  </Grid>
+                    <span className="font-semibold text-sm">
+                      {product.colorName ?? "\u2014"}
+                    </span>
+                  </div>
                 )}
-              </Grid>
+              </div>
+
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-6">
+                <InfoField label="NFC UID" value={userItem.nfcUid ?? "\u2014"} mono />
+                <InfoField label="NFC Format" value={userItem.nfcTagFormat ?? "\u2014"} />
+                <InfoField
+                  label="Purchase Date"
+                  value={userItem.purchasedAt ? new Date(userItem.purchasedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "\u2014"}
+                />
+                <InfoField
+                  label="Opened Date"
+                  value={userItem.openedAt ? new Date(userItem.openedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "\u2014"}
+                />
+                <InfoField label="Lot Number" value={userItem.lotNumber ?? "\u2014"} mono />
+                <InfoField
+                  label="Cost"
+                  value={
+                    userItem.purchasePrice != null
+                      ? `$${userItem.purchasePrice.toFixed(2)}`
+                      : "\u2014"
+                  }
+                />
+              </div>
+
+              {/* Notes */}
+              {userItem.notes && (
+                <div className="mt-8 pt-6 border-t border-border">
+                  <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground mb-2">
+                    Notes
+                  </p>
+                  <p className="text-sm text-muted-foreground italic">
+                    &ldquo;{userItem.notes}&rdquo;
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </Grid>
+        </div>
 
-        {/* Quick Stats Card */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card>
-            <CardHeader
-              title="Quick Stats"
-              titleTypographyProps={{ fontWeight: 600, variant: "subtitle1" }}
-            />
-            <Divider />
-            <CardContent>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Remaining
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      mt: 0.5,
-                    }}
-                  >
-                    <LinearProgress
-                      variant="determinate"
-                      value={pct}
-                      sx={{
-                        flex: 1,
-                        height: 10,
-                        borderRadius: 5,
-                        bgcolor: "grey.200",
-                        "& .MuiLinearProgress-bar": {
-                          bgcolor:
-                            pct > 50
-                              ? "success.main"
-                              : pct > 20
-                                ? "warning.main"
-                                : "error.main",
-                        },
-                      }}
-                    />
-                    <Typography variant="body2" fontWeight={600}>
-                      {pct}%
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Current Weight
-                  </Typography>
-                  <Typography variant="h6" fontWeight={600}>
-                    {userItem.currentWeightG != null
-                      ? `${Math.round(userItem.currentWeightG)}g`
-                      : "—"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Net Filament
-                  </Typography>
-                  <Typography variant="body1" fontWeight={500}>
-                    {userItem.netFilamentWeightG != null
-                      ? `${Math.round(userItem.netFilamentWeightG)}g`
-                      : "—"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Spool Weight
-                  </Typography>
-                  <Typography variant="body1" fontWeight={500}>
-                    {userItem.spoolWeightG != null
-                      ? `${Math.round(userItem.spoolWeightG)}g`
-                      : "—"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Cost
-                  </Typography>
-                  <Typography variant="body1" fontWeight={500}>
-                    {userItem.purchasePrice != null
-                      ? `$${userItem.purchasePrice.toFixed(2)} ${userItem.purchaseCurrency ?? ""}`
-                      : "—"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
+        {/* Right: Quick Stats */}
+        <div className="lg:col-span-4">
+          <Card className="h-full flex flex-col items-center text-center">
+            <CardContent className="p-8 w-full flex flex-col items-center gap-4">
+              {/* Progress ring */}
+              <ProgressRing value={pct} />
+
+              {/* Current Weight -- highlight tile */}
+              <div className="w-full">
+                <StatTile
+                  label="Current Weight"
+                  value={userItem.currentWeightG != null ? `${Math.round(userItem.currentWeightG)}g` : "\u2014"}
+                  highlight
+                />
+              </div>
+
+              {/* Net / Tare row */}
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <StatTile
+                  label="Net Filament"
+                  value={userItem.netFilamentWeightG != null ? `${Math.round(userItem.netFilamentWeightG)}g` : "\u2014"}
+                />
+                <StatTile
+                  label="Spool Tare"
+                  value={userItem.spoolWeightG != null ? `${Math.round(userItem.spoolWeightG)}g` : "\u2014"}
+                />
+              </div>
+
+              {/* Location badge */}
+              <div className="flex items-center gap-3 w-full p-4 bg-[#F4F6F8] rounded-xl text-left">
+                <div className="bg-primary rounded-lg p-2 flex text-white">
+                  <MapPin className="size-4" />
+                </div>
+                <div>
+                  <p className="text-[0.625rem] uppercase tracking-widest font-bold text-muted-foreground">
                     Location
-                  </Typography>
-                  <Typography variant="body2">
-                    {userItem.storageLocation ?? (userItem.currentSlotId ? `Slot ${userItem.currentSlotId.slice(0, 8)}` : "Not assigned")}
-                  </Typography>
-                </Box>
-              </Stack>
+                  </p>
+                  <p className="text-sm font-bold">
+                    {userItem.storageLocation ??
+                      (userItem.currentSlotId
+                        ? `Slot ${userItem.currentSlotId.slice(0, 8)}`
+                        : "Not assigned")}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </Grid>
+        </div>
+      </div>
 
-        {/* Weight Chart */}
-        <Grid size={{ xs: 12 }}>
-          <WeightChart events={weightEvents as any} />
-        </Grid>
+      {/* -- Weight Chart -- */}
+      <WeightChart events={weightEvents as any} />
 
-        {/* Event Tabs */}
-        <Grid size={{ xs: 12 }}>
-          <UserItemEventsTabs
-            usageSessions={usageSessions as any}
-            dryingSessions={dryingSessions as any}
-            movements={movements as any}
-          />
-        </Grid>
-      </Grid>
+      {/* -- Event Tabs -- */}
+      <UserItemEventsTabs
+        usageSessions={usageSessions as any}
+        dryingSessions={dryingSessions as any}
+        movements={movements as any}
+      />
     </div>
   );
 }

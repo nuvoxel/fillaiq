@@ -2,19 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import EditIcon from "@mui/icons-material/Edit";
-import PrintIcon from "@mui/icons-material/Print";
-import ArchiveIcon from "@mui/icons-material/Archive";
-import DeleteIcon from "@mui/icons-material/Delete";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import { Pencil, Printer, Archive, Trash2, ArrowLeftRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { SpoolDialog } from "@/components/spools/spool-dialog";
 import {
   PrintLabelDialog,
@@ -135,69 +139,95 @@ export function SpoolActions({ spool, product, brandName, materialName }: Props)
 
   return (
     <>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-        <Tooltip title="Edit spool">
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<EditIcon />}
-            onClick={() => setEditOpen(true)}
-          >
-            Edit
-          </Button>
-        </Tooltip>
-
-        <Tooltip title="Print label">
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={() => setPrintOpen(true)}
-          >
-            Print Label
-          </Button>
-        </Tooltip>
-
-        <Tooltip title="Move to different location">
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<SwapHorizIcon />}
-            onClick={() => {
-              setMoveSlotId(spool.currentSlotId ?? null);
-              setMoveOpen(true);
-            }}
-          >
-            Move
-          </Button>
-        </Tooltip>
-
-        {!isArchived && (
-          <Tooltip title="Archive spool">
-            <Button
-              size="small"
-              variant="outlined"
-              color="warning"
-              startIcon={<ArchiveIcon />}
-              onClick={() => setArchiveOpen(true)}
+      <TooltipProvider>
+        <div className="flex flex-wrap gap-2">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditOpen(true)}
+                />
+              }
             >
-              Archive
-            </Button>
+              <Pencil className="size-3.5" />
+              Edit
+            </TooltipTrigger>
+            <TooltipContent>Edit spool</TooltipContent>
           </Tooltip>
-        )}
 
-        <Tooltip title="Delete spool">
-          <Button
-            size="small"
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete
-          </Button>
-        </Tooltip>
-      </Stack>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPrintOpen(true)}
+                />
+              }
+            >
+              <Printer className="size-3.5" />
+              Print Label
+            </TooltipTrigger>
+            <TooltipContent>Print label</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMoveSlotId(spool.currentSlotId ?? null);
+                    setMoveOpen(true);
+                  }}
+                />
+              }
+            >
+              <ArrowLeftRight className="size-3.5" />
+              Move
+            </TooltipTrigger>
+            <TooltipContent>Move to different location</TooltipContent>
+          </Tooltip>
+
+          {!isArchived && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 text-amber-600 hover:bg-amber-50"
+                    onClick={() => setArchiveOpen(true)}
+                  />
+                }
+              >
+                <Archive className="size-3.5" />
+                Archive
+              </TooltipTrigger>
+              <TooltipContent>Archive spool</TooltipContent>
+            </Tooltip>
+          )}
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setDeleteOpen(true)}
+                />
+              }
+            >
+              <Trash2 className="size-3.5" />
+              Delete
+            </TooltipTrigger>
+            <TooltipContent>Delete spool</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
 
       {/* Edit Dialog */}
       <SpoolDialog
@@ -215,76 +245,80 @@ export function SpoolActions({ spool, product, brandName, materialName }: Props)
       />
 
       {/* Archive Confirmation */}
-      <Dialog open={archiveOpen} onClose={() => setArchiveOpen(false)}>
-        <DialogTitle>Archive Spool</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to archive this spool? It will be hidden from
-            the default view but can be restored later.
-          </Typography>
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive Spool</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to archive this spool? It will be hidden from
+              the default view but can be restored later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              onClick={handleArchive}
+              className="bg-amber-500 text-white hover:bg-amber-600"
+              disabled={archiving}
+            >
+              {archiving ? "Archiving..." : "Archive"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setArchiveOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleArchive}
-            color="warning"
-            variant="contained"
-            disabled={archiving}
-          >
-            {archiving ? "Archiving..." : "Archive"}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
-        <DialogTitle>Delete Spool</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to permanently delete this spool? This action
-            cannot be undone.
-          </Typography>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Spool</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete this spool? This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              onClick={handleDelete}
+              variant="destructive"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleDelete}
-            color="error"
-            variant="contained"
-            disabled={deleting}
-          >
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Move Dialog */}
-      <Dialog
-        open={moveOpen}
-        onClose={() => setMoveOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Move Spool</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Select a new slot to assign this spool to:
-          </Typography>
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move Spool</DialogTitle>
+            <DialogDescription>
+              Select a new slot to assign this spool to:
+            </DialogDescription>
+          </DialogHeader>
           <SlotPicker
             selectedSlotId={moveSlotId}
             onSelect={(slotId) => setMoveSlotId(slotId)}
           />
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              onClick={handleMove}
+              disabled={moving}
+            >
+              {moving ? "Moving..." : "Move"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMoveOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleMove}
-            variant="contained"
-            disabled={moving}
-          >
-            {moving ? "Moving..." : "Move"}
-          </Button>
-        </DialogActions>
       </Dialog>
     </>
   );

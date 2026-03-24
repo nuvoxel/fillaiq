@@ -1,23 +1,11 @@
-import Paper from "@mui/material/Paper";
-
 export function AuditMetadata({
   metadata,
 }: {
   metadata: Record<string, unknown>;
 }) {
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2,
-        fontFamily: "monospace",
-        fontSize: "0.8125rem",
-        color: "text.secondary",
-        overflowX: "auto",
-        borderRadius: 2,
-      }}
-    >
-      <pre style={{ margin: 0 }}>{JSON.stringify(metadata, null, 2)}</pre>
-    </Paper>
+    <div className="rounded-lg border border-border p-2 font-mono text-[0.8125rem] text-muted-foreground overflow-x-auto">
+      <pre className="m-0">{JSON.stringify(metadata, null, 2)}</pre>
+    </div>
   );
 }

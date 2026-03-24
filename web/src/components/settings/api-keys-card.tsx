@@ -1,35 +1,36 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Card from "@mui/material/Card";
-import CardHeader from "@mui/material/CardHeader";
-import CardContent from "@mui/material/CardContent";
-import Divider from "@mui/material/Divider";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Chip from "@mui/material/Chip";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import TextField from "@mui/material/TextField";
-import Alert from "@mui/material/Alert";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteIcon from "@mui/icons-material/Delete";
-import KeyIcon from "@mui/icons-material/Key";
+import { KeyRound, Trash2, Copy } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { authClient } from "@/lib/auth-client";
 import type { ApiKeyInfo } from "@/lib/actions/dashboard";
 
 type Props = {
   initialApiKeys: ApiKeyInfo[];
+  cardSx?: unknown;
+  titleSx?: unknown;
 };
 
 export function ApiKeysCard({ initialApiKeys }: Props) {
@@ -118,216 +119,200 @@ export function ApiKeysCard({ initialApiKeys }: Props) {
 
   return (
     <>
-      <Card>
-        <CardHeader
-          title="API Keys"
-          titleTypographyProps={{ fontWeight: 600 }}
-          action={
+      <Card className="rounded-xl shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-display font-bold text-xl flex items-center gap-1.5 before:content-[''] before:inline-block before:w-1 before:h-5 before:rounded-sm before:bg-[#00D2FF] before:shrink-0">
+              API Keys
+            </h3>
             <Button
-              size="small"
-              startIcon={<KeyIcon />}
-              variant="outlined"
+              size="sm"
               onClick={() => {
                 setKeyName("");
                 setError(null);
                 setGenerateOpen(true);
               }}
+              className="bg-[#00D2FF] text-[#00566a] hover:bg-[#00bce6]"
             >
-              Generate Key
+              <KeyRound className="size-4 mr-1" />
+              Generate New Key
             </Button>
-          }
-        />
-        <Divider />
-        <CardContent sx={{ p: 0 }}>
+          </div>
+
+          <div className="border-t border-border" />
+
           {error && (
-            <Alert severity="error" sx={{ m: 2 }}>
-              {error}
+            <Alert variant="destructive" className="mt-2">
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
           {apiKeys.length === 0 ? (
-            <Box sx={{ textAlign: "center", py: 4 }}>
-              <KeyIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
-              <Typography variant="body2" color="text.secondary">
+            <div className="text-center py-4">
+              <KeyRound className="size-10 text-muted-foreground/40 mx-auto mb-1" />
+              <p className="text-sm text-muted-foreground">
                 No API keys configured.
-              </Typography>
-            </Box>
+              </p>
+            </div>
           ) : (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Key Prefix</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Last Used</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="right">
-                      Actions
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Name</TableHead>
+                  <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Value</TableHead>
+                  <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Status</TableHead>
+                  <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Created</TableHead>
+                  <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Last Used</TableHead>
+                  <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold text-right" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apiKeys.map((key) => (
+                  <TableRow key={key.id}>
+                    <TableCell>
+                      <span className="text-sm font-bold">
+                        {key.name ?? "Unnamed"}
+                      </span>
                     </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {apiKeys.map((key) => (
-                    <TableRow key={key.id}>
-                      <TableCell>{key.name ?? "Unnamed"}</TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          fontFamily="monospace"
-                          color="text.secondary"
-                        >
-                          {key.prefix ?? "---"}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={key.enabled ? "Active" : "Disabled"}
-                          size="small"
-                          color={key.enabled ? "success" : "default"}
-                        />
-                      </TableCell>
-                      <TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {key.prefix ?? "---"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={key.enabled ? "default" : "secondary"}
+                        className={key.enabled ? "bg-green-100 text-green-600" : ""}
+                      >
+                        {key.enabled ? "Active" : "Disabled"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
                         {new Date(key.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
                         {key.lastRequest
                           ? new Date(key.lastRequest).toLocaleDateString()
                           : "Never"}
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => setDeleteId(key.id)}
-                          disabled={isPending}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setDeleteId(key.id)}
+                        disabled={isPending}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
       {/* Generate Key Dialog */}
-      <Dialog
-        open={generateOpen}
-        onClose={() => setGenerateOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Generate API Key</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Key Name (optional)"
-            placeholder="e.g. Production, CI/CD"
-            value={keyName}
-            onChange={(e) => setKeyName(e.target.value)}
-            size="small"
-            sx={{ mt: 1 }}
-          />
+      <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Generate API Key</DialogTitle>
+          </DialogHeader>
+          <div>
+            <label className="text-sm font-medium block mb-1">Key Name (optional)</label>
+            <Input
+              autoFocus
+              placeholder="e.g. Production, CI/CD"
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={handleGenerate}
+              disabled={isPending}
+              className="bg-[#00D2FF] text-[#00566a] hover:bg-[#00bce6]"
+            >
+              {isPending ? "Generating..." : "Generate"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setGenerateOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleGenerate}
-            disabled={isPending}
-          >
-            {isPending ? "Generating..." : "Generate"}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Show Generated Key Dialog */}
       <Dialog
         open={showKeyOpen}
-        onClose={() => {
-          setShowKeyOpen(false);
-          setGeneratedKey(null);
-          setCopied(false);
+        onOpenChange={(open) => {
+          setShowKeyOpen(open);
+          if (!open) {
+            setGeneratedKey(null);
+            setCopied(false);
+          }
         }}
-        maxWidth="sm"
-        fullWidth
       >
-        <DialogTitle>API Key Generated</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Copy this key now. You will not be able to see it again.
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>API Key Generated</DialogTitle>
+          </DialogHeader>
+          <Alert className="border-amber-300 bg-amber-50">
+            <AlertDescription className="text-amber-800">
+              Copy this key now. You will not be able to see it again.
+            </AlertDescription>
           </Alert>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              bgcolor: "grey.100",
-              borderRadius: 1,
-              p: 1.5,
-              fontFamily: "monospace",
-              fontSize: "0.85rem",
-              wordBreak: "break-all",
-            }}
-          >
-            <Box sx={{ flex: 1 }}>{generatedKey}</Box>
-            <IconButton size="small" onClick={handleCopy}>
-              <ContentCopyIcon fontSize="small" />
-            </IconButton>
-          </Box>
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1.5 font-mono text-sm break-all">
+            <span className="flex-1">{generatedKey}</span>
+            <Button variant="ghost" size="icon-sm" onClick={handleCopy}>
+              <Copy className="size-4" />
+            </Button>
+          </div>
           {copied && (
-            <Typography
-              variant="caption"
-              color="success.main"
-              sx={{ mt: 0.5, display: "block" }}
-            >
+            <p className="text-xs font-bold text-green-500">
               Copied to clipboard
-            </Typography>
+            </p>
           )}
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowKeyOpen(false);
+                setGeneratedKey(null);
+                setCopied(false);
+              }}
+              className="bg-[#00D2FF] text-[#00566a] hover:bg-[#00bce6]"
+            >
+              Done
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setShowKeyOpen(false);
-              setGeneratedKey(null);
-              setCopied(false);
-            }}
-          >
-            Done
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteId !== null}
-        onClose={() => setDeleteId(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Delete API Key</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete this API key? Any integrations using
-            it will stop working immediately.
-          </Typography>
+      <Dialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete API Key</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this API key? Any integrations using
+              it will stop working immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => deleteId && handleDelete(deleteId)}
+              disabled={isPending}
+            >
+              {isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={() => deleteId && handleDelete(deleteId)}
-            disabled={isPending}
-          >
-            {isPending ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
       </Dialog>
     </>
   );

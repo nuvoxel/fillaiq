@@ -1,18 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import {
   createZone,
   updateZone,
@@ -68,7 +75,6 @@ export function LocationDialog({
   existing,
   deleteMode,
 }: Props) {
-  // ── Common fields ─────────────────────────────────────────────────────────
   const [name, setName] = useState("");
   const [type, setType] = useState("workshop");
   const [description, setDescription] = useState("");
@@ -77,7 +83,6 @@ export function LocationDialog({
   const [nfcTagId, setNfcTagId] = useState("");
   const [address, setAddress] = useState("");
 
-  // ── Quick setup (rack creation only) ──────────────────────────────────────
   const [quickShelves, setQuickShelves] = useState("3");
   const [quickBays, setQuickBays] = useState("1");
   const [quickSlots, setQuickSlots] = useState("2");
@@ -148,7 +153,6 @@ export function LocationDialog({
         if (isEdit) {
           result = await updateRack(existing!.id, payload);
         } else {
-          // Create rack
           result = await createRack(payload);
           if (result?.error) {
             setSaving(false);
@@ -156,7 +160,6 @@ export function LocationDialog({
             return;
           }
 
-          // Quick setup: create shelves → bays → slots
           const rackId = result.data?.id;
           const nShelves = parseInt(quickShelves) || 0;
           const nBays = parseInt(quickBays) || 0;
@@ -238,239 +241,226 @@ export function LocationDialog({
     : `Add ${levelLabels[level]}`;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           {isDelete ? (
-            <Typography>
+            <p className="text-sm">
               Are you sure you want to delete{" "}
               <strong>
                 {existing?.name || existing?.label || `${levelLabels[level]} ${existing?.position}`}
               </strong>
               ? This will also delete everything inside it.
-            </Typography>
+            </p>
           ) : (
-            <Grid container spacing={2}>
-              {/* ── Zone fields ── */}
+            <div className="grid grid-cols-12 gap-3">
+              {/* Zone fields */}
               {level === "zone" && (
                 <>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Name"
+                  <div className="col-span-12 sm:col-span-6">
+                    <Label>Name</Label>
+                    <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
-                      size="small"
-                      fullWidth
                       placeholder='e.g. "Workshop", "Garage"'
                     />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      select
-                      label="Type"
-                      value={type}
-                      onChange={(e) => setType(e.target.value)}
-                      size="small"
-                      fullWidth
-                    >
-                      {zoneTypeOptions.map((o) => (
-                        <MenuItem key={o.value} value={o.value}>
-                          {o.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid size={{ xs: 12 }}>
-                    <TextField
-                      label="Description"
+                  </div>
+                  <div className="col-span-12 sm:col-span-6">
+                    <Label>Type</Label>
+                    <Select value={type} onValueChange={(v) => { if (v) setType(v); }}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {zoneTypeOptions.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-12">
+                    <Label>Description</Label>
+                    <textarea
+                      className="flex w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 min-h-[60px]"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      size="small"
-                      fullWidth
-                      multiline
                       rows={2}
                       placeholder="Optional"
                     />
-                  </Grid>
+                  </div>
                 </>
               )}
 
-              {/* ── Rack fields ── */}
+              {/* Rack fields */}
               {level === "rack" && (
                 <>
-                  <Grid size={{ xs: 12 }}>
-                    <TextField
-                      label="Rack Name"
+                  <div className="col-span-12">
+                    <Label>Rack Name</Label>
+                    <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
-                      size="small"
-                      fullWidth
                       placeholder='e.g. "Rack A", "Left Wall"'
                     />
-                  </Grid>
+                  </div>
                   {isNewRack && (
                     <>
-                      <Grid size={{ xs: 12 }}>
-                        <Divider />
-                        <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+                      <div className="col-span-12">
+                        <Separator />
+                        <p className="text-sm font-medium text-muted-foreground mt-2">
                           Quick Setup
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        </p>
+                        <p className="text-xs text-muted-foreground">
                           Auto-create shelves, bays, and slots. You can always add more later.
-                        </Typography>
-                      </Grid>
-                      <Grid size={{ xs: 4 }}>
-                        <TextField
-                          label="Shelves"
+                        </p>
+                      </div>
+                      <div className="col-span-4">
+                        <Label>Shelves</Label>
+                        <Input
                           type="number"
                           value={quickShelves}
                           onChange={(e) => setQuickShelves(e.target.value)}
-                          size="small"
-                          fullWidth
-                          slotProps={{ htmlInput: { min: 0, max: 50 } }}
+                          min={0}
+                          max={50}
                         />
-                      </Grid>
-                      <Grid size={{ xs: 4 }}>
-                        <TextField
-                          label="Bays / shelf"
+                      </div>
+                      <div className="col-span-4">
+                        <Label>Bays / shelf</Label>
+                        <Input
                           type="number"
                           value={quickBays}
                           onChange={(e) => setQuickBays(e.target.value)}
-                          size="small"
-                          fullWidth
-                          slotProps={{ htmlInput: { min: 0, max: 50 } }}
+                          min={0}
+                          max={50}
                         />
-                      </Grid>
-                      <Grid size={{ xs: 4 }}>
-                        <TextField
-                          label="Slots / bay"
+                      </div>
+                      <div className="col-span-4">
+                        <Label>Slots / bay</Label>
+                        <Input
                           type="number"
                           value={quickSlots}
                           onChange={(e) => setQuickSlots(e.target.value)}
-                          size="small"
-                          fullWidth
-                          slotProps={{ htmlInput: { min: 0, max: 100 } }}
+                          min={0}
+                          max={100}
                         />
-                      </Grid>
+                      </div>
                       {(parseInt(quickShelves) || 0) > 0 && (
-                        <Grid size={{ xs: 12 }}>
-                          <Typography variant="caption" color="text.secondary">
+                        <div className="col-span-12">
+                          <p className="text-xs text-muted-foreground">
                             Will create{" "}
                             <strong>
                               {parseInt(quickShelves) || 0} shelves
                               {(parseInt(quickBays) || 0) > 0 &&
-                                ` × ${parseInt(quickBays)} bays`}
+                                ` \u00d7 ${parseInt(quickBays)} bays`}
                               {(parseInt(quickSlots) || 0) > 0 &&
                                 (parseInt(quickBays) || 0) > 0 &&
-                                ` × ${parseInt(quickSlots)} slots`}
+                                ` \u00d7 ${parseInt(quickSlots)} slots`}
                             </strong>
                             {" = "}
                             {(parseInt(quickShelves) || 0) *
                               Math.max(parseInt(quickBays) || 0, 1) *
                               Math.max(parseInt(quickSlots) || 0, 1)}{" "}
                             total slots
-                          </Typography>
-                        </Grid>
+                          </p>
+                        </div>
                       )}
                     </>
                   )}
                 </>
               )}
 
-              {/* ── Shelf / Bay / Slot — just position + optional label ── */}
+              {/* Shelf / Bay / Slot */}
               {(level === "shelf" || level === "bay" || level === "slot") && (
                 <>
-                  <Grid size={{ xs: 6 }}>
-                    <TextField
-                      label="Position"
+                  <div className="col-span-6">
+                    <Label>Position</Label>
+                    <Input
                       type="number"
                       value={position}
                       onChange={(e) => setPosition(e.target.value)}
-                      size="small"
-                      fullWidth
-                      slotProps={{ htmlInput: { min: 1 } }}
+                      min={1}
                     />
-                  </Grid>
-                  <Grid size={{ xs: 6 }}>
-                    <TextField
-                      label="Label (optional)"
+                  </div>
+                  <div className="col-span-6">
+                    <Label>Label (optional)</Label>
+                    <Input
                       value={label}
                       onChange={(e) => setLabel(e.target.value)}
-                      size="small"
-                      fullWidth
                       placeholder="Auto-numbered if blank"
                     />
-                  </Grid>
+                  </div>
                 </>
               )}
 
-              {/* ── Slot address ── */}
+              {/* Slot address */}
               {level === "slot" && (
-                <Grid size={{ xs: 12 }}>
-                  <TextField
-                    label="Address (optional)"
+                <div className="col-span-12">
+                  <Label>Address (optional)</Label>
+                  <Input
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    size="small"
-                    fullWidth
                     placeholder="e.g. WS-A-2-1-3 — auto-generated if blank"
                   />
-                </Grid>
+                </div>
               )}
 
-              {/* ── Shortcode / prefix for address generation ── */}
+              {/* Shortcode */}
               {level === "zone" && (
-                <Grid size={{ xs: 12 }}>
-                  <TextField
-                    label="Shortcode (optional)"
+                <div className="col-span-12">
+                  <Label>Shortcode (optional)</Label>
+                  <Input
                     value={nfcTagId}
                     onChange={(e) => setNfcTagId(e.target.value)}
-                    size="small"
-                    fullWidth
                     placeholder='e.g. "OF" → OF-A-1-2-3'
-                    helperText="Used as a prefix when generating slot addresses"
                   />
-                </Grid>
+                  <p className="text-xs text-muted-foreground mt-1">Used as a prefix when generating slot addresses</p>
+                </div>
               )}
-            </Grid>
+            </div>
           )}
 
           {progress && (
-            <Typography variant="caption" color="text.secondary">
-              {progress}
-            </Typography>
+            <p className="text-xs text-muted-foreground">{progress}</p>
           )}
-        </Stack>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            variant={isDelete ? "destructive" : "default"}
+            disabled={
+              saving ||
+              (!isDelete &&
+                ((level === "zone" && !name) ||
+                  (level === "rack" && !name)))
+            }
+          >
+            {saving
+              ? "Saving..."
+              : isDelete
+              ? "Delete"
+              : isNewRack
+              ? "Create Rack"
+              : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={saving}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          color={isDelete ? "error" : "primary"}
-          disabled={
-            saving ||
-            (!isDelete &&
-              ((level === "zone" && !name) ||
-                (level === "rack" && !name)))
-          }
-        >
-          {saving
-            ? "Saving..."
-            : isDelete
-            ? "Delete"
-            : isNewRack
-            ? "Create Rack"
-            : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

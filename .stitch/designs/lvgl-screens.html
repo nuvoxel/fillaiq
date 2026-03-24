@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>FillaScan LVGL Screen Designs — 320×240</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+  body { background: #111; padding: 40px; font-family: Montserrat, sans-serif; color: #fff; }
+  h2 { color: #94A3B8; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin: 40px 0 12px; }
+  .row { display: flex; gap: 32px; flex-wrap: wrap; margin-bottom: 24px; }
+  .screen {
+    width: 320px; height: 240px; border-radius: 8px; overflow: hidden; position: relative;
+    background: #0F1F23; box-shadow: 0 4px 24px rgba(0,0,0,0.5); flex-shrink: 0;
+  }
+  .bezel { border: 3px solid #2A3540; border-radius: 12px; display: inline-block; padding: 4px; background: #1a1a1a; }
+  .label { color: #94A3B8; font-size: 11px; text-align: center; margin-top: 8px; }
+  /* Status bar */
+  .status-bar { height: 22px; display: flex; justify-content: space-between; align-items: center; padding: 0 8px; font-size: 10px; }
+  .status-bar .sensors, .status-bar .connectivity { display: flex; gap: 6px; }
+  .icon-on { color: #00E676; }
+  .icon-off { color: #475569; }
+  .cyan { color: #00D2FF; }
+  .green { color: #00E676; }
+  .orange { color: #FF7A00; }
+  .rose { color: #FF2A5F; }
+  .gray { color: #94A3B8; }
+  .white { color: #FFFFFF; }
+  .slate { background: #1A2530; }
+  .btn-cyan { background: #00D2FF; color: #fff; border: none; border-radius: 6px; font-family: Montserrat; font-weight: 700; cursor: pointer; }
+  .btn-outline { background: transparent; color: #00D2FF; border: 1.5px solid #00D2FF; border-radius: 6px; font-family: Montserrat; font-weight: 600; cursor: pointer; }
+</style>
+</head><body>
+
+<h1 style="color:#00D2FF; font-size: 20px; margin-bottom: 4px;">FillaScan LVGL Screen Designs</h1>
+<p style="color: #94A3B8; font-size: 12px; margin-bottom: 32px;">320×240px · ILI9341 · 16-bit RGB565 · Montserrat · LVGL 9.2</p>
+
+<!-- ── IDLE ── -->
+<h2>1. Idle / Home</h2>
+<div class="row">
+<div class="bezel"><div class="screen">
+  <div class="status-bar">
+    <div class="sensors">
+      <span class="icon-on">◉</span><span class="icon-on">⚖</span><span class="icon-on">◐</span><span class="icon-off">↕</span><span class="icon-off">♨</span>
+    </div>
+    <div class="connectivity">
+      <span class="icon-on">⟡</span><span class="icon-on">☁</span><span class="icon-off">⎙</span>
+    </div>
+  </div>
+  <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:190px;">
+    <div style="display:flex; gap:4px; margin-bottom:12px;">
+      <div style="width:8px; height:28px; border-radius:4px; background:#00D2FF;"></div>
+      <div style="width:8px; height:28px; border-radius:4px; background:#00D2FF;"></div>
+    </div>
+    <div style="font-size:22px; font-weight:800; letter-spacing:-0.5px;">FillaIQ</div>
+    <div style="font-size:12px; color:#94A3B8; margin-top:4px;">Place spool on platform</div>
+  </div>
+  <div style="position:absolute; bottom:8px; right:8px; width:32px; height:32px; background:#1A2530; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#94A3B8; font-size:14px;">⚙</div>
+</div><div class="label">SCR_IDLE</div></div>
+</div>
+
+<!-- ── SCANNING ── -->
+<h2>2. Live Scanning Dashboard</h2>
+<div class="row">
+<div class="bezel"><div class="screen">
+  <div class="status-bar">
+    <div class="sensors"><span class="icon-on">◉</span><span class="icon-on">⚖</span><span class="icon-on">◐</span><span class="icon-on">↕</span><span class="icon-on">♨</span></div>
+    <div class="connectivity"><span class="icon-on">⟡</span><span class="icon-on">☁</span></div>
+  </div>
+  <!-- Weight -->
+  <div style="text-align:center; padding:8px 0 4px;">
+    <span style="font-size:32px; font-weight:800;">823.4</span><span style="font-size:16px; font-weight:500; color:#94A3B8;">g</span>
+    <span style="display:inline-block; background:#00E676; color:#0F1F23; font-size:9px; font-weight:700; padding:2px 8px; border-radius:10px; margin-left:8px; vertical-align:middle;">STABLE</span>
+  </div>
+  <!-- Sensor grid -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:4px 8px;">
+    <div class="slate" style="border-radius:6px; padding:8px;">
+      <div style="font-size:9px; color:#94A3B8; text-transform:uppercase; letter-spacing:1px;">NFC</div>
+      <div style="font-size:13px; font-weight:600; color:#00D2FF;">Bambu RFID</div>
+    </div>
+    <div class="slate" style="border-radius:6px; padding:8px; display:flex; align-items:center; gap:8px;">
+      <div style="width:24px; height:24px; border-radius:50%; background:#FF6B00;"></div>
+      <div>
+        <div style="font-size:9px; color:#94A3B8; text-transform:uppercase; letter-spacing:1px;">Color</div>
+        <div style="font-size:11px; font-weight:500; font-family:monospace; color:#FF6B00;">#FF6B00</div>
+      </div>
+    </div>
+    <div class="slate" style="border-radius:6px; padding:8px;">
+      <div style="font-size:9px; color:#94A3B8; text-transform:uppercase; letter-spacing:1px;">Height</div>
+      <div style="font-size:13px; font-weight:600;">55.2mm</div>
+    </div>
+    <div class="slate" style="border-radius:6px; padding:8px;">
+      <div style="font-size:9px; color:#94A3B8; text-transform:uppercase; letter-spacing:1px;">Environment</div>
+      <div style="font-size:13px; font-weight:600;">23.5°C · 45%</div>
+    </div>
+  </div>
+  <!-- SCAN button -->
+  <div style="padding:6px 8px;">
+    <button class="btn-cyan" style="width:100%; height:40px; font-size:16px; letter-spacing:1px;">SCAN</button>
+  </div>
+</div><div class="label">SCR_UNKNOWN (live scanning)</div></div>
+</div>
+
+<!-- ── IDENTIFIED ── -->
+<h2>3. Identified Result</h2>
+<div class="row">
+<div class="bezel"><div class="screen">
+  <div class="status-bar">
+    <div class="sensors"><span class="icon-on">◉</span><span class="icon-on">⚖</span><span class="icon-on">◐</span><span class="icon-on">↕</span><span class="icon-on">♨</span></div>
+    <div class="connectivity"><span class="icon-on">⟡</span><span class="icon-on">☁</span><span class="icon-on">⎙</span></div>
+  </div>
+  <div style="display:flex; gap:12px; padding:10px 12px 0;">
+    <!-- Color swatch -->
+    <div style="flex-shrink:0;">
+      <div style="width:56px; height:56px; border-radius:50%; background:#FF6B00; box-shadow:0 2px 8px rgba(255,107,0,0.3);"></div>
+      <div style="text-align:center; margin-top:6px; font-size:18px; font-weight:800; color:#00D2FF;">823g</div>
+    </div>
+    <!-- Info -->
+    <div style="flex:1; min-width:0;">
+      <div style="font-size:16px; font-weight:700; margin-bottom:2px;">Bambu PLA Basic</div>
+      <div style="font-size:12px; color:#94A3B8;">PLA · Orange</div>
+      <div style="height:1px; background:#1A2530; margin:8px 0;"></div>
+      <div style="display:flex; gap:16px; font-size:11px;">
+        <div><span style="color:#94A3B8;">🌡 Nozzle</span><br><span style="font-weight:600;">190–220°C</span></div>
+        <div><span style="color:#94A3B8;">🛏 Bed</span><br><span style="font-weight:600;">45–65°C</span></div>
+      </div>
+      <div style="margin-top:6px;"><span style="background:#1A2530; padding:2px 8px; border-radius:4px; font-size:9px; color:#00D2FF; font-weight:600;">BAMBU RFID</span></div>
+    </div>
+  </div>
+  <!-- Buttons -->
+  <div style="position:absolute; bottom:8px; left:8px; right:8px; display:flex; gap:6px;">
+    <button class="btn-cyan" style="flex:2; height:40px; font-size:14px;">Done</button>
+    <button class="btn-outline" style="flex:1; height:40px; font-size:13px;">Print</button>
+  </div>
+</div><div class="label">SCR_IDENTIFIED</div></div>
+</div>
+
+<!-- ── BOOT + SETTINGS ── -->
+<h2>4. Boot Screen & Settings Menu</h2>
+<div class="row">
+<!-- Boot -->
+<div class="bezel"><div class="screen">
+  <div style="display:flex; align-items:center; gap:8px; padding:10px 10px 0;">
+    <div style="display:flex; gap:3px;">
+      <div style="width:5px; height:18px; border-radius:3px; background:#00D2FF;"></div>
+      <div style="width:5px; height:18px; border-radius:3px; background:#00D2FF;"></div>
+    </div>
+    <span style="font-size:14px; font-weight:600;">FillaIQ <span style="color:#94A3B8; font-weight:400;">v1.3.0</span></span>
+  </div>
+  <div style="height:1px; background:#1A2530; margin:8px 10px;"></div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; padding:0 12px; font-size:12px;">
+    <div><span class="green">✓</span> NFC</div>
+    <div><span class="green">✓</span> Scale</div>
+    <div><span class="green">✓</span> TOF</div>
+    <div><span class="green">✓</span> Color</div>
+    <div><span class="green">✓</span> Environment</div>
+    <div><span class="rose">✗</span> <span class="gray">SD Card</span></div>
+    <div><span class="green">✓</span> WiFi</div>
+    <div><span class="green">✓</span> MQTT</div>
+  </div>
+  <div style="position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:11px; color:#00E676;">Ready</div>
+</div><div class="label">SCR_BOOT</div></div>
+
+<!-- Settings -->
+<div class="bezel"><div class="screen" style="overflow-y:auto;">
+  <div style="padding:10px 10px 6px; font-size:16px; font-weight:700; color:#00D2FF;">Settings</div>
+  <div style="display:flex; flex-direction:column; gap:4px; padding:0 8px;">
+    <div class="slate" style="border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; font-size:13px;"><span class="cyan">⚖</span> Tare Scale</div>
+    <div class="slate" style="border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; font-size:13px;"><span class="cyan">◎</span> Raw Sensors</div>
+    <div class="slate" style="border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; font-size:13px;"><span class="cyan">⟡</span> WiFi Setup</div>
+    <div class="slate" style="border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; font-size:13px;"><span class="cyan">⌁</span> BLE Scan</div>
+    <div class="slate" style="border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; font-size:13px;"><span class="cyan">⊕</span> Calibrate</div>
+    <div class="slate" style="border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; font-size:13px;"><span class="cyan">↓</span> Check Update</div>
+  </div>
+  <div style="position:absolute; bottom:6px; left:10px; font-size:9px; color:#475569;">FillaScan v1.3.0</div>
+  <div style="position:absolute; bottom:6px; right:8px; width:28px; height:28px; background:#1A2530; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#94A3B8; font-size:14px;">←</div>
+</div><div class="label">SCR_MENU</div></div>
+</div>
+
+<!-- ── PAIRING + RESULT ── -->
+<h2>5. Pairing & Scan Result</h2>
+<div class="row">
+<!-- Pairing -->
+<div class="bezel"><div class="screen">
+  <div style="text-align:center; padding-top:16px;">
+    <div style="font-size:16px; font-weight:700; color:#00D2FF; margin-bottom:12px;">Pair Device</div>
+    <div style="width:110px; height:110px; background:#fff; border-radius:8px; margin:0 auto; display:flex; align-items:center; justify-content:center; color:#0F1F23; font-size:10px;">[ QR Code ]</div>
+    <div style="font-size:28px; font-weight:800; color:#00D2FF; margin-top:10px; letter-spacing:4px;">A1B2C3</div>
+    <div style="font-size:10px; color:#94A3B8; margin-top:6px; padding:0 20px;">Scan QR or enter code at fillaiq.com/hardware</div>
+  </div>
+</div><div class="label">SCR_PAIRING</div></div>
+
+<!-- Result with QR -->
+<div class="bezel"><div class="screen">
+  <div class="status-bar">
+    <div class="sensors"><span class="icon-on">◉</span><span class="icon-on">⚖</span></div>
+    <div class="connectivity"><span class="icon-on">⟡</span><span class="icon-on">☁</span></div>
+  </div>
+  <div style="display:flex; padding:6px 10px; gap:10px;">
+    <div style="flex:1;">
+      <div style="font-size:14px; font-weight:700; color:#00E676;">Bambu PLA Basic</div>
+      <div style="font-size:11px; color:#94A3B8;">PLA · Orange · 823g</div>
+      <div style="margin-top:6px; font-size:10px; color:#94A3B8;">🌡 190–220°C · 🛏 45–65°C</div>
+      <div style="margin-top:8px; font-size:9px; color:#475569;">Scan QR for details</div>
+    </div>
+    <div style="flex-shrink:0; width:90px; height:90px; background:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#0F1F23; font-size:9px;">[ QR ]</div>
+  </div>
+  <div style="position:absolute; bottom:8px; left:8px; right:8px; display:flex; gap:6px;">
+    <button class="btn-cyan" style="flex:2; height:36px; font-size:13px;">Done</button>
+    <button class="btn-outline" style="flex:1; height:36px; font-size:12px;">Print</button>
+  </div>
+</div><div class="label">SCR_RESULT</div></div>
+</div>
+
+</body></html>

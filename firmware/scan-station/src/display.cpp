@@ -37,24 +37,28 @@ Display display;
 static SPIClass* tftSPI = nullptr;
 static lv_display_t* lvDisp = nullptr;
 
-// Brand colors — matched to web app (web/src/lib/theme.ts)
-#define BRAND_ORANGE_HEX  0xFF5C2E
-#define DARK_BG_HEX       0x171717
-#define GRAY_HEX          0x6B6B6B
-#define GRAY_LIGHT_HEX    0x9B9B9B
-#define GREEN_HEX         0x16A34A
-#define RED_HEX           0xDC2626
-#define WHITE_HEX         0xFFFFFF
+// Brand colors — Modern Maker palette (matched to web app)
+#define MAKER_CYAN_HEX       0x00D2FF   // Primary accent (was Brand Orange)
+#define DEEP_WORKSHOP_HEX    0x0F1F23   // Dark background
+#define TOOL_GRAY_HEX        0x94A3B8   // Muted text / inactive icons
+#define GRAY_LIGHT_HEX       0xA0B0C0   // Light muted text (slightly lightened)
+#define LIVE_GREEN_HEX       0x00E676   // Active / connected indicators
+#define ALERT_ROSE_HEX       0xFF2A5F   // Error / alert states
+#define WHITE_HEX            0xFFFFFF
+#define SIGNAL_ORANGE_HEX    0xFF7A00   // Warning states
+#define BLUEPRINT_SLATE_HEX  0x1A2530   // Card / surface backgrounds
 
 // Dynamic QR canvas buffer (freed on screen clear)
 static uint8_t* qrCanvasBuf = nullptr;
 
-static lv_color_t brandOrange;
-static lv_color_t darkBg;
-static lv_color_t gray;
+static lv_color_t makerCyan;
+static lv_color_t deepWorkshop;
+static lv_color_t toolGray;
 static lv_color_t grayLight;
-static lv_color_t green;
+static lv_color_t liveGreen;
 static lv_color_t white;
+static lv_color_t signalOrange;
+static lv_color_t blueprintSlate;
 
 // ── SPI Transport for LVGL Native Drivers ────────────────────
 
@@ -216,16 +220,18 @@ void Display::begin() {
     );
     Serial.flush();
 
-    // Cache colors (matched to web brand palette)
-    brandOrange = lv_color_hex(BRAND_ORANGE_HEX);
-    darkBg = lv_color_hex(DARK_BG_HEX);
-    gray = lv_color_hex(GRAY_HEX);
+    // Cache colors (Modern Maker palette)
+    makerCyan = lv_color_hex(MAKER_CYAN_HEX);
+    deepWorkshop = lv_color_hex(DEEP_WORKSHOP_HEX);
+    toolGray = lv_color_hex(TOOL_GRAY_HEX);
     grayLight = lv_color_hex(GRAY_LIGHT_HEX);
-    green = lv_color_hex(GREEN_HEX);
+    liveGreen = lv_color_hex(LIVE_GREEN_HEX);
     white = lv_color_hex(WHITE_HEX);
+    signalOrange = lv_color_hex(SIGNAL_ORANGE_HEX);
+    blueprintSlate = lv_color_hex(BLUEPRINT_SLATE_HEX);
 
     // Dark background for all screens
-    lv_obj_set_style_bg_color(lv_screen_active(), darkBg, 0);
+    lv_obj_set_style_bg_color(lv_screen_active(), deepWorkshop, 0);
     lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
 
     _ready = true;
@@ -258,7 +264,7 @@ void Display::clearScreen() {
 
     lv_obj_t* scr = lv_screen_active();
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, darkBg, 0);
+    lv_obj_set_style_bg_color(scr, deepWorkshop, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     _screen = scr;
@@ -268,6 +274,12 @@ void Display::clearScreen() {
     _itemName = _materialLabel = _tempLabel = nullptr;
     _msgLine1 = _msgLine2 = nullptr;
     _pairCode = nullptr;
+    _dashWeightLabel = _dashWeightBadge = _dashWeightBadgeLbl = nullptr;
+    _dashNfcLabel = _dashNfcDetail = _dashNfcUid = nullptr;
+    _dashLocPrevBtn = _dashLocNextBtn = _dashLocCounter = nullptr;
+    _dashScanBtn = _dashScanBtnLabel = nullptr;
+    _resultTitle = _resultName = _resultWeight = _resultDetail = nullptr;
+    _resultDoneBtn = _resultPrintBtn = nullptr;
 }
 
 static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, lv_color_t color,
@@ -314,7 +326,7 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
         };
         for (auto& s : sensors) {
             if (_sensorFlags & s.flag) {
-                makeSymbol(sensorBar, s.symbol, green);
+                makeSymbol(sensorBar, s.symbol, liveGreen);
             }
         }
     }
@@ -329,11 +341,11 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
     lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(bar, 4, 0);
 
-    _iconWifi = makeSymbol(bar, FA_WIFI, (icons & ICON_WIFI) ? green : grayLight);
+    _iconWifi = makeSymbol(bar, FA_WIFI, (icons & ICON_WIFI) ? liveGreen : grayLight);
 
-    _iconMqtt = makeSymbol(bar, FA_CLOUD, (icons & ICON_MQTT) ? green : grayLight);
+    _iconMqtt = makeSymbol(bar, FA_CLOUD, (icons & ICON_MQTT) ? liveGreen : grayLight);
 
-    _iconPrinter = makeSymbol(bar, FA_PRINT, (icons & ICON_PRINTER) ? green : grayLight);
+    _iconPrinter = makeSymbol(bar, FA_PRINT, (icons & ICON_PRINTER) ? liveGreen : grayLight);
     if (!(icons & ICON_PRINTER)) lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
 
     return bar;
@@ -345,11 +357,11 @@ void Display::setSensorFlags(uint8_t flags) {
 
 void Display::updateStatusIcons(uint8_t icons) {
     if (_iconWifi)
-        lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? green : grayLight, 0);
+        lv_obj_set_style_text_color(_iconWifi, (icons & ICON_WIFI) ? liveGreen : grayLight, 0);
     if (_iconMqtt)
-        lv_obj_set_style_text_color(_iconMqtt, (icons & ICON_MQTT) ? green : grayLight, 0);
+        lv_obj_set_style_text_color(_iconMqtt, (icons & ICON_MQTT) ? liveGreen : grayLight, 0);
     if (_iconPrinter) {
-        lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? green : grayLight, 0);
+        lv_obj_set_style_text_color(_iconPrinter, (icons & ICON_PRINTER) ? liveGreen : grayLight, 0);
         if (icons & ICON_PRINTER) lv_obj_clear_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(_iconPrinter, LV_OBJ_FLAG_HIDDEN);
     }
@@ -404,6 +416,16 @@ void Display::onPrintBtnClick(lv_event_t* e) {
     display.printButtonPressed = true;
 }
 
+void Display::onLocPrevClick(lv_event_t* e) {
+    (void)e;
+    display.locationCycleDelta = -1;
+}
+
+void Display::onLocNextClick(lv_event_t* e) {
+    (void)e;
+    display.locationCycleDelta = 1;
+}
+
 // ── Idle Screen ──────────────────────────────────────────────
 
 void Display::buildIdleScreen(uint8_t icons) {
@@ -418,7 +440,7 @@ void Display::buildIdleScreen(uint8_t icons) {
     lv_obj_remove_style_all(gearBtn);
     lv_obj_set_size(gearBtn, 48, 48);
     lv_obj_align(gearBtn, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
-    lv_obj_set_style_bg_color(gearBtn, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_color(gearBtn, blueprintSlate, 0);
     lv_obj_set_style_bg_opa(gearBtn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(gearBtn, 10, 0);
     lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
@@ -430,26 +452,28 @@ void Display::buildIdleScreen(uint8_t icons) {
     lv_obj_center(gearIcon);
 #endif
 
-    // "F" logo — rounded orange box
-    lv_obj_t* logo = lv_obj_create(_screen);
-    lv_obj_remove_style_all(logo);
-    lv_obj_set_size(logo, 64, 64);
-    lv_obj_set_style_bg_color(logo, brandOrange, 0);
-    lv_obj_set_style_bg_opa(logo, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(logo, 12, 0);
-    lv_obj_align(logo, LV_ALIGN_CENTER, 0, -40);
+    // Two-pill FillaIQ logo — two vertical cyan capsules side by side
+    lv_obj_t* pillLeft = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillLeft);
+    lv_obj_set_size(pillLeft, 14, 40);
+    lv_obj_set_style_bg_color(pillLeft, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillLeft, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillLeft, 7, 0);
+    lv_obj_align(pillLeft, LV_ALIGN_CENTER, -12, -40);
 
-    lv_obj_t* fLetter = lv_label_create(logo);
-    lv_label_set_text(fLetter, "F");
-    lv_obj_set_style_text_font(fLetter, &lv_font_montserrat_36, 0);
-    lv_obj_set_style_text_color(fLetter, white, 0);
-    lv_obj_center(fLetter);
+    lv_obj_t* pillRight = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillRight);
+    lv_obj_set_size(pillRight, 14, 40);
+    lv_obj_set_style_bg_color(pillRight, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillRight, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillRight, 7, 0);
+    lv_obj_align(pillRight, LV_ALIGN_CENTER, 12, -40);
 
     _idleTitle = makeLabel(_screen, &lv_font_montserrat_24, white,
-                           LV_ALIGN_CENTER, 0, 20, "Filla IQ");
+                           LV_ALIGN_CENTER, 0, 10, "FillaIQ");
 
-    _idleSubtitle = makeLabel(_screen, &lv_font_montserrat_14, gray,
-                              LV_ALIGN_CENTER, 0, 50, "Place item on platform");
+    _idleSubtitle = makeLabel(_screen, &lv_font_montserrat_14, toolGray,
+                              LV_ALIGN_CENTER, 0, 42, "Place item on platform");
 }
 
 // ── Dashboard Screen (Live Sensor Display + Scan Button) ─────
@@ -461,13 +485,12 @@ void Display::buildDashboardScreen(uint8_t icons) {
     createStatusBar(_screen, icons);
 
     // Settings gear button (top-right area, below status bar)
-    // 48x48 minimum touch target for reliable tap detection
 #ifdef BOARD_SCAN_TOUCH
     lv_obj_t* gearBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(gearBtn);
     lv_obj_set_size(gearBtn, 48, 48);
     lv_obj_align(gearBtn, LV_ALIGN_TOP_RIGHT, -2, 26);
-    lv_obj_set_style_bg_color(gearBtn, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_color(gearBtn, blueprintSlate, 0);
     lv_obj_set_style_bg_opa(gearBtn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(gearBtn, 10, 0);
     lv_obj_add_event_cb(gearBtn, onSettingsBtnClick, LV_EVENT_CLICKED, NULL);
@@ -479,92 +502,129 @@ void Display::buildDashboardScreen(uint8_t icons) {
     lv_obj_center(gearIcon);
 #endif
 
-    // Weight — large display at top
+    // Weight — large centered display at top
     _dashWeightLabel = makeLabel(_screen, &lv_font_montserrat_28, white,
-                                 LV_ALIGN_TOP_LEFT, 12, 34, "--");
-    _dashWeightStatus = makeLabel(_screen, &lv_font_montserrat_12, gray,
-                                  LV_ALIGN_TOP_LEFT, 12, 66, "");
+                                 LV_ALIGN_TOP_MID, 0, 30, "--");
 
-    // Divider after weight
-    lv_obj_t* div1 = lv_obj_create(_screen);
-    lv_obj_remove_style_all(div1);
-    lv_obj_set_size(div1, _screenW - 24, 1);
-    lv_obj_set_style_bg_color(div1, gray, 0);
-    lv_obj_set_style_bg_opa(div1, LV_OPA_30, 0);
-    lv_obj_align(div1, LV_ALIGN_TOP_LEFT, 12, 82);
+    // STABLE/READING badge — pill-shaped indicator below weight
+    _dashWeightBadge = lv_obj_create(_screen);
+    lv_obj_remove_style_all(_dashWeightBadge);
+    lv_obj_set_size(_dashWeightBadge, LV_SIZE_CONTENT, 18);
+    lv_obj_set_style_bg_color(_dashWeightBadge, toolGray, 0);
+    lv_obj_set_style_bg_opa(_dashWeightBadge, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_dashWeightBadge, 9, 0);
+    lv_obj_set_style_pad_hor(_dashWeightBadge, 10, 0);
+    lv_obj_set_style_pad_ver(_dashWeightBadge, 2, 0);
+    lv_obj_align(_dashWeightBadge, LV_ALIGN_TOP_MID, 0, 62);
 
-    // Sensor rows — compact, two columns
-    // Left column: NFC, Color
-    // Right column: TOF, Env
-    _dashNfcLabel = lv_label_create(_screen);
-    lv_obj_set_style_text_font(_dashNfcLabel, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(_dashNfcLabel, grayLight, 0);
-    lv_obj_set_width(_dashNfcLabel, _screenW / 2 - 16);
-    lv_label_set_long_mode(_dashNfcLabel, LV_LABEL_LONG_CLIP);
-    lv_obj_align(_dashNfcLabel, LV_ALIGN_TOP_LEFT, 12, 88);
-    lv_label_set_text(_dashNfcLabel, "NFC: --");
+    _dashWeightBadgeLbl = lv_label_create(_dashWeightBadge);
+    lv_label_set_text(_dashWeightBadgeLbl, "READING");
+    lv_obj_set_style_text_font(_dashWeightBadgeLbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashWeightBadgeLbl, deepWorkshop, 0);
+    lv_obj_center(_dashWeightBadgeLbl);
 
-    // Color swatch (small square)
-    _dashColorSwatch = lv_obj_create(_screen);
-    lv_obj_remove_style_all(_dashColorSwatch);
-    lv_obj_set_size(_dashColorSwatch, 14, 14);
-    lv_obj_set_style_bg_color(_dashColorSwatch, lv_color_hex(0x333333), 0);
-    lv_obj_set_style_bg_opa(_dashColorSwatch, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(_dashColorSwatch, 3, 0);
-    lv_obj_set_style_border_color(_dashColorSwatch, gray, 0);
-    lv_obj_set_style_border_width(_dashColorSwatch, 1, 0);
-    lv_obj_align(_dashColorSwatch, LV_ALIGN_TOP_LEFT, 12, 107);
+    // --- NFC info panel — full width, taller, shows more tag detail ---
+    int panelW = _screenW - 16;
+    int panelTop = 84;
+    int panelH = 118;
 
-    _dashColorLabel = lv_label_create(_screen);
-    lv_obj_set_style_text_font(_dashColorLabel, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(_dashColorLabel, grayLight, 0);
-    lv_obj_set_width(_dashColorLabel, _screenW / 2 - 34);
-    lv_label_set_long_mode(_dashColorLabel, LV_LABEL_LONG_CLIP);
-    lv_obj_align(_dashColorLabel, LV_ALIGN_TOP_LEFT, 30, 106);
-    lv_label_set_text(_dashColorLabel, "--");
+    lv_obj_t* nfcPanel = lv_obj_create(_screen);
+    lv_obj_remove_style_all(nfcPanel);
+    lv_obj_set_size(nfcPanel, panelW, panelH);
+    lv_obj_set_style_bg_color(nfcPanel, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(nfcPanel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(nfcPanel, 8, 0);
+    lv_obj_set_style_pad_all(nfcPanel, 10, 0);
+    lv_obj_set_pos(nfcPanel, 8, panelTop);
 
-    _dashTofLabel = lv_label_create(_screen);
-    lv_obj_set_style_text_font(_dashTofLabel, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(_dashTofLabel, grayLight, 0);
-    lv_obj_set_width(_dashTofLabel, _screenW / 2 - 16);
-    lv_label_set_long_mode(_dashTofLabel, LV_LABEL_LONG_CLIP);
-    lv_obj_align(_dashTofLabel, LV_ALIGN_TOP_LEFT, _screenW / 2 + 4, 88);
-    lv_label_set_text(_dashTofLabel, "TOF: --");
+    makeLabel(nfcPanel, &lv_font_montserrat_12, toolGray,
+              LV_ALIGN_TOP_LEFT, 0, 0, "NFC TAG");
 
-    _dashEnvLabel = lv_label_create(_screen);
-    lv_obj_set_style_text_font(_dashEnvLabel, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(_dashEnvLabel, grayLight, 0);
-    lv_obj_set_width(_dashEnvLabel, _screenW / 2 - 16);
-    lv_label_set_long_mode(_dashEnvLabel, LV_LABEL_LONG_CLIP);
-    lv_obj_align(_dashEnvLabel, LV_ALIGN_TOP_LEFT, _screenW / 2 + 4, 106);
-    lv_label_set_text(_dashEnvLabel, "Env: --");
+    // Tag format line (e.g. "Bambu Mifare Classic")
+    _dashNfcLabel = lv_label_create(nfcPanel);
+    lv_obj_set_style_text_font(_dashNfcLabel, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_dashNfcLabel, makerCyan, 0);
+    lv_obj_set_width(_dashNfcLabel, panelW - 20);
+    lv_label_set_long_mode(_dashNfcLabel, LV_LABEL_LONG_DOT);
+    lv_obj_align(_dashNfcLabel, LV_ALIGN_TOP_LEFT, 0, 16);
+    lv_label_set_text(_dashNfcLabel, "Waiting for tag...");
 
-    // Divider before scan button
-    lv_obj_t* div2 = lv_obj_create(_screen);
-    lv_obj_remove_style_all(div2);
-    lv_obj_set_size(div2, _screenW - 24, 1);
-    lv_obj_set_style_bg_color(div2, gray, 0);
-    lv_obj_set_style_bg_opa(div2, LV_OPA_30, 0);
-    lv_obj_align(div2, LV_ALIGN_TOP_LEFT, 12, 126);
+    // Tag detail line (e.g. UID, sector info, data pages)
+    _dashNfcDetail = lv_label_create(nfcPanel);
+    lv_obj_set_style_text_font(_dashNfcDetail, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashNfcDetail, grayLight, 0);
+    lv_obj_set_width(_dashNfcDetail, panelW - 20);
+    lv_label_set_long_mode(_dashNfcDetail, LV_LABEL_LONG_DOT);
+    lv_obj_align(_dashNfcDetail, LV_ALIGN_TOP_LEFT, 0, 36);
+    lv_label_set_text(_dashNfcDetail, "Place spool NFC tag near reader");
 
-    // SCAN button — large, prominent, at bottom
+    // Tag UID line (monospace-style)
+    _dashNfcUid = lv_label_create(nfcPanel);
+    lv_obj_set_style_text_font(_dashNfcUid, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashNfcUid, toolGray, 0);
+    lv_obj_set_width(_dashNfcUid, panelW - 20);
+    lv_label_set_long_mode(_dashNfcUid, LV_LABEL_LONG_DOT);
+    lv_obj_align(_dashNfcUid, LV_ALIGN_TOP_LEFT, 0, 54);
+    lv_label_set_text(_dashNfcUid, "");
+
+    // Location cycling row — hidden until a known spool has empty slots
+    // Layout: [<] location path  [1/5] [>]
+    int locRowY = 74;
+    int btnSize = 24;
+
+    _dashLocPrevBtn = lv_btn_create(nfcPanel);
+    lv_obj_remove_style_all(_dashLocPrevBtn);
+    lv_obj_set_size(_dashLocPrevBtn, btnSize, btnSize);
+    lv_obj_set_style_bg_color(_dashLocPrevBtn, toolGray, 0);
+    lv_obj_set_style_bg_opa(_dashLocPrevBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_dashLocPrevBtn, 4, 0);
+    lv_obj_align(_dashLocPrevBtn, LV_ALIGN_TOP_LEFT, 0, locRowY);
+    lv_obj_t* prevLbl = lv_label_create(_dashLocPrevBtn);
+    lv_label_set_text(prevLbl, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_color(prevLbl, white, 0);
+    lv_obj_center(prevLbl);
+    lv_obj_add_event_cb(_dashLocPrevBtn, onLocPrevClick, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(_dashLocPrevBtn, LV_OBJ_FLAG_HIDDEN);
+
+    _dashLocNextBtn = lv_btn_create(nfcPanel);
+    lv_obj_remove_style_all(_dashLocNextBtn);
+    lv_obj_set_size(_dashLocNextBtn, btnSize, btnSize);
+    lv_obj_set_style_bg_color(_dashLocNextBtn, toolGray, 0);
+    lv_obj_set_style_bg_opa(_dashLocNextBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_dashLocNextBtn, 4, 0);
+    lv_obj_align(_dashLocNextBtn, LV_ALIGN_TOP_RIGHT, 0, locRowY);
+    lv_obj_t* nextLbl = lv_label_create(_dashLocNextBtn);
+    lv_label_set_text(nextLbl, LV_SYMBOL_RIGHT);
+    lv_obj_set_style_text_color(nextLbl, white, 0);
+    lv_obj_center(nextLbl);
+    lv_obj_add_event_cb(_dashLocNextBtn, onLocNextClick, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(_dashLocNextBtn, LV_OBJ_FLAG_HIDDEN);
+
+    _dashLocCounter = lv_label_create(nfcPanel);
+    lv_obj_set_style_text_font(_dashLocCounter, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(_dashLocCounter, grayLight, 0);
+    lv_obj_align(_dashLocCounter, LV_ALIGN_TOP_RIGHT, -(btnSize + 4), locRowY + 5);
+    lv_label_set_text(_dashLocCounter, "");
+    lv_obj_add_flag(_dashLocCounter, LV_OBJ_FLAG_HIDDEN);
+
+    // SCAN button — full-width, prominent, at bottom
 #ifdef BOARD_SCAN_TOUCH
     _dashScanBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(_dashScanBtn);
-    lv_obj_set_size(_dashScanBtn, _screenW - 24, 90);
-    lv_obj_align(_dashScanBtn, LV_ALIGN_BOTTOM_MID, 0, -8);
-    lv_obj_set_style_bg_color(_dashScanBtn, brandOrange, 0);
+    lv_obj_set_size(_dashScanBtn, _screenW - 16, 44);
+    lv_obj_align(_dashScanBtn, LV_ALIGN_BOTTOM_MID, 0, -6);
+    lv_obj_set_style_bg_color(_dashScanBtn, makerCyan, 0);
     lv_obj_set_style_bg_opa(_dashScanBtn, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(_dashScanBtn, 12, 0);
-    lv_obj_set_style_bg_color(_dashScanBtn, lv_color_hex(0xCC4422), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_radius(_dashScanBtn, 10, 0);
+    lv_obj_set_style_bg_color(_dashScanBtn, lv_color_hex(0x00A0CC), LV_PART_MAIN | LV_STATE_PRESSED);
     // Disabled style
-    lv_obj_set_style_bg_color(_dashScanBtn, lv_color_hex(0x3A3A3A), LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_color(_dashScanBtn, lv_color_hex(0x253540), LV_PART_MAIN | LV_STATE_DISABLED);
     lv_obj_set_style_bg_opa(_dashScanBtn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DISABLED);
     lv_obj_add_event_cb(_dashScanBtn, onScanBtnClick, LV_EVENT_CLICKED, NULL);
 
     _dashScanBtnLabel = lv_label_create(_dashScanBtn);
     lv_label_set_text(_dashScanBtnLabel, "SCAN");
-    lv_obj_set_style_text_font(_dashScanBtnLabel, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_text_font(_dashScanBtnLabel, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(_dashScanBtnLabel, white, 0);
     lv_obj_center(_dashScanBtnLabel);
 
@@ -590,64 +650,110 @@ void Display::updateDashboard(float weight, bool stable,
             snprintf(wStr, sizeof(wStr), "%.1f g", weight);
         lv_label_set_text(_dashWeightLabel, wStr);
     }
-    if (_dashWeightStatus) {
-        lv_label_set_text(_dashWeightStatus, stable ? "STABLE" : "");
-        lv_obj_set_style_text_color(_dashWeightStatus, stable ? green : gray, 0);
+    // STABLE/READING badge
+    if (_dashWeightBadge) {
+        lv_obj_set_style_bg_color(_dashWeightBadge, stable ? liveGreen : signalOrange, 0);
+        if (_dashWeightBadgeLbl) {
+            lv_label_set_text(_dashWeightBadgeLbl, stable ? "STABLE" : "READING");
+        }
     }
 
-    // NFC
+    // NFC — show tag format, detail, and UID
     if (_dashNfcLabel) {
         if (nfcInfo)
             lv_label_set_text(_dashNfcLabel, nfcInfo);
         else
-            lv_label_set_text(_dashNfcLabel, "NFC: no tag");
-    }
-
-    // Color swatch + label
-    if (_dashColorSwatch) {
-        if (colorInfo)
-            lv_obj_set_style_bg_color(_dashColorSwatch, lv_color_make(colorR, colorG, colorB), 0);
-        else
-            lv_obj_set_style_bg_color(_dashColorSwatch, lv_color_hex(0x333333), 0);
-    }
-    if (_dashColorLabel) {
-        if (colorInfo)
-            lv_label_set_text(_dashColorLabel, colorInfo);
-        else
-            lv_label_set_text(_dashColorLabel, "--");
-    }
-
-    // TOF
-    if (_dashTofLabel) {
-        if (distMm >= 0) {
-            char dStr[24];
-            float heightMm = distanceSensor.getArmHeight() - distMm;
-            if (heightMm < 0) heightMm = 0;
-            snprintf(dStr, sizeof(dStr), "H: %.0f mm", heightMm);
-            lv_label_set_text(_dashTofLabel, dStr);
-        } else {
-            lv_label_set_text(_dashTofLabel, "TOF: --");
-        }
-    }
-
-    // Env
-    if (_dashEnvLabel) {
-        if (tempC >= 0) {
-            char eStr[32];
-            if (pressureHPa > 0)
-                snprintf(eStr, sizeof(eStr), "%.0fC %.0f%% %.0fhPa", tempC, humidity, pressureHPa);
-            else
-                snprintf(eStr, sizeof(eStr), "%.0fC %.0f%%RH", tempC, humidity);
-            lv_label_set_text(_dashEnvLabel, eStr);
-        } else {
-            lv_label_set_text(_dashEnvLabel, "Env: --");
-        }
+            lv_label_set_text(_dashNfcLabel, "Waiting for tag...");
     }
 
     // Scan button enable/disable
 #ifdef BOARD_SCAN_TOUCH
     setScanButtonEnabled(scanEnabled);
 #endif
+}
+
+void Display::updateNfcLookup(const char* productName, const char* material,
+                              const char* returnLocation, bool isKnown,
+                              int emptySlotCount) {
+    if (!_ready || _currentScreen != SCR_IDLE) return;
+
+    if (_dashNfcLabel) {
+        if (isKnown && productName) {
+            lv_label_set_text(_dashNfcLabel, productName);
+            lv_obj_set_style_text_color(_dashNfcLabel, makerCyan, 0);
+        } else {
+            lv_label_set_text(_dashNfcLabel, "Unknown tag");
+            lv_obj_set_style_text_color(_dashNfcLabel, white, 0);
+        }
+    }
+
+    if (_dashNfcDetail) {
+        if (isKnown) {
+            char detailBuf[128];
+            if (material && material[0])
+                snprintf(detailBuf, sizeof(detailBuf), "%s", material);
+            else
+                detailBuf[0] = '\0';
+            lv_label_set_text(_dashNfcDetail, detailBuf);
+        } else {
+            lv_label_set_text(_dashNfcDetail, "Tag not linked to a spool");
+        }
+    }
+
+    // Show return location on UID line, and show/hide cycle buttons
+    if (_dashNfcUid) {
+        if (isKnown && returnLocation && returnLocation[0]) {
+            lv_label_set_text(_dashNfcUid, returnLocation);
+        } else if (isKnown) {
+            lv_label_set_text(_dashNfcUid, "No storage location");
+        }
+    }
+
+    // Show/hide location cycling buttons when there are empty slots
+    bool showCycle = isKnown && emptySlotCount > 0;
+    if (_dashLocPrevBtn) {
+        if (showCycle) lv_obj_clear_flag(_dashLocPrevBtn, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(_dashLocPrevBtn, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (_dashLocNextBtn) {
+        if (showCycle) lv_obj_clear_flag(_dashLocNextBtn, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(_dashLocNextBtn, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (_dashLocCounter) {
+        if (showCycle) {
+            // Total = original slot + empty slots (but original might not exist)
+            int total = emptySlotCount + (returnLocation && returnLocation[0] ? 1 : 0);
+            char counterBuf[16];
+            snprintf(counterBuf, sizeof(counterBuf), "1/%d", total);
+            lv_label_set_text(_dashLocCounter, counterBuf);
+            lv_obj_clear_flag(_dashLocCounter, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(_dashLocCounter, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
+void Display::updateReturnLocation(const char* location, int currentIndex, int totalCount) {
+    if (!_ready || _currentScreen != SCR_IDLE) return;
+
+    if (_dashNfcUid) {
+        if (location && location[0]) {
+            lv_label_set_text(_dashNfcUid, location);
+        } else {
+            lv_label_set_text(_dashNfcUid, "No storage location");
+        }
+    }
+
+    if (_dashLocCounter && totalCount > 0) {
+        char counterBuf[16];
+        snprintf(counterBuf, sizeof(counterBuf), "%d/%d", currentIndex + 1, totalCount);
+        lv_label_set_text(_dashLocCounter, counterBuf);
+    }
+}
+
+void Display::setScanButtonLabel(const char* label) {
+    if (!_dashScanBtnLabel) return;
+    lv_label_set_text(_dashScanBtnLabel, label);
 }
 
 void Display::setScanButtonEnabled(bool enabled) {
@@ -668,88 +774,74 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
     createStatusBar(_screen, icons);
 
     if (resp && resp->identified && resp->itemName[0]) {
-        // Identified — show product info
-        const char* title = resp->material[0] ? resp->material : resp->itemType;
-        _resultTitle = makeLabel(_screen, &lv_font_montserrat_20, green,
-                                  LV_ALIGN_TOP_LEFT, 12, 12, title);
-
-        lv_obj_t* divLine = lv_obj_create(_screen);
-        lv_obj_remove_style_all(divLine);
-        lv_obj_set_size(divLine, _screenW - 24, 1);
-        lv_obj_set_style_bg_color(divLine, gray, 0);
-        lv_obj_set_style_bg_opa(divLine, LV_OPA_50, 0);
-        lv_obj_align(divLine, LV_ALIGN_TOP_LEFT, 12, 38);
-
-        // Color swatch
+        // Identified — determine item type
+        bool isFilament = (resp->material[0] != '\0') ||
+                          (resp->nozzleTempMin > 0) || (resp->bedTemp > 0) ||
+                          (strcmp(resp->itemType, "filament") == 0);
         bool hasColor = (resp->colorR || resp->colorG || resp->colorB);
+
+        // Color swatch (circle) or category icon
         lv_obj_t* swatch = lv_obj_create(_screen);
         lv_obj_remove_style_all(swatch);
-        lv_obj_set_size(swatch, 60, 60);
+        lv_obj_set_size(swatch, 56, 56);
         lv_obj_set_style_bg_color(swatch, hasColor ? lv_color_make(resp->colorR, resp->colorG, resp->colorB)
-                                                   : lv_color_hex(0x444444), 0);
+                                                   : blueprintSlate, 0);
         lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(swatch, 8, 0);
-        lv_obj_set_style_border_color(swatch, gray, 0);
-        lv_obj_set_style_border_width(swatch, 1, 0);
-        lv_obj_align(swatch, LV_ALIGN_TOP_LEFT, 15, 48);
+        lv_obj_set_style_radius(swatch, 28, 0);  // Circle
+        lv_obj_set_style_border_color(swatch, toolGray, 0);
+        lv_obj_set_style_border_width(swatch, hasColor ? 0 : 1, 0);
+        lv_obj_align(swatch, LV_ALIGN_TOP_LEFT, 12, 12);
 
-        char nameBuf[28];
+        if (!hasColor) {
+            lv_obj_t* iconLbl = lv_label_create(swatch);
+            lv_label_set_text(iconLbl, LV_SYMBOL_OK);
+            lv_obj_set_style_text_font(iconLbl, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_color(iconLbl, liveGreen, 0);
+            lv_obj_center(iconLbl);
+        }
+
+        // Product name
+        int infoX = 80;
+        int infoW = _screenW - infoX - 8;
+
+        char nameBuf[32];
         strncpy(nameBuf, resp->itemName, sizeof(nameBuf) - 1);
         nameBuf[sizeof(nameBuf) - 1] = '\0';
-        _resultName = makeLabel(_screen, &lv_font_montserrat_20, white,
-                                 LV_ALIGN_TOP_LEFT, 90, 48, nameBuf);
+        _resultName = lv_label_create(_screen);
+        lv_label_set_text(_resultName, nameBuf);
+        lv_obj_set_style_text_font(_resultName, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(_resultName, white, 0);
+        lv_obj_set_width(_resultName, infoW);
+        lv_label_set_long_mode(_resultName, LV_LABEL_LONG_DOT);
+        lv_obj_align(_resultName, LV_ALIGN_TOP_LEFT, infoX, 12);
 
+        // Weight
         char wStr[16];
         snprintf(wStr, sizeof(wStr), "%.0f g", weight);
-        _resultWeight = makeLabel(_screen, &lv_font_montserrat_24, white,
-                                   LV_ALIGN_TOP_LEFT, 90, 75, wStr);
+        _resultWeight = makeLabel(_screen, &lv_font_montserrat_16, makerCyan,
+                                   LV_ALIGN_TOP_LEFT, infoX, 36, wStr);
 
-        if (resp->nozzleTempMin > 0 || resp->bedTemp > 0) {
+        // Detail line — depends on item type
+        if (isFilament && (resp->nozzleTempMin > 0 || resp->bedTemp > 0)) {
             char tempStr[48];
             int pos = 0;
+            if (resp->material[0])
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos, "%s  ", resp->material);
             if (resp->nozzleTempMin > 0)
-                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos, "%d-%dC", resp->nozzleTempMin, resp->nozzleTempMax);
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos,
+                                "%d-%d\xC2\xB0" "C", resp->nozzleTempMin, resp->nozzleTempMax);
             if (resp->bedTemp > 0)
-                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos, "  Bed %dC", resp->bedTemp);
-            _resultDetail = makeLabel(_screen, &lv_font_montserrat_14, gray,
-                                       LV_ALIGN_TOP_LEFT, 90, 105, tempStr);
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos,
+                                "  Bed %d\xC2\xB0" "C", resp->bedTemp);
+            _resultDetail = makeLabel(_screen, &lv_font_montserrat_12, toolGray,
+                                       LV_ALIGN_TOP_LEFT, infoX, 56, tempStr);
+        } else if (resp->itemType[0]) {
+            // Non-filament: show item type
+            _resultDetail = makeLabel(_screen, &lv_font_montserrat_12, toolGray,
+                                       LV_ALIGN_TOP_LEFT, infoX, 56, resp->itemType);
         }
-    } else {
-        // Unknown — needs enrichment
-        _resultTitle = makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
-                                  LV_ALIGN_TOP_LEFT, 12, 12, "Unknown Item");
 
-        lv_obj_t* divLine = lv_obj_create(_screen);
-        lv_obj_remove_style_all(divLine);
-        lv_obj_set_size(divLine, _screenW - 24, 1);
-        lv_obj_set_style_bg_color(divLine, gray, 0);
-        lv_obj_set_style_bg_opa(divLine, LV_OPA_50, 0);
-        lv_obj_align(divLine, LV_ALIGN_TOP_LEFT, 12, 38);
-
-        // Question mark box
-        lv_obj_t* qBox = lv_obj_create(_screen);
-        lv_obj_remove_style_all(qBox);
-        lv_obj_set_size(qBox, 60, 60);
-        lv_obj_set_style_bg_color(qBox, lv_color_hex(0x333355), 0);
-        lv_obj_set_style_bg_opa(qBox, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(qBox, 8, 0);
-        lv_obj_align(qBox, LV_ALIGN_TOP_LEFT, 15, 48);
-
-        lv_obj_t* qMark = lv_label_create(qBox);
-        lv_label_set_text(qMark, "?");
-        lv_obj_set_style_text_font(qMark, &lv_font_montserrat_36, 0);
-        lv_obj_set_style_text_color(qMark, white, 0);
-        lv_obj_center(qMark);
-
-        char wStr[16];
-        snprintf(wStr, sizeof(wStr), "%.1f g", weight);
-        _resultWeight = makeLabel(_screen, &lv_font_montserrat_24, white,
-                                   LV_ALIGN_TOP_LEFT, 90, 55, wStr);
-
-        _resultDetail = makeLabel(_screen, &lv_font_montserrat_14, gray,
-                                   LV_ALIGN_TOP_LEFT, 90, 88, "Scan QR to add details");
-
-        // Show QR code for session URL
+        // QR code for session URL (right side, below info)
         if (sessionUrl && sessionUrl[0]) {
             QRCode qrcode;
             uint8_t qrcodeData[512];
@@ -759,10 +851,9 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                 if (qrResult == 0) break;
             }
             if (qrResult == 0) {
-                // Size QR to fill available height (below divider, above Done button)
-                int availH = _screenH - 48 - 58 - 16; // top content - done btn - padding
-                int maxSize = min(availH, _screenW / 2); // don't exceed half width
-                int scale = maxSize / (qrcode.size + 4); // +4 for quiet zone
+                int availH = _screenH - 80 - 58 - 16;
+                int maxSize = min(availH, _screenW / 2);
+                int scale = maxSize / (qrcode.size + 4);
                 if (scale < 2) scale = 2;
                 int qrPx = qrcode.size * scale;
                 int margin = scale * 2;
@@ -774,77 +865,157 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
                 lv_obj_set_style_bg_color(qrBg, white, 0);
                 lv_obj_set_style_bg_opa(qrBg, LV_OPA_COVER, 0);
                 lv_obj_set_style_radius(qrBg, 4, 0);
-                lv_obj_align(qrBg, LV_ALIGN_TOP_RIGHT, -8, 48);
+                lv_obj_align(qrBg, LV_ALIGN_TOP_RIGHT, -8, 76);
 
                 lv_obj_t* canvasObj = lv_canvas_create(qrBg);
-                // Allocate QR canvas dynamically (PSRAM preferred) instead of 22.5KB static buffer
                 size_t canvasBufSize = totalSize * totalSize;
                 if (qrCanvasBuf) { free(qrCanvasBuf); qrCanvasBuf = nullptr; }
                 qrCanvasBuf = (uint8_t*)heap_caps_malloc(canvasBufSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                if (!qrCanvasBuf) qrCanvasBuf = (uint8_t*)malloc(canvasBufSize);  // Fallback to SRAM
+                if (!qrCanvasBuf) qrCanvasBuf = (uint8_t*)malloc(canvasBufSize);
                 if (qrCanvasBuf) {
-                memset(qrCanvasBuf, 0xFF, canvasBufSize);
-                lv_canvas_set_buffer(canvasObj, qrCanvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
-                lv_obj_align(canvasObj, LV_ALIGN_CENTER, 0, 0);
+                    memset(qrCanvasBuf, 0xFF, canvasBufSize);
+                    lv_canvas_set_buffer(canvasObj, qrCanvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
+                    lv_obj_align(canvasObj, LV_ALIGN_CENTER, 0, 0);
 
-                // Draw QR modules
-                for (uint8_t y = 0; y < qrcode.size; y++) {
-                    for (uint8_t x = 0; x < qrcode.size; x++) {
-                        if (qrcode_getModule(&qrcode, x, y)) {
-                            for (int sy = 0; sy < scale; sy++) {
-                                for (int sx = 0; sx < scale; sx++) {
-                                    lv_canvas_set_px(canvasObj, margin + x * scale + sx,
-                                                     margin + y * scale + sy,
-                                                     lv_color_black(), LV_OPA_COVER);
+                    for (uint8_t y = 0; y < qrcode.size; y++) {
+                        for (uint8_t x = 0; x < qrcode.size; x++) {
+                            if (qrcode_getModule(&qrcode, x, y)) {
+                                for (int sy = 0; sy < scale; sy++) {
+                                    for (int sx = 0; sx < scale; sx++) {
+                                        lv_canvas_set_px(canvasObj, margin + x * scale + sx,
+                                                         margin + y * scale + sy,
+                                                         lv_color_black(), LV_OPA_COVER);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                } // if (qrCanvasBuf)
+            }
+        }
+    } else {
+        // Unknown — needs enrichment
+        // Question mark circle
+        lv_obj_t* qBox = lv_obj_create(_screen);
+        lv_obj_remove_style_all(qBox);
+        lv_obj_set_size(qBox, 56, 56);
+        lv_obj_set_style_bg_color(qBox, blueprintSlate, 0);
+        lv_obj_set_style_bg_opa(qBox, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(qBox, 28, 0);
+        lv_obj_align(qBox, LV_ALIGN_TOP_LEFT, 12, 12);
+
+        lv_obj_t* qMark = lv_label_create(qBox);
+        lv_label_set_text(qMark, "?");
+        lv_obj_set_style_text_font(qMark, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_color(qMark, white, 0);
+        lv_obj_center(qMark);
+
+        int infoX = 80;
+
+        _resultTitle = makeLabel(_screen, &lv_font_montserrat_20, makerCyan,
+                                  LV_ALIGN_TOP_LEFT, infoX, 12, "Unknown Item");
+
+        char wStr[16];
+        snprintf(wStr, sizeof(wStr), "%.1f g", weight);
+        _resultWeight = makeLabel(_screen, &lv_font_montserrat_16, white,
+                                   LV_ALIGN_TOP_LEFT, infoX, 36, wStr);
+
+        _resultDetail = makeLabel(_screen, &lv_font_montserrat_12, toolGray,
+                                   LV_ALIGN_TOP_LEFT, infoX, 56, "Scan QR to add details");
+
+        // QR code for session URL
+        if (sessionUrl && sessionUrl[0]) {
+            QRCode qrcode;
+            uint8_t qrcodeData[512];
+            int8_t qrResult = -1;
+            for (uint8_t ver = 4; ver <= 8; ver++) {
+                qrResult = qrcode_initText(&qrcode, qrcodeData, ver, ECC_LOW, sessionUrl);
+                if (qrResult == 0) break;
+            }
+            if (qrResult == 0) {
+                int availH = _screenH - 80 - 58 - 16;
+                int maxSize = min(availH, _screenW / 2);
+                int scale = maxSize / (qrcode.size + 4);
+                if (scale < 2) scale = 2;
+                int qrPx = qrcode.size * scale;
+                int margin = scale * 2;
+                int totalSize = qrPx + margin * 2;
+
+                lv_obj_t* qrBg = lv_obj_create(_screen);
+                lv_obj_remove_style_all(qrBg);
+                lv_obj_set_size(qrBg, totalSize, totalSize);
+                lv_obj_set_style_bg_color(qrBg, white, 0);
+                lv_obj_set_style_bg_opa(qrBg, LV_OPA_COVER, 0);
+                lv_obj_set_style_radius(qrBg, 4, 0);
+                lv_obj_align(qrBg, LV_ALIGN_TOP_MID, 0, 76);
+
+                lv_obj_t* canvasObj = lv_canvas_create(qrBg);
+                size_t canvasBufSize = totalSize * totalSize;
+                if (qrCanvasBuf) { free(qrCanvasBuf); qrCanvasBuf = nullptr; }
+                qrCanvasBuf = (uint8_t*)heap_caps_malloc(canvasBufSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (!qrCanvasBuf) qrCanvasBuf = (uint8_t*)malloc(canvasBufSize);
+                if (qrCanvasBuf) {
+                    memset(qrCanvasBuf, 0xFF, canvasBufSize);
+                    lv_canvas_set_buffer(canvasObj, qrCanvasBuf, totalSize, totalSize, LV_COLOR_FORMAT_L8);
+                    lv_obj_align(canvasObj, LV_ALIGN_CENTER, 0, 0);
+
+                    for (uint8_t y = 0; y < qrcode.size; y++) {
+                        for (uint8_t x = 0; x < qrcode.size; x++) {
+                            if (qrcode_getModule(&qrcode, x, y)) {
+                                for (int sy = 0; sy < scale; sy++) {
+                                    for (int sx = 0; sx < scale; sx++) {
+                                        lv_canvas_set_px(canvasObj, margin + x * scale + sx,
+                                                         margin + y * scale + sy,
+                                                         lv_color_black(), LV_OPA_COVER);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    // Bottom buttons — Print (left) + Done (right)
+    // Bottom buttons — Done (left) + Print (right)
 #ifdef BOARD_SCAN_TOUCH
     int btnGap = 8;
-    int btnH = 50;
+    int btnH = 44;
     int btnW = (_screenW - 24 - btnGap) / 2;
 
-    // Print button (left)
+    // Done button (left)
+    _resultDoneBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(_resultDoneBtn);
+    lv_obj_set_size(_resultDoneBtn, btnW, btnH);
+    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_LEFT, 12, -8);
+    lv_obj_set_style_bg_color(_resultDoneBtn, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(_resultDoneBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_resultDoneBtn, 10, 0);
+    lv_obj_set_style_border_color(_resultDoneBtn, toolGray, 0);
+    lv_obj_set_style_border_width(_resultDoneBtn, 1, 0);
+    lv_obj_add_event_cb(_resultDoneBtn, onDoneBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* doneLbl = lv_label_create(_resultDoneBtn);
+    lv_label_set_text(doneLbl, "DONE");
+    lv_obj_set_style_text_font(doneLbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(doneLbl, white, 0);
+    lv_obj_center(doneLbl);
+
+    // Print button (right)
     _resultPrintBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(_resultPrintBtn);
     lv_obj_set_size(_resultPrintBtn, btnW, btnH);
-    lv_obj_align(_resultPrintBtn, LV_ALIGN_BOTTOM_LEFT, 12, -8);
-    lv_obj_set_style_bg_color(_resultPrintBtn, brandOrange, 0);
+    lv_obj_align(_resultPrintBtn, LV_ALIGN_BOTTOM_RIGHT, -12, -8);
+    lv_obj_set_style_bg_color(_resultPrintBtn, makerCyan, 0);
     lv_obj_set_style_bg_opa(_resultPrintBtn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(_resultPrintBtn, 10, 0);
     lv_obj_add_event_cb(_resultPrintBtn, onPrintBtnClick, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t* printLbl = lv_label_create(_resultPrintBtn);
     lv_label_set_text(printLbl, LV_SYMBOL_DOWNLOAD " PRINT");
-    lv_obj_set_style_text_font(printLbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(printLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(printLbl, white, 0);
     lv_obj_center(printLbl);
-
-    // Done button (right)
-    _resultDoneBtn = lv_btn_create(_screen);
-    lv_obj_remove_style_all(_resultDoneBtn);
-    lv_obj_set_size(_resultDoneBtn, btnW, btnH);
-    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_RIGHT, -12, -8);
-    lv_obj_set_style_bg_color(_resultDoneBtn, lv_color_hex(0x2A2A2A), 0);
-    lv_obj_set_style_bg_opa(_resultDoneBtn, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(_resultDoneBtn, 10, 0);
-    lv_obj_set_style_border_color(_resultDoneBtn, gray, 0);
-    lv_obj_set_style_border_width(_resultDoneBtn, 1, 0);
-    lv_obj_add_event_cb(_resultDoneBtn, onDoneBtnClick, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t* doneLbl = lv_label_create(_resultDoneBtn);
-    lv_label_set_text(doneLbl, "DONE");
-    lv_obj_set_style_text_font(doneLbl, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(doneLbl, white, 0);
-    lv_obj_center(doneLbl);
 #endif
 
     // No lv_refr_now — let lv_timer_handler() handle it on next tick
@@ -868,48 +1039,66 @@ void Display::buildUnknownScreen(float weight, bool stable,
 
     createStatusBar(_screen, icons);
 
-    makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
-              LV_ALIGN_TOP_LEFT, 12, 12, "Scanning...");
-
-    // Divider
-    lv_obj_t* line = lv_obj_create(_screen);
-    lv_obj_remove_style_all(line);
-    lv_obj_set_size(line, _screenW - 24, 1);
-    lv_obj_set_style_bg_color(line, gray, 0);
-    lv_obj_set_style_bg_opa(line, LV_OPA_50, 0);
-    lv_obj_align(line, LV_ALIGN_TOP_LEFT, 12, 38);
-
-    // Question mark box
-    lv_obj_t* qBox = lv_obj_create(_screen);
-    lv_obj_remove_style_all(qBox);
-    lv_obj_set_size(qBox, 70, 70);
-    lv_obj_set_style_bg_color(qBox, lv_color_hex(0x333355), 0);
-    lv_obj_set_style_bg_opa(qBox, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(qBox, 8, 0);
-    lv_obj_align(qBox, LV_ALIGN_TOP_LEFT, 15, 50);
-
-    lv_obj_t* qMark = lv_label_create(qBox);
-    lv_label_set_text(qMark, "?");
-    lv_obj_set_style_text_font(qMark, &lv_font_montserrat_36, 0);
-    lv_obj_set_style_text_color(qMark, white, 0);
-    lv_obj_center(qMark);
-
+    // Large weight reading top center
     char wStr[16];
     snprintf(wStr, sizeof(wStr), "%.1f g", weight);
     _weightLabel = makeLabel(_screen, &lv_font_montserrat_28, white,
-                             LV_ALIGN_TOP_LEFT, 100, 55, wStr);
+                             LV_ALIGN_TOP_MID, 0, 14, wStr);
 
-    _heightLabel = makeLabel(_screen, &lv_font_montserrat_14, gray,
-                             LV_ALIGN_TOP_LEFT, 100, 90, "");
-    if (dist && dist->valid) {
-        float heightMm = distanceSensor.getArmHeight() - dist->distanceMm;
-        if (heightMm < 0) heightMm = 0;
-        char hStr[24];
-        snprintf(hStr, sizeof(hStr), "H: %.0f mm", heightMm);
-        lv_label_set_text(_heightLabel, hStr);
-    }
+    // STABLE/READING badge
+    lv_obj_t* badge = lv_obj_create(_screen);
+    lv_obj_remove_style_all(badge);
+    lv_obj_set_size(badge, LV_SIZE_CONTENT, 18);
+    lv_obj_set_style_bg_color(badge, stable ? liveGreen : signalOrange, 0);
+    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(badge, 9, 0);
+    lv_obj_set_style_pad_hor(badge, 10, 0);
+    lv_obj_set_style_pad_ver(badge, 2, 0);
+    lv_obj_align(badge, LV_ALIGN_TOP_MID, 0, 46);
 
-    // Color swatch
+    lv_obj_t* badgeLbl = lv_label_create(badge);
+    lv_label_set_text(badgeLbl, stable ? "STABLE" : "READING");
+    lv_obj_set_style_text_font(badgeLbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(badgeLbl, deepWorkshop, 0);
+    lv_obj_center(badgeLbl);
+
+    // 2x2 sensor grid with detected data
+    int panelW = (_screenW / 2) - 12;
+    int panelH = 52;
+    int gridTop = 70;
+    int gridGap = 6;
+    int gridLeft = 8;
+    int gridMidX = gridLeft + panelW + gridGap;
+
+    // --- NFC panel (top-left) ---
+    lv_obj_t* nfcPanel = lv_obj_create(_screen);
+    lv_obj_remove_style_all(nfcPanel);
+    lv_obj_set_size(nfcPanel, panelW, panelH);
+    lv_obj_set_style_bg_color(nfcPanel, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(nfcPanel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(nfcPanel, 6, 0);
+    lv_obj_set_style_pad_all(nfcPanel, 6, 0);
+    lv_obj_set_pos(nfcPanel, gridLeft, gridTop);
+
+    makeLabel(nfcPanel, &lv_font_montserrat_12, toolGray,
+              LV_ALIGN_TOP_LEFT, 0, 0, "NFC");
+    makeLabel(nfcPanel, &lv_font_montserrat_14, white,
+              LV_ALIGN_BOTTOM_LEFT, 0, 0, "No tag");
+
+    // --- Color panel (top-right) ---
+    lv_obj_t* colorPanel = lv_obj_create(_screen);
+    lv_obj_remove_style_all(colorPanel);
+    lv_obj_set_size(colorPanel, panelW, panelH);
+    lv_obj_set_style_bg_color(colorPanel, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(colorPanel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(colorPanel, 6, 0);
+    lv_obj_set_style_pad_all(colorPanel, 6, 0);
+    lv_obj_set_pos(colorPanel, gridMidX, gridTop);
+
+    makeLabel(colorPanel, &lv_font_montserrat_12, toolGray,
+              LV_ALIGN_TOP_LEFT, 0, 0, "Color");
+
+    // Color swatch + hex if color detected
     if (color && color->valid) {
         uint8_t r8 = 0, g8 = 0, b8 = 0;
         if (color->sensorType == COLOR_AS7341 || color->sensorType == COLOR_AS7343) {
@@ -931,33 +1120,70 @@ void Display::buildUnknownScreen(float weight, bool stable,
                 b8 = (uint8_t)min(255.0f, color->cie_z / sum * 255.0f * 2.0f);
             }
         }
-        _colorSwatch = lv_obj_create(_screen);
+        _colorSwatch = lv_obj_create(colorPanel);
         lv_obj_remove_style_all(_colorSwatch);
-        lv_obj_set_size(_colorSwatch, 24, 24);
+        lv_obj_set_size(_colorSwatch, 18, 18);
         lv_obj_set_style_bg_color(_colorSwatch, lv_color_make(r8, g8, b8), 0);
         lv_obj_set_style_bg_opa(_colorSwatch, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(_colorSwatch, 4, 0);
-        lv_obj_set_style_border_color(_colorSwatch, gray, 0);
+        lv_obj_set_style_radius(_colorSwatch, 9, 0);
+        lv_obj_set_style_border_color(_colorSwatch, grayLight, 0);
         lv_obj_set_style_border_width(_colorSwatch, 1, 0);
-        lv_obj_align(_colorSwatch, LV_ALIGN_TOP_LEFT, 100, 112);
+        lv_obj_align(_colorSwatch, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
-        makeLabel(_screen, &lv_font_montserrat_12, gray,
-                  LV_ALIGN_TOP_LEFT, 130, 116, "Color");
+        char hexStr[10];
+        snprintf(hexStr, sizeof(hexStr), "#%02X%02X%02X", r8, g8, b8);
+        makeLabel(colorPanel, &lv_font_montserrat_12, white,
+                  LV_ALIGN_BOTTOM_LEFT, 22, 0, hexStr);
+    } else {
+        makeLabel(colorPanel, &lv_font_montserrat_14, white,
+                  LV_ALIGN_BOTTOM_LEFT, 0, 0, "--");
     }
 
-    // Bottom divider + message
-    lv_obj_t* divider2 = lv_obj_create(_screen);
-    lv_obj_remove_style_all(divider2);
-    lv_obj_set_size(divider2, _screenW - 24, 1);
-    lv_obj_set_style_bg_color(divider2, gray, 0);
-    lv_obj_set_style_bg_opa(divider2, LV_OPA_50, 0);
-    lv_obj_align(divider2, LV_ALIGN_TOP_LEFT, 12, 145);
+    // --- Height panel (bottom-left) ---
+    lv_obj_t* tofPanel = lv_obj_create(_screen);
+    lv_obj_remove_style_all(tofPanel);
+    lv_obj_set_size(tofPanel, panelW, panelH);
+    lv_obj_set_style_bg_color(tofPanel, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(tofPanel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(tofPanel, 6, 0);
+    lv_obj_set_style_pad_all(tofPanel, 6, 0);
+    lv_obj_set_pos(tofPanel, gridLeft, gridTop + panelH + gridGap);
 
-    makeLabel(_screen, &lv_font_montserrat_14, brandOrange,
-              LV_ALIGN_TOP_MID, 0, 155, "Unidentified object");
+    makeLabel(tofPanel, &lv_font_montserrat_12, toolGray,
+              LV_ALIGN_TOP_LEFT, 0, 0, "Height");
+    if (dist && dist->valid) {
+        float heightMm = distanceSensor.getArmHeight() - dist->distanceMm;
+        if (heightMm < 0) heightMm = 0;
+        char hStr[24];
+        snprintf(hStr, sizeof(hStr), "%.0f mm", heightMm);
+        _heightLabel = makeLabel(tofPanel, &lv_font_montserrat_14, white,
+                                  LV_ALIGN_BOTTOM_LEFT, 0, 0, hStr);
+    } else {
+        _heightLabel = makeLabel(tofPanel, &lv_font_montserrat_14, white,
+                                  LV_ALIGN_BOTTOM_LEFT, 0, 0, "-- mm");
+    }
 
-    makeLabel(_screen, &lv_font_montserrat_12, gray,
-              LV_ALIGN_TOP_MID, 0, 178, "Tap NFC tag, screen, or use app");
+    // --- Environment panel (bottom-right) — placeholder ---
+    lv_obj_t* envPanel = lv_obj_create(_screen);
+    lv_obj_remove_style_all(envPanel);
+    lv_obj_set_size(envPanel, panelW, panelH);
+    lv_obj_set_style_bg_color(envPanel, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(envPanel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(envPanel, 6, 0);
+    lv_obj_set_style_pad_all(envPanel, 6, 0);
+    lv_obj_set_pos(envPanel, gridMidX, gridTop + panelH + gridGap);
+
+    makeLabel(envPanel, &lv_font_montserrat_12, toolGray,
+              LV_ALIGN_TOP_LEFT, 0, 0, "Environment");
+    makeLabel(envPanel, &lv_font_montserrat_14, white,
+              LV_ALIGN_BOTTOM_LEFT, 0, 0, "--");
+
+    // Bottom message area
+    makeLabel(_screen, &lv_font_montserrat_16, makerCyan,
+              LV_ALIGN_BOTTOM_MID, 0, -32, "Unidentified Item");
+
+    makeLabel(_screen, &lv_font_montserrat_12, toolGray,
+              LV_ALIGN_BOTTOM_MID, 0, -12, "Tap screen or scan QR to add details");
 
     // Touch-to-submit: make the screen tappable
 #ifdef BOARD_SCAN_TOUCH
@@ -976,81 +1202,184 @@ void Display::buildIdentifiedScreen(float weight, bool stable,
 
     createStatusBar(_screen, icons);
 
-    const char* title = resp.material[0] ? resp.material : resp.itemType;
-    makeLabel(_screen, &lv_font_montserrat_20, green,
-              LV_ALIGN_TOP_LEFT, 12, 12, title);
-
-    lv_obj_t* divLine = lv_obj_create(_screen);
-    lv_obj_remove_style_all(divLine);
-    lv_obj_set_size(divLine, _screenW - 24, 1);
-    lv_obj_set_style_bg_color(divLine, gray, 0);
-    lv_obj_set_style_bg_opa(divLine, LV_OPA_50, 0);
-    lv_obj_align(divLine, LV_ALIGN_TOP_LEFT, 12, 38);
-
-    // Color swatch
+    // Determine if this is a filament/spool item (has material or temp data)
+    bool isFilament = (resp.material[0] != '\0') ||
+                      (resp.nozzleTempMin > 0) || (resp.bedTemp > 0) ||
+                      (strcmp(resp.itemType, "filament") == 0);
     bool hasColor = (resp.colorR || resp.colorG || resp.colorB);
+
+    // Left side: color swatch (circle) + weight
     lv_obj_t* swatch = lv_obj_create(_screen);
     lv_obj_remove_style_all(swatch);
-    lv_obj_set_size(swatch, 60, 60);
+    lv_obj_set_size(swatch, 56, 56);
     lv_obj_set_style_bg_color(swatch, hasColor ? lv_color_make(resp.colorR, resp.colorG, resp.colorB)
-                                               : lv_color_hex(0x444444), 0);
+                                               : blueprintSlate, 0);
     lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(swatch, 8, 0);
-    lv_obj_set_style_border_color(swatch, gray, 0);
-    lv_obj_set_style_border_width(swatch, 1, 0);
-    lv_obj_align(swatch, LV_ALIGN_TOP_LEFT, 15, 48);
+    lv_obj_set_style_radius(swatch, 28, 0);  // Circle
+    lv_obj_set_style_border_color(swatch, toolGray, 0);
+    lv_obj_set_style_border_width(swatch, hasColor ? 0 : 1, 0);
+    lv_obj_align(swatch, LV_ALIGN_TOP_LEFT, 12, 14);
 
-    char nameBuf[28];
-    strncpy(nameBuf, resp.itemName, sizeof(nameBuf) - 1);
-    nameBuf[sizeof(nameBuf) - 1] = '\0';
-    _itemName = makeLabel(_screen, &lv_font_montserrat_20, white,
-                          LV_ALIGN_TOP_LEFT, 90, 48, nameBuf);
+    // If no color, show "?" in the swatch
+    if (!hasColor) {
+        lv_obj_t* qMark = lv_label_create(swatch);
+        lv_label_set_text(qMark, "?");
+        lv_obj_set_style_text_font(qMark, &lv_font_montserrat_24, 0);
+        lv_obj_set_style_text_color(qMark, toolGray, 0);
+        lv_obj_center(qMark);
+    }
 
+    // Weight below swatch in cyan
     char wStr[16];
     snprintf(wStr, sizeof(wStr), "%.0f g", weight);
-    _weightLabel = makeLabel(_screen, &lv_font_montserrat_24, white,
-                             LV_ALIGN_TOP_LEFT, 90, 75, wStr);
+    _weightLabel = makeLabel(_screen, &lv_font_montserrat_16, makerCyan,
+                             LV_ALIGN_TOP_LEFT, 16, 74, wStr);
 
-    if (dist && dist->valid) {
-        float spoolW = distanceSensor.getArmHeight() - dist->distanceMm;
-        if (spoolW > 0) {
-            char sStr[24];
-            snprintf(sStr, sizeof(sStr), "W: %.0f mm", spoolW);
-            makeLabel(_screen, &lv_font_montserrat_14, gray,
-                      LV_ALIGN_TOP_LEFT, 90, 105, sStr);
+    // Right side: product info
+    int infoX = 80;
+    int infoW = _screenW - infoX - 8;
+
+    // Product name (bold/large)
+    char nameBuf[32];
+    strncpy(nameBuf, resp.itemName, sizeof(nameBuf) - 1);
+    nameBuf[sizeof(nameBuf) - 1] = '\0';
+    _itemName = lv_label_create(_screen);
+    lv_label_set_text(_itemName, nameBuf);
+    lv_obj_set_style_text_font(_itemName, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(_itemName, white, 0);
+    lv_obj_set_width(_itemName, infoW);
+    lv_label_set_long_mode(_itemName, LV_LABEL_LONG_DOT);
+    lv_obj_align(_itemName, LV_ALIGN_TOP_LEFT, infoX, 14);
+
+    if (isFilament) {
+        // Material + type label (e.g. "PLA - Filament")
+        char matLine[48];
+        if (resp.material[0])
+            snprintf(matLine, sizeof(matLine), "%s - %s", resp.material, resp.itemType[0] ? resp.itemType : "Filament");
+        else
+            snprintf(matLine, sizeof(matLine), "%s", resp.itemType[0] ? resp.itemType : "Filament");
+        _materialLabel = makeLabel(_screen, &lv_font_montserrat_14, toolGray,
+                                    LV_ALIGN_TOP_LEFT, infoX, 38, matLine);
+
+        // Temperature info
+        if (resp.nozzleTempMin > 0 || resp.bedTemp > 0) {
+            char tempStr[48];
+            int pos = 0;
+            if (resp.nozzleTempMin > 0)
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos,
+                                "%d-%d\xC2\xB0" "C", resp.nozzleTempMin, resp.nozzleTempMax);
+            if (resp.bedTemp > 0)
+                pos += snprintf(tempStr + pos, sizeof(tempStr) - pos,
+                                "%sBed %d\xC2\xB0" "C", pos > 0 ? "  " : "", resp.bedTemp);
+            _tempLabel = makeLabel(_screen, &lv_font_montserrat_14, grayLight,
+                                    LV_ALIGN_TOP_LEFT, infoX, 56, tempStr);
+        }
+    } else {
+        // Non-filament items: show category/type + weight info
+        if (resp.itemType[0]) {
+            char typeLine[48];
+            snprintf(typeLine, sizeof(typeLine), "%s", resp.itemType);
+            // Capitalize first letter
+            if (typeLine[0] >= 'a' && typeLine[0] <= 'z') typeLine[0] -= 32;
+            _materialLabel = makeLabel(_screen, &lv_font_montserrat_14, toolGray,
+                                        LV_ALIGN_TOP_LEFT, infoX, 38, typeLine);
+        }
+
+        // Show height/size if available
+        if (dist && dist->valid) {
+            float heightMm = distanceSensor.getArmHeight() - dist->distanceMm;
+            if (heightMm > 0) {
+                char sStr[24];
+                snprintf(sStr, sizeof(sStr), "H: %.0f mm", heightMm);
+                _tempLabel = makeLabel(_screen, &lv_font_montserrat_14, grayLight,
+                                        LV_ALIGN_TOP_LEFT, infoX, 56, sStr);
+            }
         }
     }
 
-    if (resp.nozzleTempMin > 0 || resp.bedTemp > 0) {
-        lv_obj_t* divLine2 = lv_obj_create(_screen);
-        lv_obj_remove_style_all(divLine2);
-        lv_obj_set_size(divLine2, _screenW - 24, 1);
-        lv_obj_set_style_bg_color(divLine2, gray, 0);
-        lv_obj_set_style_bg_opa(divLine2, LV_OPA_50, 0);
-        lv_obj_align(divLine2, LV_ALIGN_TOP_LEFT, 12, 130);
+    // Return location banner — shown when this spool is already in inventory
+    if (resp.isExisting && resp.returnLocation[0]) {
+        // Full-width banner with location icon + path
+        lv_obj_t* returnBanner = lv_obj_create(_screen);
+        lv_obj_remove_style_all(returnBanner);
+        lv_obj_set_size(returnBanner, _screenW - 16, 36);
+        lv_obj_set_style_bg_color(returnBanner, lv_color_hex(0x002A36), 0); // darker cyan tint
+        lv_obj_set_style_bg_opa(returnBanner, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(returnBanner, 8, 0);
+        lv_obj_set_style_border_color(returnBanner, makerCyan, 0);
+        lv_obj_set_style_border_width(returnBanner, 1, 0);
+        lv_obj_align(returnBanner, LV_ALIGN_TOP_LEFT, 8, 96);
 
-        if (resp.nozzleTempMin > 0) {
-            char tempStr[32];
-            snprintf(tempStr, sizeof(tempStr), LV_SYMBOL_WARNING " %d-%dC", resp.nozzleTempMin, resp.nozzleTempMax);
-            makeLabel(_screen, &lv_font_montserrat_14, gray,
-                      LV_ALIGN_TOP_LEFT, 12, 138, tempStr);
-        }
-        if (resp.bedTemp > 0) {
-            char bedStr[16];
-            snprintf(bedStr, sizeof(bedStr), "Bed %dC", resp.bedTemp);
-            makeLabel(_screen, &lv_font_montserrat_14, gray,
-                      LV_ALIGN_TOP_RIGHT, -12, 138, bedStr);
-        }
+        makeLabel(returnBanner, &lv_font_montserrat_12, makerCyan,
+                  LV_ALIGN_LEFT_MID, 10, 0, "RETURN TO:");
+
+        lv_obj_t* locLbl = lv_label_create(returnBanner);
+        lv_label_set_text(locLbl, resp.returnLocation);
+        lv_obj_set_style_text_font(locLbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(locLbl, white, 0);
+        lv_obj_set_width(locLbl, _screenW - 130);
+        lv_label_set_long_mode(locLbl, LV_LABEL_LONG_DOT);
+        lv_obj_align(locLbl, LV_ALIGN_LEFT_MID, 95, 0);
+    } else if (resp.nfcTagFormat[0]) {
+        // NFC format badge (pill) — only when not showing return location
+        lv_obj_t* nfcBadge = lv_obj_create(_screen);
+        lv_obj_remove_style_all(nfcBadge);
+        lv_obj_set_size(nfcBadge, LV_SIZE_CONTENT, 18);
+        lv_obj_set_style_bg_color(nfcBadge, blueprintSlate, 0);
+        lv_obj_set_style_bg_opa(nfcBadge, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(nfcBadge, 9, 0);
+        lv_obj_set_style_pad_hor(nfcBadge, 8, 0);
+        lv_obj_set_style_pad_ver(nfcBadge, 2, 0);
+        lv_obj_align(nfcBadge, LV_ALIGN_TOP_LEFT, 80, 96);
+
+        lv_obj_t* nfcLbl = lv_label_create(nfcBadge);
+        lv_label_set_text(nfcLbl, resp.nfcTagFormat);
+        lv_obj_set_style_text_font(nfcLbl, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(nfcLbl, grayLight, 0);
+        lv_obj_center(nfcLbl);
     }
 
-    if (resp.colorHex[0]) {
-        makeLabel(_screen, &lv_font_montserrat_12, gray,
-                  LV_ALIGN_BOTTOM_LEFT, 12, -8, resp.colorHex);
-    }
-    if (resp.nfcTagFormat[0]) {
-        makeLabel(_screen, &lv_font_montserrat_12, gray,
-                  LV_ALIGN_BOTTOM_RIGHT, -12, -8, resp.nfcTagFormat);
-    }
+    // Done + Print buttons (touch boards)
+#ifdef BOARD_SCAN_TOUCH
+    int btnGap = 8;
+    int btnH = 42;
+    int btnW = (_screenW - 24 - btnGap) / 2;
+    int btnY = -30;
+
+    // Done button (left)
+    _resultDoneBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(_resultDoneBtn);
+    lv_obj_set_size(_resultDoneBtn, btnW, btnH);
+    lv_obj_align(_resultDoneBtn, LV_ALIGN_BOTTOM_LEFT, 12, btnY);
+    lv_obj_set_style_bg_color(_resultDoneBtn, blueprintSlate, 0);
+    lv_obj_set_style_bg_opa(_resultDoneBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_resultDoneBtn, 10, 0);
+    lv_obj_set_style_border_color(_resultDoneBtn, toolGray, 0);
+    lv_obj_set_style_border_width(_resultDoneBtn, 1, 0);
+    lv_obj_add_event_cb(_resultDoneBtn, onDoneBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* doneLbl = lv_label_create(_resultDoneBtn);
+    lv_label_set_text(doneLbl, "DONE");
+    lv_obj_set_style_text_font(doneLbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(doneLbl, white, 0);
+    lv_obj_center(doneLbl);
+
+    // Print button (right)
+    _resultPrintBtn = lv_btn_create(_screen);
+    lv_obj_remove_style_all(_resultPrintBtn);
+    lv_obj_set_size(_resultPrintBtn, btnW, btnH);
+    lv_obj_align(_resultPrintBtn, LV_ALIGN_BOTTOM_RIGHT, -12, btnY);
+    lv_obj_set_style_bg_color(_resultPrintBtn, makerCyan, 0);
+    lv_obj_set_style_bg_opa(_resultPrintBtn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_resultPrintBtn, 10, 0);
+    lv_obj_add_event_cb(_resultPrintBtn, onPrintBtnClick, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* printLbl = lv_label_create(_resultPrintBtn);
+    lv_label_set_text(printLbl, LV_SYMBOL_DOWNLOAD " PRINT");
+    lv_obj_set_style_text_font(printLbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(printLbl, white, 0);
+    lv_obj_center(printLbl);
+#endif
 }
 
 // ── Pending Command System (thread-safe main loop → LVGL task) ───
@@ -1091,25 +1420,28 @@ void Display::showMessage(const char* line1, const char* line2) {
     clearScreen();
     _currentScreen = SCR_MESSAGE;
 
-    lv_obj_t* logo = lv_obj_create(_screen);
-    lv_obj_remove_style_all(logo);
-    lv_obj_set_size(logo, 48, 48);
-    lv_obj_set_style_bg_color(logo, brandOrange, 0);
-    lv_obj_set_style_bg_opa(logo, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(logo, 10, 0);
-    lv_obj_align(logo, LV_ALIGN_CENTER, 0, -40);
+    // Two-pill logo
+    lv_obj_t* pillL = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillL);
+    lv_obj_set_size(pillL, 10, 30);
+    lv_obj_set_style_bg_color(pillL, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillL, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillL, 5, 0);
+    lv_obj_align(pillL, LV_ALIGN_CENTER, -9, -40);
 
-    lv_obj_t* fLetter = lv_label_create(logo);
-    lv_label_set_text(fLetter, "F");
-    lv_obj_set_style_text_font(fLetter, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_color(fLetter, white, 0);
-    lv_obj_center(fLetter);
+    lv_obj_t* pillR = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillR);
+    lv_obj_set_size(pillR, 10, 30);
+    lv_obj_set_style_bg_color(pillR, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillR, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillR, 5, 0);
+    lv_obj_align(pillR, LV_ALIGN_CENTER, 9, -40);
 
     _msgLine1 = makeLabel(_screen, &lv_font_montserrat_24, white,
-                          LV_ALIGN_CENTER, 0, 10, line1);
+                          LV_ALIGN_CENTER, 0, 5, line1);
 
     if (line2) {
-        _msgLine2 = makeLabel(_screen, &lv_font_montserrat_14, gray,
+        _msgLine2 = makeLabel(_screen, &lv_font_montserrat_14, toolGray,
                               LV_ALIGN_CENTER, 0, 40, line2);
     }
 
@@ -1125,31 +1457,33 @@ void Display::showBootScreen(const char* version) {
     _currentScreen = SCR_BOOT;
     _bootCount = 0;
 
-    // Logo + title row
-    lv_obj_t* logo = lv_obj_create(_screen);
-    lv_obj_remove_style_all(logo);
-    lv_obj_set_size(logo, 36, 36);
-    lv_obj_set_style_bg_color(logo, brandOrange, 0);
-    lv_obj_set_style_bg_opa(logo, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(logo, 8, 0);
-    lv_obj_align(logo, LV_ALIGN_TOP_LEFT, 10, 8);
+    // Two-pill logo + title row
+    lv_obj_t* pillL = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillL);
+    lv_obj_set_size(pillL, 8, 24);
+    lv_obj_set_style_bg_color(pillL, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillL, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillL, 4, 0);
+    lv_obj_align(pillL, LV_ALIGN_TOP_LEFT, 10, 14);
 
-    lv_obj_t* fLetter = lv_label_create(logo);
-    lv_label_set_text(fLetter, "F");
-    lv_obj_set_style_text_font(fLetter, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(fLetter, white, 0);
-    lv_obj_center(fLetter);
+    lv_obj_t* pillR = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillR);
+    lv_obj_set_size(pillR, 8, 24);
+    lv_obj_set_style_bg_color(pillR, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillR, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillR, 4, 0);
+    lv_obj_align(pillR, LV_ALIGN_TOP_LEFT, 22, 14);
 
     char titleBuf[48];
-    snprintf(titleBuf, sizeof(titleBuf), "Filla IQ  v%s", version);
+    snprintf(titleBuf, sizeof(titleBuf), "FillaIQ  v%s", version);
     makeLabel(_screen, &lv_font_montserrat_16, white,
-              LV_ALIGN_TOP_LEFT, 54, 16, titleBuf);
+              LV_ALIGN_TOP_LEFT, 38, 16, titleBuf);
 
     // Divider
     lv_obj_t* div = lv_obj_create(_screen);
     lv_obj_remove_style_all(div);
     lv_obj_set_size(div, _screenW - 20, 1);
-    lv_obj_set_style_bg_color(div, gray, 0);
+    lv_obj_set_style_bg_color(div, toolGray, 0);
     lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
     lv_obj_align(div, LV_ALIGN_TOP_LEFT, 10, 50);
 
@@ -1164,7 +1498,7 @@ void Display::showBootScreen(const char* version) {
     lv_obj_set_style_pad_row(_bootList, 4, 0);
 
     // Status line at bottom
-    _bootStatus = makeLabel(_screen, &lv_font_montserrat_12, gray,
+    _bootStatus = makeLabel(_screen, &lv_font_montserrat_12, toolGray,
                              LV_ALIGN_BOTTOM_MID, 0, -6, "Initializing...");
 
     lv_refr_now(NULL);
@@ -1185,7 +1519,7 @@ void Display::addBootItem(const char* name, bool found) {
     lv_obj_remove_style_all(icon);
     lv_label_set_text(icon, found ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE);
     lv_obj_set_style_text_font(icon, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(icon, found ? green : lv_color_hex(RED_HEX), 0);
+    lv_obj_set_style_text_color(icon, found ? liveGreen : lv_color_hex(ALERT_ROSE_HEX), 0);
 
     lv_obj_t* lbl = lv_label_create(item);
     lv_obj_remove_style_all(lbl);
@@ -1218,10 +1552,10 @@ static lv_obj_t* makeMenuBtn(lv_obj_t* parent, const char* icon, const char* tex
     lv_obj_t* btn = lv_btn_create(parent);
     lv_obj_remove_style_all(btn);
     lv_obj_set_size(btn, lv_pct(100), 44);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_color(btn, blueprintSlate, 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(btn, 8, 0);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x3A3A3A), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x253540), LV_PART_MAIN | LV_STATE_PRESSED);
     lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_left(btn, 12, 0);
@@ -1230,7 +1564,7 @@ static lv_obj_t* makeMenuBtn(lv_obj_t* parent, const char* icon, const char* tex
     lv_obj_t* iconLbl = lv_label_create(btn);
     lv_label_set_text(iconLbl, icon);
     lv_obj_set_style_text_font(iconLbl, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(iconLbl, lv_color_hex(BRAND_ORANGE_HEX), 0);
+    lv_obj_set_style_text_color(iconLbl, lv_color_hex(MAKER_CYAN_HEX), 0);
 
     lv_obj_t* textLbl = lv_label_create(btn);
     lv_label_set_text(textLbl, text);
@@ -1251,14 +1585,14 @@ void Display::buildMenuScreen() {
     _currentScreen = SCR_MENU;
 
     // Title bar
-    makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
+    makeLabel(_screen, &lv_font_montserrat_20, makerCyan,
               LV_ALIGN_TOP_LEFT, 12, 12, "Settings");
 
     // Divider
     lv_obj_t* div = lv_obj_create(_screen);
     lv_obj_remove_style_all(div);
     lv_obj_set_size(div, _screenW - 24, 1);
-    lv_obj_set_style_bg_color(div, gray, 0);
+    lv_obj_set_style_bg_color(div, toolGray, 0);
     lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
     lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 40);
 
@@ -1291,7 +1625,7 @@ void Display::buildMenuScreen() {
     // Device info line
     char info[64];
     snprintf(info, sizeof(info), "FillaScan v%s", FW_VERSION);
-    makeLabel(_screen, &lv_font_montserrat_12, gray,
+    makeLabel(_screen, &lv_font_montserrat_12, toolGray,
               LV_ALIGN_BOTTOM_LEFT, 12, -8, info);
 
     // Back button
@@ -1299,7 +1633,7 @@ void Display::buildMenuScreen() {
     lv_obj_remove_style_all(backBtn);
     lv_obj_set_size(backBtn, 60, 36);
     lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
-    lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_color(backBtn, blueprintSlate, 0);
     lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(backBtn, 6, 0);
     lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
@@ -1320,13 +1654,13 @@ void Display::showRawSensors(const char* text) {
         clearScreen();
         _currentScreen = SCR_RAW_SENSORS;
 
-        makeLabel(_screen, &lv_font_montserrat_16, brandOrange,
+        makeLabel(_screen, &lv_font_montserrat_16, makerCyan,
                   LV_ALIGN_TOP_LEFT, 12, 6, "Raw Sensors");
 
         lv_obj_t* div = lv_obj_create(_screen);
         lv_obj_remove_style_all(div);
         lv_obj_set_size(div, _screenW - 24, 1);
-        lv_obj_set_style_bg_color(div, gray, 0);
+        lv_obj_set_style_bg_color(div, toolGray, 0);
         lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
         lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 28);
 
@@ -1342,7 +1676,7 @@ void Display::showRawSensors(const char* text) {
         lv_obj_remove_style_all(backBtn);
         lv_obj_set_size(backBtn, 60, 30);
         lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -2);
-        lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_color(backBtn, blueprintSlate, 0);
         lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(backBtn, 6, 0);
         lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
@@ -1365,13 +1699,13 @@ void Display::showCalibrate(const char* step, const char* detail) {
         clearScreen();
         _currentScreen = SCR_CALIBRATE;
 
-        makeLabel(_screen, &lv_font_montserrat_20, brandOrange,
+        makeLabel(_screen, &lv_font_montserrat_20, makerCyan,
                   LV_ALIGN_TOP_LEFT, 12, 12, "Calibrate");
 
         lv_obj_t* div = lv_obj_create(_screen);
         lv_obj_remove_style_all(div);
         lv_obj_set_size(div, _screenW - 24, 1);
-        lv_obj_set_style_bg_color(div, gray, 0);
+        lv_obj_set_style_bg_color(div, toolGray, 0);
         lv_obj_set_style_bg_opa(div, LV_OPA_50, 0);
         lv_obj_align(div, LV_ALIGN_TOP_LEFT, 12, 40);
 
@@ -1394,7 +1728,7 @@ void Display::showCalibrate(const char* step, const char* detail) {
         lv_obj_remove_style_all(continueBtn);
         lv_obj_set_size(continueBtn, _screenW - 24, 44);
         lv_obj_align(continueBtn, LV_ALIGN_BOTTOM_MID, 0, -48);
-        lv_obj_set_style_bg_color(continueBtn, brandOrange, 0);
+        lv_obj_set_style_bg_color(continueBtn, makerCyan, 0);
         lv_obj_set_style_bg_opa(continueBtn, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(continueBtn, 8, 0);
         lv_obj_add_event_cb(continueBtn, onSubmitTap, LV_EVENT_CLICKED, NULL);
@@ -1409,7 +1743,7 @@ void Display::showCalibrate(const char* step, const char* detail) {
         lv_obj_remove_style_all(backBtn);
         lv_obj_set_size(backBtn, 60, 36);
         lv_obj_align(backBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
-        lv_obj_set_style_bg_color(backBtn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_color(backBtn, blueprintSlate, 0);
         lv_obj_set_style_bg_opa(backBtn, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(backBtn, 6, 0);
         lv_obj_add_event_cb(backBtn, onBackBtnClick, LV_EVENT_CLICKED, NULL);
@@ -1482,10 +1816,10 @@ void Display::showPairingCode(const char* code) {
     }
 
     // Pairing code below QR
-    _pairCode = makeLabel(_screen, &lv_font_montserrat_28, brandOrange,
+    _pairCode = makeLabel(_screen, &lv_font_montserrat_28, makerCyan,
                           LV_ALIGN_BOTTOM_MID, 0, -40, code);
 
-    makeLabel(_screen, &lv_font_montserrat_12, gray,
+    makeLabel(_screen, &lv_font_montserrat_12, toolGray,
               LV_ALIGN_BOTTOM_MID, 0, -12, "Scan QR or enter code at fillaiq.com/hardware");
 
     lv_refr_now(NULL);
@@ -1499,22 +1833,25 @@ void Display::showQrCode(const char* data, const char* label) {
     clearScreen();
     _currentScreen = SCR_QR;
 
-    lv_obj_t* logo = lv_obj_create(_screen);
-    lv_obj_remove_style_all(logo);
-    lv_obj_set_size(logo, 32, 32);
-    lv_obj_set_style_bg_color(logo, brandOrange, 0);
-    lv_obj_set_style_bg_opa(logo, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(logo, 6, 0);
-    lv_obj_align(logo, LV_ALIGN_TOP_LEFT, 12, 8);
+    // Two-pill logo
+    lv_obj_t* pillL = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillL);
+    lv_obj_set_size(pillL, 7, 22);
+    lv_obj_set_style_bg_color(pillL, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillL, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillL, 3, 0);
+    lv_obj_align(pillL, LV_ALIGN_TOP_LEFT, 12, 12);
 
-    lv_obj_t* fLetter = lv_label_create(logo);
-    lv_label_set_text(fLetter, "F");
-    lv_obj_set_style_text_font(fLetter, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(fLetter, white, 0);
-    lv_obj_center(fLetter);
+    lv_obj_t* pillR = lv_obj_create(_screen);
+    lv_obj_remove_style_all(pillR);
+    lv_obj_set_size(pillR, 7, 22);
+    lv_obj_set_style_bg_color(pillR, makerCyan, 0);
+    lv_obj_set_style_bg_opa(pillR, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pillR, 3, 0);
+    lv_obj_align(pillR, LV_ALIGN_TOP_LEFT, 23, 12);
 
     makeLabel(_screen, &lv_font_montserrat_20, white,
-              LV_ALIGN_TOP_LEFT, 52, 13, "FillaIQ");
+              LV_ALIGN_TOP_LEFT, 38, 13, "FillaIQ");
 
     // Generate QR code
     size_t dataLen = strlen(data);
@@ -1532,7 +1869,7 @@ void Display::showQrCode(const char* data, const char* label) {
     }
 
     if (result != 0) {
-        makeLabel(_screen, &lv_font_montserrat_14, lv_color_hex(RED_HEX),
+        makeLabel(_screen, &lv_font_montserrat_14, lv_color_hex(ALERT_ROSE_HEX),
                   LV_ALIGN_CENTER, 0, 0, "QR Error");
         lv_refr_now(NULL);
         return;
@@ -1573,11 +1910,11 @@ void Display::showQrCode(const char* data, const char* label) {
               LV_ALIGN_TOP_MID, 0, textY, "Scan QR to connect");
 
     if (label) {
-        makeLabel(_screen, &lv_font_montserrat_12, gray,
+        makeLabel(_screen, &lv_font_montserrat_12, toolGray,
                   LV_ALIGN_TOP_MID, 0, textY + 20, label);
     }
 
-    makeLabel(_screen, &lv_font_montserrat_12, gray,
+    makeLabel(_screen, &lv_font_montserrat_12, toolGray,
               LV_ALIGN_BOTTOM_MID, 0, -5, "Password: fillaiq1");
 
     lv_refr_now(NULL);
@@ -1626,9 +1963,9 @@ void Display::update(ScanState state, float weight, bool stable,
             clearScreen();
             _currentScreen = SCR_SUBMITTING;
             createStatusBar(_screen, statusIcons);
-            makeLabel(_screen, &lv_font_montserrat_24, brandOrange,
+            makeLabel(_screen, &lv_font_montserrat_24, makerCyan,
                       LV_ALIGN_CENTER, 0, -20, "Submitting...");
-            makeLabel(_screen, &lv_font_montserrat_14, gray,
+            makeLabel(_screen, &lv_font_montserrat_14, toolGray,
                       LV_ALIGN_CENTER, 0, 15, "Sending scan data");
             break;
         case SCAN_RESULT:

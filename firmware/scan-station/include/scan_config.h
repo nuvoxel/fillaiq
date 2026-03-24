@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Firmware Identity ---
-#define FW_VERSION "1.2.0"
+#define FW_VERSION "1.3.0"
 #define FW_SKU     "filla-scan"      // Device type for OTA routing
 #ifndef FW_CHANNEL
 #define FW_CHANNEL "stable"
@@ -122,10 +122,10 @@
 // --- Weight Settings ---
 #define WEIGHT_SAMPLES          10
 #define WEIGHT_CALIBRATION      145.724f
-#define WEIGHT_STABLE_THRESHOLD 2.0f
+#define WEIGHT_STABLE_THRESHOLD 1.0f
 #define WEIGHT_STABLE_COUNT     5
 #define WEIGHT_READ_INTERVAL_MS 250
-#define WEIGHT_TARE_SAMPLES     20
+#define WEIGHT_TARE_SAMPLES     64
 #define WEIGHT_MIN_VALID        -100.0f
 #define WEIGHT_MAX_VALID        10000.0f
 

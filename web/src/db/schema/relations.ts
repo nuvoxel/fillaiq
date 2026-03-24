@@ -7,6 +7,9 @@ import {
   skuMappings,
   nfcTagPatterns,
   productAliases,
+  productResellerLinks,
+  productPriceHistory,
+  productPriceTiers,
 } from "./central-catalog";
 import { catalogSubmissions } from "./submissions";
 import {
@@ -81,7 +84,40 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   userItems: many(userItems),
   aliases: many(productAliases, { relationName: "product" }),
   aliasedBy: many(productAliases, { relationName: "relatedProduct" }),
+  resellerLinks: many(productResellerLinks),
 }));
+
+export const productResellerLinksRelations = relations(
+  productResellerLinks,
+  ({ one, many }) => ({
+    product: one(products, {
+      fields: [productResellerLinks.productId],
+      references: [products.id],
+    }),
+    priceHistory: many(productPriceHistory),
+    priceTiers: many(productPriceTiers),
+  })
+);
+
+export const productPriceHistoryRelations = relations(
+  productPriceHistory,
+  ({ one }) => ({
+    resellerLink: one(productResellerLinks, {
+      fields: [productPriceHistory.resellerLinkId],
+      references: [productResellerLinks.id],
+    }),
+  })
+);
+
+export const productPriceTiersRelations = relations(
+  productPriceTiers,
+  ({ one }) => ({
+    resellerLink: one(productResellerLinks, {
+      fields: [productPriceTiers.resellerLinkId],
+      references: [productResellerLinks.id],
+    }),
+  })
+);
 
 export const filamentProfilesRelations = relations(
   filamentProfiles,

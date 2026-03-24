@@ -1,36 +1,30 @@
 import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 
 export function PageHeader({
   title,
   description,
   action,
+  badge,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  badge?: ReactNode;
 }) {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        mb: 3,
-      }}
-    >
-      <Box>
-        <Typography variant="h4" fontWeight={600}>
-          {title}
-        </Typography>
+    <div className="flex items-start justify-between mb-6">
+      <div>
+        <div className="flex items-baseline gap-2">
+          <h1 className="font-display text-2xl font-semibold text-foreground">
+            {title}
+          </h1>
+          {badge}
+        </div>
         {description && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {description}
-          </Typography>
+          <p className="text-sm text-muted-foreground mt-1">{description}</p>
         )}
-      </Box>
-      {action && <Box>{action}</Box>}
-    </Box>
+      </div>
+      {action && <div>{action}</div>}
+    </div>
   );
 }

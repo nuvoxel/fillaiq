@@ -1,18 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Autocomplete from "@mui/material/Autocomplete";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createProduct, updateProduct, listBrands, listMaterials } from "@/lib/actions/central-catalog";
 import { ImageUpload } from "@/components/image-upload";
 
@@ -61,13 +68,13 @@ export function ProductDialog({ open, onClose, onSaved, existing }: Props) {
 
   const [brands, setBrands] = useState<Brand[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
-  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("_none");
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>("_none");
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Load brands and materials for autocomplete
+  // Load brands and materials
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -94,17 +101,8 @@ export function ProductDialog({ open, onClose, onSaved, existing }: Props) {
       setNetWeightG(e.netWeightG != null ? String(e.netWeightG) : "");
       setValidationStatus(e.validationStatus ?? "draft");
       setGtin(e.gtin ?? "");
-      // Set brand/material after brands and materials are loaded
-      if (e.brandId) {
-        setSelectedBrand({ id: e.brandId, name: "" }); // Will be resolved when brands load
-      } else {
-        setSelectedBrand(null);
-      }
-      if (e.materialId) {
-        setSelectedMaterial({ id: e.materialId, name: "", abbreviation: null });
-      } else {
-        setSelectedMaterial(null);
-      }
+      setSelectedBrandId(e.brandId ?? "_none");
+      setSelectedMaterialId(e.materialId ?? "_none");
     } else {
       setName("");
       setCategory("filament");
@@ -115,26 +113,11 @@ export function ProductDialog({ open, onClose, onSaved, existing }: Props) {
       setNetWeightG("");
       setValidationStatus("draft");
       setGtin("");
-      setSelectedBrand(null);
-      setSelectedMaterial(null);
+      setSelectedBrandId("_none");
+      setSelectedMaterialId("_none");
     }
     setError(null);
   }, [open, existing]);
-
-  // Resolve brand/material names after data loads
-  useEffect(() => {
-    if (selectedBrand && !selectedBrand.name && brands.length > 0) {
-      const found = brands.find((b) => b.id === selectedBrand.id);
-      if (found) setSelectedBrand(found);
-    }
-  }, [brands, selectedBrand]);
-
-  useEffect(() => {
-    if (selectedMaterial && !selectedMaterial.name && materials.length > 0) {
-      const found = materials.find((m) => m.id === selectedMaterial.id);
-      if (found) setSelectedMaterial(found);
-    }
-  }, [materials, selectedMaterial]);
 
   const handleSave = async () => {
     setError(null);
@@ -145,8 +128,8 @@ export function ProductDialog({ open, onClose, onSaved, existing }: Props) {
       category,
       description: description || null,
       imageUrl: imageUrl || null,
-      brandId: selectedBrand?.id ?? null,
-      materialId: selectedMaterial?.id ?? null,
+      brandId: selectedBrandId === "_none" ? null : selectedBrandId,
+      materialId: selectedMaterialId === "_none" ? null : selectedMaterialId,
       colorName: colorName || null,
       colorHex: colorHex || null,
       netWeightG: netWeightG ? parseFloat(netWeightG) : null,
@@ -167,13 +150,20 @@ export function ProductDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{existing ? "Edit Product" : "Add Product"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Product" : "Add Product"}</DialogTitle>
+        </DialogHeader>
 
-          <Box sx={{ display: "flex", gap: 2 }}>
+        <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto pr-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-2">
             <ImageUpload
               value={imageUrl}
               onChange={setImageUrl}
@@ -182,165 +172,153 @@ export function ProductDialog({ open, onClose, onSaved, existing }: Props) {
               width={80}
               height={80}
             />
-            <Grid container spacing={2} sx={{ flex: 1 }}>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Name"
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium block mb-1">Name *</label>
+                <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  size="small"
-                  fullWidth
                 />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  label="Category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  size="small"
-                  fullWidth
-                >
-                  {categoryOptions.map((o) => (
-                    <MenuItem key={o.value} value={o.value}>
-                      {o.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  label="Validation Status"
-                  value={validationStatus}
-                  onChange={(e) => setValidationStatus(e.target.value)}
-                  size="small"
-                  fullWidth
-                >
-                  {validationStatusOptions.map((o) => (
-                    <MenuItem key={o.value} value={o.value}>
-                      {o.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-          </Box>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">Category</label>
+                <Select value={category} onValueChange={(v) => v && setCategory(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoryOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">Validation Status</label>
+                <Select value={validationStatus} onValueChange={(v) => v && setValidationStatus(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {validationStatusOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Autocomplete
-                options={brands}
-                getOptionLabel={(opt) => opt.name}
-                value={selectedBrand}
-                onChange={(_, val) => setSelectedBrand(val)}
-                renderInput={(params) => (
-                  <TextField {...params} label="Brand" size="small" />
-                )}
-                isOptionEqualToValue={(opt, val) => opt.id === val.id}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Autocomplete
-                options={materials}
-                getOptionLabel={(opt) =>
-                  opt.abbreviation ? `${opt.name} (${opt.abbreviation})` : opt.name
-                }
-                value={selectedMaterial}
-                onChange={(_, val) => setSelectedMaterial(val)}
-                renderInput={(params) => (
-                  <TextField {...params} label="Material" size="small" />
-                )}
-                isOptionEqualToValue={(opt, val) => opt.id === val.id}
-              />
-            </Grid>
-          </Grid>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Brand</label>
+              <Select value={selectedBrandId} onValueChange={(v) => v && setSelectedBrandId(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select brand..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">\u2014 None</SelectItem>
+                  {brands.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Material</label>
+              <Select value={selectedMaterialId} onValueChange={(v) => v && setSelectedMaterialId(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select material..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">\u2014 None</SelectItem>
+                  {materials.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.abbreviation ? `${m.name} (${m.abbreviation})` : m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Color Name"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Color Name</label>
+              <Input
                 value={colorName}
                 onChange={(e) => setColorName(e.target.value)}
-                size="small"
-                fullWidth
                 placeholder="e.g., Galaxy Black"
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
-                <TextField
-                  label="Color Hex"
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Color Hex</label>
+              <div className="flex gap-1 items-start">
+                <Input
                   value={colorHex}
                   onChange={(e) => setColorHex(e.target.value)}
-                  size="small"
-                  fullWidth
-                  placeholder="#FF5733"
+                  placeholder="#00D2FF"
+                  className="flex-1"
                 />
                 {colorHex && /^#[0-9A-Fa-f]{6,8}$/.test(colorHex) && (
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 1,
-                      bgcolor: colorHex,
-                      border: 1,
-                      borderColor: "divider",
-                      flexShrink: 0,
-                    }}
+                  <div
+                    className="w-8 h-8 rounded border border-border shrink-0"
+                    style={{ backgroundColor: colorHex }}
                   />
                 )}
-              </Box>
-            </Grid>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Net Weight (g)"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Net Weight (g)</label>
+              <Input
                 value={netWeightG}
                 onChange={(e) => setNetWeightG(e.target.value)}
                 type="number"
-                size="small"
-                fullWidth
-                slotProps={{ htmlInput: { min: 0, step: 0.1 } }}
+                min={0}
+                step={0.1}
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="GTIN / Barcode"
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">GTIN / Barcode</label>
+              <Input
                 value={gtin}
                 onChange={(e) => setGtin(e.target.value)}
-                size="small"
-                fullWidth
                 placeholder="e.g., 0123456789012"
-                slotProps={{ htmlInput: { maxLength: 14 } }}
+                maxLength={14}
               />
-            </Grid>
-          </Grid>
+            </div>
+          </div>
 
-          <TextField
-            label="Description / Notes"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            size="small"
-            fullWidth
-            multiline
-            minRows={2}
-          />
-        </Stack>
+          <div>
+            <label className="text-xs font-medium block mb-1">Description / Notes</label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <Button
+            onClick={handleSave}
+            disabled={!name || saving}
+          >
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={!name || saving}
-        >
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

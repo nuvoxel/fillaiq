@@ -6,6 +6,15 @@ export const machineTypeLabels: Record<string, string> = {
   multi: "Multi",
 };
 
+export const machineProtocolLabels: Record<string, string> = {
+  bambu: "Bambu Lab",
+  klipper: "Klipper (Moonraker)",
+  octoprint: "OctoPrint",
+  prusalink: "PrusaLink",
+  grbl: "GRBL",
+  manual: "Manual / None",
+};
+
 export const toolCategoryLabels: Record<string, string> = {
   nozzle: "Nozzle",
   spindle_bit: "Spindle Bit",

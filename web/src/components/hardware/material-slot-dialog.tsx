@@ -1,15 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createMachineMaterialSlot, updateMachineMaterialSlot } from "@/lib/actions/user-library";
 import { enumToOptions, changerTypeLabels } from "./enum-labels";
 
@@ -80,29 +89,52 @@ export function MaterialSlotDialog({ open, onClose, onSaved, machineId, existing
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{existing ? "Edit Material Slot" : "Add Material Slot"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <TextField select label="Changer Type" value={changerType} onChange={(e) => setChangerType(e.target.value)} required size="small">
-            {changerOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-          <Stack direction="row" spacing={2}>
-            <TextField label="Unit Number" value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} type="number" required size="small" fullWidth />
-            <TextField label="Slot Position" value={slotPosition} onChange={(e) => setSlotPosition(e.target.value)} type="number" required size="small" fullWidth />
-          </Stack>
-          <TextField label="User Item ID (optional)" value={userItemId} onChange={(e) => setUserItemId(e.target.value)} size="small" />
-        </Stack>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Material Slot" : "Add Material Slot"}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-1.5">
+            <Label>Changer Type *</Label>
+            <Select value={changerType} onValueChange={(v) => v && setChangerType(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {changerOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label>Unit Number *</Label>
+              <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} type="number" />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>Slot Position *</Label>
+              <Input value={slotPosition} onChange={(e) => setSlotPosition(e.target.value)} type="number" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>User Item ID (optional)</Label>
+            <Input value={userItemId} onChange={(e) => setUserItemId(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

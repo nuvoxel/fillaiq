@@ -294,21 +294,42 @@ const machinesCrud = createCrudActions<Machine>({
   updateSchema: updateMachineSchema,
 });
 
-async function pushBambuConfigIfNeeded(machine: Record<string, any>) {
-  if (machine.scanStationId && machine.ipAddress && machine.accessCode) {
-    const [station] = await db
-      .select({ hardwareId: scanStations.hardwareId })
-      .from(scanStations)
-      .where(eq(scanStations.id, machine.scanStationId));
-    if (station) {
-      const { publishBambuConfig } = await import("@/lib/mqtt/publisher");
-      publishBambuConfig(station.hardwareId, {
-        machineId: machine.id,
-        ip: machine.ipAddress,
-        accessCode: machine.accessCode,
-        serialNumber: machine.serialNumber || "",
-      });
-    }
+async function pushMachineConfigIfNeeded(machine: Record<string, any>) {
+  if (!machine.scanStationId) return;
+
+  const [station] = await db
+    .select({ hardwareId: scanStations.hardwareId })
+    .from(scanStations)
+    .where(eq(scanStations.id, machine.scanStationId));
+  if (!station) return;
+
+  const protocol = machine.protocol ?? "manual";
+  if (protocol === "manual") return;
+
+  const { getPlugin } = await import("@/lib/machines");
+  const plugin = getPlugin(protocol);
+  if (!plugin) return;
+
+  const bridgeConfig = plugin.buildBridgeConfig({
+    machineId: machine.id,
+    protocol,
+    ipAddress: machine.ipAddress,
+    connectionConfig: machine.connectionConfig,
+  });
+
+  const { publishMachineConfig, publishBambuConfig } = await import("@/lib/mqtt/publisher");
+
+  // Push via the new generic topic
+  publishMachineConfig(station.hardwareId, machine.id, bridgeConfig);
+
+  // Backward compat: also push legacy bambu/config for older firmware
+  if (protocol === "bambu" && bridgeConfig) {
+    publishBambuConfig(station.hardwareId, {
+      machineId: machine.id,
+      ip: bridgeConfig.ip as string,
+      accessCode: bridgeConfig.accessCode as string,
+      serialNumber: bridgeConfig.serialNumber as string,
+    });
   }
 }
 
@@ -320,8 +341,8 @@ export async function createMachine(input: unknown) {
   const result = await machinesCrud.create({ ...data, userId: guard.data.userId });
   if (result.error === null) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "machine", resourceId: result.data.id });
-    await pushBambuConfigIfNeeded(result.data).catch((e) =>
-      console.error("[Machine] Bambu config push error:", e)
+    await pushMachineConfigIfNeeded(result.data).catch((e) =>
+      console.error("[Machine] Bridge config push error:", e)
     );
   }
   return result;
@@ -350,8 +371,8 @@ export async function updateMachine(id: string, input: unknown) {
   const result = await machinesCrud.update(id, input);
   if (result.error === null) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "update", resourceType: "machine", resourceId: result.data.id });
-    await pushBambuConfigIfNeeded(result.data).catch((e) =>
-      console.error("[Machine] Bambu config push error:", e)
+    await pushMachineConfigIfNeeded(result.data).catch((e) =>
+      console.error("[Machine] Bridge config push error:", e)
     );
   }
   return result;

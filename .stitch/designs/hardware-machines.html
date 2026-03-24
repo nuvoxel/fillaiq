@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FillaIQ — Hardware Machines</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;family=Plus+Jakarta+Sans:wght@200..800&amp;family=DM+Mono:wght@300;400;500&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary-container": "#00566a",
+              "on-secondary": "#ffffff",
+              "secondary": "#516166",
+              "on-error-container": "#93000a",
+              "surface-bright": "#f7f9ff",
+              "on-primary-fixed-variant": "#004e60",
+              "on-primary": "#ffffff",
+              "surface-container": "#e3effe",
+              "on-tertiary-container": "#6c4700",
+              "secondary-fixed-dim": "#b8c9cf",
+              "on-secondary-fixed-variant": "#39494e",
+              "inverse-surface": "#26313d",
+              "on-tertiary": "#ffffff",
+              "primary-container": "#00d2ff",
+              "on-primary-fixed": "#001f28",
+              "error-container": "#ffdad6",
+              "on-tertiary-fixed-variant": "#624000",
+              "background": "#f7f9ff",
+              "surface-container-low": "#edf4ff",
+              "on-secondary-fixed": "#0e1e22",
+              "on-secondary-container": "#57676c",
+              "error": "#ba1a1a",
+              "surface-container-high": "#dee9f8",
+              "surface-variant": "#d8e4f3",
+              "primary-fixed-dim": "#47d6ff",
+              "tertiary": "#815600",
+              "outline": "#6c797f",
+              "on-tertiary-fixed": "#291800",
+              "primary": "#00677f",
+              "on-surface-variant": "#3c494e",
+              "surface": "#f7f9ff",
+              "secondary-fixed": "#d4e6eb",
+              "on-error": "#ffffff",
+              "on-surface": "#111d27",
+              "outline-variant": "#bbc9cf",
+              "tertiary-fixed-dim": "#ffba4a",
+              "surface-dim": "#d0dbea",
+              "inverse-primary": "#47d6ff",
+              "tertiary-fixed": "#ffddb1",
+              "surface-tint": "#00677f",
+              "on-background": "#111d27",
+              "surface-container-highest": "#d8e4f3",
+              "tertiary-container": "#ffb229",
+              "inverse-on-surface": "#e8f2ff",
+              "surface-container-lowest": "#ffffff",
+              "primary-fixed": "#b6ebff",
+              "secondary-container": "#d4e6eb"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Space Grotesk"],
+              "mono": ["DM Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F7F9FF;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #bbc9cf;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#0F1F23] flex flex-col py-6 z-50">
+<div class="px-6 mb-10 flex items-center gap-2">
+<div class="flex gap-1">
+<div class="w-1.5 h-6 bg-primary-container rounded-full"></div>
+<div class="w-1.5 h-6 bg-primary-container rounded-full"></div>
+</div>
+<div class="ml-2">
+<h1 class="text-white font-headline text-xl font-bold tracking-tight">FillaIQ</h1>
+<p class="text-slate-500 text-[10px] uppercase tracking-[0.2em] font-bold">Modern Maker</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-white transition-colors hover:bg-[#1A2530] group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-headline font-bold text-sm tracking-tight">Dashboard</span>
+</a>
+<!-- Active State: Hardware -->
+<a class="flex items-center gap-3 px-6 py-3 text-[#00D2FF] bg-[#1A2530] border-l-4 border-[#00D2FF]" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<span class="font-headline font-bold text-sm tracking-tight">Hardware</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-white transition-colors hover:bg-[#1A2530]" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-headline font-bold text-sm tracking-tight">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-white transition-colors hover:bg-[#1A2530]" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-headline font-bold text-sm tracking-tight">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-white transition-colors hover:bg-[#1A2530]" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-headline font-bold text-sm tracking-tight">Settings</span>
+</a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full py-3 px-4 bg-[#1A2530] text-[#00D2FF] rounded-lg font-headline font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#253441] transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm">add_circle</span>
+                New Project
+            </button>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="w-full h-16 fixed top-0 z-40 pl-64 bg-[#F7F9FF] border-none flex items-center justify-between px-8">
+<div class="flex items-center gap-8">
+<h2 class="font-headline font-bold text-lg text-on-surface">Hardware — Machines</h2>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
+<input class="bg-surface-container-lowest border-none rounded-full py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-primary-container outline-none transition-all" placeholder="Search machines..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-[#00677F] border-b-2 border-[#00D2FF] pb-1 font-headline font-bold text-sm" href="#">Machines</a>
+<a class="text-slate-500 font-headline font-medium text-sm hover:text-[#00D2FF] transition-colors" href="#">Equipment</a>
+<a class="text-slate-500 font-headline font-medium text-sm hover:text-[#00D2FF] transition-colors" href="#">Filla IQ</a>
+</nav>
+<div class="flex items-center gap-3 ml-4">
+<button class="p-2 text-outline hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-outline hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="bg-primary-container text-on-primary-container px-4 py-2 rounded-lg font-headline font-bold text-sm shadow-[inset_0_-2px_0_rgba(0,0,0,0.1)] active:translate-y-px transition-all">
+                    Add Machine
+                </button>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden ml-2">
+<img alt="User Profile" data-alt="professional portrait of a creative professional in a bright studio with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBvnRm9Vajqg2ACXYayuF9xbhvqhZfeGYfcv6UNF3e-Bv9BeOeIJ95VnK8iDsxiLkHqUeR6jxLeLNDmyuK1DvUou7jr0ArHy3OAfrWrTgP2-PrBo3qBH82T0r8R89ygs4C9os87DEGfCy7151Ws2MYHcJAoJgPTgGfY73E3FvZkrsSihYpNgMcwxPit5jngez6g10V40NwPezsto99db4jaVJXLEN9tyGIIFUWgsxI5tymvHIkqklDgqJzhMaGuYQ97sqL-nkp6NA"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 pt-16 pb-20 px-8">
+<div class="max-w-7xl mx-auto py-8">
+<!-- Bento/Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Machine Card 1: Printing -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.04)] hover:-translate-y-1 transition-all duration-300 border-t-4 border-primary-container group overflow-hidden">
+<div class="p-5">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight">X1C-01</h3>
+<p class="text-xs text-outline font-medium">Bambu Lab X1 Carbon</p>
+</div>
+<div class="flex items-center gap-1.5 bg-primary-container/10 px-2.5 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="text-[10px] font-bold text-primary tracking-wider uppercase">Printing</span>
+</div>
+</div>
+<div class="aspect-square w-full rounded-lg bg-surface-container overflow-hidden mb-6 relative">
+<img class="w-full h-full object-cover" data-alt="close-up of a high-tech 3D printer nozzle extrusion in progress with bright cyan lighting and mechanical precision" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_dDnyYAmpo675um0gGzqrgRVfK0B5f_6H0GvOjnszej5zoWxTOFoDe2Ggy20EP-vesm8MtmMoucxikC88cHHBTu8zx3UE-rZsy8D8W0fHNtAmRAuwtjvDd3TluJFUBcEGKNy7GwZMx23KQWUZhfspVWp3ykr_lTY-Ux2QUGBlSA2oK8I8qSFJrTnB5O3NWqyKjKUuxkWLW1KAVT1QWoQj-JLqnS3zhjZuYHrSF2AuYAbp_z6FcUqMsJ3AY2l_WNwO64UuTAwHRZY"/>
+<!-- Circular Progress Overlay -->
+<div class="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+<div class="relative w-24 h-24">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-white/20" cx="48" cy="48" fill="transparent" r="42" stroke="currentColor" stroke-width="6"></circle>
+<circle class="text-primary-container" cx="48" cy="48" fill="transparent" r="42" stroke="currentColor" stroke-dasharray="264" stroke-dashoffset="87" stroke-width="6"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="font-mono text-xl font-bold text-white">67%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Material Loaded</span>
+<span class="bg-surface-container px-2 py-1 rounded text-on-surface font-bold flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-orange-500"></span>
+                                    PLA Orange
+                                </span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Total Runtime</span>
+<span class="font-mono font-medium">1,248.5 hrs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Machine Card 2: Online/Idle -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.04)] hover:-translate-y-1 transition-all duration-300 border-t-4 border-[#00E676] overflow-hidden">
+<div class="p-5">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight">H2D-01</h3>
+<p class="text-xs text-outline font-medium">Bambu Lab H2D</p>
+</div>
+<div class="flex items-center gap-1.5 bg-[#00E676]/10 px-2.5 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-[#00E676]"></span>
+<span class="text-[10px] font-bold text-[#006e39] tracking-wider uppercase">Online</span>
+</div>
+</div>
+<div class="aspect-square w-full rounded-lg bg-surface-container overflow-hidden mb-6">
+<img class="w-full h-full object-cover grayscale opacity-80" data-alt="industrial 3D printer standing idle in a clean laboratory environment with soft overhead lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzZNECuBmw_B05Q7o0B_f5lNAQK-kM7lFj1bNdTvoVaNJs0WKj_JPsw3STA4z3DknbCDNFsJCSI6j3iNkUL0YH2Re6H5RvCBAi_i44A0Y14_ikePsLuZ5KO__LegU8sq0_cDt_FU4ERrHpNq8UOPsmtq58OVBYyrkFXLWQkX-4g_9TVs7sSE0RZXDh-bCQ1KklG7PFreygDx_It-XYTOMwLpZcf5hidQYJ4q3lLcY7X15lVpfOEVJ2dIfiq5c7xVOFGzwHnnvXyaU"/>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Material Loaded</span>
+<span class="bg-surface-container px-2 py-1 rounded text-on-surface font-bold flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-slate-300"></span>
+                                    PETG Gray
+                                </span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Total Runtime</span>
+<span class="font-mono font-medium">452.2 hrs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Machine Card 3: Offline -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.04)] hover:-translate-y-1 transition-all duration-300 border-t-4 border-slate-300 overflow-hidden">
+<div class="p-5">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight">P1S-01</h3>
+<p class="text-xs text-outline font-medium">Bambu Lab P1S</p>
+</div>
+<div class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span>
+<span class="text-[10px] font-bold text-slate-500 tracking-wider uppercase">Offline</span>
+</div>
+</div>
+<div class="aspect-square w-full rounded-lg bg-surface-container overflow-hidden mb-6">
+<img class="w-full h-full object-cover grayscale blur-[1px] opacity-40" data-alt="mechanical components of a deactivated 3D printer in a workshop with dim lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkykNfRS3eZ4cFz5o8UJ7Kc5uHnMPSWC_Lml6sIBJ2RpdMIi8EnL4HLg1JSfyzSZUWIPrJRKsrftbQGa6FUxLF9XTCUJ0lamb8CBeV4Uq6ziVvIAAhua5xsXpWb0kMvDht1SIFU5c5OActM34yOEpMoAd4ifJq3dRqtW_ud-njlhhOTubxp7U3x9SM6hPXqaUkOI3a0JxkzXSF9sUiWI_cMiaipgAreBIDD7_N50BJR28VLtIzgzE2pyDMsAVoa6PeM_NXObcc1Qg"/>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Material Loaded</span>
+<span class="bg-surface-container px-2 py-1 rounded text-on-surface font-bold">None</span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Total Runtime</span>
+<span class="font-mono font-medium">82.0 hrs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Machine Card 4: Online -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.04)] hover:-translate-y-1 transition-all duration-300 border-t-4 border-[#00E676] overflow-hidden">
+<div class="p-5">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight">K40</h3>
+<p class="text-xs text-outline font-medium">K40 CO2 Laser</p>
+</div>
+<div class="flex items-center gap-1.5 bg-[#00E676]/10 px-2.5 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-[#00E676]"></span>
+<span class="text-[10px] font-bold text-[#006e39] tracking-wider uppercase">Online</span>
+</div>
+</div>
+<div class="aspect-square w-full rounded-lg bg-surface-container overflow-hidden mb-6">
+<img class="w-full h-full object-cover" data-alt="professional laser cutter machine bed with honeycomb texture and protective glass lid in a makerspace" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY9oecGhoz25KyB9CsVK2UO8SYPtXudBs0DLGntWhobXRQqBbjHPcHHuVa8t_9uoqdzsbkNUMpePSdvyUTLmL5LjN5wAm1rcIUPbFLELSHEx0pUHzfpX6AO7shQMA6ZG5DvXsu_mF6xNLRAPmRSj_X-G3YBO8rG5SXtVaVL4fTncmL0QesQ6CS586-fkSmv2ht7Oz5aGg_F_oInmHyB_n8zWbCm2QjnYzBPdDVanqL46VAvjCxs0kBhJeTWuIKmW8HciUNGuorXI0"/>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Status</span>
+<span class="bg-surface-container px-2 py-1 rounded text-on-surface font-bold">Lid Closed</span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Total Runtime</span>
+<span class="font-mono font-medium">18.5 hrs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Machine Card 5: Online -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.04)] hover:-translate-y-1 transition-all duration-300 border-t-4 border-[#00E676] overflow-hidden">
+<div class="p-5">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight">CNC-01</h3>
+<p class="text-xs text-outline font-medium">1500mm CNC Router</p>
+</div>
+<div class="flex items-center gap-1.5 bg-[#00E676]/10 px-2.5 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-[#00E676]"></span>
+<span class="text-[10px] font-bold text-[#006e39] tracking-wider uppercase">Online</span>
+</div>
+</div>
+<div class="aspect-square w-full rounded-lg bg-surface-container overflow-hidden mb-6">
+<img class="w-full h-full object-cover" data-alt="heavy duty CNC router milling head over a wooden workpiece in a high-end wood workshop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB19ghuyOJOTb19xq6QBQG39KhOQvs5eUdIHmMmfMwaiyzFvlxxXFpgj5TRkgH9ut443TTp1YHiUCymUQuWFEL5rQUenykvGEWeIeIjWV16t49VkazA3jWTJ2xvN2jOJUL9c_ZXvspCN9wolqQ-L6NQb0yqnL-C4kVxY71FEeoc5kgAILMtuES7O1I1TNNwNiMoiLwpBwmc-QHoDLE8FnYLhiDPUdIgubh7RAPgFYk5uggesS-gEdDj9cl5rrQo8iQY3D0IHuQXwpc"/>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Tool</span>
+<span class="bg-surface-container px-2 py-1 rounded text-on-surface font-bold">1/4" End Mill</span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-outline">Total Runtime</span>
+<span class="font-mono font-medium">3,410.1 hrs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Action Card / Add Machine -->
+<div class="bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center p-8 group cursor-pointer hover:bg-surface-container transition-colors">
+<div class="w-16 h-16 rounded-full bg-surface-container-lowest flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">add</span>
+</div>
+<h3 class="font-headline font-bold text-on-surface">Connect Machine</h3>
+<p class="text-xs text-outline text-center mt-2">Add a new Bambu Lab, Klipper, or Custom machine to your fleet.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Fleet Summary Bar (Fixed Bottom) -->
+<footer class="fixed bottom-0 left-64 right-0 h-14 bg-surface-container-lowest/80 backdrop-blur-md flex items-center px-8 z-40 border-t border-surface-container">
+<div class="flex items-center gap-8 w-full max-w-7xl mx-auto">
+<div class="flex items-center gap-2">
+<span class="font-headline font-bold text-sm text-on-surface">5 Machines</span>
+<span class="w-1 h-4 bg-outline-variant rounded-full"></span>
+</div>
+<div class="flex gap-6 text-xs font-headline font-bold tracking-tight">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#00E676]"></span>
+<span class="text-on-surface">3 Online</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="text-on-surface">1 Printing</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span>
+<span class="text-on-surface">1 Offline</span>
+</div>
+</div>
+<div class="ml-auto flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full border-2 border-surface-container-lowest bg-primary-container flex items-center justify-center text-[10px] text-on-primary-container font-bold">X1</div>
+<div class="w-7 h-7 rounded-full border-2 border-surface-container-lowest bg-tertiary-container flex items-center justify-center text-[10px] text-on-tertiary-container font-bold">H2</div>
+</div>
+<p class="text-[10px] font-bold text-outline uppercase tracking-wider">Live Monitoring Active</p>
+</div>
+</div>
+</footer>
+</body></html>

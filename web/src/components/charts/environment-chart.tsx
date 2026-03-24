@@ -1,11 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Box from "@mui/material/Box";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import Typography from "@mui/material/Typography";
-import CircularProgress from "@mui/material/CircularProgress";
+import { Loader2 } from "lucide-react";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import {
@@ -89,10 +85,10 @@ export default function EnvironmentChart({ stationId }: Props) {
         smooth: true,
         symbol: "none",
         lineStyle: { width: 2 },
-        itemStyle: { color: "#FF6B35" },
+        itemStyle: { color: "#FF7A00" },
         areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: "rgba(255, 107, 53, 0.3)" },
-          { offset: 1, color: "rgba(255, 107, 53, 0.02)" },
+          { offset: 0, color: "rgba(255, 122, 0, 0.3)" },
+          { offset: 1, color: "rgba(255, 122, 0, 0.02)" },
         ])},
       },
       {
@@ -103,10 +99,10 @@ export default function EnvironmentChart({ stationId }: Props) {
         smooth: true,
         symbol: "none",
         lineStyle: { width: 2 },
-        itemStyle: { color: "#4FC3F7" },
+        itemStyle: { color: "#00D2FF" },
         areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: "rgba(79, 195, 247, 0.2)" },
-          { offset: 1, color: "rgba(79, 195, 247, 0.02)" },
+          { offset: 0, color: "rgba(0, 210, 255, 0.2)" },
+          { offset: 1, color: "rgba(0, 210, 255, 0.02)" },
         ])},
       },
     ];
@@ -114,16 +110,16 @@ export default function EnvironmentChart({ stationId }: Props) {
     const yAxes: any[] = [
       {
         type: "value",
-        name: "°C",
+        name: "\u00b0C",
         position: "left",
-        axisLabel: { color: "#FF6B35" },
+        axisLabel: { color: "#FF7A00" },
         splitLine: { lineStyle: { color: "rgba(255,255,255,0.06)" } },
       },
       {
         type: "value",
         name: "% RH",
         position: "right",
-        axisLabel: { color: "#4FC3F7" },
+        axisLabel: { color: "#00D2FF" },
         splitLine: { show: false },
       },
     ];
@@ -137,14 +133,14 @@ export default function EnvironmentChart({ stationId }: Props) {
         smooth: true,
         symbol: "none",
         lineStyle: { width: 1.5, type: "dashed" },
-        itemStyle: { color: "#81C784" },
+        itemStyle: { color: "#00E676" },
       });
       yAxes.push({
         type: "value",
         name: "hPa",
         position: "right",
         offset: 60,
-        axisLabel: { color: "#81C784" },
+        axisLabel: { color: "#00E676" },
         splitLine: { show: false },
       });
     }
@@ -207,35 +203,38 @@ export default function EnvironmentChart({ stationId }: Props) {
   }, []);
 
   return (
-    <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-        <Typography variant="subtitle2" color="text.secondary">
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-muted-foreground">
           Environment History
-        </Typography>
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={hours}
-          onChange={(_, v) => v != null && setHours(v)}
-        >
+        </p>
+        <div className="inline-flex rounded-lg border border-border overflow-hidden">
           {TIME_RANGES.map((r) => (
-            <ToggleButton key={r.hours} value={r.hours} sx={{ px: 1, py: 0.25, fontSize: "0.7rem" }}>
+            <button
+              key={r.hours}
+              onClick={() => setHours(r.hours)}
+              className={`px-2 py-0.5 text-[0.7rem] font-medium transition-colors ${
+                hours === r.hours
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-transparent text-muted-foreground hover:bg-muted"
+              }`}
+            >
               {r.label}
-            </ToggleButton>
+            </button>
           ))}
-        </ToggleButtonGroup>
-      </Box>
+        </div>
+      </div>
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-          <CircularProgress size={24} />
-        </Box>
+        <div className="flex justify-center py-8">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
       ) : readings.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+        <p className="py-4 text-center text-sm text-muted-foreground">
           No data for this time range
-        </Typography>
+        </p>
       ) : (
         <div ref={chartRef} style={{ width: "100%", height: 220 }} />
       )}
-    </Box>
+    </div>
   );
 }

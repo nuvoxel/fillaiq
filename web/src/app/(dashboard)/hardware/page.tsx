@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
-import AddIcon from "@mui/icons-material/Add";
+import { Plus } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { MachineDialog } from "@/components/hardware/machine-dialog";
 import { EquipmentDialog } from "@/components/hardware/equipment-dialog";
@@ -14,13 +12,13 @@ import { EquipmentTab } from "./equipment-tab";
 import { FillaIqTab } from "./filla-iq-tab";
 
 export default function HardwarePage() {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState("machines");
   const [refreshKey, setRefreshKey] = useState(0);
   const [machineDialogOpen, setMachineDialogOpen] = useState(false);
   const [equipmentDialogOpen, setEquipmentDialogOpen] = useState(false);
   const handleAdd = () => {
-    if (tab === 0) setMachineDialogOpen(true);
-    else if (tab === 1) setEquipmentDialogOpen(true);
+    if (tab === "machines") setMachineDialogOpen(true);
+    else if (tab === "equipment") setEquipmentDialogOpen(true);
   };
 
   const handleSaved = () => {
@@ -33,25 +31,32 @@ export default function HardwarePage() {
         title="Hardware"
         description="Manage machines and equipment."
         action={
-          tab !== 2 ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
-              {tab === 0 ? "Add Machine" : "Add Equipment"}
+          tab !== "fillaiq" ? (
+            <Button onClick={handleAdd}>
+              <Plus className="size-4 mr-1" />
+              {tab === "machines" ? "Add Machine" : "Add Equipment"}
             </Button>
           ) : undefined
         }
       />
 
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab label="Machines" />
-          <Tab label="Equipment" />
-          <Tab label="Filla IQ" />
-        </Tabs>
-      </Box>
+      <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
+        <TabsList variant="line" className="mb-3">
+          <TabsTrigger value="machines">Machines</TabsTrigger>
+          <TabsTrigger value="equipment">Equipment</TabsTrigger>
+          <TabsTrigger value="fillaiq">Filla IQ</TabsTrigger>
+        </TabsList>
 
-      {tab === 0 && <MachinesTab refreshKey={refreshKey} />}
-      {tab === 1 && <EquipmentTab refreshKey={refreshKey} />}
-      {tab === 2 && <FillaIqTab />}
+        <TabsContent value="machines">
+          <MachinesTab refreshKey={refreshKey} />
+        </TabsContent>
+        <TabsContent value="equipment">
+          <EquipmentTab refreshKey={refreshKey} />
+        </TabsContent>
+        <TabsContent value="fillaiq">
+          <FillaIqTab />
+        </TabsContent>
+      </Tabs>
 
       <MachineDialog
         open={machineDialogOpen}

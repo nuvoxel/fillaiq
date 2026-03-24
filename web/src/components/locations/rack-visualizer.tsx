@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, createContext, useContext, useCallback } from "react";
+import { useState, createContext, useContext, useCallback, useRef, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -12,27 +12,20 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Tooltip from "@mui/material/Tooltip";
-import IconButton from "@mui/material/IconButton";
-import InputBase from "@mui/material/InputBase";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import Divider from "@mui/material/Divider";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import PrintIcon from "@mui/icons-material/Print";
-import EditIcon from "@mui/icons-material/Edit";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
-import BuildIcon from "@mui/icons-material/Build";
-import ScienceIcon from "@mui/icons-material/Science";
-import MemoryIcon from "@mui/icons-material/Memory";
-import HardwareIcon from "@mui/icons-material/Hardware";
+import {
+  Plus,
+  Trash2,
+  Printer,
+  Pencil,
+  ArrowLeftRight,
+  ExternalLink,
+  CircleMinus,
+  Wrench,
+  FlaskConical,
+  Cpu,
+  HardHat,
+} from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,23 +102,23 @@ export type RackVisualizerCallbacks = {
 // ── Spool ring color map ──────────────────────────────────────────────────────
 
 const SPOOL_COLORS: Record<string, { base: string; mid: string; hub: string }> = {
-  active: { base: "#16A34A", mid: "#0F7A35", hub: "#0A5225" },
-  empty: { base: "#9CA3AF", mid: "#6B7280", hub: "#4B5563" },
-  error: { base: "#DC2626", mid: "#B91C1C", hub: "#7F1D1D" },
-  detecting: { base: "#D97706", mid: "#B45309", hub: "#78350F" },
+  active: { base: "#00E676", mid: "#00C853", hub: "#00A844" },
+  empty: { base: "#94A3B8", mid: "#64748B", hub: "#475569" },
+  error: { base: "#FF2A5F", mid: "#E0224F", hub: "#B01A3F" },
+  detecting: { base: "#FF7A00", mid: "#E56A00", hub: "#B35400" },
   unknown_spool: { base: "#7C3AED", mid: "#5B21B6", hub: "#3B0764" },
-  removed: { base: "#6B7280", mid: "#4B5563", hub: "#374151" },
+  removed: { base: "#64748B", mid: "#475569", hub: "#374151" },
 };
 const DEFAULT_COLORS = SPOOL_COLORS.empty;
 
 // Icon + color config for non-spool/box package types
-const ICON_PACKAGE_TYPES: Record<string, { icon: typeof BuildIcon; bg: string; fg: string }> = {
-  tool:                 { icon: BuildIcon,    bg: "linear-gradient(180deg, #546E7A 0%, #37474F 100%)", fg: "#CFD8DC" },
-  bolt:                 { icon: HardwareIcon, bg: "linear-gradient(180deg, #78909C 0%, #455A64 100%)", fg: "#ECEFF1" },
-  nut:                  { icon: HardwareIcon, bg: "linear-gradient(180deg, #8D6E63 0%, #5D4037 100%)", fg: "#D7CCC8" },
-  screw:                { icon: HardwareIcon, bg: "linear-gradient(180deg, #90A4AE 0%, #607D8B 100%)", fg: "#ECEFF1" },
-  electronic_component: { icon: MemoryIcon,   bg: "linear-gradient(180deg, #1B5E20 0%, #0D3B13 100%)", fg: "#A5D6A7" },
-  bottle:               { icon: ScienceIcon,  bg: "linear-gradient(180deg, #4FC3F7 0%, #0288D1 100%)", fg: "#E1F5FE" },
+const ICON_PACKAGE_TYPES: Record<string, { icon: typeof Wrench; bg: string; fg: string }> = {
+  tool:                 { icon: Wrench,       bg: "linear-gradient(180deg, #546E7A 0%, #37474F 100%)", fg: "#CFD8DC" },
+  bolt:                 { icon: HardHat,      bg: "linear-gradient(180deg, #78909C 0%, #455A64 100%)", fg: "#ECEFF1" },
+  nut:                  { icon: HardHat,      bg: "linear-gradient(180deg, #8D6E63 0%, #5D4037 100%)", fg: "#D7CCC8" },
+  screw:                { icon: HardHat,      bg: "linear-gradient(180deg, #90A4AE 0%, #607D8B 100%)", fg: "#ECEFF1" },
+  electronic_component: { icon: Cpu,          bg: "linear-gradient(180deg, #1B5E20 0%, #0D3B13 100%)", fg: "#A5D6A7" },
+  bottle:               { icon: FlaskConical, bg: "linear-gradient(180deg, #4FC3F7 0%, #0288D1 100%)", fg: "#E1F5FE" },
 };
 
 // ── Slot selection context (avoids threading props through every component) ──
@@ -150,42 +143,16 @@ const SlotSelectionContext = createContext<{
 
 function NfcBadge() {
   return (
-    <Box
-      component="span"
-      sx={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        width: 14,
-        height: 14,
-        borderRadius: "50%",
-        bgcolor: "#0EA5E9",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "1.5px solid #fff",
-        zIndex: 1,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-      }}
+    <span
+      className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-sky-500 flex items-center justify-center z-[1]"
+      style={{ border: "1.5px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
     >
       <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-        <path
-          d="M5 8 C5 8 2 6.5 2 5 C2 3.5 3.34 2 5 2"
-          stroke="white"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <path
-          d="M5 6 C5 6 3.5 5.5 3.5 5 C3.5 4.1 4.17 3.5 5 3.5"
-          stroke="white"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          fill="none"
-        />
+        <path d="M5 8 C5 8 2 6.5 2 5 C2 3.5 3.34 2 5 2" stroke="white" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+        <path d="M5 6 C5 6 3.5 5.5 3.5 5 C3.5 4.1 4.17 3.5 5 3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" fill="none" />
         <circle cx="5" cy="5" r="0.8" fill="white" />
       </svg>
-    </Box>
+    </span>
   );
 }
 
@@ -195,7 +162,7 @@ export type SlotShape = "spool" | "cell";
 
 // ── Slot Cell (generic — works for any item) ─────────────────────────────────
 
-const CELL_GAP = 4; // px gap between cells — keep in sync with grid gap
+const CELL_GAP = 4;
 
 function SlotCell({
   slot,
@@ -233,7 +200,6 @@ function SlotCell({
 
   const state = slot.status?.state ?? "empty";
 
-  // Drag and drop (must be after state is defined)
   const isDraggable = state === "active" && !!selection.onDragMoveItem;
   const itemId = (slot.status as any)?.userItemId as string | undefined;
   const { attributes: dragAttrs, listeners: dragListeners, setNodeRef: setDragRef, isDragging } = useDraggable({
@@ -251,7 +217,6 @@ function SlotCell({
   }, [setDragRef, setDropRef]);
   const hasNfc = Boolean(slot.nfcTagId || slot.status?.nfcUid);
   const itemColorHex = (slot.status as any)?.colorHex as string | undefined;
-  // Use item's actual color for the spool if available, otherwise fall back to state color
   const colors = itemColorHex && state === "active"
     ? { base: itemColorHex, mid: itemColorHex, hub: "#0D0D0D" }
     : (SPOOL_COLORS[state] ?? DEFAULT_COLORS);
@@ -267,67 +232,47 @@ function SlotCell({
   const isSpool = (shape === "spool" || packageType === "spool" || (state === "active" && !packageType)) && colSpan === 1 && rowSpan === 1;
   const radius = isSpool ? "50%" : `${Math.round(size * 0.18)}px`;
 
-  // Spool concentric rings (only for spool shape, no span)
   const minDim = Math.min(w, h);
   const r1 = Math.round(minDim * 0.135);
   const r2 = Math.round(minDim * 0.31);
   const r3 = Math.round(minDim * 0.42);
 
-  const spanLabel = colSpan > 1 || rowSpan > 1
-    ? ` (${colSpan}×${rowSpan})`
-    : "";
+  const spanLabel = colSpan > 1 || rowSpan > 1 ? ` (${colSpan}\u00d7${rowSpan})` : "";
 
   if (editing) {
     return (
-      <Box
-        sx={{
-          width: w,
-          height: h,
-          borderRadius: radius,
-          bgcolor: colors.hub,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          border: "2px solid",
-          borderColor: "primary.main",
-          gap: 0.25,
+      <div
+        style={{
+          width: w, height: h, borderRadius: radius,
+          backgroundColor: colors.hub,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, border: "2px solid hsl(var(--primary))", gap: 2,
         }}
       >
-        <InputBase
+        <input
           value={editLabel}
           onChange={(e) => setEditLabel(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
-            if (e.key === "Escape") {
-              setEditLabel(slot.label ?? "");
-              setEditing(false);
-            }
+            if (e.key === "Escape") { setEditLabel(slot.label ?? ""); setEditing(false); }
           }}
           autoFocus
           placeholder={String(slot.position)}
-          sx={{
-            fontSize: size < 40 ? 7 : 9,
-            color: "#fff",
-            width: w * 0.7,
-            "& input": { p: 0, textAlign: "center", color: "#fff" },
+          style={{
+            fontSize: size < 40 ? 7 : 9, color: "#fff", width: w * 0.7,
+            padding: 0, textAlign: "center", background: "transparent", border: "none", outline: "none",
           }}
         />
         {onDelete && (
-          <IconButton
-            size="small"
-            sx={{ p: 0 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
+          <button
+            className="p-0"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            <DeleteIcon sx={{ fontSize: 10, color: "error.light" }} />
-          </IconButton>
+            <Trash2 style={{ width: 10, height: 10, color: "#ef9a9a" }} />
+          </button>
         )}
-      </Box>
+      </div>
     );
   }
 
@@ -336,94 +281,14 @@ function SlotCell({
   const brandName = statusData?.brandName;
   const weightG = statusData?.weightStableG as number | undefined;
   const pctRemaining = statusData?.percentRemaining as number | undefined;
-
   const initialWeightG = statusData?.initialWeightG as number | undefined;
 
-  const tooltipContent = state === "active" ? (
-    // Rich tooltip card for occupied slots
-    <Box sx={{ minWidth: 200, p: 0.5 }}>
-      {/* Header: color swatch + name */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-        <Box sx={{
-          width: 28, height: 28, borderRadius: "50%",
-          bgcolor: itemColorHex ?? colors.base,
-          border: "2px solid rgba(255,255,255,0.25)",
-          flexShrink: 0,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-        }} />
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2, color: "#fff" }} noWrap>
-            {productName ?? "Unknown"}
-          </Typography>
-          {brandName && (
-            <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.65)", lineHeight: 1.1 }}>{brandName}</Typography>
-          )}
-        </Box>
-      </Box>
-
-      {/* Stats row */}
-      <Box sx={{ display: "flex", gap: 1.5, mb: 0.5 }}>
-        {weightG != null && (
-          <Box>
-            <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.5)", lineHeight: 1, mb: 0.15 }}>Weight</Typography>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#fff", lineHeight: 1 }}>{Math.round(weightG)}g</Typography>
-          </Box>
-        )}
-        {initialWeightG != null && initialWeightG > 0 && weightG != null && (
-          <Box>
-            <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.5)", lineHeight: 1, mb: 0.15 }}>Used</Typography>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#fff", lineHeight: 1 }}>
-              {Math.round(((initialWeightG - weightG) / initialWeightG) * 100)}%
-            </Typography>
-          </Box>
-        )}
-        {packageType && (
-          <Box>
-            <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.5)", lineHeight: 1, mb: 0.15 }}>Type</Typography>
-            <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#fff", lineHeight: 1, textTransform: "capitalize" }}>{packageType}</Typography>
-          </Box>
-        )}
-      </Box>
-
-      {/* Progress bar */}
-      {pctRemaining != null && (
-        <Box sx={{ mb: 0.5 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Box sx={{ flex: 1, height: 5, bgcolor: "rgba(255,255,255,0.12)", borderRadius: 3, overflow: "hidden" }}>
-              <Box sx={{
-                width: `${pctRemaining}%`, height: "100%", borderRadius: 3,
-                bgcolor: pctRemaining > 50 ? "#4ade80" : pctRemaining > 25 ? "#fbbf24" : "#f87171",
-              }} />
-            </Box>
-            <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#fff", minWidth: 30, textAlign: "right" }}>{pctRemaining}%</Typography>
-          </Box>
-        </Box>
-      )}
-
-      {/* Badges */}
-      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.25 }}>
-        {hasNfc && (
-          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, bgcolor: "rgba(255,255,255,0.1)", borderRadius: 1, px: 0.5, py: 0.15 }}>
-            <Typography sx={{ fontSize: 8, color: "rgba(255,255,255,0.7)" }}>NFC</Typography>
-          </Box>
-        )}
-      </Box>
-
-      {/* Footer: slot address */}
-      <Typography sx={{ fontSize: 9, color: "rgba(255,255,255,0.35)", mt: 0.5, borderTop: "1px solid rgba(255,255,255,0.08)", pt: 0.3 }}>
-        Slot {label}{context ? ` · ${context}` : ""}
-      </Typography>
-    </Box>
-  ) : (
-    // Simple tooltip for empty slots
-    <Box sx={{ p: 0.25 }}>
-      <Typography sx={{ fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>
-        Slot {label}{spanLabel}
-      </Typography>
-      {context && <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{context}</Typography>}
-      <Typography sx={{ fontSize: 10, opacity: 0.5 }}>Available</Typography>
-    </Box>
-  );
+  // We use title attribute for simple tooltip since the rich tooltip from MUI
+  // with complex JSX content is difficult to replicate exactly with shadcn Tooltip.
+  // The visual slots already convey the key information.
+  const tooltipText = state === "active"
+    ? `${productName ?? "Unknown"}${brandName ? ` (${brandName})` : ""}${weightG != null ? ` \u2022 ${Math.round(weightG)}g` : ""}${pctRemaining != null ? ` \u2022 ${pctRemaining}%` : ""}`
+    : `Slot ${label}${spanLabel}${context ? ` \u2022 ${context}` : ""} \u2022 Available`;
 
   return (
     <>
@@ -435,6 +300,7 @@ function SlotCell({
         e.stopPropagation();
         if (selection.onSlotClick) selection.onSlotClick(slot);
       }}
+      title={isDragging ? undefined : tooltipText}
       style={{
         display: "inline-flex",
         opacity: isDragging ? 0.3 : 1,
@@ -445,16 +311,6 @@ function SlotCell({
         borderRadius: 4,
       }}
     >
-    <Tooltip
-      title={isDragging ? "" : tooltipContent}
-      arrow
-      placement="top"
-      disableInteractive
-      slotProps={{
-        tooltip: { sx: { maxWidth: 260, px: 1.25, py: 0.75 } },
-        popper: { modifiers: [{ name: "offset", options: { offset: [0, -4] } }] },
-      }}
-    >
       {/* Spool side-view: flanges + filament, wider than tall */}
       {state === "active" && isSpool ? (() => {
         const fil = itemColorHex ?? colors.base;
@@ -463,39 +319,32 @@ function SlotCell({
         const flangeW = Math.round(spoolW * 0.12);
         const flangeR = Math.round(spoolH * 0.12);
         return (
-        <Box
+        <div
           onClick={(e) => {
             e.stopPropagation();
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
-          sx={{
+          style={{
             position: "relative",
-            width: spoolW,
-            height: spoolH,
-            flexShrink: 0,
+            width: spoolW, height: spoolH, flexShrink: 0,
             cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
-            outline: isSelected ? "3px solid" : "none",
-            outlineColor: isSelected ? "primary.main" : "transparent",
+            outline: isSelected ? "3px solid hsl(var(--primary))" : "none",
             outlineOffset: 2,
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "stretch",
+            display: "flex", flexDirection: "row", alignItems: "stretch",
             overflow: "hidden",
             transition: "transform 0.12s ease, outline 0.12s ease",
-            "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
             filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))",
           }}
+          className="hover:scale-108 hover:-translate-y-0.5 hover:z-[2]"
         >
-          {/* Left flange — circular disc */}
-          <Box sx={{
+          <div style={{
             width: flangeW,
             borderRadius: `${flangeR}px 0 0 ${flangeR}px`,
             background: "linear-gradient(180deg, #888 0%, #555 40%, #444 60%, #333 100%)",
             boxShadow: "inset -1px 0 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
           }} />
-          {/* Filament wrap — cylinder body */}
-          <Box sx={{
+          <div style={{
             flex: 1, position: "relative",
             background: `linear-gradient(180deg,
               color-mix(in srgb, ${fil} 50%, white) 0%,
@@ -505,102 +354,91 @@ function SlotCell({
               color-mix(in srgb, ${fil} 70%, black) 85%,
               color-mix(in srgb, ${fil} 50%, black) 100%)`,
           }}>
-            {/* Subtle wrap texture */}
-            <Box sx={{
+            <div style={{
               position: "absolute", inset: 0, opacity: 0.08,
               background: `repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.6) 1px, rgba(255,255,255,0.6) 2px)`,
             }} />
-          </Box>
-          {/* Right flange */}
-          <Box sx={{
+          </div>
+          <div style={{
             width: flangeW,
             borderRadius: `0 ${flangeR}px ${flangeR}px 0`,
             background: "linear-gradient(180deg, #777 0%, #4a4a4a 40%, #3a3a3a 60%, #2a2a2a 100%)",
             boxShadow: "inset 1px 0 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
           }} />
-          {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
-        </Box>
+          {hasNfc && <span style={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></span>}
+        </div>
         );
       })() : state === "active" && packageType === "box" ? (() => {
-        // Box rendering: brown cardboard box with color window
         const fil = itemColorHex ?? "#888";
         const boxW = Math.round(size * 0.85);
         const boxH = Math.round(size * 0.95);
         const r = Math.round(size * 0.08);
         return (
-        <Box
+        <div
           onClick={(e) => {
             e.stopPropagation();
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
-          sx={{
+          style={{
             position: "relative", width: boxW, height: boxH, flexShrink: 0,
             cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
-            outline: isSelected ? "3px solid" : "none",
-            outlineColor: isSelected ? "primary.main" : "transparent",
+            outline: isSelected ? "3px solid hsl(var(--primary))" : "none",
             outlineOffset: 2,
             borderRadius: `${r}px`,
-            background: "linear-gradient(180deg, #c9a86c 0%, #b8945a 30%, #a6834e 70%, #8b6d3f 100%)",
+            background: "linear-gradient(180deg, #78909C 0%, #607D8B 30%, #546E7A 70%, #455A64 100%)",
             boxShadow: "0 2px 5px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
             overflow: "hidden",
             transition: "transform 0.12s ease, outline 0.12s ease",
-            "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
           }}
+          className="hover:scale-108 hover:-translate-y-0.5 hover:z-[2]"
         >
-          {/* Color window */}
-          <Box sx={{
-            position: "absolute",
-            top: "25%", left: "20%", width: "60%", height: "40%",
+          <div style={{
+            position: "absolute", top: "25%", left: "20%", width: "60%", height: "40%",
             borderRadius: `${Math.round(r * 0.6)}px`,
-            bgcolor: fil,
+            backgroundColor: fil,
             boxShadow: "inset 0 1px 3px rgba(0,0,0,0.3)",
           }} />
-          {/* Box seam line */}
-          <Box sx={{
+          <div style={{
             position: "absolute", top: 0, left: "50%", width: 1, height: "100%",
-            bgcolor: "rgba(0,0,0,0.12)",
+            backgroundColor: "rgba(0,0,0,0.12)",
           }} />
-          {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
-        </Box>
+          {hasNfc && <span style={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></span>}
+        </div>
         );
       })() : state === "active" && packageType && ICON_PACKAGE_TYPES[packageType] ? (() => {
-        // Icon-based rendering for tool, bolt, nut, screw, electronic_component, bottle
         const { icon: PkgIcon, bg, fg } = ICON_PACKAGE_TYPES[packageType];
         const cellW = Math.round(size * 0.85);
         const cellH = Math.round(size * 0.95);
         const r = Math.round(size * 0.12);
         const iconSize = Math.round(size * 0.45);
         return (
-        <Box
+        <div
           onClick={(e) => {
             e.stopPropagation();
             if (selection.onSlotClick) selection.onSlotClick(slot);
             else if (onSaveLabel) { setEditLabel(slot.label ?? ""); setEditing(true); }
           }}
-          sx={{
+          style={{
             position: "relative", width: cellW, height: cellH, flexShrink: 0,
             cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
-            outline: isSelected ? "3px solid" : "none",
-            outlineColor: isSelected ? "primary.main" : "transparent",
+            outline: isSelected ? "3px solid hsl(var(--primary))" : "none",
             outlineOffset: 2,
             borderRadius: `${r}px`,
             background: bg,
             boxShadow: "0 2px 5px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
             overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center",
             transition: "transform 0.12s ease, outline 0.12s ease",
-            "&:hover": { transform: "translateY(-2px) scale(1.08)", zIndex: 2 },
           }}
+          className="hover:scale-108 hover:-translate-y-0.5 hover:z-[2]"
         >
-          <PkgIcon sx={{ fontSize: iconSize, color: fg, opacity: 0.85 }} />
-          {hasNfc && <Box sx={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></Box>}
-        </Box>
+          <PkgIcon style={{ width: iconSize, height: iconSize, color: fg, opacity: 0.85 }} />
+          {hasNfc && <span style={{ position: "absolute", top: 1, right: 1 }}><NfcBadge /></span>}
+        </div>
         );
       })() : (
-      <Box
+      <div
         onClick={(e) => {
           e.stopPropagation();
           if (selection.onSlotClick) {
@@ -610,15 +448,12 @@ function SlotCell({
             setEditing(true);
           }
         }}
-        sx={{
+        style={{
           position: "relative",
-          width: w,
-          height: h,
-          borderRadius: radius,
+          width: w, height: h, borderRadius: radius,
           flexShrink: 0,
           cursor: selection.onSlotClick || onSaveLabel ? "pointer" : "default",
-          outline: isSelected ? "3px solid" : "none",
-          outlineColor: isSelected ? "primary.main" : "transparent",
+          outline: isSelected ? "3px solid hsl(var(--primary))" : "none",
           outlineOffset: 2,
           background: isSpool
             ? `radial-gradient(circle at 35% 28%, color-mix(in srgb, ${colors.base} 65%, white) 0%, ${colors.base} 60%)`
@@ -627,22 +462,13 @@ function SlotCell({
             ? `inset 0 0 0 ${r1}px ${colors.mid}, inset 0 0 0 ${r2}px ${colors.hub}, inset 0 0 0 ${r3}px #0D0D0D, 0 2px 5px rgba(0,0,0,0.35)`
             : `inset 0 1px 0 rgba(255,255,255,0.15), 0 2px 4px rgba(0,0,0,0.3)`,
           transition: "transform 0.12s ease, outline 0.12s ease",
-          "&:hover": {
-            transform: "translateY(-2px) scale(1.04)",
-            outline: "2px solid",
-            outlineColor: "primary.main",
-            outlineOffset: "2px",
-            zIndex: 2,
-          },
         }}
+        className="hover:-translate-y-0.5 hover:scale-104 hover:outline-2 hover:outline-[hsl(var(--primary))] hover:outline-offset-[2px] hover:z-[2]"
       >
         {hasNfc && <NfcBadge />}
-      </Box>
+      </div>
       )}
-    </Tooltip>
     </div>
-
-    {/* Context menu */}
     </>
   );
 }
@@ -663,7 +489,7 @@ function BaySlots({
   callbacks: RackVisualizerCallbacks;
 }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "flex-end", gap: `${CELL_GAP}px`, flexWrap: "nowrap" }}>
+    <div style={{ display: "flex", alignItems: "flex-end", gap: `${CELL_GAP}px`, flexWrap: "nowrap" }}>
       {bay.slots.length > 0 ? (
         bay.slots.map((slot) => (
           <SlotCell
@@ -690,42 +516,35 @@ function BaySlots({
           />
         ))
       ) : (
-        <Box
-          sx={{
-            width: slotSize,
-            height: slotSize,
+        <div
+          style={{
+            width: slotSize, height: slotSize,
             borderRadius: shape === "spool" ? "50%" : `${Math.round(slotSize * 0.18)}px`,
             border: "2px dashed rgba(255,255,255,0.2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
-          <Typography sx={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>
-            empty
-          </Typography>
-        </Box>
+          <span style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>empty</span>
+        </div>
       )}
       {callbacks.onAddSlotToBay && (
-        <Tooltip title="Add slot" arrow>
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); callbacks.onAddSlotToBay!(bay.id, bay.slots ?? []); }}
-            sx={{
-              width: 26,
-              height: 26,
-              border: "1.5px dashed",
-              borderColor: "action.disabled",
-              bgcolor: "action.hover",
-              "&:hover": { bgcolor: "action.selected", borderColor: "text.secondary" },
-              mb: `${slotSize * 0.2}px`,
-            }}
-          >
-            <AddIcon sx={{ fontSize: 14, color: "text.secondary" }} />
-          </IconButton>
-        </Tooltip>
+        <button
+          title="Add slot"
+          onClick={(e) => { e.stopPropagation(); callbacks.onAddSlotToBay!(bay.id, bay.slots ?? []); }}
+          style={{
+            width: 26, height: 26, borderRadius: "50%",
+            border: "1.5px dashed hsl(var(--muted-foreground) / 0.4)",
+            backgroundColor: "hsl(var(--muted) / 0.5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+            marginBottom: `${slotSize * 0.2}px`,
+          }}
+          className="hover:bg-muted hover:border-muted-foreground"
+        >
+          <Plus style={{ width: 14, height: 14, color: "hsl(var(--muted-foreground))" }} />
+        </button>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -760,96 +579,69 @@ function ShelfLabel({
 
   if (editing) {
     return (
-      <Box
-        sx={{
-          position: "absolute",
-          left: 4,
-          top: 4,
-          zIndex: 5,
-          bgcolor: "#EDE9E0",
-          border: "1px solid #C8C0B0",
-          borderRadius: "4px",
-          p: "4px 6px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-          display: "flex",
-          alignItems: "center",
-          gap: "4px",
+      <div
+        style={{
+          position: "absolute", left: 4, top: 4, zIndex: 5,
+          backgroundColor: "#F4F6F8", border: "1px solid #94A3B8", borderRadius: 4,
+          padding: "4px 6px", boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          display: "flex", alignItems: "center", gap: 4,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <InputBase
+        <input
           value={labelVal}
           onChange={(e) => setLabelVal(e.target.value)}
           placeholder={`S${shelf.position}`}
           autoFocus
-          sx={{ fontSize: 9, fontWeight: 700, color: "#3D3020", width: 50, "& input": { p: 0 } }}
+          style={{ fontSize: 9, fontWeight: 700, color: "#1A2530", width: 50, padding: 0, background: "transparent", border: "none", outline: "none" }}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
         />
-        <InputBase
+        <input
           value={posVal}
           onChange={(e) => setPosVal(e.target.value)}
           placeholder="#"
           type="number"
-          sx={{ fontSize: 9, color: "#3D3020", width: 24, "& input": { p: 0, textAlign: "center" } }}
+          style={{ fontSize: 9, color: "#1A2530", width: 24, padding: 0, textAlign: "center", background: "transparent", border: "none", outline: "none" }}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
         />
-        <IconButton size="small" sx={{ p: 0 }} onClick={commit}>
-          <AddIcon sx={{ fontSize: 10, color: "#3D3020", transform: "rotate(45deg)" }} />
-        </IconButton>
+        <button className="p-0" onClick={commit}>
+          <Plus style={{ fontSize: 10, color: "#1A2530", transform: "rotate(45deg)", width: 10, height: 10 }} />
+        </button>
         {onDelete && (
-          <IconButton size="small" sx={{ p: 0 }} onClick={() => onDelete()}>
-            <DeleteIcon sx={{ fontSize: 9, color: "#8B7355" }} />
-          </IconButton>
+          <button className="p-0" onClick={() => onDelete()}>
+            <Trash2 style={{ width: 9, height: 9, color: "#64748B" }} />
+          </button>
         )}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box
+    <div
       onClick={(e) => {
         e.stopPropagation();
         setLabelVal(shelf.label ?? "");
         setPosVal(String(shelf.position));
         setEditing(true);
       }}
-      sx={{
-        position: "absolute",
-        left: 4,
-        top: 6,
-        zIndex: 3,
-        bgcolor: "#EDE9E0",
-        border: "1px solid #C8C0B0",
-        borderRadius: "3px",
-        px: "5px",
-        py: "2px",
-        lineHeight: 1,
+      style={{
+        position: "absolute", left: 4, top: 6, zIndex: 3,
+        backgroundColor: "#F4F6F8", border: "1px solid #94A3B8", borderRadius: 3,
+        padding: "2px 5px", lineHeight: 1,
         boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-        display: "flex",
-        alignItems: "center",
-        gap: 0.5,
-        cursor: "pointer",
-        "&:hover": { borderColor: "#A09080" },
+        display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
       }}
+      className="hover:border-[#64748B]"
     >
-      <Typography
-        sx={{
-          fontSize: "9px",
-          fontWeight: 700,
-          color: "#3D3020",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          whiteSpace: "nowrap",
-        }}
-      >
+      <span style={{ fontSize: 9, fontWeight: 700, color: "#1A2530", letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
         {displayLabel}
-      </Typography>
+      </span>
       {onDelete && (
-        <IconButton size="small" sx={{ p: 0 }} onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-          <DeleteIcon sx={{ fontSize: 10, color: "#8B7355" }} />
-        </IconButton>
+        <button className="p-0" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+          <Trash2 style={{ width: 10, height: 10, color: "#64748B" }} />
+        </button>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -884,99 +676,71 @@ function DrawerLabel({
 
   if (editing) {
     return (
-      <Box
-        sx={{
-          position: "absolute",
-          left: 10,
-          top: 4,
-          zIndex: 5,
-          bgcolor: "rgba(255,255,255,0.95)",
-          border: "1px solid #C0C0C0",
-          borderRadius: "3px",
-          p: "4px 6px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-          display: "flex",
-          alignItems: "center",
-          gap: "4px",
+      <div
+        style={{
+          position: "absolute", left: 10, top: 4, zIndex: 5,
+          backgroundColor: "rgba(255,255,255,0.95)", border: "1px solid #C0C0C0", borderRadius: 3,
+          padding: "4px 6px", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          display: "flex", alignItems: "center", gap: 4,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <InputBase
+        <input
           value={labelVal}
           onChange={(e) => setLabelVal(e.target.value)}
           placeholder={`D${shelf.position}`}
           autoFocus
-          sx={{ fontSize: 9, fontWeight: 700, color: "#444", width: 50, "& input": { p: 0 } }}
+          style={{ fontSize: 9, fontWeight: 700, color: "#1A2530", width: 50, padding: 0, background: "transparent", border: "none", outline: "none" }}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
         />
-        <InputBase
+        <input
           value={posVal}
           onChange={(e) => setPosVal(e.target.value)}
           placeholder="#"
           type="number"
-          sx={{ fontSize: 9, color: "#444", width: 24, "& input": { p: 0, textAlign: "center" } }}
+          style={{ fontSize: 9, color: "#1A2530", width: 24, padding: 0, textAlign: "center", background: "transparent", border: "none", outline: "none" }}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
         />
-        <IconButton size="small" sx={{ p: 0 }} onClick={commit}>
-          <AddIcon sx={{ fontSize: 10, color: "#444", transform: "rotate(45deg)" }} />
-        </IconButton>
+        <button className="p-0" onClick={commit}>
+          <Plus style={{ width: 10, height: 10, color: "#1A2530", transform: "rotate(45deg)" }} />
+        </button>
         {onDelete && (
-          <IconButton size="small" sx={{ p: 0 }} onClick={() => onDelete()}>
-            <DeleteIcon sx={{ fontSize: 9, color: "#999" }} />
-          </IconButton>
+          <button className="p-0" onClick={() => onDelete()}>
+            <Trash2 style={{ width: 9, height: 9, color: "#94A3B8" }} />
+          </button>
         )}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box
+    <div
       onClick={(e) => {
         e.stopPropagation();
         setLabelVal(shelf.label ?? "");
         setPosVal(String(shelf.position));
         setEditing(true);
       }}
-      sx={{
-        position: "absolute",
-        left: 10,
-        top: 4,
-        zIndex: 3,
-        bgcolor: "rgba(255,255,255,0.85)",
-        border: "1px solid #C0C0C0",
-        borderRadius: "2px",
-        px: "4px",
-        py: "1px",
-        lineHeight: 1,
-        cursor: "pointer",
-        "&:hover": { borderColor: "#888" },
+      style={{
+        position: "absolute", left: 10, top: 4, zIndex: 3,
+        backgroundColor: "rgba(255,255,255,0.85)", border: "1px solid #C0C0C0", borderRadius: 2,
+        padding: "1px 4px", lineHeight: 1, cursor: "pointer",
       }}
+      className="hover:border-[#64748B]"
     >
-      <Typography
-        sx={{
-          fontSize: "8px",
-          fontWeight: 700,
-          color: "#444",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          whiteSpace: "nowrap",
-          display: "flex",
-          alignItems: "center",
-          gap: 0.5,
-        }}
-      >
+      <span style={{
+        fontSize: 8, fontWeight: 700, color: "#1A2530",
+        letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap",
+        display: "flex", alignItems: "center", gap: 4,
+      }}>
         {displayLabel}
         {onDelete && (
-          <IconButton
-            size="small"
-            sx={{ p: 0 }}
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            <DeleteIcon sx={{ fontSize: 9, color: "#999" }} />
-          </IconButton>
+          <button className="p-0" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+            <Trash2 style={{ width: 9, height: 9, color: "#94A3B8" }} />
+          </button>
         )}
-      </Typography>
-    </Box>
+      </span>
+    </div>
   );
 }
 
@@ -990,20 +754,15 @@ function AddLevelButton({
   onClick: () => void;
 }) {
   return (
-    <Box sx={{ textAlign: "center", mt: 1 }}>
-      <Tooltip title={label} arrow>
-        <IconButton
-          size="small"
-          onClick={onClick}
-          sx={{
-            bgcolor: "grey.100",
-            "&:hover": { bgcolor: "grey.200" },
-          }}
-        >
-          <AddIcon sx={{ fontSize: 16 }} />
-        </IconButton>
-      </Tooltip>
-    </Box>
+    <div className="text-center mt-2">
+      <button
+        title={label}
+        onClick={onClick}
+        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted hover:bg-muted/80 border border-border"
+      >
+        <Plus className="size-4" />
+      </button>
+    </div>
   );
 }
 
@@ -1034,28 +793,24 @@ function BayLabel({
 
   if (editing) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: "2px",
-          mb: variant === "shelf" ? "2px" : 0,
-          ...(variant === "drawer" && { width: 28, flexShrink: 0, flexDirection: "column" }),
+      <div
+        style={{
+          display: "flex", alignItems: "center", gap: 2,
+          marginBottom: variant === "shelf" ? 2 : 0,
+          ...(variant === "drawer" && { width: 28, flexShrink: 0, flexDirection: "column" as const }),
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <InputBase
+        <input
           value={val}
           onChange={(e) => setVal(e.target.value)}
           onBlur={commit}
           autoFocus
           placeholder={defaultLabel}
-          sx={{
-            fontSize: variant === "drawer" ? "7px" : "8px",
-            fontWeight: 700,
-            color: "rgba(255,255,255,0.7)",
-            width: variant === "drawer" ? 24 : 40,
-            "& input": { p: 0, textAlign: "center", color: "rgba(255,255,255,0.7)" },
+          style={{
+            fontSize: variant === "drawer" ? 7 : 8, fontWeight: 700,
+            color: "rgba(255,255,255,0.7)", width: variant === "drawer" ? 24 : 40,
+            padding: 0, textAlign: "center", background: "transparent", border: "none", outline: "none",
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
@@ -1063,54 +818,47 @@ function BayLabel({
           }}
         />
         {onDelete && (
-          <IconButton
-            size="small"
-            sx={{ p: 0, opacity: 0.5, "&:hover": { opacity: 1 } }}
+          <button
+            className="p-0 opacity-50 hover:opacity-100"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            <DeleteIcon sx={{ fontSize: variant === "drawer" ? 8 : 9, color: "rgba(255,255,255,0.6)" }} />
-          </IconButton>
+            <Trash2 style={{ width: variant === "drawer" ? 8 : 9, height: variant === "drawer" ? 8 : 9, color: "rgba(255,255,255,0.6)" }} />
+          </button>
         )}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: variant === "drawer" ? "1px" : "2px",
-        mb: variant === "shelf" ? "2px" : 0,
+    <div
+      style={{
+        display: "flex", alignItems: "center",
+        gap: variant === "drawer" ? 1 : 2,
+        marginBottom: variant === "shelf" ? 2 : 0,
         cursor: onSave ? "pointer" : "default",
-        ...(variant === "drawer" && { width: 28, flexShrink: 0, flexDirection: "column" }),
-        "&:hover": onSave ? { "& .bay-label-text": { color: "rgba(255,255,255,0.8)" } } : {},
+        ...(variant === "drawer" && { width: 28, flexShrink: 0, flexDirection: "column" as const }),
       }}
       onClick={onSave ? (e) => { e.stopPropagation(); setVal(bay.label ?? ""); setEditing(true); } : undefined}
     >
-      <Typography
+      <span
         className="bay-label-text"
-        sx={{
-          fontSize: variant === "drawer" ? "7px" : "8px",
-          fontWeight: 700,
-          color: "rgba(255,255,255,0.45)",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          whiteSpace: "nowrap",
+        style={{
+          fontSize: variant === "drawer" ? 7 : 8, fontWeight: 700,
+          color: "rgba(255,255,255,0.45)", letterSpacing: "0.04em",
+          textTransform: "uppercase", whiteSpace: "nowrap",
         }}
       >
         {displayLabel}
-      </Typography>
+      </span>
       {onDelete && (
-        <IconButton
-          size="small"
-          sx={{ p: 0, opacity: 0.3, "&:hover": { opacity: 1 } }}
+        <button
+          className="p-0 opacity-30 hover:opacity-100"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
         >
-          <DeleteIcon sx={{ fontSize: variant === "drawer" ? 8 : 9, color: "rgba(255,255,255,0.6)" }} />
-        </IconButton>
+          <Trash2 style={{ width: variant === "drawer" ? 8 : 9, height: variant === "drawer" ? 8 : 9, color: "rgba(255,255,255,0.6)" }} />
+        </button>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -1119,28 +867,15 @@ function BayLabel({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ShelfBayGroup({
-  bay,
-  isFirst,
-  slotShape,
-  shelfLabel,
-  callbacks,
+  bay, isFirst, slotShape, shelfLabel, callbacks,
 }: {
-  bay: BayData;
-  isFirst: boolean;
-  slotShape: SlotShape;
-  shelfLabel: string;
-  callbacks: RackVisualizerCallbacks;
+  bay: BayData; isFirst: boolean; slotShape: SlotShape; shelfLabel: string; callbacks: RackVisualizerCallbacks;
 }) {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        borderLeft: isFirst ? "none" : "2px solid rgba(255,255,255,0.12)",
-        px: "5px",
-      }}
-    >
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      borderLeft: isFirst ? "none" : "2px solid rgba(255,255,255,0.12)", paddingLeft: 5, paddingRight: 5,
+    }}>
       {(callbacks.onDeleteBay || callbacks.onSaveBayLabel) && (
         <BayLabel
           bay={bay}
@@ -1149,114 +884,57 @@ function ShelfBayGroup({
           onDelete={callbacks.onDeleteBay ? () => callbacks.onDeleteBay!(bay.id) : undefined}
         />
       )}
-      <BaySlots bay={bay} slotSize={40} shape={slotShape} context={`${shelfLabel} · ${bay.label || `B${bay.position}`}`} callbacks={callbacks} />
-    </Box>
+      <BaySlots bay={bay} slotSize={40} shape={slotShape} context={`${shelfLabel} \u00b7 ${bay.label || `B${bay.position}`}`} callbacks={callbacks} />
+    </div>
   );
 }
 
-function ShelfUnit({
-  shelf,
-  slotShape,
-  callbacks,
-}: {
-  shelf: ShelfData;
-  slotShape: SlotShape;
-  callbacks: RackVisualizerCallbacks;
-}) {
+function ShelfUnit({ shelf, slotShape, callbacks }: { shelf: ShelfData; slotShape: SlotShape; callbacks: RackVisualizerCallbacks }) {
   return (
-    <Box sx={{ position: "relative" }}>
+    <div style={{ position: "relative" }}>
       {(callbacks.onSaveShelf || callbacks.onDeleteShelf) && (
         <ShelfLabel
           shelf={shelf}
-          onSave={
-            callbacks.onSaveShelf
-              ? (updates) => callbacks.onSaveShelf!(shelf.id, updates)
-              : undefined
-          }
-          onDelete={
-            callbacks.onDeleteShelf
-              ? () => callbacks.onDeleteShelf!(shelf.id)
-              : undefined
-          }
+          onSave={callbacks.onSaveShelf ? (updates) => callbacks.onSaveShelf!(shelf.id, updates) : undefined}
+          onDelete={callbacks.onDeleteShelf ? () => callbacks.onDeleteShelf!(shelf.id) : undefined}
         />
       )}
 
-      <Box
-        sx={{
-          minHeight: 64,
-          pl: "6px",
-          pr: "6px",
-          pt: "22px",
-          pb: "6px",
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "flex-end",
-          bgcolor: "rgba(245,240,232,0.08)",
-          gap: "2px",
-          overflowX: "auto",
-          boxShadow:
-            "inset 0 8px 12px rgba(0,0,0,0.15), inset 0 -1px 0 rgba(0,0,0,0.1)",
-          "&::-webkit-scrollbar": { height: 4 },
-          "&::-webkit-scrollbar-thumb": {
-            bgcolor: "rgba(255,255,255,0.15)",
-            borderRadius: 2,
-          },
-        }}
-      >
+      <div style={{
+        minHeight: 64, paddingLeft: 6, paddingRight: 6, paddingTop: 22, paddingBottom: 6,
+        display: "flex", flexDirection: "row", alignItems: "flex-end",
+        backgroundColor: "rgba(245,240,232,0.08)", gap: 2, overflowX: "auto",
+        boxShadow: "inset 0 8px 12px rgba(0,0,0,0.15), inset 0 -1px 0 rgba(0,0,0,0.1)",
+      }}>
         {shelf.bays.map((bay, i) => (
-          <ShelfBayGroup
-            key={bay.id}
-            bay={bay}
-            isFirst={i === 0}
-            slotShape={slotShape}
-            shelfLabel={shelf.label || `S${shelf.position}`}
-            callbacks={callbacks}
-          />
+          <ShelfBayGroup key={bay.id} bay={bay} isFirst={i === 0} slotShape={slotShape} shelfLabel={shelf.label || `S${shelf.position}`} callbacks={callbacks} />
         ))}
         {callbacks.onAddBayToShelf && (
-          <Tooltip title="Add bay" arrow>
-            <Box
-              onClick={(e) => {
-                e.stopPropagation();
-                callbacks.onAddBayToShelf!(shelf.id, shelf.bays ?? []);
-              }}
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                border: "2px dashed",
-                borderColor: "action.disabled",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                cursor: "pointer",
-                ml: 1,
-                bgcolor: "action.hover",
-                "&:hover": {
-                  borderColor: "text.secondary",
-                  bgcolor: "action.selected",
-                },
-              }}
-            >
-              <AddIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-            </Box>
-          </Tooltip>
+          <div
+            title="Add bay"
+            onClick={(e) => { e.stopPropagation(); callbacks.onAddBayToShelf!(shelf.id, shelf.bays ?? []); }}
+            style={{
+              width: 40, height: 40, borderRadius: "50%",
+              border: "2px dashed hsl(var(--muted-foreground) / 0.4)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0, cursor: "pointer", marginLeft: 8,
+              backgroundColor: "hsl(var(--muted) / 0.5)",
+            }}
+            className="hover:border-muted-foreground hover:bg-muted"
+          >
+            <Plus style={{ width: 18, height: 18, color: "hsl(var(--muted-foreground))" }} />
+          </div>
         )}
-      </Box>
+      </div>
 
-      {/* Wooden plank */}
-      <Box
-        sx={{
-          height: 12,
-          background:
-            "linear-gradient(to bottom, #5C4433 0%, #3D2E1E 35%, #2C2018 100%)",
-          borderTop: "1px solid #6B5040",
-          boxShadow:
-            "0 4px 10px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.5)",
-        }}
-      />
-    </Box>
+      {/* Shelf plank */}
+      <div style={{
+        height: 12,
+        background: "linear-gradient(to bottom, #546E7A 0%, #37474F 35%, #263238 100%)",
+        borderTop: "1px solid #607D8B",
+        boxShadow: "0 4px 10px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.5)",
+      }} />
+    </div>
   );
 }
 
@@ -1264,183 +942,95 @@ function ShelfUnit({
 // STYLE: Cabinet / Drawers
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function DrawerUnit({
-  shelf,
-  slotShape,
-  callbacks,
-}: {
-  shelf: ShelfData;
-  slotShape: SlotShape;
-  callbacks: RackVisualizerCallbacks;
-}) {
+function DrawerUnit({ shelf, slotShape, callbacks }: { shelf: ShelfData; slotShape: SlotShape; callbacks: RackVisualizerCallbacks }) {
   const bays = shelf.bays ?? [];
-  // Find the max number of slots across all rows to size the column grid
-  const maxCols = Math.max(1, ...bays.map((b) => (b.slots ?? []).length));
 
   return (
-    <Box sx={{ position: "relative" }}>
-      <Box
-        sx={{
-          background: "linear-gradient(to bottom, #E8E8E8 0%, #D4D4D4 50%, #BFBFBF 100%)",
-          border: "1px solid #A0A0A0",
-          borderRadius: "3px",
-          mx: "4px",
-          overflow: "hidden",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6)",
-        }}
-      >
-        {/* Drawer handle bar */}
-        <Box
-          sx={{
-            height: 6,
-            mx: "30%",
-            mt: "4px",
-            borderRadius: "3px",
-            background: "linear-gradient(to bottom, #999 0%, #777 100%)",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)",
-          }}
-        />
+    <div style={{ position: "relative" }}>
+      <div style={{
+        background: "linear-gradient(to bottom, #E8E8E8 0%, #D4D4D4 50%, #BFBFBF 100%)",
+        border: "1px solid #A0A0A0", borderRadius: 3, marginLeft: 4, marginRight: 4,
+        overflow: "hidden",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6)",
+      }}>
+        <div style={{
+          height: 6, marginLeft: "30%", marginRight: "30%", marginTop: 4, borderRadius: 3,
+          background: "linear-gradient(to bottom, #90A4AE 0%, #607D8B 100%)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)",
+        }} />
 
-        {/* Drawer label — only in edit mode */}
         {(callbacks.onSaveShelf || callbacks.onDeleteShelf) && (
           <DrawerLabel
             shelf={shelf}
-            onSave={
-              callbacks.onSaveShelf
-                ? (updates) => callbacks.onSaveShelf!(shelf.id, updates)
-                : undefined
-            }
-            onDelete={
-              callbacks.onDeleteShelf
-                ? () => callbacks.onDeleteShelf!(shelf.id)
-                : undefined
-            }
+            onSave={callbacks.onSaveShelf ? (updates) => callbacks.onSaveShelf!(shelf.id, updates) : undefined}
+            onDelete={callbacks.onDeleteShelf ? () => callbacks.onDeleteShelf!(shelf.id) : undefined}
           />
         )}
 
-        {/* Drawer interior — rows (bays) × columns (slots) grid */}
-        <Box
-          sx={{
-            px: "6px",
-            pt: "14px",
-            pb: "8px",
-            bgcolor: "#3A3A3A",
-            m: "4px",
-            mt: "6px",
-            borderRadius: "2px",
-            boxShadow: "inset 0 4px 10px rgba(0,0,0,0.4)",
-            overflowX: "auto",
-            "&::-webkit-scrollbar": { height: 4 },
-            "&::-webkit-scrollbar-thumb": {
-              bgcolor: "rgba(255,255,255,0.2)",
-              borderRadius: 2,
-            },
-          }}
-        >
+        <div style={{
+          padding: "14px 6px 8px", backgroundColor: "#3A3A3A",
+          margin: "6px 4px 4px", borderRadius: 2,
+          boxShadow: "inset 0 4px 10px rgba(0,0,0,0.4)", overflowX: "auto",
+        }}>
           {bays.length > 0 ? (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {bays.map((bay, rowIdx) => {
                 const slots = bay.slots ?? [];
                 return (
-                  <Box key={bay.id}>
-                    {/* Row: bay label on left, slots across, controls on right */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        borderTop: rowIdx > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
-                        pt: rowIdx > 0 ? "4px" : 0,
-                      }}
-                    >
-                      {/* Row label — only in edit mode */}
+                  <div key={bay.id}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      borderTop: rowIdx > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
+                      paddingTop: rowIdx > 0 ? 4 : 0,
+                    }}>
                       {(callbacks.onDeleteBay || callbacks.onSaveBayLabel) && (
-                        <BayLabel
-                          bay={bay}
-                          variant="drawer"
+                        <BayLabel bay={bay} variant="drawer"
                           onSave={callbacks.onSaveBayLabel ? (v) => callbacks.onSaveBayLabel!(bay.id, v) : undefined}
                           onDelete={callbacks.onDeleteBay ? () => callbacks.onDeleteBay!(bay.id) : undefined}
                         />
                       )}
-
-                      {/* Slot cells for this row */}
-                      <Box sx={{ display: "flex", gap: `${CELL_GAP}px`, alignItems: "center", flexWrap: "nowrap" }}>
+                      <div style={{ display: "flex", gap: `${CELL_GAP}px`, alignItems: "center", flexWrap: "nowrap" }}>
                         {slots.map((slot) => (
-                          <SlotCell
-                            key={slot.id}
-                            slot={slot}
-                            size={36}
-                            shape={slot.shape ?? slotShape}
-                            context={`${shelf.label || `D${shelf.position}`} · ${bay.label || `R${bay.position}`}`}
-                            onSaveLabel={
-                              callbacks.onSaveSlotLabel
-                                ? (v) => callbacks.onSaveSlotLabel!(slot.id, v)
-                                : undefined
-                            }
-                            onDelete={
-                              callbacks.onDeleteSlot
-                                ? () => callbacks.onDeleteSlot!(slot.id)
-                                : undefined
-                            }
-                            onPrint={
-                              callbacks.onPrintSlot
-                                ? () => callbacks.onPrintSlot!(slot, `${shelf.label || `D${shelf.position}`} · ${bay.label || `R${bay.position}`}`)
-                                : undefined
-                            }
+                          <SlotCell key={slot.id} slot={slot} size={36} shape={slot.shape ?? slotShape}
+                            context={`${shelf.label || `D${shelf.position}`} \u00b7 ${bay.label || `R${bay.position}`}`}
+                            onSaveLabel={callbacks.onSaveSlotLabel ? (v) => callbacks.onSaveSlotLabel!(slot.id, v) : undefined}
+                            onDelete={callbacks.onDeleteSlot ? () => callbacks.onDeleteSlot!(slot.id) : undefined}
+                            onPrint={callbacks.onPrintSlot ? () => callbacks.onPrintSlot!(slot, `${shelf.label || `D${shelf.position}`} \u00b7 ${bay.label || `R${bay.position}`}`) : undefined}
                           />
                         ))}
-
-                        {/* Add slot to this row */}
                         {callbacks.onAddSlotToBay && (
-                          <Tooltip title="Add slot" arrow>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => { e.stopPropagation(); callbacks.onAddSlotToBay!(bay.id, slots); }}
-                              sx={{
-                                width: 22,
-                                height: 22,
-                                bgcolor: "action.hover",
-                                "&:hover": { bgcolor: "action.selected" },
-                              }}
-                            >
-                              <AddIcon sx={{ fontSize: 12, color: "text.secondary" }} />
-                            </IconButton>
-                          </Tooltip>
+                          <button
+                            title="Add slot"
+                            onClick={(e) => { e.stopPropagation(); callbacks.onAddSlotToBay!(bay.id, slots); }}
+                            className="flex items-center justify-center w-[22px] h-[22px] bg-muted/30 hover:bg-muted/60 rounded"
+                          >
+                            <Plus style={{ width: 12, height: 12, color: "hsl(var(--muted-foreground))" }} />
+                          </button>
                         )}
-                      </Box>
-                    </Box>
-                  </Box>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
-            </Box>
+            </div>
           ) : (
-            <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.3)", py: 1, textAlign: "center" }}>
-              Empty drawer
-            </Typography>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", padding: "8px 0", textAlign: "center" }}>Empty drawer</p>
           )}
 
-          {/* Add row (bay) button */}
           {callbacks.onAddBayToShelf && (
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 1, pt: 1, borderTop: "1px solid", borderColor: "divider" }}>
-              <Tooltip title="Add row" arrow>
-                <IconButton
-                  size="small"
-                  onClick={(e) => { e.stopPropagation(); callbacks.onAddBayToShelf!(shelf.id, bays); }}
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    bgcolor: "action.hover",
-                    "&:hover": { bgcolor: "action.selected" },
-                  }}
-                >
-                  <AddIcon sx={{ fontSize: 12, color: "text.secondary" }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
+            <div className="flex justify-center mt-2 pt-2 border-t border-border">
+              <button
+                title="Add row"
+                onClick={(e) => { e.stopPropagation(); callbacks.onAddBayToShelf!(shelf.id, bays); }}
+                className="flex items-center justify-center w-[22px] h-[22px] bg-muted/30 hover:bg-muted/60 rounded"
+              >
+                <Plus style={{ width: 12, height: 12, color: "hsl(var(--muted-foreground))" }} />
+              </button>
+            </div>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1448,114 +1038,50 @@ function DrawerUnit({
 // STYLE: AMS / Compact (Bambu AMS-style boxes)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function AmsUnit({
-  shelf,
-  slotShape,
-  callbacks,
-}: {
-  shelf: ShelfData;
-  slotShape: SlotShape;
-  callbacks: RackVisualizerCallbacks;
-}) {
+function AmsUnit({ shelf, slotShape, callbacks }: { shelf: ShelfData; slotShape: SlotShape; callbacks: RackVisualizerCallbacks }) {
   const unitLabel = shelf.label || `Unit ${shelf.position}`;
-
-  // AMS flattens bays — all slots from all bays in one row
   const allSlots = shelf.bays.flatMap((bay) => bay.slots);
 
   return (
-    <Box
-      sx={{
-        position: "relative",
-        background: "linear-gradient(135deg, #2D2D2D 0%, #1A1A1A 100%)",
-        borderRadius: "10px",
-        border: "1px solid #444",
-        overflow: "hidden",
-        boxShadow: "0 3px 12px rgba(0,0,0,0.4)",
-        minWidth: 180,
-      }}
-    >
-      {/* AMS top lid / status bar */}
-      <Box
-        sx={{
-          height: 24,
-          background: "linear-gradient(to bottom, #3D3D3D 0%, #2A2A2A 100%)",
-          borderBottom: "1px solid #444",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          px: 1,
-        }}
-      >
-        <Typography
-          sx={{
-            fontSize: "9px",
-            fontWeight: 700,
-            color: "rgba(255,255,255,0.7)",
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-          }}
-        >
+    <div style={{
+      position: "relative",
+      background: "linear-gradient(135deg, #2D2D2D 0%, #1A1A1A 100%)",
+      borderRadius: 10, border: "1px solid #475569", overflow: "hidden",
+      boxShadow: "0 3px 12px rgba(0,0,0,0.4)", minWidth: 180,
+    }}>
+      <div style={{
+        height: 24,
+        background: "linear-gradient(to bottom, #3D3D3D 0%, #2A2A2A 100%)",
+        borderBottom: "1px solid #475569",
+        display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px",
+      }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
           {unitLabel}
-        </Typography>
+        </span>
         {callbacks.onDeleteShelf && (
-          <IconButton
-            size="small"
-            sx={{ p: 0 }}
-            onClick={() => callbacks.onDeleteShelf!(shelf.id)}
-          >
-            <DeleteIcon sx={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }} />
-          </IconButton>
+          <button className="p-0" onClick={() => callbacks.onDeleteShelf!(shelf.id)}>
+            <Trash2 style={{ width: 11, height: 11, color: "rgba(255,255,255,0.4)" }} />
+          </button>
         )}
-      </Box>
+      </div>
 
-      {/* Slots in a compact row */}
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "6px",
-          p: "10px 8px",
-          overflowX: "auto",
-          "&::-webkit-scrollbar": { height: 4 },
-          "&::-webkit-scrollbar-thumb": {
-            bgcolor: "rgba(255,255,255,0.15)",
-            borderRadius: 2,
-          },
-        }}
-      >
+      <div style={{
+        display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center",
+        gap: 6, padding: "10px 8px", overflowX: "auto",
+      }}>
         {allSlots.map((slot) => (
-          <SlotCell
-            key={slot.id}
-            slot={slot}
-            size={36}
-            shape={slot.shape ?? slotShape}
+          <SlotCell key={slot.id} slot={slot} size={36} shape={slot.shape ?? slotShape}
             context={shelf.label || `Unit ${shelf.position}`}
-            onSaveLabel={
-              callbacks.onSaveSlotLabel
-                ? (v) => callbacks.onSaveSlotLabel!(slot.id, v)
-                : undefined
-            }
-            onDelete={
-              callbacks.onDeleteSlot
-                ? () => callbacks.onDeleteSlot!(slot.id)
-                : undefined
-            }
-            onPrint={
-              callbacks.onPrintSlot
-                ? () => callbacks.onPrintSlot!(slot, shelf.label || `Unit ${shelf.position}`)
-                : undefined
-            }
+            onSaveLabel={callbacks.onSaveSlotLabel ? (v) => callbacks.onSaveSlotLabel!(slot.id, v) : undefined}
+            onDelete={callbacks.onDeleteSlot ? () => callbacks.onDeleteSlot!(slot.id) : undefined}
+            onPrint={callbacks.onPrintSlot ? () => callbacks.onPrintSlot!(slot, shelf.label || `Unit ${shelf.position}`) : undefined}
           />
         ))}
         {allSlots.length === 0 && (
-          <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.3)", py: 1 }}>
-            No slots
-          </Typography>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", padding: "8px 0" }}>No slots</span>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 
@@ -1563,18 +1089,8 @@ function AmsUnit({
 // Main export — RackVisualizer
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── Render a single shelf using its resolved display style ───────────────────
-
-function ShelfRenderer({
-  shelf,
-  resolvedStyle,
-  slotShape,
-  callbacks,
-}: {
-  shelf: ShelfData;
-  resolvedStyle: RackDisplayStyle;
-  slotShape: SlotShape;
-  callbacks: RackVisualizerCallbacks;
+function ShelfRenderer({ shelf, resolvedStyle, slotShape, callbacks }: {
+  shelf: ShelfData; resolvedStyle: RackDisplayStyle; slotShape: SlotShape; callbacks: RackVisualizerCallbacks;
 }) {
   switch (resolvedStyle) {
     case "drawer":
@@ -1582,43 +1098,119 @@ function ShelfRenderer({
     case "ams":
       return <AmsUnit shelf={shelf} slotShape={slotShape} callbacks={callbacks} />;
     case "grid":
-      // Inline grid for a single shelf
       return (
-        <Box sx={{ mb: 1 }}>
+        <div style={{ marginBottom: 8 }}>
           {(callbacks.onSaveShelf || callbacks.onDeleteShelf) && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-              <Typography sx={{ fontSize: "11px", fontWeight: 700, color: "text.secondary", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }} className="text-muted-foreground">
                 {shelf.label || `Section ${shelf.position}`}
-              </Typography>
+              </span>
               {callbacks.onDeleteShelf && (
-                <IconButton size="small" sx={{ p: 0 }} onClick={() => callbacks.onDeleteShelf!(shelf.id)}>
-                  <DeleteIcon sx={{ fontSize: 12 }} color="action" />
-                </IconButton>
+                <button className="p-0" onClick={() => callbacks.onDeleteShelf!(shelf.id)}>
+                  <Trash2 className="size-3 text-muted-foreground" />
+                </button>
               )}
-            </Box>
+            </div>
           )}
-          <Box sx={{ display: "flex", flexWrap: "nowrap", gap: `${CELL_GAP}px`, overflowX: "auto", "&::-webkit-scrollbar": { height: 4 }, "&::-webkit-scrollbar-thumb": { bgcolor: "rgba(0,0,0,0.15)", borderRadius: 2 } }}>
+          <div style={{ display: "flex", flexWrap: "nowrap", gap: `${CELL_GAP}px`, overflowX: "auto" }}>
             {shelf.bays.flatMap((bay) =>
               bay.slots.map((slot) => (
-                <SlotCell
-                  key={slot.id}
-                  slot={slot}
-                  size={36}
-                  shape={slot.shape ?? slotShape}
-                  context={`${shelf.label || `Section ${shelf.position}`} · ${bay.label || `B${bay.position}`}`}
+                <SlotCell key={slot.id} slot={slot} size={36} shape={slot.shape ?? slotShape}
+                  context={`${shelf.label || `Section ${shelf.position}`} \u00b7 ${bay.label || `B${bay.position}`}`}
                   onSaveLabel={callbacks.onSaveSlotLabel ? (v) => callbacks.onSaveSlotLabel!(slot.id, v) : undefined}
                   onDelete={callbacks.onDeleteSlot ? () => callbacks.onDeleteSlot!(slot.id) : undefined}
-                  onPrint={callbacks.onPrintSlot ? () => callbacks.onPrintSlot!(slot, `${shelf.label || `Section ${shelf.position}`} · ${bay.label || `B${bay.position}`}`) : undefined}
+                  onPrint={callbacks.onPrintSlot ? () => callbacks.onPrintSlot!(slot, `${shelf.label || `Section ${shelf.position}`} \u00b7 ${bay.label || `B${bay.position}`}`) : undefined}
                 />
               ))
             )}
-          </Box>
-        </Box>
+          </div>
+        </div>
       );
     case "shelf":
     default:
       return <ShelfUnit shelf={shelf} slotShape={slotShape} callbacks={callbacks} />;
   }
+}
+
+// ── Context Menu (replaces MUI Menu) ──────────────────────────────────────────
+
+function SlotContextMenu({
+  slot,
+  pos,
+  context,
+  callbacks,
+  onClose,
+}: {
+  slot: SlotData | null;
+  pos: { x: number; y: number } | null;
+  context: string;
+  callbacks: RackVisualizerCallbacks;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
+    };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("mousedown", handleClick); document.removeEventListener("keydown", handleKey); };
+  }, [onClose]);
+
+  if (!slot || !pos) return null;
+
+  const st = slot.status as any;
+  const isActive = st?.state === "active";
+
+  return (
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[180px] rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 p-1"
+      style={{ top: pos.y, left: pos.x }}
+    >
+      {isActive ? (
+        <>
+          {st?.userItemId && callbacks.onViewItem && (
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+              onClick={() => { callbacks.onViewItem!(st.userItemId); onClose(); }}>
+              <ExternalLink className="size-4" /> View Details
+            </button>
+          )}
+          {st?.userItemId && callbacks.onEditItem && (
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+              onClick={() => { callbacks.onEditItem!(st.userItemId); onClose(); }}>
+              <Pencil className="size-4" /> Edit Item
+            </button>
+          )}
+          {callbacks.onMoveItem && (
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+              onClick={() => { callbacks.onMoveItem!(slot.id); onClose(); }}>
+              <ArrowLeftRight className="size-4" /> Move to Another Slot
+            </button>
+          )}
+          {callbacks.onRemoveItem && (
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+              onClick={() => { callbacks.onRemoveItem!(slot.id); onClose(); }}>
+              <CircleMinus className="size-4" /> Remove from Slot
+            </button>
+          )}
+          {callbacks.onPrintSlot && (
+            <>
+              <Separator className="my-1" />
+              <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+                onClick={() => { callbacks.onPrintSlot!(slot, context); onClose(); }}>
+                <Printer className="size-4" /> Print Label
+              </button>
+            </>
+          )}
+        </>
+      ) : (
+        <div className="px-2 py-1.5 text-sm text-muted-foreground">Empty slot</div>
+      )}
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1640,8 +1232,6 @@ export function RackVisualizer({
   callbacks?: RackVisualizerCallbacks;
   selectedSlotId?: string | null;
 }) {
-  // When not editing, strip out mutation callbacks (add/delete/rename) so controls don't render
-  // Keep interaction callbacks (click, drag, print, context menu) in all modes
   const cb = editing ? callbacks : {
     onPrintSlot: callbacks.onPrintSlot,
     onSlotClick: callbacks.onSlotClick,
@@ -1657,12 +1247,10 @@ export function RackVisualizer({
     (a, b) => a.position - b.position
   );
 
-  // Require 8px of movement before starting drag — allows normal clicks to pass through
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
   const [ctxMenuSlotId, setCtxMenuSlotId] = useState<string | null>(null);
   const [ctxMenuPos, setCtxMenuPos] = useState<{ x: number; y: number } | null>(null);
-
   const [ctxMenuSlot, setCtxMenuSlot] = useState<SlotData | null>(null);
   const [ctxMenuContext, setCtxMenuContext] = useState("");
 
@@ -1711,88 +1299,32 @@ export function RackVisualizer({
       openCtxMenu,
       closeCtxMenu,
     }}>
-      <Box sx={{ overflowX: "auto", pb: 1 }}>
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column-reverse",
-            gap: "3px",
-          }}
-        >
+      <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column-reverse", gap: 3 }}>
           {shelvesSorted.map((shelf) => {
             const shelfStyle = shelf.displayStyle ?? rackDefault;
             return (
-              <ShelfRenderer
-                key={shelf.id}
-                shelf={shelf}
-                resolvedStyle={shelfStyle}
-                slotShape={slotShape}
-                callbacks={cb}
-              />
+              <ShelfRenderer key={shelf.id} shelf={shelf} resolvedStyle={shelfStyle} slotShape={slotShape} callbacks={cb} />
             );
           })}
-        </Box>
+        </div>
 
         {cb.onAddShelfToRack && (
-          <AddLevelButton
-            label="Add shelf"
-            onClick={() => cb.onAddShelfToRack!(rack.id, rack.shelves ?? [])}
-          />
+          <AddLevelButton label="Add shelf" onClick={() => cb.onAddShelfToRack!(rack.id, rack.shelves ?? [])} />
         )}
-      </Box>
+      </div>
     </SlotSelectionContext.Provider>
 
-    {/* Single context menu for all slots */}
-    <Menu
-      open={ctxMenuSlotId !== null}
-      onClose={closeCtxMenu}
-      anchorReference="anchorPosition"
-      anchorPosition={ctxMenuPos ? { top: ctxMenuPos.y, left: ctxMenuPos.x } : undefined}
-      slotProps={{ paper: { sx: { minWidth: 180 } } }}
-    >
-      {(() => {
-        const st = ctxMenuSlot?.status as any;
-        const isActive = st?.state === "active";
-        return [
-          isActive && st?.userItemId && cb.onViewItem && (
-            <MenuItem key="view" onClick={() => { cb.onViewItem!(st.userItemId); closeCtxMenu(); }}>
-              <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>View Details</ListItemText>
-            </MenuItem>
-          ),
-          isActive && st?.userItemId && cb.onEditItem && (
-            <MenuItem key="edit" onClick={() => { cb.onEditItem!(st.userItemId); closeCtxMenu(); }}>
-              <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Edit Item</ListItemText>
-            </MenuItem>
-          ),
-          isActive && cb.onMoveItem && (
-            <MenuItem key="move" onClick={() => { cb.onMoveItem!(ctxMenuSlotId!); closeCtxMenu(); }}>
-              <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Move to Another Slot</ListItemText>
-            </MenuItem>
-          ),
-          isActive && cb.onRemoveItem && (
-            <MenuItem key="remove" onClick={() => { cb.onRemoveItem!(ctxMenuSlotId!); closeCtxMenu(); }}>
-              <ListItemIcon><RemoveCircleOutlineIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Remove from Slot</ListItemText>
-            </MenuItem>
-          ),
-          isActive && cb.onPrintSlot && <Divider key="divider" />,
-          isActive && cb.onPrintSlot && ctxMenuSlot && (
-            <MenuItem key="print" onClick={() => { cb.onPrintSlot!(ctxMenuSlot, ctxMenuContext); closeCtxMenu(); }}>
-              <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Print Label</ListItemText>
-            </MenuItem>
-          ),
-          !isActive && (
-            <MenuItem key="empty" disabled>
-              <ListItemText>Empty slot</ListItemText>
-            </MenuItem>
-          ),
-        ].filter(Boolean);
-      })()}
-    </Menu>
+    {/* Context menu */}
+    {ctxMenuSlotId && (
+      <SlotContextMenu
+        slot={ctxMenuSlot}
+        pos={ctxMenuPos}
+        context={ctxMenuContext}
+        callbacks={cb}
+        onClose={closeCtxMenu}
+      />
+    )}
 
     </DndContext>
   );

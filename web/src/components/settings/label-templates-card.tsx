@@ -2,26 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardHeader from "@mui/material/CardHeader";
-import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import Skeleton from "@mui/material/Skeleton";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import AddIcon from "@mui/icons-material/Add";
-import LabelIcon from "@mui/icons-material/Label";
-import StarIcon from "@mui/icons-material/Star";
-import SettingsIcon from "@mui/icons-material/Settings";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
+import Link from "next/link";
+import { Plus, Tag, Star, Settings } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { listLabelTemplates } from "@/lib/actions/user-library";
 
 type LabelTemplate = {
@@ -34,14 +28,20 @@ type LabelTemplate = {
   createdAt: Date;
 };
 
-const formatColors: Record<string, "primary" | "secondary" | "default" | "success"> = {
-  labelife_image: "primary",
+const formatVariants: Record<string, "default" | "secondary" | "outline"> = {
+  labelife_image: "default",
   labelife_native: "secondary",
-  png: "default",
-  pdf: "success",
+  png: "outline",
+  pdf: "default",
 };
 
-export function LabelTemplatesCard() {
+export function LabelTemplatesCard({
+  cardSx: _cardSx,
+  titleSx: _titleSx,
+}: {
+  cardSx?: unknown;
+  titleSx?: unknown;
+} = {}) {
   const [templates, setTemplates] = useState<LabelTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -54,96 +54,87 @@ export function LabelTemplatesCard() {
   }, []);
 
   return (
-    <Card>
-      <CardHeader
-        title="Label Templates"
-        titleTypographyProps={{ fontWeight: 600 }}
-        action={
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <Button
-              size="small"
-              startIcon={<SettingsIcon />}
-              variant="text"
-              href="/settings/labels"
-            >
+    <Card className="rounded-xl shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-display font-bold text-xl flex items-center gap-1.5 before:content-[''] before:inline-block before:w-1 before:h-5 before:rounded-sm before:bg-[#00D2FF] before:shrink-0">
+            Label Templates
+          </h3>
+          <div className="flex gap-1 items-center">
+            <Button variant="ghost" size="sm" render={<Link href="/settings/labels" />}>
+              <Settings className="size-4 mr-1" />
               Manage Labels
             </Button>
-            <Button
-              size="small"
-              startIcon={<AddIcon />}
-              variant="outlined"
-              href="/settings/labels"
-            >
+            <Button variant="outline" size="sm" render={<Link href="/settings/labels" />}>
+              <Plus className="size-4 mr-1" />
               Add Template
             </Button>
-          </Box>
-        }
-      />
-      <Divider />
-      <CardContent sx={{ p: 0 }}>
+          </div>
+        </div>
+
+        <div className="border-t border-border" />
+
         {loading ? (
-          <Box sx={{ p: 2 }}>
-            <Skeleton variant="rounded" height={120} />
-          </Box>
+          <div className="p-2">
+            <Skeleton className="h-[120px] rounded-lg" />
+          </div>
         ) : templates.length === 0 ? (
-          <Box sx={{ textAlign: "center", py: 4 }}>
-            <LabelIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
-            <Typography variant="body2" color="text.secondary">
+          <div className="text-center py-4">
+            <Tag className="size-10 text-muted-foreground/40 mx-auto mb-1" />
+            <p className="text-sm text-muted-foreground">
               No label templates configured.
-            </Typography>
-          </Box>
+            </p>
+          </div>
         ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Format</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Default</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {templates.map((tmpl) => (
-                  <TableRow
-                    key={tmpl.id}
-                    hover
-                    sx={{ cursor: "pointer" }}
-                    onClick={() => router.push(`/settings/labels?id=${tmpl.id}`)}
-                  >
-                    <TableCell>
-                      <Link
-                        href={`/settings/labels?id=${tmpl.id}`}
-                        underline="hover"
-                        color="inherit"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {tmpl.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={tmpl.labelFormat.replace(/_/g, " ")}
-                        size="small"
-                        color={formatColors[tmpl.labelFormat] ?? "default"}
-                        sx={{ textTransform: "capitalize" }}
-                      />
-                    </TableCell>
-                    <TableCell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Name</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Format</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Size</TableHead>
+                <TableHead className="text-[0.625rem] uppercase tracking-[0.1em] font-bold">Default</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {templates.map((tmpl) => (
+                <TableRow
+                  key={tmpl.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/settings/labels?id=${tmpl.id}`)}
+                >
+                  <TableCell>
+                    <Link
+                      href={`/settings/labels?id=${tmpl.id}`}
+                      className="font-semibold hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {tmpl.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={formatVariants[tmpl.labelFormat] ?? "outline"}
+                      className="capitalize"
+                    >
+                      {tmpl.labelFormat.replace(/_/g, " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-[0.8125rem]">
                       {tmpl.widthMm != null && tmpl.heightMm != null
                         ? `${tmpl.widthMm} x ${tmpl.heightMm} mm`
                         : "\u2014"}
-                    </TableCell>
-                    <TableCell>
-                      {tmpl.isDefault && (
-                        <StarIcon sx={{ color: "warning.main", fontSize: 20 }} />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {tmpl.isDefault && (
+                      <Star className="size-5 text-amber-500 fill-amber-500" />
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>

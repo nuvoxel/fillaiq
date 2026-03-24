@@ -1,22 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createMaterial, updateMaterial } from "@/lib/actions/central-catalog";
 
 const materialClassOptions = [
-  { value: "", label: "—" },
+  { value: "_none", label: "\u2014" },
   { value: "fff", label: "FFF" },
   { value: "sla", label: "SLA" },
   { value: "cnc", label: "CNC" },
@@ -40,7 +47,7 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
   const [name, setName] = useState("");
   const [abbreviation, setAbbreviation] = useState("");
   const [category, setCategory] = useState("");
-  const [materialClass, setMaterialClass] = useState("");
+  const [materialClass, setMaterialClass] = useState("_none");
   const [density, setDensity] = useState("");
   const [hygroscopic, setHygroscopic] = useState(false);
   const [defaultDryingTemp, setDefaultDryingTemp] = useState("");
@@ -56,7 +63,7 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
       setName(e.name ?? "");
       setAbbreviation(e.abbreviation ?? "");
       setCategory(e.category ?? "");
-      setMaterialClass(e.materialClass ?? "");
+      setMaterialClass(e.materialClass || "_none");
       setDensity(e.density != null ? String(e.density) : "");
       setHygroscopic(e.hygroscopic ?? false);
       setDefaultDryingTemp(
@@ -69,7 +76,7 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
       setName("");
       setAbbreviation("");
       setCategory("");
-      setMaterialClass("");
+      setMaterialClass("_none");
       setDensity("");
       setHygroscopic(false);
       setDefaultDryingTemp("");
@@ -86,7 +93,7 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
       name,
       abbreviation: abbreviation || null,
       category: category || null,
-      materialClass: materialClass || null,
+      materialClass: materialClass === "_none" ? null : materialClass,
       density: density ? Number(density) : null,
       hygroscopic,
       defaultDryingTemp: defaultDryingTemp ? Number(defaultDryingTemp) : null,
@@ -108,115 +115,109 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {existing ? "Edit Material" : "Add Material"}
-      </DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {existing ? "Edit Material" : "Add Material"}
+          </DialogTitle>
+        </DialogHeader>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Name"
+        <div className="flex flex-col gap-3">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Name *</label>
+              <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                size="small"
-                fullWidth
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Abbreviation"
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Abbreviation</label>
+              <Input
                 value={abbreviation}
                 onChange={(e) => setAbbreviation(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="e.g. PLA, PETG, ABS"
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Category"
+              <p className="text-[0.625rem] text-muted-foreground mt-0.5">e.g. PLA, PETG, ABS</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Category</label>
+              <Input
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="e.g. thermoplastic, thermoset, composite"
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                label="Material Class"
-                value={materialClass}
-                onChange={(e) => setMaterialClass(e.target.value)}
-                size="small"
-                fullWidth
-              >
-                {materialClassOptions.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>
-                    {o.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Density (g/cm\u00B3)"
+              <p className="text-[0.625rem] text-muted-foreground mt-0.5">e.g. thermoplastic, thermoset, composite</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Material Class</label>
+              <Select value={materialClass} onValueChange={(v) => v && setMaterialClass(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {materialClassOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Density (g/cm\u00B3)</label>
+              <Input
                 value={density}
                 onChange={(e) => setDensity(e.target.value)}
                 type="number"
-                size="small"
-                fullWidth
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Drying Temp (\u00B0C)"
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Drying Temp (\u00B0C)</label>
+              <Input
                 value={defaultDryingTemp}
                 onChange={(e) => setDefaultDryingTemp(e.target.value)}
                 type="number"
-                size="small"
-                fullWidth
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Drying Time (min)"
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Drying Time (min)</label>
+              <Input
                 value={defaultDryingTimeMin}
                 onChange={(e) => setDefaultDryingTimeMin(e.target.value)}
                 type="number"
-                size="small"
-                fullWidth
               />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={hygroscopic}
-                    onChange={(e) => setHygroscopic(e.target.checked)}
-                  />
-                }
-                label="Hygroscopic"
-              />
-            </Grid>
-          </Grid>
-        </Stack>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={hygroscopic}
+              onCheckedChange={setHygroscopic}
+            />
+            <label className="text-sm">Hygroscopic</label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <Button
+            onClick={handleSave}
+            disabled={!name || saving}
+          >
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={!name || saving}
-        >
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

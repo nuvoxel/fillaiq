@@ -7,8 +7,9 @@
  */
 
 import { db } from "@/db";
-import { scanStations, machines } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { scanStations, machines, userItems, products, materials, slots, bays, shelves, racks, zones } from "@/db/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { normalizeStatus } from "@/lib/machines";
 import {
   processHeartbeat,
   processCapabilities,
@@ -18,7 +19,8 @@ import { processScan } from "@/lib/services/scan-processor";
 import { insertEnvironmentalReading } from "@/lib/services/environment-service";
 import { updatePrintJobStatus } from "@/lib/services/print-job-service";
 import { upsertPrinterFromHeartbeat } from "@/lib/services/printer-upsert";
-import { publishScanResult } from "./publisher";
+import { getSlotPath } from "@/lib/services/storage-path";
+import { publishScanResult, publishNfcLookupResult } from "./publisher";
 
 type Handler = (hardwareId: string, payload: Record<string, any>) => Promise<void>;
 
@@ -30,6 +32,7 @@ const handlers: Record<string, Handler> = {
   "print/status": handlePrintStatus,
   calibration: handleCalibration,
   status: handleStatus,
+  "nfc/lookup": handleNfcLookup,
 };
 
 export function handleMqttMessage(topic: string, raw: Buffer): void {
@@ -189,6 +192,97 @@ async function handleStatus(
   await updateOnlineStatus(station.id, !!payload.online);
 }
 
+// ── NFC UID lookup (lightweight pre-scan identification) ─────────────
+
+async function handleNfcLookup(
+  hardwareId: string,
+  payload: Record<string, any>
+): Promise<void> {
+  const uid: string | undefined = payload.uid;
+  if (!uid) return;
+
+  const station = await resolveStation(hardwareId);
+  if (!station || !station.userId) return;
+
+  // Look up user_item by NFC UID for this user, joining product + material
+  const rows = await db
+    .select({
+      itemId: userItems.id,
+      productName: products.name,
+      materialName: materials.name,
+      colorName: products.colorName,
+      colorHex: products.colorHex,
+      currentWeightG: userItems.currentWeightG,
+      status: userItems.status,
+      currentSlotId: userItems.currentSlotId,
+    })
+    .from(userItems)
+    .leftJoin(products, eq(userItems.productId, products.id))
+    .leftJoin(materials, eq(products.materialId, materials.id))
+    .where(
+      and(
+        eq(userItems.nfcUid, uid),
+        eq(userItems.userId, station.userId)
+      )
+    )
+    .limit(1);
+
+  if (rows.length === 0) {
+    publishNfcLookupResult(hardwareId, { known: false });
+    return;
+  }
+
+  const row = rows[0];
+
+  // Build return location from storage slot path
+  let returnLocation: string | null = null;
+  if (row.currentSlotId) {
+    returnLocation = await getSlotPath(row.currentSlotId);
+  }
+
+  // Get empty slots for this user (for return-location cycling on device)
+  const emptySlotRows = await db
+    .select({
+      slotId: slots.id,
+    })
+    .from(slots)
+    .innerJoin(bays, eq(slots.bayId, bays.id))
+    .innerJoin(shelves, eq(bays.shelfId, shelves.id))
+    .innerJoin(racks, eq(shelves.rackId, racks.id))
+    .innerJoin(zones, eq(racks.zoneId, zones.id))
+    .leftJoin(userItems, and(
+      eq(userItems.currentSlotId, slots.id),
+      eq(userItems.status, 'active')
+    ))
+    .where(and(
+      eq(zones.userId, station.userId!),
+      isNull(userItems.id)
+    ))
+    .limit(20);
+
+  const emptySlots: { id: string; path: string }[] = [];
+  for (const s of emptySlotRows) {
+    const path = await getSlotPath(s.slotId);
+    if (path) {
+      emptySlots.push({ id: s.slotId, path });
+    }
+  }
+
+  publishNfcLookupResult(hardwareId, {
+    known: true,
+    itemId: row.itemId,
+    productName: row.productName ?? "Unknown",
+    material: row.materialName ?? null,
+    colorName: row.colorName ?? null,
+    colorHex: row.colorHex ?? null,
+    currentWeightG: row.currentWeightG ?? null,
+    returnLocation,
+    returnSlotId: row.currentSlotId ?? null,
+    status: row.status,
+    emptySlots,
+  });
+}
+
 // ── Machine status (relayed from local printer MQTT) ─────────────────
 
 async function handleMachineStatus(
@@ -196,11 +290,20 @@ async function handleMachineStatus(
   machineId: string,
   payload: Record<string, any>
 ): Promise<void> {
-  // Write the full status payload to the machine's liveStatus column
+  // Look up the machine's protocol to normalize through the correct plugin
+  const [machine] = await db
+    .select({ protocol: machines.protocol })
+    .from(machines)
+    .where(eq(machines.id, machineId))
+    .limit(1);
+
+  const protocol = machine?.protocol ?? "bambu"; // default for backward compat
+  const normalized = normalizeStatus(protocol, payload);
+
   await db
     .update(machines)
     .set({
-      liveStatus: payload,
+      liveStatus: normalized,
       updatedAt: new Date(),
     })
     .where(eq(machines.id, machineId));

@@ -1,21 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
-import Skeleton from "@mui/material/Skeleton";
-import Snackbar from "@mui/material/Snackbar";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import CategoryIcon from "@mui/icons-material/Category";
-import UsbIcon from "@mui/icons-material/Usb";
-import BluetoothIcon from "@mui/icons-material/Bluetooth";
-import WifiIcon from "@mui/icons-material/Wifi";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Pencil, Trash2, Usb, Bluetooth, Wifi, LayoutGrid } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import {
   listHardwareModels,
   removeHardwareModel,
@@ -44,20 +42,18 @@ type HardwareModel = {
   [key: string]: unknown;
 };
 
-const categoryColors: Record<string, "primary" | "secondary" | "default" | "success" | "warning" | "info"> = {
-  label_printer: "secondary",
-  scan_station: "primary",
-  shelf_station: "primary",
-  fdm_printer: "success",
-  resin_printer: "success",
-  cnc: "warning",
-  laser_cutter: "warning",
-  laser_engraver: "warning",
-  drybox: "info",
-  filament_changer: "info",
-  enclosure: "default",
-  other: "default",
-};
+function getSpecs(row: HardwareModel): string {
+  if (row.category === "label_printer") {
+    const parts = [];
+    if (row.printDpi) parts.push(`${row.printDpi} DPI`);
+    if (row.printWidthMm) parts.push(`${row.printWidthMm}mm`);
+    return parts.join(" \u00b7 ") || "\u2014";
+  }
+  if (row.buildVolumeX && row.buildVolumeY && row.buildVolumeZ) {
+    return `${row.buildVolumeX}\u00d7${row.buildVolumeY}\u00d7${row.buildVolumeZ} mm`;
+  }
+  return "\u2014";
+}
 
 export function HardwareCatalogTab({ refreshKey }: { refreshKey?: number }) {
   const [models, setModels] = useState<HardwareModel[]>([]);
@@ -85,161 +81,108 @@ export function HardwareCatalogTab({ refreshKey }: { refreshKey?: number }) {
       entityLabel: "Hardware Model",
     });
 
-  const columns: GridColDef[] = [
-    {
-      field: "category",
-      headerName: "Category",
-      width: 150,
-      renderCell: (params) => (
-        <Chip
-          label={hardwareCategoryLabels[params.value as string] ?? params.value}
-          size="small"
-          color={categoryColors[params.value as string] ?? "default"}
-        />
-      ),
-    },
-    {
-      field: "manufacturer",
-      headerName: "Manufacturer",
-      width: 160,
-      renderCell: (params) => (
-        <Typography variant="body2" fontWeight={500}>{params.value}</Typography>
-      ),
-    },
-    {
-      field: "model",
-      headerName: "Model",
-      width: 160,
-    },
-    {
-      field: "specs",
-      headerName: "Specs",
-      width: 200,
-      sortable: false,
-      valueGetter: (_value: unknown, row: HardwareModel) => {
-        if (row.category === "label_printer") {
-          const parts = [];
-          if (row.printDpi) parts.push(`${row.printDpi} DPI`);
-          if (row.printWidthMm) parts.push(`${row.printWidthMm}mm`);
-          return parts.join(" · ") || "—";
-        }
-        if (row.buildVolumeX && row.buildVolumeY && row.buildVolumeZ) {
-          return `${row.buildVolumeX}×${row.buildVolumeY}×${row.buildVolumeZ} mm`;
-        }
-        return "—";
-      },
-    },
-    {
-      field: "connectivity",
-      headerName: "Connectivity",
-      width: 140,
-      sortable: false,
-      renderCell: (params) => {
-        const row = params.row as HardwareModel;
-        return (
-          <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
-            {row.hasUsb && <UsbIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
-            {row.hasBle && <BluetoothIcon sx={{ fontSize: 16, color: "primary.main" }} />}
-            {row.hasWifi && <WifiIcon sx={{ fontSize: 16, color: "success.main" }} />}
-          </Box>
-        );
-      },
-    },
-    {
-      field: "validationStatus",
-      headerName: "Status",
-      width: 100,
-      renderCell: (params) => {
-        const colors: Record<string, "default" | "warning" | "success" | "error"> = {
-          draft: "default",
-          submitted: "warning",
-          validated: "success",
-          deprecated: "error",
-        };
-        return (
-          <Chip
-            label={params.value}
-            size="small"
-            color={colors[params.value as string] ?? "default"}
-            variant="outlined"
-            sx={{ textTransform: "capitalize" }}
-          />
-        );
-      },
-    },
-    {
-      field: "actions",
-      headerName: "",
-      width: 100,
-      sortable: false,
-      filterable: false,
-      disableColumnMenu: true,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={0.5}>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingModel(params.row as HardwareModel);
-              setDialogOpen(true);
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(params.row as HardwareModel);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-      ),
-    },
-  ];
+  // Show toast when snackbar state changes
+  useEffect(() => {
+    if (snackbarOpen && snackbarMessage) {
+      toast(snackbarMessage, {
+        action: {
+          label: "UNDO",
+          onClick: handleUndo,
+        },
+        duration: 6000,
+        onDismiss: () => handleSnackbarClose(),
+      });
+    }
+  }, [snackbarOpen, snackbarMessage, handleUndo, handleSnackbarClose]);
 
   if (loading) {
     return (
-      <Stack spacing={1}>
+      <div className="space-y-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={52} />
+          <Skeleton key={i} className="h-[52px] w-full rounded" />
         ))}
-      </Stack>
+      </div>
     );
   }
 
   if (models.length === 0) {
     return (
-      <Box sx={{ textAlign: "center", py: 8 }}>
-        <CategoryIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-        <Typography variant="subtitle1" fontWeight={500}>
-          No hardware models in catalog
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+      <div className="text-center py-16">
+        <LayoutGrid className="mx-auto size-12 text-muted-foreground/50 mb-2" />
+        <p className="text-sm font-medium">No hardware models in catalog</p>
+        <p className="text-sm text-muted-foreground">
           Models are auto-discovered when devices connect, or you can add them manually.
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
   return (
     <>
-      <DataGrid
-        rows={models}
-        columns={columns}
-        initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-        pageSizeOptions={[10, 25]}
-        disableRowSelectionOnClick
-        autoHeight
-        sx={{
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 3,
-          "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
-        }}
-      />
+      <div className="rounded-xl border border-border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Category</TableHead>
+              <TableHead>Manufacturer</TableHead>
+              <TableHead>Model</TableHead>
+              <TableHead>Specs</TableHead>
+              <TableHead>Connectivity</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {models.map((model) => (
+              <TableRow key={model.id}>
+                <TableCell>
+                  <Badge variant="secondary">
+                    {hardwareCategoryLabels[model.category] ?? model.category}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm font-medium">{model.manufacturer}</span>
+                </TableCell>
+                <TableCell>{model.model}</TableCell>
+                <TableCell>{getSpecs(model)}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    {model.hasUsb && <Usb className="size-4 text-muted-foreground" />}
+                    {model.hasBle && <Bluetooth className="size-4 text-primary" />}
+                    {model.hasWifi && <Wifi className="size-4 text-green-500" />}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="capitalize">
+                    {model.validationStatus}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        setEditingModel(model);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDelete(model)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       <HardwareModelDialog
         open={dialogOpen}
         onClose={() => {
@@ -248,17 +191,6 @@ export function HardwareCatalogTab({ refreshKey }: { refreshKey?: number }) {
         }}
         onSaved={loadData}
         existing={editingModel}
-      />
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-        message={snackbarMessage}
-        action={
-          <Button color="inherit" size="small" onClick={handleUndo}>
-            UNDO
-          </Button>
-        }
       />
     </>
   );

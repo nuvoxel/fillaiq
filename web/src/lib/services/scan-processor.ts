@@ -5,8 +5,8 @@
  */
 
 import { db } from "@/db";
-import { scanStations, scanEvents } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { scanStations, scanEvents, scanSessions, userItems } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { parseNfcRawData, type BambuParsedData } from "./nfc-parser";
 import { spectralToColor } from "./color-converter";
 import {
@@ -14,6 +14,7 @@ import {
   updateSessionAggregates,
   matchSession,
 } from "./scan-session";
+import { getSlotPath } from "./storage-path";
 
 export type ScanInput = {
   weight?: { grams: number; stable: boolean };
@@ -55,6 +56,10 @@ export type ScanResult = {
   nozzleTempMax: number | null;
   bedTemp: number | null;
   correlationId?: number;
+  // Spool return flow — populated when NFC UID matches an existing inventory item
+  existingItemId?: string;
+  isExisting?: boolean;
+  returnLocation?: string; // human-readable slot path, e.g. "Workshop / Rack A / Shelf 2 / Bay 3"
 };
 
 /**
@@ -145,6 +150,65 @@ export async function processScan(
   session = await updateSessionAggregates(session, updatedScanEvent);
   session = await matchSession(session);
 
+  // ── Spool return flow: check if NFC UID matches existing inventory ────
+  let existingItemId: string | undefined;
+  let isExisting: boolean | undefined;
+  let returnLocation: string | undefined;
+
+  if (session.nfcUid && userId) {
+    const existingItem = await db
+      .select({
+        id: userItems.id,
+        storageLocation: userItems.storageLocation,
+        currentSlotId: userItems.currentSlotId,
+        currentWeightG: userItems.currentWeightG,
+        productId: userItems.productId,
+      })
+      .from(userItems)
+      .where(
+        and(
+          eq(userItems.userId, userId),
+          eq(userItems.nfcUid, session.nfcUid)
+        )
+      )
+      .limit(1);
+
+    if (existingItem.length > 0) {
+      const item = existingItem[0];
+      existingItemId = item.id;
+      isExisting = true;
+
+      // Build human-readable return location from slot hierarchy
+      if (item.currentSlotId) {
+        const slotPath = await getSlotPath(item.currentSlotId);
+        if (slotPath) returnLocation = slotPath;
+      }
+      // Fall back to freetext storage location
+      if (!returnLocation && item.storageLocation) {
+        returnLocation = item.storageLocation;
+      }
+
+      // Update the item's weight with the fresh reading
+      if (session.bestWeightG != null) {
+        await db
+          .update(userItems)
+          .set({ currentWeightG: session.bestWeightG, updatedAt: new Date() })
+          .where(eq(userItems.id, item.id));
+      }
+
+      // Auto-resolve the session to the existing item
+      await db
+        .update(scanSessions)
+        .set({
+          resolvedUserItemId: item.id,
+          resolvedAt: new Date(),
+          status: "resolved",
+          updatedAt: new Date(),
+        })
+        .where(eq(scanSessions.id, session.id));
+    }
+  }
+
   // Build result
   const parsed = updates.nfcParsedData as BambuParsedData | null | undefined;
 
@@ -170,5 +234,8 @@ export async function processScan(
     nozzleTempMax: parsed?.nozzleTempMax ?? null,
     bedTemp: parsed?.bedTemp ?? null,
     correlationId: input.correlationId,
+    existingItemId,
+    isExisting,
+    returnLocation,
   };
 }

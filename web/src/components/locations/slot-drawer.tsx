@@ -1,40 +1,46 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Box from "@mui/material/Box";
-import Drawer from "@mui/material/Drawer";
-import Typography from "@mui/material/Typography";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Grid from "@mui/material/Grid";
-import Chip from "@mui/material/Chip";
-import Rating from "@mui/material/Rating";
-import Skeleton from "@mui/material/Skeleton";
-import IconButton from "@mui/material/IconButton";
-import Divider from "@mui/material/Divider";
-import LinearProgress from "@mui/material/LinearProgress";
-import Autocomplete from "@mui/material/Autocomplete";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import MenuItem from "@mui/material/MenuItem";
-import InputAdornment from "@mui/material/InputAdornment";
-import Select from "@mui/material/Select";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Tooltip from "@mui/material/Tooltip";
-import CloseIcon from "@mui/icons-material/Close";
-import NfcIcon from "@mui/icons-material/Nfc";
-import PrintIcon from "@mui/icons-material/Print";
-import EditIcon from "@mui/icons-material/Edit";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import DeviceThermostatIcon from "@mui/icons-material/DeviceThermostat";
-import WaterDropIcon from "@mui/icons-material/WaterDrop";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import LinkIcon from "@mui/icons-material/Link";
-import AddIcon from "@mui/icons-material/Add";
+import {
+  X,
+  Nfc,
+  Printer,
+  Pencil,
+  Eye,
+  Thermometer,
+  Droplets,
+  ChevronDown,
+  Link,
+  Plus,
+  Star,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { getSlotWithDetails, updateSlot } from "@/lib/actions/hardware";
 import { updateUserItem, checkIsAdmin } from "@/lib/actions/user-library";
 import { removeItemFromSlot, searchProducts } from "@/lib/actions/scan";
@@ -86,19 +92,40 @@ function fmtDate(val: string | Date | null | undefined): string {
 }
 
 function fmtDateTime(val: string | Date | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return "\u2014";
   const d = typeof val === "string" ? new Date(val) : val;
   return isNaN(d.getTime()) ? String(val) : d.toLocaleString();
 }
 
 function DisplayField({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <Box sx={{ mb: 0.75 }}>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>{label}</Typography>
-      <Typography variant="body2" fontWeight={500} sx={mono ? { fontFamily: "monospace", fontSize: "0.8rem" } : {}} noWrap>
-        {value || "—"}
-      </Typography>
-    </Box>
+    <div className="mb-1.5">
+      <span className="text-xs text-muted-foreground block leading-tight">{label}</span>
+      <span className={`text-sm font-medium truncate block ${mono ? "font-mono text-xs" : ""}`}>
+        {value || "\u2014"}
+      </span>
+    </div>
+  );
+}
+
+function StarRating({ value, onChange, size = 16, readOnly }: { value: number | null; onChange?: (v: number | null) => void; size?: number; readOnly?: boolean }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          className={`p-0 ${!readOnly && onChange ? "cursor-pointer" : "cursor-default"}`}
+          onClick={() => !readOnly && onChange?.(value === star ? null : star)}
+          disabled={readOnly || !onChange}
+        >
+          <Star
+            className={`${value != null && star <= value ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40"}`}
+            style={{ width: size, height: size }}
+          />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -109,15 +136,12 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  // Slot fields
   const [slotLabel, setSlotLabel] = useState("");
   const [slotNfcTagId, setSlotNfcTagId] = useState("");
 
-  // Item fields — all schema columns
   const [f, setF] = useState<Record<string, any>>({});
   const set = (key: string) => (val: any) => setF((prev) => ({ ...prev, [key]: val }));
 
-  // Product search
   const [productSearch, setProductSearch] = useState("");
   const [productOptions, setProductOptions] = useState<any[]>([]);
   const [productSearchLoading, setProductSearchLoading] = useState(false);
@@ -195,7 +219,6 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
     })();
   }, [slotId]);
 
-  // Product search debounce
   const handleProductSearch = useCallback(async (query: string) => {
     if (query.length < 2) { setProductOptions([]); return; }
     setProductSearchLoading(true);
@@ -219,7 +242,6 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
   const material = product?.material;
   const pct = f.percentRemaining ? parseInt(f.percentRemaining) : item?.percentRemaining;
 
-  // Location breadcrumb
   const locationParts: string[] = [];
   if (data) {
     const zone = data.bay?.shelf?.rack?.zone;
@@ -322,36 +344,34 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
   };
 
   // Helper for edit mode number fields
-  const editNum = (label: string, key: string, unit?: string, xs = 4) => (
-    <Grid size={{ xs }}>
-      <TextField fullWidth size="small" label={label} type="number" value={f[key] ?? ""}
-        onChange={(e) => set(key)(e.target.value)}
-        slotProps={unit ? { input: { endAdornment: <InputAdornment position="end">{unit}</InputAdornment> } } : undefined}
-      />
-    </Grid>
+  const editNum = (label: string, key: string, unit?: string, cols = "col-span-4") => (
+    <div className={cols}>
+      <Label>{label}</Label>
+      <div className="relative">
+        <Input type="number" value={f[key] ?? ""} onChange={(e) => set(key)(e.target.value)} />
+        {unit && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{unit}</span>}
+      </div>
+    </div>
   );
 
-  // Helper for edit mode text fields
-  const editText = (label: string, key: string, xs = 6, props?: Record<string, any>) => (
-    <Grid size={{ xs }}>
-      <TextField fullWidth size="small" label={label} value={f[key] ?? ""}
-        onChange={(e) => set(key)(e.target.value)} {...props} />
-    </Grid>
+  const editText = (label: string, key: string, cols = "col-span-6", props?: Record<string, any>) => (
+    <div className={cols}>
+      <Label>{label}</Label>
+      <Input value={f[key] ?? ""} onChange={(e) => set(key)(e.target.value)} {...props} />
+    </div>
   );
 
-  // Helper for edit mode date fields
-  const editDate = (label: string, key: string, xs = 4) => (
-    <Grid size={{ xs }}>
-      <TextField fullWidth size="small" label={label} type="date" value={f[key] ?? ""}
-        onChange={(e) => set(key)(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-    </Grid>
+  const editDate = (label: string, key: string, cols = "col-span-4") => (
+    <div className={cols}>
+      <Label>{label}</Label>
+      <Input type="date" value={f[key] ?? ""} onChange={(e) => set(key)(e.target.value)} />
+    </div>
   );
 
-  // Helper for display mode
-  const displayNum = (label: string, key: string, unit?: string, xs = 4) => (
-    <Grid size={{ xs }}>
+  const displayNum = (label: string, key: string, unit?: string, cols = "col-span-4") => (
+    <div className={cols}>
       <DisplayField label={label} value={f[key] ? `${f[key]}${unit ? ` ${unit}` : ""}` : null} />
-    </Grid>
+    </div>
   );
 
   const pkgLabel = PACKAGE_TYPES.find((p) => p.value === f.packageType)?.label ?? f.packageType;
@@ -359,514 +379,542 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
   const nfcFormatLabel = NFC_TAG_FORMATS.find((n) => n.value === f.nfcTagFormat)?.label ?? f.nfcTagFormat;
 
   return (
-    <Drawer
-      anchor="right"
-      open={!!slotId}
-      onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: "100%", md: "66vw" }, maxWidth: 900, p: 0, display: "flex", flexDirection: "column" } } }}
-    >
-      {/* ── Header ── */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 2.5, py: 1.5, borderBottom: 1, borderColor: "divider", flexShrink: 0 }}>
-        <Box>
-          <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1.2 }}>Slot Details</Typography>
-          {data && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>
-              {locationParts.join(" / ")}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
-          {hasItem && (
-            <Tooltip title={editing ? "View mode" : "Edit mode"}>
-              <IconButton size="small" onClick={() => setEditing((v) => !v)}
-                sx={editing ? { bgcolor: "primary.main", color: "white", "&:hover": { bgcolor: "primary.dark" } } : {}}>
-                {editing ? <VisibilityIcon fontSize="small" /> : <EditIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-          )}
-          {onPrintSlot && <IconButton size="small" onClick={onPrintSlot}><PrintIcon fontSize="small" /></IconButton>}
-          <IconButton size="small" onClick={onClose}><CloseIcon /></IconButton>
-        </Box>
-      </Box>
-
-      {loading ? (
-        <Box sx={{ p: 2.5 }}>
-          <Skeleton variant="rounded" height={80} sx={{ mb: 2 }} />
-          <Skeleton variant="rounded" height={200} />
-        </Box>
-      ) : data ? (
-        <Box sx={{ overflow: "auto", flex: 1 }}>
-          {/* ── Slot Section ── */}
-          <Box sx={{ px: 2.5, py: 2 }}>
-            <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mb: 1.5 }}>
-              {data.address && <Chip label={data.address} size="small" variant="outlined" sx={{ fontFamily: "monospace" }} />}
-              <Chip label={hasItem ? "Occupied" : "Empty"} size="small" color={hasItem ? "success" : "default"} variant="outlined" />
-            </Box>
-
-            {editing ? (
-              <>
-                <Grid container spacing={1.5} sx={{ mb: 1 }}>
-                  <Grid size={{ xs: 6 }}>
-                    <TextField fullWidth size="small" label="Slot Label" value={slotLabel}
-                      onChange={(e) => setSlotLabel(e.target.value)} placeholder={`Position ${data.position}`} />
-                  </Grid>
-                  <Grid size={{ xs: 6 }}>
-                    <TextField fullWidth size="small" label="Slot NFC Tag" value={slotNfcTagId}
-                      onChange={(e) => setSlotNfcTagId(e.target.value)} placeholder="Optional" />
-                  </Grid>
-                </Grid>
-                <Button size="small" variant="outlined" onClick={handleSaveSlot} disabled={saving} sx={{ textTransform: "none" }}>
-                  {saving ? "Saving..." : "Save Slot"}
-                </Button>
-              </>
-            ) : (
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 4 }}><DisplayField label="Label" value={slotLabel || `Position ${data.position}`} /></Grid>
-                <Grid size={{ xs: 4 }}><DisplayField label="NFC Tag" value={slotNfcTagId} mono /></Grid>
-                <Grid size={{ xs: 4 }}><DisplayField label="Position" value={data.position} /></Grid>
-              </Grid>
+    <Sheet open={!!slotId} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="w-full md:w-[66vw] md:max-w-[900px] sm:max-w-none p-0 flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold leading-tight">Slot Details</h2>
+            {data && (
+              <span className="text-xs text-muted-foreground font-mono">{locationParts.join(" / ")}</span>
             )}
-
-            {/* Live sensor data */}
-            {slotStatus && (slotStatus.temperatureC != null || slotStatus.humidityPercent != null || slotStatus.weightStableG != null) && (
-              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
-                {slotStatus.weightStableG != null && <Chip label={`${Math.round(slotStatus.weightStableG)}g`} size="small" variant="outlined" />}
-                {slotStatus.temperatureC != null && <Chip icon={<DeviceThermostatIcon sx={{ fontSize: "14px !important" }} />} label={`${slotStatus.temperatureC.toFixed(1)}°C`} size="small" variant="outlined" />}
-                {slotStatus.humidityPercent != null && <Chip icon={<WaterDropIcon sx={{ fontSize: "14px !important" }} />} label={`${slotStatus.humidityPercent.toFixed(0)}%`} size="small" variant="outlined" />}
-              </Box>
+          </div>
+          <div className="flex gap-1 items-center">
+            {hasItem && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant={editing ? "default" : "ghost"}
+                      size="icon-xs"
+                      onClick={() => setEditing((v) => !v)}
+                    />
+                  }
+                >
+                  {editing ? <Eye className="size-4" /> : <Pencil className="size-4" />}
+                </TooltipTrigger>
+                <TooltipContent>{editing ? "View mode" : "Edit mode"}</TooltipContent>
+              </Tooltip>
             )}
-          </Box>
+            {onPrintSlot && (
+              <Button variant="ghost" size="icon-xs" onClick={onPrintSlot}>
+                <Printer className="size-4" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon-xs" onClick={onClose}>
+              <X className="size-5" />
+            </Button>
+          </div>
+        </div>
 
-          <Divider />
+        {loading ? (
+          <div className="p-5">
+            <Skeleton className="h-20 mb-4 rounded-lg" />
+            <Skeleton className="h-48 rounded-lg" />
+          </div>
+        ) : data ? (
+          <div className="overflow-auto flex-1">
+            {/* Slot Section */}
+            <div className="px-5 py-4">
+              <div className="flex gap-1.5 flex-wrap mb-3">
+                {data.address && <Badge variant="outline" className="font-mono">{data.address}</Badge>}
+                <Badge variant="outline" className={hasItem ? "border-green-500 text-green-700" : ""}>{hasItem ? "Occupied" : "Empty"}</Badge>
+              </div>
 
-          {/* ── Item Section ── */}
-          {!hasItem ? (
-            <Box sx={{ px: 2.5, py: 3, textAlign: "center" }}>
-              <Typography variant="body2" color="text.secondary">No item in this slot.</Typography>
-            </Box>
-          ) : (
-            <Box>
-              {/* Item header — always visible */}
-              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, px: 2.5, py: 2 }}>
-                <Box
-                  sx={{
-                    width: 48, height: 48, borderRadius: 2, flexShrink: 0,
-                    bgcolor: product?.colorHex || f.measuredColorHex || "#888",
-                    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.2)",
-                    ...(editing ? { cursor: "pointer" } : {}),
-                  }}
-                  onClick={editing ? () => {
-                    const input = document.createElement("input");
-                    input.type = "color";
-                    input.value = f.measuredColorHex || "#888888";
-                    input.onchange = (e) => set("measuredColorHex")((e.target as HTMLInputElement).value);
-                    input.click();
-                  } : undefined}
-                />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" fontWeight={700} noWrap>
-                    {product?.name ?? "Unknown Item"}
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.25 }}>
-                    {brand && <Chip label={brand.name} size="small" variant="outlined" />}
-                    {material && <Chip label={material.abbreviation ?? material.name} size="small" variant="outlined" />}
-                    {f.packageType && <Chip label={pkgLabel} size="small" variant="outlined" sx={{ textTransform: "capitalize" }} />}
-                    <Chip label={statusLabel} size="small" color={f.status === "active" ? "success" : f.status === "empty" ? "default" : "warning"} variant="outlined" />
-                  </Box>
-                </Box>
-              </Box>
-
-              {/* Progress bar */}
-              {pct != null && pct > 0 && (
-                <Box sx={{ px: 2.5, mb: 1 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25 }}>
-                    <Typography variant="caption" color="text.secondary">Remaining</Typography>
-                    <Typography variant="caption" fontWeight={600}>{pct}%</Typography>
-                  </Box>
-                  <LinearProgress variant="determinate" value={pct} sx={{
-                    height: 6, borderRadius: 3, bgcolor: "grey.200",
-                    "& .MuiLinearProgress-bar": { bgcolor: pct > 50 ? "success.main" : pct > 25 ? "warning.main" : "error.main", borderRadius: 3 },
-                  }} />
-                </Box>
+              {editing ? (
+                <>
+                  <div className="grid grid-cols-12 gap-3 mb-2">
+                    <div className="col-span-6">
+                      <Label>Slot Label</Label>
+                      <Input value={slotLabel} onChange={(e) => setSlotLabel(e.target.value)} placeholder={`Position ${data.position}`} />
+                    </div>
+                    <div className="col-span-6">
+                      <Label>Slot NFC Tag</Label>
+                      <Input value={slotNfcTagId} onChange={(e) => setSlotNfcTagId(e.target.value)} placeholder="Optional" />
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleSaveSlot} disabled={saving}>
+                    {saving ? "Saving..." : "Save Slot"}
+                  </Button>
+                </>
+              ) : (
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-4"><DisplayField label="Label" value={slotLabel || `Position ${data.position}`} /></div>
+                  <div className="col-span-4"><DisplayField label="NFC Tag" value={slotNfcTagId} mono /></div>
+                  <div className="col-span-4"><DisplayField label="Position" value={data.position} /></div>
+                </div>
               )}
 
-              {/* ── Catalog Link ── */}
-              <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <LinkIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                    <Typography variant="body2" fontWeight={600}>Catalog Product</Typography>
-                    {product && <Chip label="Linked" size="small" color="success" variant="outlined" sx={{ height: 18, "& .MuiChip-label": { px: 0.5, fontSize: "0.65rem" } }} />}
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
+              {/* Live sensor data */}
+              {slotStatus && (slotStatus.temperatureC != null || slotStatus.humidityPercent != null || slotStatus.weightStableG != null) && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {slotStatus.weightStableG != null && <Badge variant="outline">{Math.round(slotStatus.weightStableG)}g</Badge>}
+                  {slotStatus.temperatureC != null && (
+                    <Badge variant="outline"><Thermometer className="size-3 mr-0.5" />{slotStatus.temperatureC.toFixed(1)}&deg;C</Badge>
+                  )}
+                  {slotStatus.humidityPercent != null && (
+                    <Badge variant="outline"><Droplets className="size-3 mr-0.5" />{slotStatus.humidityPercent.toFixed(0)}%</Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Item Section */}
+            {!hasItem ? (
+              <div className="px-5 py-6 text-center">
+                <p className="text-sm text-muted-foreground">No item in this slot.</p>
+              </div>
+            ) : (
+              <div>
+                {/* Item header */}
+                <div className="flex items-start gap-3 px-5 py-4">
+                  <div
+                    className="w-12 h-12 rounded-lg shrink-0 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]"
+                    style={{ backgroundColor: product?.colorHex || f.measuredColorHex || "#888", ...(editing ? { cursor: "pointer" } : {}) }}
+                    onClick={editing ? () => {
+                      const input = document.createElement("input");
+                      input.type = "color";
+                      input.value = f.measuredColorHex || "#888888";
+                      input.onchange = (e) => set("measuredColorHex")((e.target as HTMLInputElement).value);
+                      input.click();
+                    } : undefined}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold truncate">{product?.name ?? "Unknown Item"}</p>
+                    <div className="flex gap-1 flex-wrap mt-0.5">
+                      {brand && <Badge variant="outline">{brand.name}</Badge>}
+                      {material && <Badge variant="outline">{material.abbreviation ?? material.name}</Badge>}
+                      {f.packageType && <Badge variant="outline" className="capitalize">{pkgLabel}</Badge>}
+                      <Badge variant="outline" className={f.status === "active" ? "border-green-500 text-green-700" : f.status === "archived" ? "border-yellow-500 text-yellow-700" : ""}>{statusLabel}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                {pct != null && pct > 0 && (
+                  <div className="px-5 mb-2">
+                    <div className="flex justify-between mb-0.5">
+                      <span className="text-xs text-muted-foreground">Remaining</span>
+                      <span className="text-xs font-semibold">{pct}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${pct > 50 ? "bg-green-500" : pct > 25 ? "bg-yellow-500" : "bg-red-500"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Accordion sections */}
+                <Accordion defaultValue={["basic", "weight"]}>
+                  {/* Catalog Link */}
+                  <AccordionItem value="catalog">
+                    <AccordionTrigger className="px-5">
+                      <div className="flex items-center gap-1.5">
+                        <Link className="size-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold">Catalog Product</span>
+                        {product && <Badge variant="outline" className="border-green-500 text-green-700 text-[10px] h-4 px-1">Linked</Badge>}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      {editing ? (
+                        <>
+                          <div className="relative mb-2">
+                            <Input
+                              value={productSearch}
+                              onChange={(e) => setProductSearch(e.target.value)}
+                              placeholder="Search catalog products..."
+                            />
+                            {productOptions.length > 0 && productSearch.length >= 2 && (
+                              <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-lg border bg-popover shadow-md">
+                                {productOptions.map((opt: any) => (
+                                  <button
+                                    key={opt.product?.id}
+                                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left"
+                                    onClick={() => {
+                                      setSelectedProduct(opt);
+                                      setProductSearch("");
+                                      setProductOptions([]);
+                                    }}
+                                  >
+                                    {opt.product?.colorHex && (
+                                      <div className="w-3.5 h-3.5 rounded-full border border-border shrink-0" style={{ backgroundColor: opt.product.colorHex }} />
+                                    )}
+                                    <span className="truncate">{opt.brand?.name ? `${opt.brand.name} ` : ""}{opt.product?.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {selectedProduct && (
+                            <p className="text-sm mb-1">Selected: <strong>{brand?.name ? `${brand.name} ` : ""}{product?.name}</strong></p>
+                          )}
+                          {isAdmin && (
+                            <Button variant="ghost" size="sm" onClick={handleAddToCatalog} disabled={addingToCatalog}>
+                              <Plus className="size-3.5" data-icon="inline-start" />
+                              {addingToCatalog ? "Adding..." : "Add to Catalog"}
+                            </Button>
+                          )}
+                        </>
+                      ) : product ? (
+                        <div className="p-3 bg-muted/50 rounded">
+                          <p className="text-sm font-semibold">{brand?.name ? `${brand.name} ` : ""}{product.name}</p>
+                          {product.colorName && <p className="text-xs text-muted-foreground">Color: {product.colorName}</p>}
+                          {product.netWeightG && <p className="text-xs text-muted-foreground">Net: {product.netWeightG}g</p>}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Not linked to a catalog product.</p>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Basic Info */}
+                  <AccordionItem value="basic">
+                    <AccordionTrigger className="px-5">
+                      <span className="text-sm font-semibold">Basic Info</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      {editing ? (
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-4">
+                            <Label>Type</Label>
+                            <Select value={f.packageType || "_none"} onValueChange={(v) => set("packageType")(v === "_none" ? "" : v)}>
+                              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none"><em>None</em></SelectItem>
+                                {PACKAGE_TYPES.map((pt) => <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-4">
+                            <Label>Status</Label>
+                            <Select value={f.status} onValueChange={(v) => set("status")(v)}>
+                              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {ITEM_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-4">
+                            <div className="flex items-center gap-1 pt-1">
+                              <span className="text-xs text-muted-foreground">Rating</span>
+                              <StarRating value={f.rating} onChange={(v) => set("rating")(v)} size={16} />
+                            </div>
+                          </div>
+                          <div className="col-span-12">
+                            <Label>Notes</Label>
+                            <textarea
+                              className="flex w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 min-h-[40px]"
+                              value={f.notes}
+                              onChange={(e) => set("notes")(e.target.value)}
+                              rows={2}
+                            />
+                          </div>
+                          {editText("Storage Location", "storageLocation", "col-span-12", { placeholder: "Freetext fallback location" })}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-3"><DisplayField label="Type" value={pkgLabel} /></div>
+                          <div className="col-span-3"><DisplayField label="Status" value={statusLabel} /></div>
+                          <div className="col-span-3"><DisplayField label="Rating" value={f.rating ? <StarRating value={f.rating} size={14} readOnly /> : "\u2014"} /></div>
+                          <div className="col-span-3"><DisplayField label="Storage" value={f.storageLocation} /></div>
+                          {f.notes && <div className="col-span-12"><DisplayField label="Notes" value={f.notes} /></div>}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Weight & Dimensions */}
+                  <AccordionItem value="weight">
+                    <AccordionTrigger className="px-5">
+                      <span className="text-sm font-semibold">Weight & Dimensions</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      {editing ? (
+                        <div className="grid grid-cols-12 gap-3">
+                          {editNum("Current Weight", "currentWeightG", "g")}
+                          {editNum("Initial Weight", "initialWeightG", "g")}
+                          {editNum("% Remaining", "percentRemaining", "%")}
+                          {editNum("Net Filament", "netFilamentWeightG", "g")}
+                          {editNum("Spool/Pkg Weight", "spoolWeightG", "g")}
+                          {editNum("Height", "measuredHeightMm", "mm")}
+                          {editNum("Outer Diameter", "measuredSpoolOuterDiameterMm", "mm")}
+                          {editNum("Inner Diameter", "measuredSpoolInnerDiameterMm", "mm")}
+                          {editNum("Spool Width", "measuredSpoolWidthMm", "mm")}
+                          {editNum("Hub Hole Dia.", "measuredSpoolHubHoleDiameterMm", "mm")}
+                          {editNum("Measured Spool Wt.", "measuredSpoolWeightG", "g")}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 gap-2">
+                          {displayNum("Current", "currentWeightG", "g")}
+                          {displayNum("Initial", "initialWeightG", "g")}
+                          {displayNum("% Left", "percentRemaining", "%")}
+                          {displayNum("Net Filament", "netFilamentWeightG", "g")}
+                          {displayNum("Spool/Pkg", "spoolWeightG", "g")}
+                          {displayNum("Height", "measuredHeightMm", "mm")}
+                          {displayNum("Outer Dia.", "measuredSpoolOuterDiameterMm", "mm")}
+                          {displayNum("Inner Dia.", "measuredSpoolInnerDiameterMm", "mm")}
+                          {displayNum("Width", "measuredSpoolWidthMm", "mm")}
+                          {displayNum("Hub Hole", "measuredSpoolHubHoleDiameterMm", "mm")}
+                          {displayNum("Meas. Spool Wt.", "measuredSpoolWeightG", "g")}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Filament Profile */}
+                  {product?.filamentProfile && (
+                    <AccordionItem value="filament-profile">
+                      <AccordionTrigger className="px-5">
+                        <span className="text-sm font-semibold">Filament Profile</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-5">
+                        {(() => { const fp = product.filamentProfile; return (
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4"><DisplayField label="Nozzle Temp" value={fp.nozzleTempMin && fp.nozzleTempMax ? `${fp.nozzleTempMin}\u2013${fp.nozzleTempMax}\u00b0C` : fp.nozzleTempMin ? `${fp.nozzleTempMin}\u00b0C` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Bed Temp" value={fp.bedTempMin && fp.bedTempMax ? `${fp.bedTempMin}\u2013${fp.bedTempMax}\u00b0C` : fp.bedTempMin ? `${fp.bedTempMin}\u00b0C` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Chamber Temp" value={fp.chamberTempMin && fp.chamberTempMax ? `${fp.chamberTempMin}\u2013${fp.chamberTempMax}\u00b0C` : fp.chamberTempMin ? `${fp.chamberTempMin}\u00b0C` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Diameter" value={fp.diameter ? `${fp.diameter}mm` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Min Nozzle" value={fp.minNozzleDiameter ? `${fp.minNozzleDiameter}mm` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Filament Length" value={fp.filamentLengthM ? `${fp.filamentLengthM}m` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Flow Ratio" value={fp.defaultFlowRatio} /></div>
+                            <div className="col-span-4"><DisplayField label="Pressure Adv." value={fp.defaultPressureAdvance} /></div>
+                            <div className="col-span-4"><DisplayField label="Vol. Speed" value={fp.maxVolumetricSpeed ? `${fp.maxVolumetricSpeed} mm\u00b3/s` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Drying Temp" value={fp.dryingTemp ? `${fp.dryingTemp}\u00b0C` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Drying Time" value={fp.dryingTimeMin ? `${fp.dryingTimeMin} min` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="Spool Weight" value={fp.spoolWeightG ? `${fp.spoolWeightG}g` : null} /></div>
+                            <div className="col-span-4"><DisplayField label="TD" value={fp.transmissionDistance} /></div>
+                          </div>
+                        ); })()}
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {/* Product Details */}
+                  {product && (
+                    <AccordionItem value="product-details">
+                      <AccordionTrigger className="px-5">
+                        <span className="text-sm font-semibold">Product Details</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-5">
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-6"><DisplayField label="Name" value={product.name} /></div>
+                          <div className="col-span-6"><DisplayField label="Brand" value={brand?.name} /></div>
+                          <div className="col-span-4"><DisplayField label="Material" value={material?.name} /></div>
+                          <div className="col-span-4"><DisplayField label="Category" value={product.category} /></div>
+                          <div className="col-span-4"><DisplayField label="Color Name" value={product.colorName} /></div>
+                          {product.colorHex && (
+                            <div className="col-span-4"><DisplayField label="Product Color" value={
+                              <span className="flex items-center gap-1">
+                                <span className="w-3.5 h-3.5 rounded-full border border-border inline-block" style={{ backgroundColor: product.colorHex }} />
+                                {product.colorHex}
+                              </span>
+                            } /></div>
+                          )}
+                          <div className="col-span-4"><DisplayField label="Finish" value={product.finish} /></div>
+                          <div className="col-span-4"><DisplayField label="Net Weight" value={product.netWeightG ? `${product.netWeightG}g` : null} /></div>
+                          <div className="col-span-4"><DisplayField label="GTIN" value={product.gtin} mono /></div>
+                          <div className="col-span-4"><DisplayField label="Country" value={product.countryOfOrigin} /></div>
+                          {product.websiteUrl && <div className="col-span-8"><DisplayField label="Website" value={product.websiteUrl} mono /></div>}
+                          {product.discontinued && <div className="col-span-4"><Badge variant="destructive">Discontinued</Badge></div>}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {/* Color */}
+                  <AccordionItem value="color">
+                    <AccordionTrigger className="px-5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold">Color</span>
+                        {f.measuredColorHex && <span className="w-3.5 h-3.5 rounded-full border border-border inline-block" style={{ backgroundColor: f.measuredColorHex }} />}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      {editing ? (
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-5">
+                            <Label>Hex Color</Label>
+                            <div className="relative">
+                              {f.measuredColorHex && <span className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-border" style={{ backgroundColor: f.measuredColorHex }} />}
+                              <Input value={f.measuredColorHex} onChange={(e) => set("measuredColorHex")(e.target.value)} placeholder="#00D2FF" className={f.measuredColorHex ? "pl-8" : ""} />
+                            </div>
+                          </div>
+                          <div className="col-span-3 flex items-end">
+                            <input type="color" value={f.measuredColorHex || "#888888"}
+                              onChange={(e) => set("measuredColorHex")(e.target.value)}
+                              style={{ width: 40, height: 32, border: "none", cursor: "pointer", borderRadius: 4, padding: 0 }} />
+                          </div>
+                          {editNum("LAB L*", "measuredColorLabL", undefined, "col-span-4")}
+                          {editNum("LAB a*", "measuredColorLabA")}
+                          {editNum("LAB b*", "measuredColorLabB")}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-4">
+                            <DisplayField label="Hex" value={f.measuredColorHex ? (
+                              <span className="flex items-center gap-1">
+                                <span className="w-3.5 h-3.5 rounded-full border border-border inline-block" style={{ backgroundColor: f.measuredColorHex }} />
+                                {f.measuredColorHex}
+                              </span>
+                            ) : null} mono />
+                          </div>
+                          <div className="col-span-8">
+                            <DisplayField label="LAB" value={f.measuredColorLabL ? `${parseFloat(f.measuredColorLabL).toFixed(1)} / ${parseFloat(f.measuredColorLabA).toFixed(1)} / ${parseFloat(f.measuredColorLabB).toFixed(1)}` : null} mono />
+                          </div>
+                          {item.measuredSpectralData && <div className="col-span-12"><DisplayField label="Spectral Data" value="Available (AS7341)" /></div>}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* NFC & Identification */}
+                  <AccordionItem value="nfc">
+                    <AccordionTrigger className="px-5">
+                      <div className="flex items-center gap-1.5">
+                        <Nfc className="size-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold">NFC & Identification</span>
+                        {f.nfcUid && <Badge variant="outline" className="border-primary text-primary text-[10px] h-4 px-1">NFC</Badge>}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      {editing ? (
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-6">
+                            <Label>NFC UID</Label>
+                            <Input value={f.nfcUid} onChange={(e) => set("nfcUid")(e.target.value)} placeholder="04:A3:..." />
+                          </div>
+                          <div className="col-span-6">
+                            <Label>NFC Format</Label>
+                            <Select value={f.nfcTagFormat || "_none"} onValueChange={(v) => set("nfcTagFormat")(v === "_none" ? "" : v)}>
+                              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none"><em>None</em></SelectItem>
+                                {NFC_TAG_FORMATS.map((n) => <SelectItem key={n.value} value={n.value}>{n.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-4 flex items-center gap-2 pt-2">
+                            <Switch checked={f.nfcTagWritten} onCheckedChange={(v) => set("nfcTagWritten")(v)} />
+                            <span className="text-xs">Tag Written</span>
+                          </div>
+                          {editText("Bambu Tray UID", "bambuTrayUid", "col-span-8")}
+                          {editText("Barcode Value", "barcodeValue", "col-span-7")}
+                          {editText("Barcode Format", "barcodeFormat", "col-span-5", { placeholder: "CODE128" })}
+                          {editText("Lot Number", "lotNumber")}
+                          {editText("Serial Number", "serialNumber")}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-4"><DisplayField label="NFC UID" value={f.nfcUid} mono /></div>
+                          <div className="col-span-4"><DisplayField label="Format" value={nfcFormatLabel} /></div>
+                          <div className="col-span-4"><DisplayField label="Written" value={f.nfcTagWritten ? "Yes" : "No"} /></div>
+                          <div className="col-span-6"><DisplayField label="Bambu Tray UID" value={f.bambuTrayUid} mono /></div>
+                          <div className="col-span-6"><DisplayField label="Barcode" value={f.barcodeValue ? `${f.barcodeValue}${f.barcodeFormat ? ` (${f.barcodeFormat})` : ""}` : null} mono /></div>
+                          <div className="col-span-6"><DisplayField label="Lot Number" value={f.lotNumber} /></div>
+                          <div className="col-span-6"><DisplayField label="Serial Number" value={f.serialNumber} mono /></div>
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Purchase & Lifecycle */}
+                  <AccordionItem value="purchase">
+                    <AccordionTrigger className="px-5">
+                      <span className="text-sm font-semibold">Purchase & Lifecycle</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      {editing ? (
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-4">
+                            <Label>Price</Label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                              <Input type="number" value={f.purchasePrice} onChange={(e) => set("purchasePrice")(e.target.value)} className="pl-6" />
+                            </div>
+                          </div>
+                          {editText("Currency", "purchaseCurrency", "col-span-2")}
+                          {editDate("Purchased", "purchasedAt")}
+                          {editText("Production Date", "productionDate", "col-span-6", { placeholder: "YYYY-MM-DD" })}
+                          {editDate("Opened", "openedAt")}
+                          {editDate("Emptied", "emptiedAt")}
+                          {editDate("Expires", "expiresAt")}
+                          {editDate("Last Dried", "lastDriedAt")}
+                          {editNum("Drying Cycles", "dryingCycleCount", undefined, "col-span-4")}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-4"><DisplayField label="Price" value={f.purchasePrice ? `${f.purchasePrice} ${f.purchaseCurrency}` : null} /></div>
+                          <div className="col-span-4"><DisplayField label="Purchased" value={f.purchasedAt} /></div>
+                          <div className="col-span-4"><DisplayField label="Production" value={f.productionDate} /></div>
+                          <div className="col-span-4"><DisplayField label="Opened" value={f.openedAt} /></div>
+                          <div className="col-span-4"><DisplayField label="Emptied" value={f.emptiedAt} /></div>
+                          <div className="col-span-4"><DisplayField label="Expires" value={f.expiresAt} /></div>
+                          <div className="col-span-4"><DisplayField label="Last Dried" value={f.lastDriedAt} /></div>
+                          <div className="col-span-4"><DisplayField label="Drying Cycles" value={f.dryingCycleCount !== "0" ? f.dryingCycleCount : null} /></div>
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Metadata */}
+                  <AccordionItem value="metadata">
+                    <AccordionTrigger className="px-5">
+                      <span className="text-sm font-semibold text-muted-foreground">Metadata</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-5">
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-6"><DisplayField label="Item ID" value={item.id} mono /></div>
+                        <div className="col-span-6"><DisplayField label="Product ID" value={item.productId} mono /></div>
+                        <div className="col-span-6"><DisplayField label="Created" value={fmtDateTime(item.createdAt)} /></div>
+                        <div className="col-span-6"><DisplayField label="Updated" value={fmtDateTime(item.updatedAt)} /></div>
+                        {item.intakeScanEventId && <div className="col-span-12"><DisplayField label="Intake Scan" value={item.intakeScanEventId} mono /></div>}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Actions */}
+                <div className="px-5 py-4 flex gap-2 flex-wrap">
                   {editing ? (
                     <>
-                      <Autocomplete size="small" options={productOptions}
-                        getOptionLabel={(opt: any) => `${opt.brand?.name ? opt.brand.name + " " : ""}${opt.product?.name ?? ""}`}
-                        loading={productSearchLoading} value={selectedProduct}
-                        onInputChange={(_, val) => setProductSearch(val)}
-                        onChange={(_, val) => setSelectedProduct(val)}
-                        isOptionEqualToValue={(a: any, b: any) => a?.product?.id === b?.product?.id}
-                        renderOption={(props, opt: any) => (
-                          <li {...props} key={opt.product?.id}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              {opt.product?.colorHex && <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: opt.product.colorHex, border: 1, borderColor: "divider", flexShrink: 0 }} />}
-                              <Typography variant="body2" noWrap>{opt.brand?.name ? `${opt.brand.name} ` : ""}{opt.product?.name}</Typography>
-                            </Box>
-                          </li>
-                        )}
-                        renderInput={(params) => <TextField {...params} label="Search catalog products..." placeholder="Type to search..." />}
-                        sx={{ mb: 1 }}
-                      />
-                      {isAdmin && (
-                        <Button size="small" startIcon={<AddIcon />} onClick={handleAddToCatalog} disabled={addingToCatalog} sx={{ textTransform: "none" }}>
-                          {addingToCatalog ? "Adding..." : "Add to Catalog"}
-                        </Button>
-                      )}
+                      <Button size="sm" onClick={handleSaveItem} disabled={saving} className="flex-1">
+                        {saving ? "Saving..." : "Save All Changes"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
                     </>
-                  ) : product ? (
-                    <Box sx={{ p: 1.5, bgcolor: "grey.50", borderRadius: 1 }}>
-                      <Typography variant="body2" fontWeight={600}>{brand?.name ? `${brand.name} ` : ""}{product.name}</Typography>
-                      {product.colorName && <Typography variant="caption" color="text.secondary">Color: {product.colorName}</Typography>}
-                      {product.netWeightG && <Typography variant="caption" color="text.secondary" display="block">Net: {product.netWeightG}g</Typography>}
-                    </Box>
                   ) : (
-                    <Typography variant="body2" color="text.secondary">Not linked to a catalog product.</Typography>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── Basic Info ── */}
-              <Accordion defaultExpanded disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Typography variant="body2" fontWeight={600}>Basic Info</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                  {editing ? (
-                    <Grid container spacing={1.5}>
-                      <Grid size={{ xs: 4 }}>
-                        <FormControl fullWidth size="small"><InputLabel>Type</InputLabel>
-                          <Select value={f.packageType} label="Type" onChange={(e) => set("packageType")(e.target.value)}>
-                            <MenuItem value=""><em>None</em></MenuItem>
-                            {PACKAGE_TYPES.map((pt) => <MenuItem key={pt.value} value={pt.value}>{pt.label}</MenuItem>)}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid size={{ xs: 4 }}>
-                        <FormControl fullWidth size="small"><InputLabel>Status</InputLabel>
-                          <Select value={f.status} label="Status" onChange={(e) => set("status")(e.target.value)}>
-                            {ITEM_STATUSES.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid size={{ xs: 4 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pt: 0.5 }}>
-                          <Typography variant="caption" color="text.secondary">Rating</Typography>
-                          <Rating value={f.rating} onChange={(_, v) => set("rating")(v)} size="small" />
-                        </Box>
-                      </Grid>
-                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth size="small" label="Notes" multiline maxRows={3} value={f.notes} onChange={(e) => set("notes")(e.target.value)} />
-                      </Grid>
-                      {editText("Storage Location", "storageLocation", 12, { placeholder: "Freetext fallback location" })}
-                    </Grid>
-                  ) : (
-                    <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                      <Grid size={{ xs: 3 }}><DisplayField label="Type" value={pkgLabel} /></Grid>
-                      <Grid size={{ xs: 3 }}><DisplayField label="Status" value={statusLabel} /></Grid>
-                      <Grid size={{ xs: 3 }}><DisplayField label="Rating" value={f.rating ? <Rating value={f.rating} size="small" readOnly /> : "—"} /></Grid>
-                      <Grid size={{ xs: 3 }}><DisplayField label="Storage" value={f.storageLocation} /></Grid>
-                      {f.notes && <Grid size={{ xs: 12 }}><DisplayField label="Notes" value={f.notes} /></Grid>}
-                    </Grid>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── Weight & Dimensions ── */}
-              <Accordion defaultExpanded disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Typography variant="body2" fontWeight={600}>Weight & Dimensions</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                  {editing ? (
-                    <Grid container spacing={1.5}>
-                      {editNum("Current Weight", "currentWeightG", "g")}
-                      {editNum("Initial Weight", "initialWeightG", "g")}
-                      {editNum("% Remaining", "percentRemaining", "%")}
-                      {editNum("Net Filament", "netFilamentWeightG", "g")}
-                      {editNum("Spool/Pkg Weight", "spoolWeightG", "g")}
-                      {editNum("Height", "measuredHeightMm", "mm")}
-                      {editNum("Outer Diameter", "measuredSpoolOuterDiameterMm", "mm")}
-                      {editNum("Inner Diameter", "measuredSpoolInnerDiameterMm", "mm")}
-                      {editNum("Spool Width", "measuredSpoolWidthMm", "mm")}
-                      {editNum("Hub Hole Dia.", "measuredSpoolHubHoleDiameterMm", "mm")}
-                      {editNum("Measured Spool Wt.", "measuredSpoolWeightG", "g")}
-                    </Grid>
-                  ) : (
-                    <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                      {displayNum("Current", "currentWeightG", "g")}
-                      {displayNum("Initial", "initialWeightG", "g")}
-                      {displayNum("% Left", "percentRemaining", "%")}
-                      {displayNum("Net Filament", "netFilamentWeightG", "g")}
-                      {displayNum("Spool/Pkg", "spoolWeightG", "g")}
-                      {displayNum("Height", "measuredHeightMm", "mm")}
-                      {displayNum("Outer Dia.", "measuredSpoolOuterDiameterMm", "mm")}
-                      {displayNum("Inner Dia.", "measuredSpoolInnerDiameterMm", "mm")}
-                      {displayNum("Width", "measuredSpoolWidthMm", "mm")}
-                      {displayNum("Hub Hole", "measuredSpoolHubHoleDiameterMm", "mm")}
-                      {displayNum("Meas. Spool Wt.", "measuredSpoolWeightG", "g")}
-                    </Grid>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── Filament Profile (from catalog product) ── */}
-              {product?.filamentProfile && (
-                <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                    <Typography variant="body2" fontWeight={600}>Filament Profile</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                    {(() => { const fp = product.filamentProfile; return (
-                      <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                        <Grid size={{ xs: 4 }}>
-                          <DisplayField label="Nozzle Temp" value={fp.nozzleTempMin && fp.nozzleTempMax ? `${fp.nozzleTempMin}–${fp.nozzleTempMax}°C` : fp.nozzleTempMin ? `${fp.nozzleTempMin}°C` : null} />
-                        </Grid>
-                        <Grid size={{ xs: 4 }}>
-                          <DisplayField label="Bed Temp" value={fp.bedTempMin && fp.bedTempMax ? `${fp.bedTempMin}–${fp.bedTempMax}°C` : fp.bedTempMin ? `${fp.bedTempMin}°C` : null} />
-                        </Grid>
-                        <Grid size={{ xs: 4 }}>
-                          <DisplayField label="Chamber Temp" value={fp.chamberTempMin && fp.chamberTempMax ? `${fp.chamberTempMin}–${fp.chamberTempMax}°C` : fp.chamberTempMin ? `${fp.chamberTempMin}°C` : null} />
-                        </Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Diameter" value={fp.diameter ? `${fp.diameter}mm` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Min Nozzle" value={fp.minNozzleDiameter ? `${fp.minNozzleDiameter}mm` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Filament Length" value={fp.filamentLengthM ? `${fp.filamentLengthM}m` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Flow Ratio" value={fp.defaultFlowRatio} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Pressure Adv." value={fp.defaultPressureAdvance} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Vol. Speed" value={fp.maxVolumetricSpeed ? `${fp.maxVolumetricSpeed} mm³/s` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Drying Temp" value={fp.dryingTemp ? `${fp.dryingTemp}°C` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Drying Time" value={fp.dryingTimeMin ? `${fp.dryingTimeMin} min` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="Spool Weight" value={fp.spoolWeightG ? `${fp.spoolWeightG}g` : null} /></Grid>
-                        <Grid size={{ xs: 4 }}><DisplayField label="TD" value={fp.transmissionDistance} /></Grid>
-                      </Grid>
-                    ); })()}
-                  </AccordionDetails>
-                </Accordion>
-              )}
-
-              {/* ── Product Details (from catalog) ── */}
-              {product && (
-                <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                    <Typography variant="body2" fontWeight={600}>Product Details</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                    <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                      <Grid size={{ xs: 6 }}><DisplayField label="Name" value={product.name} /></Grid>
-                      <Grid size={{ xs: 6 }}><DisplayField label="Brand" value={brand?.name} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Material" value={material?.name} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Category" value={product.category} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Color Name" value={product.colorName} /></Grid>
-                      {product.colorHex && (
-                        <Grid size={{ xs: 4 }}>
-                          <DisplayField label="Product Color" value={
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                              <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: product.colorHex, border: 1, borderColor: "divider" }} />
-                              <span>{product.colorHex}</span>
-                            </Box>
-                          } />
-                        </Grid>
-                      )}
-                      <Grid size={{ xs: 4 }}><DisplayField label="Finish" value={product.finish} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Net Weight" value={product.netWeightG ? `${product.netWeightG}g` : null} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="GTIN" value={product.gtin} mono /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Country" value={product.countryOfOrigin} /></Grid>
-                      {product.websiteUrl && (
-                        <Grid size={{ xs: 8 }}><DisplayField label="Website" value={product.websiteUrl} mono /></Grid>
-                      )}
-                      {product.discontinued && (
-                        <Grid size={{ xs: 4 }}><Chip label="Discontinued" size="small" color="error" variant="outlined" /></Grid>
-                      )}
-                    </Grid>
-                  </AccordionDetails>
-                </Accordion>
-              )}
-
-              {/* ── Color ── */}
-              <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <Typography variant="body2" fontWeight={600}>Color</Typography>
-                    {f.measuredColorHex && <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: f.measuredColorHex, border: 1, borderColor: "divider" }} />}
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                  {editing ? (
-                    <Grid container spacing={1.5}>
-                      <Grid size={{ xs: 5 }}>
-                        <TextField fullWidth size="small" label="Hex Color" value={f.measuredColorHex}
-                          onChange={(e) => set("measuredColorHex")(e.target.value)} placeholder="#FF5C2E"
-                          slotProps={{ input: { startAdornment: f.measuredColorHex ? <InputAdornment position="start"><Box sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: f.measuredColorHex, border: 1, borderColor: "divider" }} /></InputAdornment> : undefined } }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 3 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, height: "100%" }}>
-                          <input type="color" value={f.measuredColorHex || "#888888"}
-                            onChange={(e) => set("measuredColorHex")(e.target.value)}
-                            style={{ width: 40, height: 32, border: "none", cursor: "pointer", borderRadius: 4, padding: 0 }} />
-                        </Box>
-                      </Grid>
-                      {editNum("LAB L*", "measuredColorLabL", undefined, 4)}
-                      {editNum("LAB a*", "measuredColorLabA")}
-                      {editNum("LAB b*", "measuredColorLabB")}
-                    </Grid>
-                  ) : (
-                    <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                      <Grid size={{ xs: 4 }}>
-                        <DisplayField label="Hex" value={f.measuredColorHex ? (
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: f.measuredColorHex, border: 1, borderColor: "divider" }} />
-                            <span>{f.measuredColorHex}</span>
-                          </Box>
-                        ) : null} mono />
-                      </Grid>
-                      <Grid size={{ xs: 8 }}>
-                        <DisplayField label="LAB" value={f.measuredColorLabL ? `${parseFloat(f.measuredColorLabL).toFixed(1)} / ${parseFloat(f.measuredColorLabA).toFixed(1)} / ${parseFloat(f.measuredColorLabB).toFixed(1)}` : null} mono />
-                      </Grid>
-                      {item.measuredSpectralData && (
-                        <Grid size={{ xs: 12 }}>
-                          <DisplayField label="Spectral Data" value="Available (AS7341)" />
-                        </Grid>
-                      )}
-                    </Grid>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── NFC & Identification ── */}
-              <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <NfcIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                    <Typography variant="body2" fontWeight={600}>NFC & Identification</Typography>
-                    {f.nfcUid && <Chip label="NFC" size="small" color="primary" variant="outlined" sx={{ height: 18, "& .MuiChip-label": { px: 0.5, fontSize: "0.65rem" } }} />}
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                  {editing ? (
-                    <Grid container spacing={1.5}>
-                      <Grid size={{ xs: 6 }}>
-                        <TextField fullWidth size="small" label="NFC UID" value={f.nfcUid}
-                          onChange={(e) => set("nfcUid")(e.target.value)} placeholder="04:A3:..." />
-                      </Grid>
-                      <Grid size={{ xs: 6 }}>
-                        <FormControl fullWidth size="small"><InputLabel>NFC Format</InputLabel>
-                          <Select value={f.nfcTagFormat} label="NFC Format" onChange={(e) => set("nfcTagFormat")(e.target.value)}>
-                            <MenuItem value=""><em>None</em></MenuItem>
-                            {NFC_TAG_FORMATS.map((n) => <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>)}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid size={{ xs: 4 }}>
-                        <FormControlLabel
-                          control={<Switch size="small" checked={f.nfcTagWritten} onChange={(e) => set("nfcTagWritten")(e.target.checked)} />}
-                          label={<Typography variant="caption">Tag Written</Typography>} sx={{ mt: 0.5 }}
-                        />
-                      </Grid>
-                      {editText("Bambu Tray UID", "bambuTrayUid", 8)}
-                      {editText("Barcode Value", "barcodeValue", 7)}
-                      {editText("Barcode Format", "barcodeFormat", 5, { placeholder: "CODE128" })}
-                      {editText("Lot Number", "lotNumber")}
-                      {editText("Serial Number", "serialNumber")}
-                    </Grid>
-                  ) : (
-                    <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                      <Grid size={{ xs: 4 }}><DisplayField label="NFC UID" value={f.nfcUid} mono /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Format" value={nfcFormatLabel} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Written" value={f.nfcTagWritten ? "Yes" : "No"} /></Grid>
-                      <Grid size={{ xs: 6 }}><DisplayField label="Bambu Tray UID" value={f.bambuTrayUid} mono /></Grid>
-                      <Grid size={{ xs: 6 }}><DisplayField label="Barcode" value={f.barcodeValue ? `${f.barcodeValue}${f.barcodeFormat ? ` (${f.barcodeFormat})` : ""}` : null} mono /></Grid>
-                      <Grid size={{ xs: 6 }}><DisplayField label="Lot Number" value={f.lotNumber} /></Grid>
-                      <Grid size={{ xs: 6 }}><DisplayField label="Serial Number" value={f.serialNumber} mono /></Grid>
-                    </Grid>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── Purchase & Lifecycle ── */}
-              <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Typography variant="body2" fontWeight={600}>Purchase & Lifecycle</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                  {editing ? (
-                    <Grid container spacing={1.5}>
-                      <Grid size={{ xs: 4 }}>
-                        <TextField fullWidth size="small" label="Price" type="number" value={f.purchasePrice}
-                          onChange={(e) => set("purchasePrice")(e.target.value)}
-                          slotProps={{ input: { startAdornment: <InputAdornment position="start">$</InputAdornment> } }} />
-                      </Grid>
-                      {editText("Currency", "purchaseCurrency", 2)}
-                      {editDate("Purchased", "purchasedAt")}
-                      {editText("Production Date", "productionDate", 6, { placeholder: "YYYY-MM-DD" })}
-                      {editDate("Opened", "openedAt")}
-                      {editDate("Emptied", "emptiedAt")}
-                      {editDate("Expires", "expiresAt", 4)}
-                      {editDate("Last Dried", "lastDriedAt", 4)}
-                      {editNum("Drying Cycles", "dryingCycleCount", undefined, 4)}
-                    </Grid>
-                  ) : (
-                    <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Price" value={f.purchasePrice ? `${f.purchasePrice} ${f.purchaseCurrency}` : null} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Purchased" value={f.purchasedAt} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Production" value={f.productionDate} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Opened" value={f.openedAt} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Emptied" value={f.emptiedAt} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Expires" value={f.expiresAt} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Last Dried" value={f.lastDriedAt} /></Grid>
-                      <Grid size={{ xs: 4 }}><DisplayField label="Drying Cycles" value={f.dryingCycleCount !== "0" ? f.dryingCycleCount : null} /></Grid>
-                    </Grid>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── Metadata (read-only) ── */}
-              <Accordion disableGutters elevation={0} sx={{ "&:before": { display: "none" } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2.5, minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-                  <Typography variant="body2" fontWeight={600} color="text.secondary">Metadata</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ px: 2.5, pt: 0 }}>
-                  <Grid container spacing={1} sx={{ "& .MuiGrid2-root": { py: 0.25 } }}>
-                    <Grid size={{ xs: 6 }}><DisplayField label="Item ID" value={item.id} mono /></Grid>
-                    <Grid size={{ xs: 6 }}><DisplayField label="Product ID" value={item.productId} mono /></Grid>
-                    <Grid size={{ xs: 6 }}><DisplayField label="Created" value={fmtDateTime(item.createdAt)} /></Grid>
-                    <Grid size={{ xs: 6 }}><DisplayField label="Updated" value={fmtDateTime(item.updatedAt)} /></Grid>
-                    {item.intakeScanEventId && <Grid size={{ xs: 12 }}><DisplayField label="Intake Scan" value={item.intakeScanEventId} mono /></Grid>}
-                  </Grid>
-                </AccordionDetails>
-              </Accordion>
-
-              {/* ── Actions ── */}
-              <Box sx={{ px: 2.5, py: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
-                {editing ? (
-                  <>
-                    <Button variant="contained" size="small" onClick={handleSaveItem} disabled={saving} sx={{ textTransform: "none", flex: 1 }}>
-                      {saving ? "Saving..." : "Save All Changes"}
+                    <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                      <Pencil className="size-3.5" data-icon="inline-start" />
+                      Edit Item
                     </Button>
-                    <Button variant="outlined" size="small" onClick={() => setEditing(false)} sx={{ textTransform: "none" }}>Cancel</Button>
-                  </>
-                ) : (
-                  <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => setEditing(true)} sx={{ textTransform: "none" }}>Edit Item</Button>
-                )}
-                <Button variant="outlined" size="small" color="error" onClick={handleRemoveItem} sx={{ textTransform: "none" }}>
-                  Remove from Slot
-                </Button>
-              </Box>
-            </Box>
-          )}
-        </Box>
-      ) : null}
-    </Drawer>
+                  )}
+                  <Button variant="destructive" size="sm" onClick={handleRemoveItem}>
+                    Remove from Slot
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
   );
 }

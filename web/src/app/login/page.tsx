@@ -2,22 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
-import Divider from "@mui/material/Divider";
-import CircularProgress from "@mui/material/CircularProgress";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
+import { Loader2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -61,148 +58,181 @@ export default function LoginPage() {
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        bgcolor: "background.default",
-        p: 2,
-      }}
-    >
-      <Card sx={{ width: "100%", maxWidth: 420 }}>
-        <CardContent sx={{ p: 4 }}>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-[420px]">
+        <CardContent className="p-6">
           {/* Logo */}
-          <Box sx={{ textAlign: "center", mb: 3 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: "primary.main",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                mb: 1.5,
-              }}
-            >
-              <Typography
-                variant="h6"
-                sx={{ color: "primary.contrastText", fontWeight: 700 }}
-              >
-                F
-              </Typography>
-            </Box>
-            <Typography variant="h5" fontWeight={700}>
-              FillaIQ
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+          <div className="mb-6 text-center">
+            <div className="mb-3 inline-flex gap-1">
+              <div className="h-7 w-1.5 rounded-full bg-primary" />
+              <div className="h-7 w-1.5 rounded-full bg-primary" />
+            </div>
+            <h1 className="font-display text-xl font-bold">FillaIQ</h1>
+            <p className="text-sm text-muted-foreground">
               Filament spool monitoring platform
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
           <Tabs
             value={tab}
-            onChange={(_, v) => { setTab(v); setError(null); }}
-            variant="fullWidth"
-            sx={{ mb: 3, "& .MuiTab-root": { textTransform: "none", fontWeight: 500 } }}
+            onValueChange={(v) => {
+              setTab(v);
+              setError(null);
+            }}
+            className="mb-6"
           >
-            <Tab label="Sign In" />
-            <Tab label="Sign Up" />
+            <TabsList className="w-full">
+              <TabsTrigger value="sign-in" className="flex-1">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="sign-up" className="flex-1">
+                Sign Up
+              </TabsTrigger>
+            </TabsList>
+
+            {error && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <TabsContent value="sign-in">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSignIn();
+                }}
+                className="mt-4 flex flex-col gap-4"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="signin-password">Password</Label>
+                  <Input
+                    id="signin-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    minLength={8}
+                  />
+                </div>
+                <Button type="submit" disabled={loading} className="mt-1">
+                  {loading ? (
+                    <Loader2 className="size-5 animate-spin" />
+                  ) : (
+                    "Sign In"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="sign-up">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSignUp();
+                }}
+                className="mt-4 flex flex-col gap-4"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="signup-name">Name</Label>
+                  <Input
+                    id="signup-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    minLength={8}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Minimum 8 characters
+                  </p>
+                </div>
+                <Button type="submit" disabled={loading} className="mt-1">
+                  {loading ? (
+                    <Loader2 className="size-5 animate-spin" />
+                  ) : (
+                    "Create Account"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
           </Tabs>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+          <div className="relative my-6">
+            <Separator />
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-3 text-xs text-muted-foreground">
+              or
+            </span>
+          </div>
 
-          <Box
-            component="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              tab === 0 ? handleSignIn() : handleSignUp();
-            }}
-            sx={{ display: "flex", flexDirection: "column", gap: 2 }}
-          >
-            {tab === 1 && (
-              <TextField
-                label="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                fullWidth
-                autoComplete="name"
-              />
-            )}
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              fullWidth
-              autoComplete="email"
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              fullWidth
-              autoComplete={tab === 0 ? "current-password" : "new-password"}
-              inputProps={{ minLength: 8 }}
-              helperText={tab === 1 ? "Minimum 8 characters" : undefined}
-            />
+          <div className="flex flex-col gap-3">
             <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              disabled={loading}
-              sx={{ mt: 1 }}
-            >
-              {loading ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : tab === 0 ? (
-                "Sign In"
-              ) : (
-                "Create Account"
-              )}
-            </Button>
-          </Box>
-
-          <Divider sx={{ my: 3 }}>or</Divider>
-
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-            <Button
-              variant="outlined"
-              size="large"
+              variant="outline"
+              size="lg"
               disabled={loading}
               onClick={() => {
                 setLoading(true);
-                authClient.signIn.social({ provider: "microsoft-entra-id", callbackURL: "/locations" });
+                authClient.signIn.social({
+                  provider: "microsoft-entra-id",
+                  callbackURL: "/locations",
+                });
               }}
-              sx={{ textTransform: "none" }}
             >
               Continue with Microsoft
             </Button>
             <Button
-              variant="outlined"
-              size="large"
+              variant="outline"
+              size="lg"
               disabled={loading}
               onClick={() => {
                 setLoading(true);
-                authClient.signIn.social({ provider: "github", callbackURL: "/locations" });
+                authClient.signIn.social({
+                  provider: "github",
+                  callbackURL: "/locations",
+                });
               }}
-              sx={{ textTransform: "none" }}
             >
               Continue with GitHub
             </Button>
-          </Box>
+          </div>
         </CardContent>
       </Card>
-    </Box>
+    </div>
   );
 }

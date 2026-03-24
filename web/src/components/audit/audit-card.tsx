@@ -1,16 +1,9 @@
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { ChevronDown } from "lucide-react";
 import type { AuditLogWithActor } from "@/lib/actions/audit";
 import type { AuditAction } from "@/lib/design-tokens";
 import { colors } from "@/lib/design-tokens";
 import { AuditMetadata } from "./audit-metadata";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
 const actionLabels: Record<string, string> = {
   create: "Created",
@@ -27,22 +20,27 @@ function formatResourceType(type: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function relativeTime(date: Date): string {
-  const now = Date.now();
-  const diff = now - date.getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (days > 0) return rtf.format(-days, "day");
-  if (hours > 0) return rtf.format(-hours, "hour");
-  if (minutes > 0) return rtf.format(-minutes, "minute");
-  return rtf.format(-seconds, "second");
+function formatTimestamp(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(",", "");
 }
 
-export function AuditCard({ log }: { log: AuditLogWithActor }) {
+export function AuditCard({
+  log,
+  isLast,
+}: {
+  log: AuditLogWithActor;
+  isLast?: boolean;
+}) {
   const action = log.action as AuditAction;
   const actionColor = colors.action[action] ?? colors.action.logout;
   const label = actionLabels[action] ?? action;
@@ -52,100 +50,85 @@ export function AuditCard({ log }: { log: AuditLogWithActor }) {
       ? label
       : `${label} ${resource.toLowerCase()}`;
 
-  return (
-    <Card
-      sx={{
-        borderLeft: 4,
-        borderColor: actionColor.DEFAULT,
-        bgcolor: "background.paper",
-      }}
-    >
-      <CardContent sx={{ py: 2, "&:last-child": { pb: 2 } }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 1.5,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-            <Chip
-              label={action}
-              size="small"
-              sx={{
-                bgcolor: actionColor.bg,
-                color: actionColor.DEFAULT,
-                fontWeight: 600,
-                fontSize: "0.75rem",
-              }}
-            />
-            <Typography variant="body2" fontWeight={500}>
-              {description}
-            </Typography>
-          </Box>
-          <Typography variant="caption" color="text.disabled" noWrap>
-            {relativeTime(new Date(log.createdAt))}
-          </Typography>
-        </Box>
+  const initials =
+    log.actorName?.[0]?.toUpperCase() ??
+    log.actorEmail?.[0]?.toUpperCase() ??
+    "?";
 
-        <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            {log.actorName ?? log.actorEmail}
-          </Typography>
+  return (
+    <div
+      className={`relative pl-6 flex items-start justify-between gap-2 group ${isLast ? "" : "pb-4"}`}
+    >
+      {/* Timeline dot */}
+      <div
+        className="absolute left-[14px] top-[4px] w-[18px] h-[18px] rounded-full z-[1] shadow-[0_0_0_4px_var(--background)]"
+        style={{ backgroundColor: actionColor.DEFAULT }}
+      />
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="font-mono text-[0.8125rem] text-muted-foreground/60">
+            {formatTimestamp(new Date(log.createdAt))}
+          </span>
+          <span
+            className="inline-flex items-center h-5 px-1.5 rounded-full text-[0.625rem] font-bold uppercase tracking-wider"
+            style={{ backgroundColor: actionColor.bg, color: actionColor.DEFAULT }}
+          >
+            {label}
+          </span>
+        </div>
+
+        <p className="font-bold text-base text-foreground">
+          {description}
           {log.resourceId && (
-            <>
-              <Typography variant="caption" color="text.disabled">
-                &middot;
-              </Typography>
-              <Typography
-                variant="caption"
-                color="text.disabled"
-                sx={{
-                  fontFamily: "monospace",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 160,
-                }}
-                noWrap
-              >
-                {log.resourceId}
-              </Typography>
-            </>
+            <span className="text-[#00677F] font-medium">
+              {" "}
+              {resource}
+            </span>
           )}
-        </Box>
+        </p>
+
+        {log.resourceId && (
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Resource ID:{" "}
+            <span className="font-mono">{log.resourceId}</span>
+          </p>
+        )}
 
         {log.metadata != null &&
           Object.keys(log.metadata as object).length > 0 && (
-            <Accordion
-              disableGutters
-              elevation={0}
-              sx={{
-                mt: 1.5,
-                "&:before": { display: "none" },
-                bgcolor: "transparent",
-              }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />}
-                sx={{
-                  minHeight: 0,
-                  p: 0,
-                  "& .MuiAccordionSummary-content": { m: 0 },
-                }}
-              >
-                <Typography variant="caption" color="text.secondary">
-                  View metadata
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: 0, pt: 1 }}>
-                <AuditMetadata
-                  metadata={log.metadata as Record<string, unknown>}
-                />
-              </AccordionDetails>
+            <Accordion className="mt-1">
+              <AccordionItem value="metadata" className="border-none">
+                <AccordionTrigger className="py-0 hover:no-underline">
+                  <span className="text-xs text-muted-foreground">
+                    View metadata
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pt-1 pb-0">
+                  <AuditMetadata
+                    metadata={log.metadata as Record<string, unknown>}
+                  />
+                </AccordionContent>
+              </AccordionItem>
             </Accordion>
           )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Actor pill */}
+      <div className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-lg border border-transparent group-hover:border-border transition-colors shrink-0">
+        <div className="text-right">
+          <p className="text-sm font-bold leading-tight">
+            {log.actorName ?? log.actorEmail}
+          </p>
+        </div>
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[0.8rem] text-white"
+          style={{ backgroundColor: actionColor.DEFAULT }}
+        >
+          {initials}
+        </div>
+      </div>
+    </div>
   );
 }

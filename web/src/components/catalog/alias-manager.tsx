@@ -1,35 +1,42 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Alert from "@mui/material/Alert";
-import Autocomplete from "@mui/material/Autocomplete";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Checkbox from "@mui/material/Checkbox";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import IconButton from "@mui/material/IconButton";
-import MenuItem from "@mui/material/MenuItem";
-import Slider from "@mui/material/Slider";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import SyncAltIcon from "@mui/icons-material/SyncAlt";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { Plus, Trash2, ArrowRightLeft, ArrowRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import {
   listAliasesForProduct,
   createProductAlias,
@@ -39,7 +46,7 @@ import {
   getProductById,
 } from "@/lib/actions/central-catalog";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// Types
 
 type ProductOption = { id: string; name: string; brandName: string };
 
@@ -62,14 +69,14 @@ const ALIAS_TYPE_LABELS: Record<string, string> = {
   color_match: "Color Match",
 };
 
-const ALIAS_TYPE_COLORS: Record<string, "primary" | "secondary" | "success" | "warning"> = {
-  oem_rebrand: "primary",
+const ALIAS_TYPE_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
+  oem_rebrand: "default",
   sku_variant: "secondary",
-  substitute: "warning",
-  color_match: "success",
+  substitute: "outline",
+  color_match: "default",
 };
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// Component
 
 type Props = {
   productId: string;
@@ -92,7 +99,6 @@ export function AliasManager({ productId }: Props) {
       return;
     }
 
-    // For each alias, determine the "other" product and resolve its name
     const enriched = await Promise.all(
       result.data.map(async (alias) => {
         const linkedId =
@@ -122,109 +128,106 @@ export function AliasManager({ productId }: Props) {
   };
 
   return (
-    <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Typography variant="subtitle1" fontWeight={600}>
-          Product Aliases
-        </Typography>
-        <Button
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={() => setDialogOpen(true)}
-        >
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-base font-semibold">Product Aliases</p>
+        <Button size="sm" variant="ghost" onClick={() => setDialogOpen(true)}>
+          <Plus className="size-4 mr-1" />
           Add Alias
         </Button>
-      </Stack>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 1 }}>
-          {error}
+        <Alert variant="destructive" className="mb-2">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-          <CircularProgress size={24} />
-        </Box>
+        <div className="flex justify-center py-6">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
       ) : aliases.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+        <p className="text-sm text-muted-foreground py-4">
           No aliases defined for this product.
-        </Typography>
+        </p>
       ) : (
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Linked Product</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell align="center">Direction</TableCell>
-                <TableCell align="right">Confidence</TableCell>
-                <TableCell>Notes</TableCell>
-                <TableCell align="right" />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {aliases.map((alias) => (
-                <TableRow key={alias.id}>
-                  <TableCell>{alias.linkedProductName}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={ALIAS_TYPE_LABELS[alias.aliasType] ?? alias.aliasType}
-                      color={ALIAS_TYPE_COLORS[alias.aliasType] ?? "default"}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Tooltip title={alias.bidirectional ? "Bidirectional" : "One-way"}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Linked Product</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead className="text-center">Direction</TableHead>
+              <TableHead className="text-right">Confidence</TableHead>
+              <TableHead>Notes</TableHead>
+              <TableHead className="text-right" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {aliases.map((alias) => (
+              <TableRow key={alias.id}>
+                <TableCell>{alias.linkedProductName}</TableCell>
+                <TableCell>
+                  <Badge variant={ALIAS_TYPE_VARIANTS[alias.aliasType] ?? "outline"}>
+                    {ALIAS_TYPE_LABELS[alias.aliasType] ?? alias.aliasType}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Tooltip>
+                    <TooltipTrigger>
                       {alias.bidirectional ? (
-                        <SyncAltIcon fontSize="small" color="action" />
+                        <ArrowRightLeft className="size-4 text-muted-foreground" />
                       ) : (
-                        <ArrowForwardIcon fontSize="small" color="action" />
+                        <ArrowRight className="size-4 text-muted-foreground" />
                       )}
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell align="right">
-                    {alias.confidence != null
-                      ? `${Math.round(alias.confidence * 100)}%`
-                      : "-"}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                      {alias.notes || "-"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    {confirmDeleteId === alias.id ? (
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Button
-                          size="small"
-                          color="error"
-                          onClick={() => handleDelete(alias.id)}
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          size="small"
-                          onClick={() => setConfirmDeleteId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </Stack>
-                    ) : (
-                      <IconButton
-                        size="small"
-                        onClick={() => setConfirmDeleteId(alias.id)}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {alias.bidirectional ? "Bidirectional" : "One-way"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TableCell>
+                <TableCell className="text-right">
+                  {alias.confidence != null
+                    ? `${Math.round(alias.confidence * 100)}%`
+                    : "-"}
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground truncate max-w-[200px] block">
+                    {alias.notes || "-"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  {confirmDeleteId === alias.id ? (
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDelete(alias.id)}
                       >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                        Confirm
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setConfirmDeleteId(alias.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       <AddAliasDialog
@@ -233,11 +236,11 @@ export function AliasManager({ productId }: Props) {
         productId={productId}
         onSaved={loadAliases}
       />
-    </Box>
+    </div>
   );
 }
 
-// ── Add Alias Dialog ───────────────────────────────────────────────────────────
+// Add Alias Dialog
 
 function AddAliasDialog({
   open,
@@ -254,6 +257,7 @@ function AddAliasDialog({
   const [productSearch, setProductSearch] = useState("");
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [productLoading, setProductLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const [aliasType, setAliasType] = useState("substitute");
   const [confidence, setConfidence] = useState(100);
@@ -265,7 +269,6 @@ function AddAliasDialog({
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch product options when search changes (debounced)
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
@@ -279,15 +282,15 @@ function AddAliasDialog({
           const brandMap = new Map(
             brandResult.data.map((b) => [b.id, b.name])
           );
-          setProductOptions(
-            prodResult.data
-              .filter((p) => p.id !== productId) // exclude self
-              .map((p) => ({
-                id: p.id,
-                name: p.name,
-                brandName: (p.brandId && brandMap.get(p.brandId)) || "Unknown",
-              }))
-          );
+          const opts = prodResult.data
+            .filter((p) => p.id !== productId)
+            .map((p) => ({
+              id: p.id,
+              name: p.name,
+              brandName: (p.brandId && brandMap.get(p.brandId)) || "Unknown",
+            }));
+          setProductOptions(opts);
+          if (productSearch.length >= 2) setShowDropdown(true);
         }
       } finally {
         setProductLoading(false);
@@ -298,7 +301,6 @@ function AddAliasDialog({
     };
   }, [productSearch, productId]);
 
-  // Reset form on open
   useEffect(() => {
     if (open) {
       setSelectedProduct(null);
@@ -308,6 +310,7 @@ function AddAliasDialog({
       setBidirectional(true);
       setNotes("");
       setError(null);
+      setShowDropdown(false);
     }
   }, [open]);
 
@@ -336,107 +339,104 @@ function AddAliasDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Product Alias</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2.5} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Product Alias</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <Autocomplete
-            options={productOptions}
-            getOptionLabel={(opt) => `${opt.brandName} - ${opt.name}`}
-            filterOptions={(x) => x}
-            value={selectedProduct}
-            onChange={(_e, newValue) => setSelectedProduct(newValue)}
-            inputValue={productSearch}
-            onInputChange={(_e, newInput) => setProductSearch(newInput)}
-            isOptionEqualToValue={(opt, val) => opt.id === val.id}
-            loading={productLoading}
-            size="small"
-            fullWidth
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Linked Product"
-                required
-                slotProps={{
-                  input: {
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {productLoading ? (
-                          <CircularProgress color="inherit" size={18} />
-                        ) : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  },
+          {/* Product search */}
+          <div className="relative">
+            <Label className="mb-1">Linked Product *</Label>
+            <div className="flex gap-1 items-center">
+              <Input
+                value={selectedProduct ? `${selectedProduct.brandName} - ${selectedProduct.name}` : productSearch}
+                onChange={(e) => {
+                  if (selectedProduct) setSelectedProduct(null);
+                  setProductSearch(e.target.value);
                 }}
+                onFocus={() => productOptions.length > 0 && productSearch.length >= 2 && setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                placeholder="Type to search..."
               />
+              {productLoading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+            </div>
+            {showDropdown && productOptions.length > 0 && (
+              <div className="absolute z-50 top-full left-0 w-full mt-1 bg-popover border rounded-lg shadow-md max-h-48 overflow-y-auto">
+                {productOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setSelectedProduct(opt);
+                      setProductSearch("");
+                      setShowDropdown(false);
+                    }}
+                  >
+                    {opt.brandName} - {opt.name}
+                  </button>
+                ))}
+              </div>
             )}
-          />
+          </div>
 
-          <TextField
-            select
-            label="Alias Type"
-            value={aliasType}
-            onChange={(e) => setAliasType(e.target.value)}
-            size="small"
-            fullWidth
-          >
-            <MenuItem value="oem_rebrand">OEM / Rebrand</MenuItem>
-            <MenuItem value="sku_variant">SKU Variant</MenuItem>
-            <MenuItem value="substitute">Substitute</MenuItem>
-            <MenuItem value="color_match">Color Match</MenuItem>
-          </TextField>
+          <div>
+            <Label className="mb-1">Alias Type</Label>
+            <Select value={aliasType} onValueChange={(v) => v && setAliasType(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="oem_rebrand">OEM / Rebrand</SelectItem>
+                <SelectItem value="sku_variant">SKU Variant</SelectItem>
+                <SelectItem value="substitute">Substitute</SelectItem>
+                <SelectItem value="color_match">Color Match</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Box>
-            <Typography variant="body2" gutterBottom>
-              Confidence: {confidence}%
-            </Typography>
-            <Slider
-              value={confidence}
-              onChange={(_e, val) => setConfidence(val as number)}
+          <div>
+            <Label className="mb-1">Confidence: {confidence}%</Label>
+            <input
+              type="range"
               min={0}
               max={100}
               step={1}
-              valueLabelDisplay="auto"
-              size="small"
+              value={confidence}
+              onChange={(e) => setConfidence(Number(e.target.value))}
+              className="w-full h-1.5 bg-muted rounded-full appearance-none accent-primary"
             />
-          </Box>
+          </div>
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={bidirectional}
-                onChange={(e) => setBidirectional(e.target.checked)}
-                size="small"
-              />
-            }
-            label="Bidirectional (A is alias of B and B is alias of A)"
-          />
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={bidirectional}
+              onCheckedChange={(v) => setBidirectional(v === true)}
+            />
+            Bidirectional (A is alias of B and B is alias of A)
+          </label>
 
-          <TextField
-            label="Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            size="small"
-            fullWidth
-            multiline
-            rows={2}
-          />
-        </Stack>
+          <div>
+            <Label className="mb-1">Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
+            Cancel
+          </DialogClose>
+          <Button onClick={handleSave} disabled={saving || !selectedProduct}>
+            {saving ? "Saving..." : "Add Alias"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={saving || !selectedProduct}
-        >
-          {saving ? "Saving..." : "Add Alias"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

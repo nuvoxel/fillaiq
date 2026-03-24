@@ -1,17 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createMachineToolHead, updateMachineToolHead } from "@/lib/actions/user-library";
 import {
   enumToOptions,
@@ -161,79 +170,143 @@ export function ToolHeadDialog({ open, onClose, onSaved, machineId, existing }: 
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{existing ? "Edit Tool Head" : "Add Tool Head"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <TextField
-            select
-            label="Category"
-            value={toolCategory}
-            onChange={(e) => setToolCategory(e.target.value)}
-            required
-            size="small"
-          >
-            {categoryOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} size="small" />
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Tool Head" : "Add Tool Head"}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-1.5">
+            <Label>Category *</Label>
+            <Select value={toolCategory} onValueChange={(v) => v && setToolCategory(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {categoryOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
 
           {toolCategory === "nozzle" && (
             <>
-              <TextField label="Diameter (mm)" value={diameterMm} onChange={(e) => setDiameterMm(e.target.value)} type="number" size="small" />
-              <TextField select label="Material" value={nozzleMaterial} onChange={(e) => setNozzleMaterial(e.target.value)} size="small">
-                <MenuItem value="">—</MenuItem>
-                {nozzleMaterialOptions.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                ))}
-              </TextField>
-              <TextField select label="Nozzle Type" value={nozzleType} onChange={(e) => setNozzleType(e.target.value)} size="small">
-                <MenuItem value="">—</MenuItem>
-                {nozzleTypeOptions.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                ))}
-              </TextField>
+              <div className="space-y-1.5">
+                <Label>Diameter (mm)</Label>
+                <Input value={diameterMm} onChange={(e) => setDiameterMm(e.target.value)} type="number" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Material</Label>
+                <Select value={nozzleMaterial || "_none"} onValueChange={(v) => v && setNozzleMaterial(v === "_none" ? "" : v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">&mdash;</SelectItem>
+                    {nozzleMaterialOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nozzle Type</Label>
+                <Select value={nozzleType || "_none"} onValueChange={(v) => v && setNozzleType(v === "_none" ? "" : v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">&mdash;</SelectItem>
+                    {nozzleTypeOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           )}
 
           {toolCategory === "spindle_bit" && (
             <>
-              <TextField label="Bit Diameter (mm)" value={bitDiameterMm} onChange={(e) => setBitDiameterMm(e.target.value)} type="number" size="small" />
-              <TextField label="Bit Type" value={bitType} onChange={(e) => setBitType(e.target.value)} size="small" />
-              <TextField label="Flute Count" value={fluteCount} onChange={(e) => setFluteCount(e.target.value)} type="number" size="small" />
-              <TextField label="Bit Material" value={bitMaterial} onChange={(e) => setBitMaterial(e.target.value)} size="small" />
+              <div className="space-y-1.5">
+                <Label>Bit Diameter (mm)</Label>
+                <Input value={bitDiameterMm} onChange={(e) => setBitDiameterMm(e.target.value)} type="number" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Bit Type</Label>
+                <Input value={bitType} onChange={(e) => setBitType(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Flute Count</Label>
+                <Input value={fluteCount} onChange={(e) => setFluteCount(e.target.value)} type="number" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Bit Material</Label>
+                <Input value={bitMaterial} onChange={(e) => setBitMaterial(e.target.value)} />
+              </div>
             </>
           )}
 
           {toolCategory === "laser_module" && (
             <>
-              <TextField label="Power (W)" value={laserPowerW} onChange={(e) => setLaserPowerW(e.target.value)} type="number" size="small" />
-              <TextField label="Wavelength (nm)" value={laserWavelengthNm} onChange={(e) => setLaserWavelengthNm(e.target.value)} type="number" size="small" />
-              <TextField label="Focal Length (mm)" value={focalLengthMm} onChange={(e) => setFocalLengthMm(e.target.value)} type="number" size="small" />
+              <div className="space-y-1.5">
+                <Label>Power (W)</Label>
+                <Input value={laserPowerW} onChange={(e) => setLaserPowerW(e.target.value)} type="number" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Wavelength (nm)</Label>
+                <Input value={laserWavelengthNm} onChange={(e) => setLaserWavelengthNm(e.target.value)} type="number" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Focal Length (mm)</Label>
+                <Input value={focalLengthMm} onChange={(e) => setFocalLengthMm(e.target.value)} type="number" />
+              </div>
             </>
           )}
 
-          <FormControlLabel
-            control={<Switch checked={isInstalled} onChange={(e) => setIsInstalled(e.target.checked)} />}
-            label="Installed"
-          />
-          <TextField select label="Wear Level" value={wearLevel} onChange={(e) => setWearLevel(e.target.value)} size="small">
-            {wearOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Install Count" value={installCount} onChange={(e) => setInstallCount(e.target.value)} type="number" size="small" />
-          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline rows={2} size="small" />
-        </Stack>
+          <div className="flex items-center gap-2">
+            <Switch checked={isInstalled} onCheckedChange={setIsInstalled} />
+            <Label>Installed</Label>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Wear Level</Label>
+            <Select value={wearLevel} onValueChange={(v) => v && setWearLevel(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {wearOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Install Count</Label>
+            <Input value={installCount} onChange={(e) => setInstallCount(e.target.value)} type="number" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

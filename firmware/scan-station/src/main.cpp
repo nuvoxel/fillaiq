@@ -154,9 +154,35 @@ struct SharedScanData {
     bool printDone;
     bool printSuccess;
     char printError[64];
+
+    // Target slot override (when user cycles to a different return location)
+    char targetSlotId[64];
 };
 
 static SharedScanData sharedScan;
+
+// -- Shared NFC lookup result (written by MQTT callback, read by main loop) --
+struct EmptySlot {
+    char id[64];
+    char path[128];
+};
+
+struct NfcLookupResult {
+    volatile bool ready;        // new result available
+    bool known;
+    char productName[64];
+    char material[32];
+    char returnLocation[128];
+    char returnSlotId[64];      // currently assigned slot UUID
+    char uid[26];               // UID that was looked up
+    EmptySlot emptySlots[20];
+    int emptySlotCount;
+    int selectedSlotIndex;      // -1 = original location, 0+ = empty slot index
+};
+static NfcLookupResult nfcLookup = {};
+
+// Track last UID we sent a lookup for (avoid duplicate requests)
+static char lastLookupUid[26] = {0};
 
 // -- OTA progress flag (set by network task, read by main loop) --
 static volatile bool otaRunning = false;
@@ -408,12 +434,14 @@ static void networkTask(void* param) {
                 // Use static to keep large structs off the task stack
                 static ScanResult scanCopy;
                 static TagData tagCopy;
+                static char targetSlotCopy[64];
                 bool hasTag;
 
                 if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
                     scanCopy = sharedScan.scanResult;
                     tagCopy = sharedScan.tagData;
                     hasTag = sharedScan.hasTagData;
+                    strlcpy(targetSlotCopy, sharedScan.targetSlotId, sizeof(targetSlotCopy));
                     xSemaphoreGive(sharedScan.mutex);
                 } else {
                     break;
@@ -422,7 +450,8 @@ static void networkTask(void* param) {
                 if (fillaiqMqtt.isConnected()) {
                     // Publish scan via MQTT (no second TLS connection needed)
                     const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
-                    String payload = apiClient.buildScanPayload(scanCopy, tagPtr);
+                    const char* slotPtr = targetSlotCopy[0] ? targetSlotCopy : nullptr;
+                    String payload = apiClient.buildScanPayload(scanCopy, tagPtr, slotPtr);
                     fillaiqMqtt.publishScan(payload.c_str());
                     Serial.printf("[Scan] Published via MQTT (%d bytes)\n", payload.length());
                     // Response will arrive via onScanResult callback
@@ -647,6 +676,42 @@ static void networkTask(void* param) {
                         bambuMqtt.stop();
                     }
                 }
+            };
+
+            fillaiqMqtt.onNfcLookupResult = [](const char* json, int len) {
+                JsonDocument doc;
+                if (deserializeJson(doc, json, len)) return;
+
+                nfcLookup.known = doc["known"] | false;
+                if (nfcLookup.known) {
+                    strlcpy(nfcLookup.productName, doc["productName"] | "Unknown", sizeof(nfcLookup.productName));
+                    strlcpy(nfcLookup.material, doc["material"] | "", sizeof(nfcLookup.material));
+                    strlcpy(nfcLookup.returnLocation, doc["returnLocation"] | "", sizeof(nfcLookup.returnLocation));
+                    strlcpy(nfcLookup.returnSlotId, doc["returnSlotId"] | "", sizeof(nfcLookup.returnSlotId));
+
+                    // Parse empty slots array
+                    nfcLookup.emptySlotCount = 0;
+                    nfcLookup.selectedSlotIndex = -1;  // default to original location
+                    JsonArray arr = doc["emptySlots"].as<JsonArray>();
+                    for (JsonObject slot : arr) {
+                        if (nfcLookup.emptySlotCount >= 20) break;
+                        int idx = nfcLookup.emptySlotCount;
+                        strlcpy(nfcLookup.emptySlots[idx].id, slot["id"] | "", sizeof(nfcLookup.emptySlots[idx].id));
+                        strlcpy(nfcLookup.emptySlots[idx].path, slot["path"] | "", sizeof(nfcLookup.emptySlots[idx].path));
+                        nfcLookup.emptySlotCount++;
+                    }
+                } else {
+                    nfcLookup.productName[0] = '\0';
+                    nfcLookup.material[0] = '\0';
+                    nfcLookup.returnLocation[0] = '\0';
+                    nfcLookup.returnSlotId[0] = '\0';
+                    nfcLookup.emptySlotCount = 0;
+                    nfcLookup.selectedSlotIndex = -1;
+                }
+                nfcLookup.ready = true;
+                Serial.printf("[MQTT] NFC lookup: %s (%d empty slots)\n",
+                    nfcLookup.known ? nfcLookup.productName : "unknown",
+                    nfcLookup.emptySlotCount);
             };
 
             fillaiqMqtt.begin(
@@ -1053,6 +1118,14 @@ void updateScanState() {
                 } else {
                     sharedScan.hasTagData = false;
                 }
+                // Pass target slot override if user cycled to a different location
+                if (nfcLookup.known && nfcLookup.selectedSlotIndex >= 0) {
+                    strlcpy(sharedScan.targetSlotId,
+                            nfcLookup.emptySlots[nfcLookup.selectedSlotIndex].id,
+                            sizeof(sharedScan.targetSlotId));
+                } else {
+                    sharedScan.targetSlotId[0] = '\0';
+                }
                 sharedScan.postInFlight = true;
                 sharedScan.responseReady = false;
                 xSemaphoreGive(sharedScan.mutex);
@@ -1184,6 +1257,80 @@ void updateDisplayAndLed() {
                 snprintf(nfcInfoBuf, sizeof(nfcInfoBuf), "NFC: reading...");
             }
             nfcInfo = nfcInfoBuf;
+
+            // Trigger NFC UID lookup when a new tag is detected
+            if (nfcSnap.tagIsNew && fillaiqMqtt.isConnected() &&
+                strcmp(nfcSnap.uidString, lastLookupUid) != 0) {
+                strlcpy(lastLookupUid, nfcSnap.uidString, sizeof(lastLookupUid));
+                nfcLookup.ready = false;
+                fillaiqMqtt.publishNfcLookup(nfcSnap.uidString);
+                Serial.printf("[NFC] Lookup request: %s\n", nfcSnap.uidString);
+            }
+        } else {
+            // Tag removed — reset lookup state
+            if (lastLookupUid[0] != '\0') {
+                lastLookupUid[0] = '\0';
+                nfcLookup.ready = false;
+                nfcLookup.known = false;
+                nfcLookup.emptySlotCount = 0;
+                nfcLookup.selectedSlotIndex = -1;
+                lv_lock();
+                display.setScanButtonLabel("SCAN");
+                lv_unlock();
+            }
+        }
+
+        // Consume NFC lookup result from server
+        if (nfcLookup.ready) {
+            nfcLookup.ready = false;
+            lv_lock();
+            display.updateNfcLookup(
+                nfcLookup.productName,
+                nfcLookup.material,
+                nfcLookup.returnLocation,
+                nfcLookup.known,
+                nfcLookup.emptySlotCount);
+            display.setScanButtonLabel(nfcLookup.known ? "UPDATE" : "SCAN");
+            lv_unlock();
+        }
+
+        // Handle location cycling (user tapped < or > on the NFC panel)
+        if (display.locationCycleDelta != 0 && nfcLookup.known) {
+            int delta = display.locationCycleDelta;
+            display.locationCycleDelta = 0;
+
+            // Total options: original slot (if exists) + empty slots
+            bool hasOriginal = nfcLookup.returnLocation[0] != '\0';
+            int totalOptions = nfcLookup.emptySlotCount + (hasOriginal ? 1 : 0);
+            if (totalOptions > 0) {
+                // selectedSlotIndex: -1 = original, 0..N-1 = empty slot
+                // Map to 0-based for cycling: 0 = original (if exists), then empty slots
+                int currentPos;
+                if (hasOriginal) {
+                    currentPos = nfcLookup.selectedSlotIndex + 1;  // -1 → 0, 0 → 1, etc.
+                } else {
+                    currentPos = nfcLookup.selectedSlotIndex;      // 0-based among empty slots
+                }
+                currentPos = (currentPos + delta + totalOptions) % totalOptions;
+
+                if (hasOriginal) {
+                    nfcLookup.selectedSlotIndex = currentPos - 1;  // 0 → -1, 1 → 0, etc.
+                } else {
+                    nfcLookup.selectedSlotIndex = currentPos;
+                }
+
+                // Determine the display path for the selected location
+                const char* selectedPath;
+                if (nfcLookup.selectedSlotIndex == -1) {
+                    selectedPath = nfcLookup.returnLocation;
+                } else {
+                    selectedPath = nfcLookup.emptySlots[nfcLookup.selectedSlotIndex].path;
+                }
+
+                lv_lock();
+                display.updateReturnLocation(selectedPath, currentPos, totalOptions);
+                lv_unlock();
+            }
         }
 
         // Build color info string + RGB values for swatch

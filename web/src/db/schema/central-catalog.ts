@@ -159,6 +159,66 @@ export const products = pgTable(
   (table) => [uniqueIndex("products_gtin_idx").on(table.gtin)]
 );
 
+// ── Product Reseller Links ───────────────────────────────────────────────────
+
+export const productResellerLinks = pgTable("product_reseller_links", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id")
+    .references(() => products.id, { onDelete: "cascade" })
+    .notNull(),
+  reseller: varchar("reseller", { length: 50 }).notNull(), // amazon, aliexpress, mcmaster, 3dfp, etc.
+  url: varchar("url", { length: 1024 }).notNull(),
+  affiliateUrl: varchar("affiliate_url", { length: 1024 }),
+  price: real("price"),              // current/latest price
+  listPrice: real("list_price"),     // MSRP / original price
+  salePrice: real("sale_price"),     // discounted price (if on sale)
+  currency: varchar("currency", { length: 3 }).default("USD"),
+  inStock: boolean("in_stock"),
+  couponCode: varchar("coupon_code", { length: 50 }),
+  couponDiscountPct: real("coupon_discount_pct"),
+  couponExpiresAt: timestamp("coupon_expires_at", { withTimezone: true }),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Price History (one row per price check) ──────────────────────────────────
+
+export const productPriceHistory = pgTable("product_price_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  resellerLinkId: uuid("reseller_link_id")
+    .references(() => productResellerLinks.id, { onDelete: "cascade" })
+    .notNull(),
+  price: real("price").notNull(),
+  currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+  inStock: boolean("in_stock"),
+  checkedAt: timestamp("checked_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ── Bulk / Tiered Pricing ────────────────────────────────────────────────────
+
+export const productPriceTiers = pgTable("product_price_tiers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  resellerLinkId: uuid("reseller_link_id")
+    .references(() => productResellerLinks.id, { onDelete: "cascade" })
+    .notNull(),
+  minQuantity: integer("min_quantity").default(1).notNull(),
+  price: real("price").notNull(),
+  currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+  discountLabel: varchar("discount_label", { length: 100 }), // e.g. "Buy 10+, save 15%"
+  discountCode: varchar("discount_code", { length: 50 }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // ── Filament Profiles (1:1 extension for category='filament') ───────────────
 
 export const filamentProfiles = pgTable("filament_profiles", {

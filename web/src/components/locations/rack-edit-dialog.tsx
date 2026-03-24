@@ -1,21 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { Plus, Trash2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   getRackTopology,
   updateRack,
@@ -82,7 +81,6 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
     })();
   }, [open, rackId, rackName]);
 
-  // ── Shelf operations ──
   const addShelf = () => {
     const maxPos = shelves.filter((s) => !s._delete).reduce((m, s) => Math.max(m, s.position), 0);
     setShelves([...shelves, { position: maxPos + 1, label: "", bays: [] }]);
@@ -96,7 +94,6 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
     setShelves(shelves.map((s, i) => (i === idx ? { ...s, _delete: true } : s)));
   };
 
-  // ── Bay operations ──
   const addBay = (shelfIdx: number) => {
     setShelves(shelves.map((s, si) => {
       if (si !== shelfIdx) return s;
@@ -119,7 +116,6 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
     }));
   };
 
-  // ── Slot operations ──
   const addSlot = (shelfIdx: number, bayIdx: number) => {
     setShelves(shelves.map((s, si) => {
       if (si !== shelfIdx) return s;
@@ -160,19 +156,16 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
     }));
   };
 
-  // ── Save ──
   const handleSave = async () => {
     setError(null);
     setSaving(true);
 
     try {
-      // Update rack name
       if (name !== rackName) {
         const r = await updateRack(rackId, { name });
         if (r.error) { setError(r.error); setSaving(false); return; }
       }
 
-      // Process shelves
       for (const shelf of shelves) {
         if (shelf._delete && shelf.id) {
           await removeShelf(shelf.id);
@@ -181,18 +174,15 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
 
         let shelfId = shelf.id;
         if (!shelfId) {
-          // Create new shelf
           const r = await createShelf({ rackId, position: shelf.position, label: shelf.label || null });
           if (r.error) { setError(r.error); setSaving(false); return; }
           shelfId = r.data?.id;
         } else {
-          // Update existing shelf
           await updateShelf(shelfId, { position: shelf.position, label: shelf.label || null });
         }
 
         if (!shelfId) continue;
 
-        // Process bays
         for (const bay of shelf.bays) {
           if (bay._delete && bay.id) {
             await removeBay(bay.id);
@@ -210,7 +200,6 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
 
           if (!bayId) continue;
 
-          // Process slots
           for (const slot of bay.slots) {
             if (slot._delete && slot.id) {
               await removeSlot(slot.id);
@@ -238,30 +227,35 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
   const visibleShelves = shelves.filter((s) => !s._delete);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Edit Rack</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Rack</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           {loading ? (
-            <Typography color="text.secondary">Loading...</Typography>
+            <p className="text-sm text-muted-foreground">Loading...</p>
           ) : (
             <>
-              {/* Rack name */}
-              <TextField
-                label="Rack Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                size="small"
-                fullWidth
-              />
+              <div>
+                <Label>Rack Name</Label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
 
-              <Divider />
+              <Separator />
 
-              {/* Shelves */}
               {visibleShelves.length === 0 && (
-                <Typography variant="body2" color="text.secondary">No shelves yet.</Typography>
+                <p className="text-sm text-muted-foreground">No shelves yet.</p>
               )}
 
               {shelves.map((shelf, si) => {
@@ -269,150 +263,148 @@ export function RackEditDialog({ open, onClose, onSaved, rackId, rackName }: Pro
                 const visibleBays = shelf.bays.filter((b) => !b._delete);
 
                 return (
-                  <Box
+                  <div
                     key={shelf.id ?? `new-${si}`}
-                    sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 1.5 }}
+                    className="border border-border rounded-lg p-3"
                   >
                     {/* Shelf header */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                      <Typography variant="subtitle2" sx={{ minWidth: 60 }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium min-w-[60px]">
                         Shelf {shelf.position}
-                      </Typography>
-                      <TextField
-                        label="Label"
-                        value={shelf.label}
-                        onChange={(e) => updateShelfField(si, "label", e.target.value)}
-                        size="small"
-                        sx={{ flex: 1 }}
-                        placeholder="Optional"
-                      />
-                      <Tooltip title="Delete shelf">
-                        <IconButton size="small" color="error" onClick={() => markShelfDeleted(si)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      </span>
+                      <div className="flex-1">
+                        <Input
+                          value={shelf.label}
+                          onChange={(e) => updateShelfField(si, "label", e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button variant="destructive" size="icon-xs" onClick={() => markShelfDeleted(si)} />
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent>Delete shelf</TooltipContent>
                       </Tooltip>
-                    </Box>
+                    </div>
 
                     {/* Bays */}
                     {visibleBays.length > 0 && (
-                      <Box sx={{ pl: 2 }}>
+                      <div className="pl-4">
                         {shelf.bays.map((bay, bi) => {
                           if (bay._delete) return null;
                           const visibleSlots = bay.slots.filter((sl) => !sl._delete);
 
                           return (
-                            <Box
+                            <div
                               key={bay.id ?? `new-bay-${bi}`}
-                              sx={{ border: 1, borderColor: "grey.200", borderRadius: 1, p: 1, mb: 1 }}
+                              className="border border-border/50 rounded p-2 mb-2"
                             >
                               {/* Bay header */}
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                                <Typography variant="caption" sx={{ minWidth: 50 }}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs text-muted-foreground min-w-[50px]">
                                   Bay {bay.position}
-                                </Typography>
-                                <TextField
-                                  label="Label"
-                                  value={bay.label}
-                                  onChange={(e) => updateBayField(si, bi, "label", e.target.value)}
-                                  size="small"
-                                  sx={{ flex: 1 }}
-                                  placeholder="Optional"
-                                />
-                                <Tooltip title="Delete bay">
-                                  <IconButton size="small" color="error" onClick={() => markBayDeleted(si, bi)}>
-                                    <DeleteIcon sx={{ fontSize: 16 }} />
-                                  </IconButton>
+                                </span>
+                                <div className="flex-1">
+                                  <Input
+                                    value={bay.label}
+                                    onChange={(e) => updateBayField(si, bi, "label", e.target.value)}
+                                    placeholder="Optional"
+                                  />
+                                </div>
+                                <Tooltip>
+                                  <TooltipTrigger
+                                    render={
+                                      <Button variant="destructive" size="icon-xs" onClick={() => markBayDeleted(si, bi)} />
+                                    }
+                                  >
+                                    <Trash2 className="size-3" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>Delete bay</TooltipContent>
                                 </Tooltip>
-                              </Box>
+                              </div>
 
                               {/* Slots */}
                               {visibleSlots.length > 0 && (
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, pl: 2, mb: 0.5 }}>
+                                <div className="flex flex-wrap gap-1 pl-4 mb-1">
                                   {bay.slots.map((slot, sli) => {
                                     if (slot._delete) return null;
                                     return (
-                                      <Box
+                                      <div
                                         key={slot.id ?? `new-slot-${sli}`}
-                                        sx={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 0.25,
-                                          border: 1,
-                                          borderColor: "grey.200",
-                                          borderRadius: 1,
-                                          px: 0.5,
-                                          py: 0.25,
-                                        }}
+                                        className="flex items-center gap-0.5 border border-border/50 rounded px-1 py-0.5"
                                       >
-                                        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 16 }}>
+                                        <span className="text-xs text-muted-foreground min-w-[16px]">
                                           {slot.position}
-                                        </Typography>
-                                        <TextField
+                                        </span>
+                                        <input
+                                          className="bg-transparent border-none outline-none text-xs w-20 p-0"
                                           value={slot.label}
                                           onChange={(e) => updateSlotField(si, bi, sli, "label", e.target.value)}
-                                          size="small"
-                                          variant="standard"
                                           placeholder={`Slot ${slot.position}`}
-                                          sx={{ width: 80 }}
-                                          slotProps={{ input: { sx: { fontSize: 12, py: 0 } } }}
                                         />
-                                        <IconButton
-                                          size="small"
-                                          sx={{ p: 0 }}
+                                        <button
+                                          className="p-0 text-muted-foreground/50 hover:text-destructive"
                                           onClick={() => markSlotDeleted(si, bi, sli)}
                                         >
-                                          <DeleteIcon sx={{ fontSize: 12, color: "text.disabled" }} />
-                                        </IconButton>
-                                      </Box>
+                                          <Trash2 className="size-3" />
+                                        </button>
+                                      </div>
                                     );
                                   })}
-                                </Box>
+                                </div>
                               )}
 
                               <Button
-                                size="small"
-                                startIcon={<AddIcon sx={{ fontSize: 14 }} />}
+                                variant="ghost"
+                                size="xs"
                                 onClick={() => addSlot(si, bi)}
-                                sx={{ fontSize: 11, ml: 2 }}
+                                className="ml-4"
                               >
+                                <Plus className="size-3" data-icon="inline-start" />
                                 Add Slot
                               </Button>
-                            </Box>
+                            </div>
                           );
                         })}
-                      </Box>
+                      </div>
                     )}
 
                     <Button
-                      size="small"
-                      startIcon={<AddIcon sx={{ fontSize: 14 }} />}
+                      variant="ghost"
+                      size="xs"
                       onClick={() => addBay(si)}
-                      sx={{ fontSize: 12, ml: 2 }}
+                      className="ml-4"
                     >
+                      <Plus className="size-3" data-icon="inline-start" />
                       Add Bay
                     </Button>
-                  </Box>
+                  </div>
                 );
               })}
 
               <Button
-                size="small"
-                variant="outlined"
-                startIcon={<AddIcon />}
+                variant="outline"
+                size="sm"
                 onClick={addShelf}
               >
+                <Plus className="size-4" data-icon="inline-start" />
                 Add Shelf
               </Button>
             </>
           )}
-        </Stack>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving || loading || !name.trim()}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={saving || loading || !name.trim()}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

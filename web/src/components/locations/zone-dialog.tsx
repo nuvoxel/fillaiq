@@ -1,16 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createZone, updateZone } from "@/lib/actions/hardware";
 
 const zoneTypeLabels: Record<string, string> = {
@@ -88,74 +96,73 @@ export function ZoneDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{existing ? "Edit Zone" : "Add Zone"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Zone" : "Add Zone"}</DialogTitle>
+        </DialogHeader>
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Name"
+        <div className="flex flex-col gap-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-12 gap-3">
+            <div className="col-span-12 sm:col-span-6">
+              <Label>Name</Label>
+              <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                size="small"
-                fullWidth
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                label="Type"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                required
-                size="small"
-                fullWidth
-              >
-                {zoneTypeOptions.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>
-                    {o.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                label="Description"
+            </div>
+            <div className="col-span-12 sm:col-span-6">
+              <Label>Type</Label>
+              <Select value={type} onValueChange={(v) => { if (v) setType(v); }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {zoneTypeOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-12">
+              <Label>Description</Label>
+              <textarea
+                className="flex w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 min-h-[60px]"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                size="small"
-                fullWidth
-                multiline
                 rows={2}
               />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                label="NFC Tag ID"
+            </div>
+            <div className="col-span-12">
+              <Label>NFC Tag ID</Label>
+              <Input
                 value={nfcTagId}
                 onChange={(e) => setNfcTagId(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="Optional NFC tag identifier for this zone"
               />
-            </Grid>
-          </Grid>
-        </Stack>
+              <p className="text-xs text-muted-foreground mt-1">Optional NFC tag identifier for this zone</p>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={handleSave}
+            disabled={!name || saving}
+          >
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={!name || saving}
-        >
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

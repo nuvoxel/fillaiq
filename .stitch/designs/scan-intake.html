@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Scan &amp; Intake | FillaIQ</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary": "#ffffff",
+              "on-surface-variant": "#3c494e",
+              "tertiary-fixed-dim": "#ffba4a",
+              "background": "#f7f9ff",
+              "secondary-fixed": "#d4e6eb",
+              "on-secondary-fixed": "#0e1e22",
+              "inverse-on-surface": "#e8f2ff",
+              "on-error-container": "#93000a",
+              "primary-fixed": "#b6ebff",
+              "on-secondary-container": "#57676c",
+              "surface-container": "#e3effe",
+              "primary-fixed-dim": "#47d6ff",
+              "on-secondary-fixed-variant": "#39494e",
+              "secondary-fixed-dim": "#b8c9cf",
+              "secondary-container": "#d4e6eb",
+              "on-error": "#ffffff",
+              "surface": "#f7f9ff",
+              "on-tertiary-fixed-variant": "#624000",
+              "primary-container": "#00d2ff",
+              "on-tertiary-fixed": "#291800",
+              "tertiary-container": "#ffb229",
+              "surface-container-lowest": "#ffffff",
+              "secondary": "#516166",
+              "outline": "#6c797f",
+              "on-surface": "#111d27",
+              "inverse-surface": "#26313d",
+              "surface-container-high": "#dee9f8",
+              "on-background": "#111d27",
+              "on-tertiary": "#ffffff",
+              "on-tertiary-container": "#6c4700",
+              "on-primary": "#ffffff",
+              "primary": "#00677f",
+              "on-primary-fixed": "#001f28",
+              "error": "#ba1a1a",
+              "surface-variant": "#d8e4f3",
+              "tertiary-fixed": "#ffddb1",
+              "surface-bright": "#f7f9ff",
+              "outline-variant": "#bbc9cf",
+              "tertiary": "#815600",
+              "inverse-primary": "#47d6ff",
+              "error-container": "#ffdad6",
+              "surface-dim": "#d0dbea",
+              "surface-container-low": "#edf4ff",
+              "on-primary-container": "#00566a",
+              "surface-tint": "#00677f",
+              "surface-container-highest": "#d8e4f3",
+              "on-primary-fixed-variant": "#004e60"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Space Grotesk"],
+              "mono": ["DM Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- SideNavBar (from JSON) -->
+<aside class="fixed left-0 top-0 h-full z-40 bg-[#0F1F23] font-['Space_Grotesk'] tracking-tight docked left-0 h-screen w-64 flex flex-col">
+<div class="p-6">
+<div class="text-[#00D2FF] font-bold text-xl uppercase tracking-widest mb-10">FillaIQ</div>
+<nav class="space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Active Item: Scan History (Maps to Scan & Intake Hub) -->
+<a class="flex items-center gap-3 px-4 py-3 text-[#00D2FF] bg-white/5 border-l-4 border-[#00D2FF] group" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">barcode_scanner</span>
+<span>Scan History</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">input</span>
+<span>Intake Hub</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Analysis</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<div class="mt-auto p-6">
+<button class="w-full bg-[#00D2FF] text-[#001F28] font-bold py-3 rounded-lg flex items-center justify-center gap-2 scale-95 duration-200 active:scale-90">
+<span class="material-symbols-outlined">add_circle</span>
+                New Project
+            </button>
+<div class="mt-8 flex items-center gap-3 border-t border-white/5 pt-6">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="professional headshot of a technical engineer in a modern industrial setting with soft bokeh background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaXJh00Y8F5GqiB6e6Ko4rgManE0jZYmf-e1-2T9U9pK8GZjtJgWEG5FrHJ_J8ZiVSIZo2esSmsVewSIzyYfHaHuVAztj2l3FFESyXkMgHavcT1OAkITj6Vy5jSL_DDiCJtaFR27UcbBAgSf5pyb8FbeU4nFWo0iRnTh4uPJGcRubLJQZTq-DM8ZsgNcOJr9-bmarqkTQNq-ZQE7-kwY3Briv0HhNzzMX8EvbOpB7IaKH79ZoA4w99QPIORuwqv7WLSXtBo-IFVcA"/>
+<div>
+<div class="text-white text-sm font-medium">Precision Intake</div>
+<div class="text-slate-500 text-xs">User Profile</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopNavBar (from JSON) -->
+<header class="flex justify-between items-center h-16 px-8 w-[calc(100%-16rem)] ml-64 bg-[#F7F9FF] dark:bg-slate-900 border-b-0 fixed top-0 z-30 font-['Plus_Jakarta_Sans'] text-sm font-semibold">
+<div class="flex items-center gap-8">
+<div class="text-[#00677F] dark:text-[#00D2FF] font-black text-lg">Scan &amp; Intake</div>
+<nav class="flex gap-6">
+<a class="text-[#00677F] dark:text-[#00D2FF] border-b-2 border-[#00677F] pb-1" href="#">Recent</a>
+<a class="text-slate-500 hover:text-[#00677F] pb-1 transition-all" href="#">Drafts</a>
+<a class="text-slate-500 hover:text-[#00677F] pb-1 transition-all" href="#">Archived</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 mr-4 bg-surface-container-low px-3 py-1.5 rounded-full">
+<span class="text-xs text-secondary font-medium uppercase tracking-wider">Show completed</span>
+<button class="w-8 h-4 bg-primary rounded-full relative transition-colors">
+<span class="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full"></span>
+</button>
+</div>
+<button class="bg-primary-container text-on-primary-container px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#00B8E0] active:translate-y-0.5 duration-150 shadow-sm">
+<span class="material-symbols-outlined text-sm">add</span>
+                Start Manual Scan
+            </button>
+<div class="flex items-center gap-2 ml-2">
+<button class="p-2 text-slate-500 hover:bg-[#D0DBEA]/30 rounded-full transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-[#D0DBEA]/30 rounded-full transition-all">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-64 pt-20 p-8 min-h-screen">
+<!-- Dashboard Content Grid -->
+<div class="max-w-5xl mx-auto space-y-4">
+<!-- Session Card 1: Pending -->
+<div class="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-primary-container flex items-center justify-between group hover:bg-surface-bright transition-all duration-300 shadow-[0_4px_12px_rgba(26,37,48,0.06)]">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 rounded-full bg-[#39FF14] shadow-inner flex items-center justify-center border-4 border-surface-container">
+<span class="material-symbols-outlined text-white/50 text-xl">blur_on</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-lg text-on-surface tracking-tight">Neon Green PLA+</h3>
+<span class="px-2 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded uppercase tracking-widest">Bambu RFID</span>
+</div>
+<div class="flex items-center gap-6 text-sm text-on-surface-variant font-medium">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">weight</span>
+<span class="font-mono text-primary font-semibold">823.4g</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">straighten</span>
+<span>175mm</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">thermostat</span>
+<span>190-220°C</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<div class="text-xs text-slate-400 font-medium">2 min ago</div>
+<div class="flex items-center gap-1.5 text-tertiary-container font-bold text-xs uppercase tracking-widest mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+                            Pending
+                        </div>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-low text-primary hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Session Card 2: Matched -->
+<div class="bg-surface-container-lowest p-5 rounded-xl flex items-center justify-between group hover:bg-surface-bright transition-all duration-300 shadow-[0_4px_12px_rgba(26,37,48,0.06)]">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 rounded-full bg-[#FF6B00] shadow-inner flex items-center justify-center border-4 border-surface-container">
+<span class="material-symbols-outlined text-white/50 text-xl">blur_on</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-lg text-on-surface tracking-tight">PLA Orange</h3>
+<span class="px-2 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded uppercase tracking-widest">Bambu RFID</span>
+</div>
+<div class="flex items-center gap-6 text-sm text-on-surface-variant font-medium">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">weight</span>
+<span class="font-mono text-primary font-semibold">1000.0g</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">straighten</span>
+<span>200mm</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">thermostat</span>
+<span>200-230°C</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<div class="text-xs text-slate-400 font-medium">12 min ago</div>
+<div class="flex items-center gap-1.5 text-primary-container font-bold text-xs uppercase tracking-widest mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                            Matched
+                        </div>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-low text-primary hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Session Card 3: Failed -->
+<div class="bg-surface-container-lowest p-5 rounded-xl flex items-center justify-between group hover:bg-surface-bright transition-all duration-300 shadow-[0_4px_12px_rgba(26,37,48,0.06)]">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 rounded-full bg-[#1A1A1A] shadow-inner flex items-center justify-center border-4 border-surface-container">
+<span class="material-symbols-outlined text-white/50 text-xl">blur_on</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-lg text-on-surface tracking-tight">PETG Black</h3>
+<span class="px-2 py-0.5 bg-error-container text-error text-[10px] font-bold rounded uppercase tracking-widest">Unknown Tag</span>
+</div>
+<div class="flex items-center gap-6 text-sm text-on-surface-variant font-medium">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">weight</span>
+<span class="font-mono text-error font-semibold">342.1g</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">report</span>
+<span class="text-error">Checksum mismatch</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<div class="text-xs text-slate-400 font-medium">45 min ago</div>
+<div class="flex items-center gap-1.5 text-error font-bold text-xs uppercase tracking-widest mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                            Failed
+                        </div>
+</div>
+<button class="p-2 rounded-lg bg-error-container text-error hover:bg-error/20 transition-colors">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+</div>
+</div>
+<!-- Session Card 4: Completed (Faded) -->
+<div class="bg-surface-container-lowest/60 p-5 rounded-xl flex items-center justify-between group hover:bg-surface-bright transition-all duration-300 shadow-[0_4px_12px_rgba(26,37,48,0.06)] opacity-70">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 rounded-full bg-[#00BFFF] shadow-inner flex items-center justify-center border-4 border-surface-container">
+<span class="material-symbols-outlined text-white/50 text-xl">blur_on</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-lg text-on-surface tracking-tight">Sky Blue ABS</h3>
+<span class="px-2 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded uppercase tracking-widest">Generic NFC</span>
+</div>
+<div class="flex items-center gap-6 text-sm text-on-surface-variant font-medium">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">weight</span>
+<span class="font-mono font-semibold">955.2g</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">straighten</span>
+<span>180mm</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">thermostat</span>
+<span>240-260°C</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<div class="text-xs text-slate-400 font-medium">1.5 hours ago</div>
+<div class="flex items-center gap-1.5 text-[#00E676] font-bold text-xs uppercase tracking-widest mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-[#00E676]"></span>
+                            Completed
+                        </div>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-low text-slate-400 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+</div>
+</div>
+<!-- Session Card 5: Completed (Faded) -->
+<div class="bg-surface-container-lowest/60 p-5 rounded-xl flex items-center justify-between group hover:bg-surface-bright transition-all duration-300 shadow-[0_4px_12px_rgba(26,37,48,0.06)] opacity-70">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 rounded-full bg-[#E0E0E0] shadow-inner flex items-center justify-center border-4 border-surface-container">
+<span class="material-symbols-outlined text-white/50 text-xl">blur_on</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-lg text-on-surface tracking-tight">Marble White PLA</h3>
+<span class="px-2 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded uppercase tracking-widest">Bambu RFID</span>
+</div>
+<div class="flex items-center gap-6 text-sm text-on-surface-variant font-medium">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">weight</span>
+<span class="font-mono font-semibold">102.8g</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">straighten</span>
+<span>200mm</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">thermostat</span>
+<span>190-220°C</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<div class="text-xs text-slate-400 font-medium">3 hours ago</div>
+<div class="flex items-center gap-1.5 text-[#00E676] font-bold text-xs uppercase tracking-widest mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-[#00E676]"></span>
+                            Completed
+                        </div>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-low text-slate-400 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+</div>
+</div>
+<!-- Session Card 6: Completed (Faded) -->
+<div class="bg-surface-container-lowest/60 p-5 rounded-xl flex items-center justify-between group hover:bg-surface-bright transition-all duration-300 shadow-[0_4px_12px_rgba(26,37,48,0.06)] opacity-70">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 rounded-full bg-[#C0C0C0] shadow-inner flex items-center justify-center border-4 border-surface-container">
+<span class="material-symbols-outlined text-white/50 text-xl">blur_on</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-lg text-on-surface tracking-tight">Silver Metallic Silk</h3>
+<span class="px-2 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded uppercase tracking-widest">Bambu RFID</span>
+</div>
+<div class="flex items-center gap-6 text-sm text-on-surface-variant font-medium">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">weight</span>
+<span class="font-mono font-semibold">766.1g</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">straighten</span>
+<span>200mm</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">thermostat</span>
+<span>210-235°C</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<div class="text-xs text-slate-400 font-medium">Yesterday</div>
+<div class="flex items-center gap-1.5 text-[#00E676] font-bold text-xs uppercase tracking-widest mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-[#00E676]"></span>
+                            Completed
+                        </div>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-low text-slate-400 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+</div>
+</div>
+<!-- Empty State / Footer Call to Action -->
+<div class="py-12 flex flex-col items-center justify-center text-center opacity-60">
+<div class="w-12 h-12 bg-surface-container rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-secondary">sensors</span>
+</div>
+<p class="text-sm font-medium text-secondary max-w-xs">
+                    Place a spool on any scan station to begin automatic identification
+                </p>
+<div class="mt-6 flex gap-3">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="w-2 h-2 rounded-full bg-primary-container/40"></span>
+<span class="w-2 h-2 rounded-full bg-primary-container/40"></span>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB (Hidden on detail pages as per mandate, shown here as top-level) -->
+<div class="fixed bottom-8 right-8">
+<button class="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-3xl">barcode_scanner</span>
+</button>
+</div>
+</body></html>

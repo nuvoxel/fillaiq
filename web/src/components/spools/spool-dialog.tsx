@@ -1,19 +1,27 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Alert from "@mui/material/Alert";
-import Autocomplete from "@mui/material/Autocomplete";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createUserItem, updateUserItem } from "@/lib/actions/user-library";
 import {
   listProducts,
@@ -76,6 +84,7 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
   const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
   const [productLoading, setProductLoading] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // UI state
@@ -96,13 +105,13 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
           const brandMap = new Map(
             brandResult.data.map((b) => [b.id, b.name])
           );
-          setProductOptions(
-            prodResult.data.map((p) => ({
-              id: p.id,
-              name: p.name,
-              brandName: (p.brandId && brandMap.get(p.brandId)) || "Unknown",
-            }))
-          );
+          const opts = prodResult.data.map((p) => ({
+            id: p.id,
+            name: p.name,
+            brandName: (p.brandId && brandMap.get(p.brandId)) || "Unknown",
+          }));
+          setProductOptions(opts);
+          if (productSearch.length >= 2) setShowProductDropdown(true);
         }
       } finally {
         setProductLoading(false);
@@ -144,7 +153,6 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
       setNotes(e.notes ?? "");
       setStorageLocation(e.storageLocation ?? "");
       setCurrentSlotId(e.currentSlotId ?? null);
-      // Load existing product for autocomplete display
       if (e.productId) {
         loadExistingProduct(e.productId);
       } else {
@@ -171,6 +179,7 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
     }
     setProductSearch("");
     setError(null);
+    setShowProductDropdown(false);
   }, [open, existing, loadExistingProduct]);
 
   const handleSave = async () => {
@@ -209,241 +218,173 @@ export function SpoolDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{existing ? "Edit Spool" : "Add Spool"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Spool" : "Add Spool"}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          {/* ── Identity ─────────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Identity</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 8 }}>
-              <Autocomplete
-                options={productOptions}
-                getOptionLabel={(opt) => `${opt.brandName} - ${opt.name}`}
-                filterOptions={(x) => x}
-                value={selectedProduct}
-                onChange={(_e, newValue) => {
-                  setSelectedProduct(newValue);
-                  setProductId(newValue?.id ?? "");
-                }}
-                inputValue={productSearch}
-                onInputChange={(_e, newInput) => setProductSearch(newInput)}
-                isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                loading={productLoading}
-                size="small"
-                fullWidth
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Product"
-                    slotProps={{
-                      input: {
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {productLoading ? (
-                              <CircularProgress color="inherit" size={18} />
-                            ) : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ),
-                      },
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                select
-                label="Status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                size="small"
-                fullWidth
-              >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="empty">Empty</MenuItem>
-                <MenuItem value="archived">Archived</MenuItem>
-              </TextField>
-            </Grid>
-          </Grid>
+          {/* Identity */}
+          <p className="text-xs font-semibold text-muted-foreground">Identity</p>
+          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-3">
+            {/* Product search dropdown */}
+            <div className="relative">
+              <Label className="mb-1">Product</Label>
+              <div className="flex gap-1 items-center">
+                <Input
+                  value={selectedProduct ? `${selectedProduct.brandName} - ${selectedProduct.name}` : productSearch}
+                  onChange={(e) => {
+                    if (selectedProduct) {
+                      setSelectedProduct(null);
+                      setProductId("");
+                    }
+                    setProductSearch(e.target.value);
+                  }}
+                  onFocus={() => productOptions.length > 0 && productSearch.length >= 2 && setShowProductDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
+                  placeholder="Type to search..."
+                />
+                {productLoading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+              </div>
+              {showProductDropdown && productOptions.length > 0 && (
+                <div className="absolute z-50 top-full left-0 w-full mt-1 bg-popover border rounded-lg shadow-md max-h-48 overflow-y-auto">
+                  {productOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSelectedProduct(opt);
+                        setProductId(opt.id);
+                        setProductSearch("");
+                        setShowProductDropdown(false);
+                      }}
+                    >
+                      {opt.brandName} - {opt.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <Label className="mb-1">Status</Label>
+              <Select value={status} onValueChange={(v) => v && setStatus(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="empty">Empty</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-          {/* ── Weight ───────────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Weight</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField
-                label="Initial Weight (g)"
-                value={initialWeightG}
-                onChange={(e) => setInitialWeightG(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField
-                label="Current Weight (g)"
-                value={currentWeightG}
-                onChange={(e) => setCurrentWeightG(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField
-                label="Net Filament (g)"
-                value={netFilamentWeightG}
-                onChange={(e) => setNetFilamentWeightG(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField
-                label="Spool Weight (g)"
-                value={spoolWeightG}
-                onChange={(e) => setSpoolWeightG(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-          </Grid>
+          {/* Weight */}
+          <p className="text-xs font-semibold text-muted-foreground">Weight</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <Label className="mb-1">Initial Weight (g)</Label>
+              <Input value={initialWeightG} onChange={(e) => setInitialWeightG(e.target.value)} type="number" />
+            </div>
+            <div>
+              <Label className="mb-1">Current Weight (g)</Label>
+              <Input value={currentWeightG} onChange={(e) => setCurrentWeightG(e.target.value)} type="number" />
+            </div>
+            <div>
+              <Label className="mb-1">Net Filament (g)</Label>
+              <Input value={netFilamentWeightG} onChange={(e) => setNetFilamentWeightG(e.target.value)} type="number" />
+            </div>
+            <div>
+              <Label className="mb-1">Spool Weight (g)</Label>
+              <Input value={spoolWeightG} onChange={(e) => setSpoolWeightG(e.target.value)} type="number" />
+            </div>
+          </div>
 
-          {/* ── Cost ─────────────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Cost</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Purchase Price"
-                value={purchasePrice}
-                onChange={(e) => setPurchasePrice(e.target.value)}
-                type="number"
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Currency"
-                value={purchaseCurrency}
-                onChange={(e) => setPurchaseCurrency(e.target.value)}
-                size="small"
-                fullWidth
-                inputProps={{ maxLength: 3 }}
-                helperText="3-letter code (e.g. USD)"
-              />
-            </Grid>
-          </Grid>
+          {/* Cost */}
+          <p className="text-xs font-semibold text-muted-foreground">Cost</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="mb-1">Purchase Price</Label>
+              <Input value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} type="number" />
+            </div>
+            <div>
+              <Label className="mb-1">Currency</Label>
+              <Input value={purchaseCurrency} onChange={(e) => setPurchaseCurrency(e.target.value)} maxLength={3} />
+              <p className="text-[0.625rem] text-muted-foreground mt-0.5">3-letter code (e.g. USD)</p>
+            </div>
+          </div>
 
-          {/* ── Lifecycle ────────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Lifecycle</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Purchased At"
-                value={purchasedAt}
-                onChange={(e) => setPurchasedAt(e.target.value)}
-                type="date"
-                size="small"
-                fullWidth
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Opened At"
-                value={openedAt}
-                onChange={(e) => setOpenedAt(e.target.value)}
-                type="date"
-                size="small"
-                fullWidth
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Production Date"
-                value={productionDate}
-                onChange={(e) => setProductionDate(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="Freetext (e.g. 2025-Q3)"
-              />
-            </Grid>
-          </Grid>
+          {/* Lifecycle */}
+          <p className="text-xs font-semibold text-muted-foreground">Lifecycle</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label className="mb-1">Purchased At</Label>
+              <Input value={purchasedAt} onChange={(e) => setPurchasedAt(e.target.value)} type="date" />
+            </div>
+            <div>
+              <Label className="mb-1">Opened At</Label>
+              <Input value={openedAt} onChange={(e) => setOpenedAt(e.target.value)} type="date" />
+            </div>
+            <div>
+              <Label className="mb-1">Production Date</Label>
+              <Input value={productionDate} onChange={(e) => setProductionDate(e.target.value)} />
+              <p className="text-[0.625rem] text-muted-foreground mt-0.5">Freetext (e.g. 2025-Q3)</p>
+            </div>
+          </div>
 
-          {/* ── Provenance ───────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Provenance</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Lot Number"
-                value={lotNumber}
-                onChange={(e) => setLotNumber(e.target.value)}
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Serial Number"
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                label="Notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                size="small"
-                fullWidth
-                multiline
-                rows={3}
-              />
-            </Grid>
-          </Grid>
+          {/* Provenance */}
+          <p className="text-xs font-semibold text-muted-foreground">Provenance</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="mb-1">Lot Number</Label>
+              <Input value={lotNumber} onChange={(e) => setLotNumber(e.target.value)} />
+            </div>
+            <div>
+              <Label className="mb-1">Serial Number</Label>
+              <Input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-1">Notes</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+            </div>
+          </div>
 
-          {/* ── Location ─────────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Location</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                label="Storage Location"
-                value={storageLocation}
-                onChange={(e) => setStorageLocation(e.target.value)}
-                size="small"
-                fullWidth
-                helperText="Freetext location (e.g. Shelf A, Bin 3)"
-              />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {/* Location */}
+          <p className="text-xs font-semibold text-muted-foreground">Location</p>
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1">Storage Location</Label>
+              <Input value={storageLocation} onChange={(e) => setStorageLocation(e.target.value)} />
+              <p className="text-[0.625rem] text-muted-foreground mt-0.5">Freetext location (e.g. Shelf A, Bin 3)</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">
                 Or assign to a specific slot:
-              </Typography>
+              </p>
               <SlotPicker
                 selectedSlotId={currentSlotId}
                 onSelect={(slotId) => setCurrentSlotId(slotId)}
               />
-            </Grid>
-          </Grid>
-        </Stack>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
+            Cancel
+          </DialogClose>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

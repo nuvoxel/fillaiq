@@ -64,6 +64,15 @@ void FillaiqMqtt::publishCalibration(float factor) {
     pub("d", "calibration", payload.c_str(), 1, false);
 }
 
+void FillaiqMqtt::publishNfcLookup(const char* uid) {
+    JsonDocument doc;
+    doc["uid"] = uid;
+
+    String payload;
+    serializeJson(doc, payload);
+    pub("d", "nfc/lookup", payload.c_str(), 1, false);
+}
+
 void FillaiqMqtt::publishMachineStatus(const char* machineId, const char* json) {
     if (!_client || !_connected) return;
     char topic[128];
@@ -143,6 +152,8 @@ void FillaiqMqtt::handleEvent(esp_mqtt_event_handle_t event) {
                 onPrintJob(event->data, event->data_len);
             } else if (strcmp(channel, "pair/status") == 0 && onPairStatus) {
                 onPairStatus(event->data, event->data_len);
+            } else if (strcmp(channel, "nfc/known") == 0 && onNfcLookupResult) {
+                onNfcLookupResult(event->data, event->data_len);
             } else {
                 Serial.printf("[MQTT] Unhandled channel: %s\n", channel);
             }

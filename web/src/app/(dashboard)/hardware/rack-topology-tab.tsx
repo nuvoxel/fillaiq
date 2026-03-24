@@ -1,26 +1,21 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import IconButton from "@mui/material/IconButton";
-import Button from "@mui/material/Button";
-import InputBase from "@mui/material/InputBase";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import MemoryIcon from "@mui/icons-material/Memory";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import PrintIcon from "@mui/icons-material/Print";
-import CheckIcon from "@mui/icons-material/Check";
-import EditIcon from "@mui/icons-material/Edit";
-import CloseIcon from "@mui/icons-material/Close";
-import TextField from "@mui/material/TextField";
+import {
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+  Plus,
+  Trash2,
+  Printer,
+  Check,
+  Pencil,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   listMyZones,
   listRacksByZone,
@@ -67,7 +62,6 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
   const [printDialog, setPrintDialog] = useState<PrintDialogState>(closedPrint);
   const [addDialog, setAddDialog] = useState<{ open: boolean; level: "zone" | "rack"; parentId?: string }>({ open: false, level: "zone" });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; level: "zone" | "rack"; existing?: Record<string, any> | null }>({ open: false, level: "zone" });
-  // Track which racks/shelves are expanded
   const [expandedRacks, setExpandedRacks] = useState<Set<string>>(new Set());
   const [expandedShelves, setExpandedShelves] = useState<Set<string>>(new Set());
 
@@ -85,7 +79,6 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
             (rackSummaries as any[]).map(async (rack: any) => {
               const t = await getRackTopology(rack.id);
               if (t.data) {
-                // Merge item data into slot status for the visualizer
                 const topo = t.data as any;
                 for (const shelf of topo.shelves ?? []) {
                   for (const bay of shelf.bays ?? []) {
@@ -134,7 +127,6 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
         })
       );
       setZonesWithRacks(zwr);
-      // Auto-expand all on first load
       if (expandedRacks.size === 0) {
         const rIds = new Set<string>();
         const sIds = new Set<string>();
@@ -168,7 +160,6 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
     return next;
   });
 
-  // ── Inline save helpers ──
   const saveShelf = async (id: string, updates: { label?: string | null; position?: number }) => {
     await updateShelf(id, updates);
     loadData();
@@ -182,7 +173,6 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
     loadData();
   };
 
-  // ── Inline add helpers ──
   const addShelfToRack = async (rackId: string, currentShelves: ShelfData[]) => {
     const maxPos = (currentShelves ?? []).reduce((m, s) => Math.max(m, s.position), 0);
     await createShelf({ rackId, position: maxPos + 1 });
@@ -199,12 +189,10 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
     loadData();
   };
 
-  // ── Inline delete helpers ──
   const deleteShelf = async (id: string) => { await removeShelf(id); loadData(); };
   const deleteBay = async (id: string) => { await removeBay(id); loadData(); };
   const deleteSlot = async (id: string) => { await removeSlot(id); loadData(); };
 
-  // ── Print helpers ──
   const baySlotItems = (bay: BayData, shelfLabel: string | number, rackName: string): PrintLabelItem[] =>
     bay.slots.map((slot) => ({
       label: `Slot ${slot.label || slot.position}`,
@@ -218,7 +206,7 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
       shelf.bays.flatMap((bay) => baySlotItems(bay, shelf.label || shelf.position, rackName))
     );
     if (items.length === 0) return;
-    setPrintDialog({ open: true, items, title: `Print — Rack ${rackName} (${items.length} slots)` });
+    setPrintDialog({ open: true, items, title: `Print \u2014 Rack ${rackName} (${items.length} slots)` });
   };
 
   const openZonePrint = (zone: ZoneSummary, zoneRacks: RackTopology[]) => {
@@ -229,27 +217,27 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
       );
     });
     if (items.length === 0) return;
-    setPrintDialog({ open: true, items, title: `Print — ${zone.name} (${items.length} slots)` });
+    setPrintDialog({ open: true, items, title: `Print \u2014 ${zone.name} (${items.length} slots)` });
   };
 
   if (loading) {
     return (
-      <Stack spacing={2}>
+      <div className="flex flex-col gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={120} />
+          <Skeleton key={i} className="h-[120px] rounded-lg" />
         ))}
-      </Stack>
+      </div>
     );
   }
 
   if (zonesWithRacks.length === 0) {
     return (
       <>
-        <Box sx={{ textAlign: "center", py: 8 }}>
-          <MemoryIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-          <Typography variant="subtitle1" fontWeight={500}>No locations configured</Typography>
-          <Typography variant="body2" color="text.secondary">Add your first zone to start organizing your storage layout.</Typography>
-        </Box>
+        <div className="text-center py-16">
+          <Cpu className="size-12 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="font-medium">No locations configured</p>
+          <p className="text-sm text-muted-foreground">Add your first zone to start organizing your storage layout.</p>
+        </div>
         <LocationDialog
           open={addDialog.open}
           level={addDialog.level}
@@ -263,11 +251,11 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
 
   return (
     <>
-      <Stack spacing={2}>
+      <div className="flex flex-col gap-4">
         {zonesWithRacks.map(({ zone, racks }) => (
-          <Card key={zone.id}>
-            <CardContent>
-              {/* ── Zone header ── */}
+          <div key={zone.id} className="rounded-lg border bg-card text-card-foreground shadow-sm">
+            <div className="p-4">
+              {/* Zone header */}
               <ZoneHeader
                 zone={zone}
                 editing={editing}
@@ -276,12 +264,11 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                 onDelete={() => setDeleteDialog({ open: true, level: "zone", existing: zone })}
               />
 
-              {/* ── Racks ── */}
+              {/* Racks */}
               {racks.map((rack) => {
                 const rackExpanded = expandedRacks.has(rack.id);
                 return (
-                  <Box key={rack.id} sx={{ border: 1, borderColor: "divider", borderRadius: 2, mb: 1, overflow: "hidden" }}>
-                    {/* Rack header */}
+                  <div key={rack.id} className="border border-border rounded-lg mb-2 overflow-hidden">
                     <RackHeader
                       rack={rack}
                       expanded={rackExpanded}
@@ -292,67 +279,67 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                       onDelete={() => setDeleteDialog({ open: true, level: "rack", existing: rack })}
                     />
 
-                    {/* Rack content — visual shelf display */}
                     {rackExpanded && (
-                      <Box sx={{ display: "flex", gap: 2 }}>
-                      <Box sx={{ flex: 1, px: 1.5, py: 1, minWidth: 0 }}>
-                        <RackVisualizer
-                          rack={rack}
-                          displayStyle="shelf"
-                          editing={editing}
-                          selectedSlotId={selectedSlotId}
-                          callbacks={{
-                            onSaveSlotLabel: saveSlotLabel,
-                            onDeleteSlot: deleteSlot,
-                            onAddSlotToBay: addSlotToBay,
-                            onSaveBayLabel: saveBayLabel,
-                            onDeleteBay: deleteBay,
-                            onAddBayToShelf: addBayToShelf,
-                            onSaveShelf: saveShelf,
-                            onDeleteShelf: deleteShelf,
-                            onAddShelfToRack: addShelfToRack,
-                            onSlotClick: (slot) => {
-                              setSelectedSlotId((prev) => prev === slot.id ? null : slot.id);
-                            },
-                            onDragMoveItem: async (itemId, _fromSlotId, toSlotId) => {
-                              await moveItemToSlot(itemId, toSlotId);
-                              loadData();
-                            },
-                            onPrintSlot: (slot, context) => {
-                              const rackName = rack.name ?? rack.id.slice(0, 8);
-                              setPrintDialog({
-                                open: true,
-                                items: [{
-                                  label: `Slot ${slot.label || slot.position}`,
-                                  location: `${rackName} / ${context} / Slot ${slot.label || slot.position}`,
-                                  ...(slot.address ? { lotNumber: slot.address } : {}),
-                                }],
-                                title: `Print — Slot ${slot.label || slot.position}`,
-                              });
-                            },
-                          }}
-                        />
-
-                      </Box>
-                      </Box>
+                      <div className="flex gap-4">
+                        <div className="flex-1 px-3 py-2 min-w-0">
+                          <RackVisualizer
+                            rack={rack}
+                            displayStyle="shelf"
+                            editing={editing}
+                            selectedSlotId={selectedSlotId}
+                            callbacks={{
+                              onSaveSlotLabel: saveSlotLabel,
+                              onDeleteSlot: deleteSlot,
+                              onAddSlotToBay: addSlotToBay,
+                              onSaveBayLabel: saveBayLabel,
+                              onDeleteBay: deleteBay,
+                              onAddBayToShelf: addBayToShelf,
+                              onSaveShelf: saveShelf,
+                              onDeleteShelf: deleteShelf,
+                              onAddShelfToRack: addShelfToRack,
+                              onSlotClick: (slot) => {
+                                setSelectedSlotId((prev) => prev === slot.id ? null : slot.id);
+                              },
+                              onDragMoveItem: async (itemId, _fromSlotId, toSlotId) => {
+                                await moveItemToSlot(itemId, toSlotId);
+                                loadData();
+                              },
+                              onPrintSlot: (slot, context) => {
+                                const rackName = rack.name ?? rack.id.slice(0, 8);
+                                setPrintDialog({
+                                  open: true,
+                                  items: [{
+                                    label: `Slot ${slot.label || slot.position}`,
+                                    location: `${rackName} / ${context} / Slot ${slot.label || slot.position}`,
+                                    ...(slot.address ? { lotNumber: slot.address } : {}),
+                                  }],
+                                  title: `Print \u2014 Slot ${slot.label || slot.position}`,
+                                });
+                              },
+                            }}
+                          />
+                        </div>
+                      </div>
                     )}
-                  </Box>
+                  </div>
                 );
               })}
 
-              {/* Add rack — only in edit mode */}
-              {editing && <Button
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={() => setAddDialog({ open: true, level: "rack", parentId: zone.id })}
-                sx={{ mt: 0.5 }}
-              >
-                Add Rack
-              </Button>}
-            </CardContent>
-          </Card>
+              {editing && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAddDialog({ open: true, level: "rack", parentId: zone.id })}
+                  className="mt-1"
+                >
+                  <Plus className="size-4" data-icon="inline-start" />
+                  Add Rack
+                </Button>
+              )}
+            </div>
+          </div>
         ))}
-      </Stack>
+      </div>
 
       <LocationDialog
         open={addDialog.open}
@@ -395,14 +382,12 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                     const loc = `${rackName} / Shelf ${shelf.label || shelf.position} / Bay ${bay.label || bay.position} / Slot ${slot.label || slot.position}`;
                     const hasItem = st?.state === "active" && st.userItemId;
                     if (hasItem) {
-                      // Build temperature strings
                       const nozzleTemp = st.nozzleTempMin && st.nozzleTempMax
-                        ? `${st.nozzleTempMin}-${st.nozzleTempMax}°C`
-                        : st.nozzleTempMin ? `${st.nozzleTempMin}°C` : undefined;
+                        ? `${st.nozzleTempMin}-${st.nozzleTempMax}\u00b0C`
+                        : st.nozzleTempMin ? `${st.nozzleTempMin}\u00b0C` : undefined;
                       const bedTemp = st.bedTempMin && st.bedTempMax
-                        ? `${st.bedTempMin}-${st.bedTempMax}°C`
-                        : st.bedTempMin ? `${st.bedTempMin}°C` : undefined;
-                      // Print item label with full details
+                        ? `${st.bedTempMin}-${st.bedTempMax}\u00b0C`
+                        : st.bedTempMin ? `${st.bedTempMin}\u00b0C` : undefined;
                       setPrintDialog({
                         open: true,
                         items: [{
@@ -414,7 +399,7 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                           colorName: st.colorName,
                           nozzleTemp,
                           bedTemp,
-                          dryingInfo: st.dryingTemp ? `${st.dryingTemp}°C / ${st.dryingTimeMin ? Math.round(st.dryingTimeMin / 60) + "h" : "?"}` : undefined,
+                          dryingInfo: st.dryingTemp ? `${st.dryingTemp}\u00b0C / ${st.dryingTimeMin ? Math.round(st.dryingTimeMin / 60) + "h" : "?"}` : undefined,
                           flowRatio: st.flowRatio ? String(st.flowRatio) : undefined,
                           td: st.td ? String(st.td) : undefined,
                           weight: st.weightStableG ? `${Math.round(st.weightStableG)}g` : undefined,
@@ -424,10 +409,9 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                           price: st.purchasePrice ? `${st.purchaseCurrency ?? "$"}${Number(st.purchasePrice).toFixed(2)}` : undefined,
                           purchaseDate: st.purchasedAt ? new Date(st.purchasedAt).toLocaleDateString() : undefined,
                         }],
-                        title: `Print — ${st.brandName ? st.brandName + " " : ""}${st.productName ?? "Item"}`,
+                        title: `Print \u2014 ${st.brandName ? st.brandName + " " : ""}${st.productName ?? "Item"}`,
                       });
                     } else {
-                      // Print slot/shelf label
                       setPrintDialog({
                         open: true,
                         items: [{
@@ -435,7 +419,7 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
                           location: loc,
                           ...(slot.address ? { lotNumber: slot.address } : {}),
                         }],
-                        title: `Print — Slot ${slot.label || slot.position}`,
+                        title: `Print \u2014 Slot ${slot.label || slot.position}`,
                       });
                     }
                     return;
@@ -446,12 +430,9 @@ export function RackTopologyTab({ editing = false }: { editing?: boolean } = {})
           }
         } : undefined}
       />
-
     </>
   );
 }
-
-// ── Inline editable text ──────────────────────────────────────────────────────
 
 // ── Zone header with inline-expandable editing ──────────────────────────────
 
@@ -468,7 +449,7 @@ function ZoneHeader({
   onPrint: () => void;
   onDelete: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editingState, setEditingState] = useState(false);
   const [name, setName] = useState(zone.name);
   const [description, setDescription] = useState(zone.description ?? "");
   const [shortcode, setShortcode] = useState((zone as any).nfcTagId ?? "");
@@ -485,80 +466,96 @@ function ZoneHeader({
     if ((description || null) !== (zone.description || null)) updates.description = description || null;
     if ((shortcode || null) !== ((zone as any).nfcTagId || null)) updates.nfcTagId = shortcode || null;
     if (Object.keys(updates).length > 0) await onSave(updates);
-    setEditing(false);
+    setEditingState(false);
   };
 
-  if (editing) {
+  if (editingState) {
     return (
-      <Box sx={{ mb: 1.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-          <MemoryIcon color="primary" />
-          <TextField
+      <div className="mb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Cpu className="size-5 text-primary" />
+          <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            size="small"
-            variant="standard"
+            className="bg-transparent border-b border-input outline-none text-xl font-semibold flex-1"
             placeholder="Zone name"
             autoFocus
-            sx={{ fontWeight: 600, fontSize: "1.25rem", "& input": { fontWeight: 600, fontSize: "1.25rem" } }}
-            onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditingState(false); }}
           />
-          <Box sx={{ ml: "auto", display: "flex", gap: 0.5 }}>
-            <Tooltip title="Save"><IconButton size="small" onClick={commit}><CheckIcon fontSize="small" color="primary" /></IconButton></Tooltip>
-            <Tooltip title="Cancel"><IconButton size="small" onClick={() => setEditing(false)}><CloseIcon fontSize="small" /></IconButton></Tooltip>
-          </Box>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1.5, pl: 4.5 }}>
-          <TextField
-            label="Description"
+          <div className="ml-auto flex gap-1">
+            <Tooltip>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={commit} />}>
+                <Check className="size-4 text-primary" />
+              </TooltipTrigger>
+              <TooltipContent>Save</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={() => setEditingState(false)} />}>
+                <X className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>Cancel</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+        <div className="flex gap-3 pl-7">
+          <textarea
+            className="flex-1 bg-transparent border border-input rounded-lg px-2.5 py-1 text-sm outline-none focus-visible:border-ring min-h-[40px]"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            size="small"
-            fullWidth
-            multiline
-            maxRows={2}
-            placeholder="Optional"
-            onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+            placeholder="Optional description"
+            onKeyDown={(e) => { if (e.key === "Escape") setEditingState(false); }}
           />
-          <TextField
-            label="Shortcode"
-            value={shortcode}
-            onChange={(e) => setShortcode(e.target.value)}
-            size="small"
-            sx={{ minWidth: 120 }}
-            placeholder="e.g. OF"
-            helperText="Address prefix"
-            onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          />
-        </Box>
-      </Box>
+          <div>
+            <Input
+              value={shortcode}
+              onChange={(e) => setShortcode(e.target.value)}
+              className="w-[120px]"
+              placeholder="e.g. OF"
+              onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditingState(false); }}
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Address prefix</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-      <Box
-        sx={{ display: "flex", alignItems: "center", gap: 1.5, cursor: pageEditing ? "pointer" : "default" }}
-        onClick={pageEditing ? () => setEditing(true) : undefined}
+    <div className="flex items-center justify-between mb-3">
+      <div
+        className={`flex items-center gap-3 ${pageEditing ? "cursor-pointer" : ""}`}
+        onClick={pageEditing ? () => setEditingState(true) : undefined}
       >
-        <MemoryIcon color="primary" />
-        <Typography variant="h6" fontWeight={600} sx={pageEditing ? { borderBottom: "1px dashed transparent", "&:hover": { borderBottomColor: "text.secondary" } } : {}}>
+        <Cpu className="size-5 text-primary" />
+        <h3 className={`text-lg font-semibold ${pageEditing ? "hover:underline decoration-dashed" : ""}`}>
           {zone.name}
-        </Typography>
+        </h3>
         {zone.description && (
-          <Typography variant="body2" color="text.secondary">{zone.description}</Typography>
+          <span className="text-sm text-muted-foreground">{zone.description}</span>
         )}
         {(zone as any).nfcTagId && (
-          <Typography variant="caption" color="text.disabled" sx={{ fontFamily: "monospace" }}>
+          <span className="text-xs text-muted-foreground/60 font-mono">
             [{(zone as any).nfcTagId}]
-          </Typography>
+          </span>
         )}
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <Tooltip title="Print all labels"><IconButton size="small" onClick={onPrint}><PrintIcon fontSize="small" /></IconButton></Tooltip>
-        {pageEditing && <Tooltip title="Delete zone"><IconButton size="small" onClick={onDelete}><DeleteIcon fontSize="small" /></IconButton></Tooltip>}
-      </Box>
-    </Box>
+      </div>
+      <div className="flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={onPrint} />}>
+            <Printer className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Print all labels</TooltipContent>
+        </Tooltip>
+        {pageEditing && (
+          <Tooltip>
+            <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={onDelete} />}>
+              <Trash2 className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>Delete zone</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -602,73 +599,83 @@ function RackHeader({
 
   if (inlineEditing) {
     return (
-      <Box
-        sx={{ px: 1.5, py: 1, bgcolor: "grey.50" }}
+      <div
+        className="px-3 py-2 bg-muted/50"
         onClick={(e) => e.stopPropagation()}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {expanded ? <ExpandLessIcon fontSize="small" color="action" /> : <ExpandMoreIcon fontSize="small" color="action" />}
-          <TextField
+        <div className="flex items-center gap-2">
+          {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+          <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            size="small"
-            variant="standard"
+            className="bg-transparent border-b border-input outline-none font-medium flex-1"
             placeholder="Rack name"
             autoFocus
-            sx={{ fontWeight: 500, "& input": { fontWeight: 500 } }}
             onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setInlineEditing(false); }}
           />
-          <TextField
+          <input
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            size="small"
-            variant="standard"
+            className="bg-transparent border-b border-input outline-none w-12 text-center"
             placeholder="Pos"
             type="number"
-            sx={{ width: 50, "& input": { textAlign: "center" } }}
             onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setInlineEditing(false); }}
           />
-          <Box sx={{ ml: "auto", display: "flex", gap: 0.5 }}>
-            <Tooltip title="Save"><IconButton size="small" onClick={commit}><CheckIcon fontSize="small" color="primary" /></IconButton></Tooltip>
-            <Tooltip title="Cancel"><IconButton size="small" onClick={() => setInlineEditing(false)}><CloseIcon fontSize="small" /></IconButton></Tooltip>
-          </Box>
-        </Box>
-      </Box>
+          <div className="ml-auto flex gap-1">
+            <Tooltip>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={commit} />}>
+                <Check className="size-4 text-primary" />
+              </TooltipTrigger>
+              <TooltipContent>Save</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={() => setInlineEditing(false)} />}>
+                <X className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>Cancel</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Box
-      sx={{
-        display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 1,
-        bgcolor: "grey.50", cursor: "pointer", "&:hover": { bgcolor: "grey.100" },
-      }}
+    <div
+      className="flex items-center gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted"
       onClick={onToggle}
     >
-      {expanded ? <ExpandLessIcon fontSize="small" color="action" /> : <ExpandMoreIcon fontSize="small" color="action" />}
-      <Typography
-        fontWeight={500}
-        sx={{
-          cursor: pageEditing ? "pointer" : "default",
-          ...(pageEditing ? { borderBottom: "1px dashed transparent", "&:hover": { borderBottomColor: "text.secondary" } } : {}),
-        }}
+      {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+      <span
+        className={`font-medium ${pageEditing ? "cursor-pointer hover:underline decoration-dashed" : ""}`}
         onClick={pageEditing ? (e) => { e.stopPropagation(); setInlineEditing(true); } : undefined}
       >
         {rackName}
-      </Typography>
+      </span>
       {rack.position != null && (
-        <Typography variant="caption" color="text.disabled" sx={{ fontFamily: "monospace" }}>
+        <span className="text-xs text-muted-foreground/60 font-mono">
           #{rack.position}
-        </Typography>
+        </span>
       )}
-      <Typography variant="caption" color="text.secondary">
+      <span className="text-xs text-muted-foreground">
         {rack.shelves?.length ?? 0} {(rack.shelves?.length ?? 0) === 1 ? "shelf" : "shelves"}
-      </Typography>
-      <Box sx={{ ml: "auto", display: "flex", gap: 0.5 }}>
-        <Tooltip title="Print labels"><IconButton size="small" onClick={(e) => { e.stopPropagation(); onPrint(); }}><PrintIcon fontSize="small" /></IconButton></Tooltip>
-        {pageEditing && <Tooltip title="Delete rack"><IconButton size="small" onClick={(e) => { e.stopPropagation(); onDelete(); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>}
-      </Box>
-    </Box>
+      </span>
+      <div className="ml-auto flex gap-1">
+        <Tooltip>
+          <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); onPrint(); }} />}>
+            <Printer className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Print labels</TooltipContent>
+        </Tooltip>
+        {pageEditing && (
+          <Tooltip>
+            <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); onDelete(); }} />}>
+              <Trash2 className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>Delete rack</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
   );
 }
-

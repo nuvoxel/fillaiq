@@ -258,7 +258,7 @@ void ApiClient::postEnvironment(const EnvData& env) {
 
 // ==================== Payload Building ====================
 
-String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagData) {
+String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagData, const char* targetSlotId) {
     JsonDocument doc;
 
     doc["stationId"] = _stationId;
@@ -399,6 +399,11 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
         doc["turntableAngle"] = scan.turntable.angleDeg;
     }
 
+    // Target slot override (user selected a different return location)
+    if (targetSlotId && targetSlotId[0]) {
+        doc["targetSlotId"] = targetSlotId;
+    }
+
     String output;
     serializeJson(doc, output);
     return output;
@@ -447,6 +452,13 @@ bool ApiClient::parseResponse(const String& json, ScanResponse& response) {
 
     const char* cHex = doc["colorHex"];
     if (cHex) strncpy(response.colorHex, cHex, sizeof(response.colorHex) - 1);
+
+    // Spool return flow — existing item in inventory
+    response.isExisting = doc["isExisting"] | false;
+    const char* retLoc = doc["returnLocation"];
+    if (retLoc) strncpy(response.returnLocation, retLoc, sizeof(response.returnLocation) - 1);
+    const char* existId = doc["existingItemId"];
+    if (existId) strncpy(response.existingItemId, existId, sizeof(response.existingItemId) - 1);
 
     return true;
 }

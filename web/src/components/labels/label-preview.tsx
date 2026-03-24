@@ -1,8 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-
 export type LabelPreviewData = {
   brand?: string;
   brandLogoUrl?: string;
@@ -86,132 +83,108 @@ export function LabelPreview({
   const swatchColor = data.color ?? "#1A1A1A";
 
   return (
-    <Box
-      sx={{
-        width: displayW,
-        height: displayH,
-        border: "1px dashed",
-        borderColor: "divider",
-        borderRadius: 1,
-        overflow: "hidden",
-        bgcolor: "#fff",
-        position: "relative",
-        mx: "auto",
-      }}
+    <div
+      className="relative mx-auto overflow-hidden rounded border border-dashed border-border bg-white"
+      style={{ width: displayW, height: displayH }}
     >
-      <Box
-        sx={{
+      <div
+        className="flex flex-col"
+        style={{
           width: naturalW,
           height: naturalH,
           transform: scale < 1 ? `scale(${scale})` : undefined,
           transformOrigin: "top left",
-          display: "flex",
-          flexDirection: "column",
-          p: compact ? 0.5 : 1.5,
-          gap: compact ? 0.25 : 0.5,
+          padding: compact ? 4 : 12,
+          gap: compact ? 2 : 4,
           fontFamily: "'Inter', 'Roboto', sans-serif",
         }}
       >
-        {/* ── Row 1: Brand (logo or text) + Color hex ── */}
-        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        {/* Row 1: Brand (logo or text) + Color hex */}
+        <div className="flex items-start justify-between">
           {settings.showBrand && (
             data.brandLogoUrl ? (
-              <Box
-                component="img"
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
                 src={data.brandLogoUrl}
                 alt={data.brand}
-                sx={{
-                  height: compact ? 14 : 22,
-                  maxWidth: "65%",
-                  objectFit: "contain",
-                  objectPosition: "left",
-                  flex: 1,
-                  minWidth: 0,
-                }}
+                className="min-w-0 flex-1 object-contain object-left"
+                style={{ height: compact ? 14 : 22, maxWidth: "65%" }}
               />
             ) : (
-              <Typography
-                sx={{
+              <span
+                className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+                style={{
                   fontSize: compact ? 10 : 16,
                   fontWeight: 800,
                   lineHeight: 1.1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  color: "#111",
+                  color: "#1A2530",
                   letterSpacing: "-0.02em",
-                  flex: 1,
-                  minWidth: 0,
                 }}
               >
                 {data.brand}
-              </Typography>
+              </span>
             )
           )}
           {settings.showColor && data.color && (
-            <Typography
-              sx={{
+            <span
+              className="ml-1 shrink-0 font-mono"
+              style={{
                 fontSize: compact ? 6 : 9,
                 fontWeight: 500,
-                color: "#666",
-                fontFamily: "monospace",
-                flexShrink: 0,
-                ml: 0.5,
-                mt: compact ? 0.25 : 0.5,
+                color: "#94A3B8",
+                marginTop: compact ? 2 : 4,
               }}
             >
               {data.color}
-            </Typography>
+            </span>
           )}
-        </Box>
+        </div>
 
-        {/* ── Row 2: Material on dark strip ── */}
+        {/* Row 2: Material on dark strip */}
         {settings.showMaterial && (
-          <Box
-            sx={{
-              bgcolor: "#1a1a1a",
-              color: "#fff",
-              px: compact ? 0.5 : 1,
-              py: compact ? 0 : 0.15,
-              mx: compact ? -0.5 : -1.5,
-              display: "inline-flex",
-              alignSelf: "flex-start",
+          <div
+            className="inline-flex self-start text-white"
+            style={{
+              backgroundColor: "#0F1F23",
+              paddingLeft: compact ? 4 : 8,
+              paddingRight: compact ? 4 : 8,
+              paddingTop: compact ? 0 : 1.2,
+              paddingBottom: compact ? 0 : 1.2,
+              marginLeft: compact ? -4 : -12,
               maxWidth: "75%",
             }}
           >
-            <Typography
-              sx={{
+            <span
+              className="overflow-hidden text-ellipsis whitespace-nowrap"
+              style={{
                 fontSize: compact ? 7 : 11,
                 fontWeight: 700,
                 lineHeight: 1.3,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
               }}
             >
               {data.material}
-            </Typography>
-          </Box>
+            </span>
+          </div>
         )}
 
-        {/* ── Row 3: Color name ── */}
+        {/* Row 3: Color name */}
         {(settings.showColor && data.colorName) && (
-          <Typography
-            sx={{
+          <span
+            style={{
               fontSize: compact ? 8 : 13,
               fontWeight: 600,
-              color: "#222",
+              color: "#1A2530",
               lineHeight: 1.2,
             }}
           >
             {data.colorName}
-          </Typography>
+          </span>
         )}
 
-        {/* ── Bottom section: Info fields + QR code ── */}
-        <Box sx={{ display: "flex", flex: 1, alignItems: "flex-end", mt: "auto" }}>
+        {/* Bottom section: Info fields + QR code */}
+        <div className="mt-auto flex flex-1 items-end">
           {/* Left column: key-value pairs */}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+          <div className="min-w-0 flex-1">
             {settings.showTemps && data.nozzleTemp && (
               <InfoRow label="Nozzle:" value={data.nozzleTemp} compact={compact} />
             )}
@@ -242,39 +215,34 @@ export function LabelPreview({
             {settings.showLotNumber && data.lotNumber && (
               <InfoRow label="Lot:" value={data.lotNumber} compact={compact} />
             )}
-          </Box>
+          </div>
 
           {/* Right: QR code */}
           {settings.showQrCode && (
-            <Box
-              sx={{
+            <div
+              className="ml-1 flex shrink-0 items-center justify-center rounded-sm"
+              style={{
                 width: compact ? 24 : 44,
                 height: compact ? 24 : 44,
-                border: "1.5px solid #999",
-                borderRadius: 0.5,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                bgcolor: "#fafafa",
-                flexShrink: 0,
-                ml: 0.5,
+                border: "1.5px solid #94A3B8",
+                backgroundColor: "#F4F6F8",
               }}
             >
-              <Typography
-                sx={{
+              <span
+                className="select-none"
+                style={{
                   fontSize: compact ? 6 : 9,
                   fontWeight: 600,
-                  color: "#999",
-                  userSelect: "none",
+                  color: "#94A3B8",
                 }}
               >
                 QR
-              </Typography>
-            </Box>
+              </span>
+            </div>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -288,29 +256,29 @@ function InfoRow({
   compact: boolean;
 }) {
   return (
-    <Box sx={{ display: "flex", gap: compact ? 0.25 : 0.5, lineHeight: 1 }}>
-      <Typography
-        sx={{
+    <div className="flex" style={{ gap: compact ? 2 : 4, lineHeight: 1 }}>
+      <span
+        className="whitespace-nowrap"
+        style={{
           fontSize: compact ? 6 : 9,
           fontWeight: 500,
-          color: "#666",
+          color: "#94A3B8",
           lineHeight: 1.4,
-          whiteSpace: "nowrap",
         }}
       >
         {label}
-      </Typography>
-      <Typography
-        sx={{
+      </span>
+      <span
+        className="whitespace-nowrap"
+        style={{
           fontSize: compact ? 6 : 9,
           fontWeight: 600,
-          color: "#333",
+          color: "#1A2530",
           lineHeight: 1.4,
-          whiteSpace: "nowrap",
         }}
       >
         {value}
-      </Typography>
-    </Box>
+      </span>
+    </div>
   );
 }

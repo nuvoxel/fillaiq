@@ -1,15 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import Box from "@mui/material/Box";
-import Avatar from "@mui/material/Avatar";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import CircularProgress from "@mui/material/CircularProgress";
-import Tooltip from "@mui/material/Tooltip";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { Upload, Trash2, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { updateBrand } from "@/lib/actions/central-catalog";
 
 type Props = {
@@ -57,76 +52,88 @@ export function BrandLogoUpload({ brandId, brandName, logoUrl: initialLogoUrl, l
   };
 
   return (
-    <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-      {/* Color Logo */}
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75 }}>
-          Color Logo
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          {logoUrl ? (
-            <Box sx={{ position: "relative" }}>
-              <Box
-                component="img"
-                src={logoUrl}
-                alt={`${brandName} logo`}
-                sx={{ height: 48, maxWidth: 160, objectFit: "contain", borderRadius: 1, border: 1, borderColor: "divider", p: 0.5 }}
-              />
-              <Tooltip title="Remove">
-                <IconButton size="small" onClick={() => handleRemove("color")}
-                  sx={{ position: "absolute", top: -8, right: -8, bgcolor: "background.paper", boxShadow: 1, p: 0.25, "&:hover": { bgcolor: "error.light", color: "white" } }}>
-                  <DeleteIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          ) : (
-            <Avatar sx={{ width: 48, height: 48, bgcolor: "primary.light", color: "primary.main", fontSize: 20 }}>
-              {brandName[0]}
-            </Avatar>
-          )}
-          <input ref={colorInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "color"); e.target.value = ""; }} />
-          <Button size="small" variant="outlined" startIcon={uploadingColor ? <CircularProgress size={14} /> : <CloudUploadIcon />}
-            disabled={uploadingColor} onClick={() => colorInputRef.current?.click()} sx={{ textTransform: "none" }}>
-            {uploadingColor ? "Uploading..." : "Upload"}
-          </Button>
-        </Box>
-      </Box>
+    <TooltipProvider>
+      <div className="flex gap-3 flex-wrap">
+        {/* Color Logo */}
+        <div>
+          <p className="text-xs text-muted-foreground block mb-1.5">Color Logo</p>
+          <div className="flex items-center gap-1.5">
+            {logoUrl ? (
+              <div className="relative">
+                <img
+                  src={logoUrl}
+                  alt={`${brandName} logo`}
+                  className="h-12 max-w-40 object-contain rounded border border-border p-0.5"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        onClick={() => handleRemove("color")}
+                        className="absolute -top-2 -right-2 bg-background shadow-sm rounded-full p-0.5 hover:bg-destructive hover:text-white transition-colors"
+                      />
+                    }
+                  >
+                    <Trash2 className="size-3.5" />
+                  </TooltipTrigger>
+                  <TooltipContent>Remove</TooltipContent>
+                </Tooltip>
+              </div>
+            ) : (
+              <Avatar className="size-12">
+                <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                  {brandName[0]}
+                </AvatarFallback>
+              </Avatar>
+            )}
+            <input ref={colorInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "color"); e.target.value = ""; }} />
+            <Button size="sm" variant="outline" disabled={uploadingColor} onClick={() => colorInputRef.current?.click()}>
+              {uploadingColor ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Upload className="size-4 mr-1" />}
+              {uploadingColor ? "Uploading..." : "Upload"}
+            </Button>
+          </div>
+        </div>
 
-      {/* B&W Logo (for label printing) */}
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75 }}>
-          B&W Logo (for labels)
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          {logoBwUrl ? (
-            <Box sx={{ position: "relative" }}>
-              <Box
-                component="img"
-                src={logoBwUrl}
-                alt={`${brandName} B&W logo`}
-                sx={{ height: 48, maxWidth: 160, objectFit: "contain", borderRadius: 1, border: 1, borderColor: "divider", p: 0.5, bgcolor: "white" }}
-              />
-              <Tooltip title="Remove">
-                <IconButton size="small" onClick={() => handleRemove("bw")}
-                  sx={{ position: "absolute", top: -8, right: -8, bgcolor: "background.paper", boxShadow: 1, p: 0.25, "&:hover": { bgcolor: "error.light", color: "white" } }}>
-                  <DeleteIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          ) : (
-            <Box sx={{ width: 48, height: 48, borderRadius: 1, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Typography variant="caption" color="text.disabled">B&W</Typography>
-            </Box>
-          )}
-          <input ref={bwInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "bw"); e.target.value = ""; }} />
-          <Button size="small" variant="outlined" startIcon={uploadingBw ? <CircularProgress size={14} /> : <CloudUploadIcon />}
-            disabled={uploadingBw} onClick={() => bwInputRef.current?.click()} sx={{ textTransform: "none" }}>
-            {uploadingBw ? "Uploading..." : "Upload"}
-          </Button>
-        </Box>
-      </Box>
-    </Box>
+        {/* B&W Logo */}
+        <div>
+          <p className="text-xs text-muted-foreground block mb-1.5">B&W Logo (for labels)</p>
+          <div className="flex items-center gap-1.5">
+            {logoBwUrl ? (
+              <div className="relative">
+                <img
+                  src={logoBwUrl}
+                  alt={`${brandName} B&W logo`}
+                  className="h-12 max-w-40 object-contain rounded border border-border p-0.5 bg-white"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        onClick={() => handleRemove("bw")}
+                        className="absolute -top-2 -right-2 bg-background shadow-sm rounded-full p-0.5 hover:bg-destructive hover:text-white transition-colors"
+                      />
+                    }
+                  >
+                    <Trash2 className="size-3.5" />
+                  </TooltipTrigger>
+                  <TooltipContent>Remove</TooltipContent>
+                </Tooltip>
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded border border-dashed border-border flex items-center justify-center">
+                <span className="text-xs text-muted-foreground/50">B&W</span>
+              </div>
+            )}
+            <input ref={bwInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "bw"); e.target.value = ""; }} />
+            <Button size="sm" variant="outline" disabled={uploadingBw} onClick={() => bwInputRef.current?.click()}>
+              {uploadingBw ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Upload className="size-4 mr-1" />}
+              {uploadingBw ? "Uploading..." : "Upload"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </TooltipProvider>
   );
 }

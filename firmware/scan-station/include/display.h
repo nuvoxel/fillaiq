@@ -90,6 +90,20 @@ public:
                          float tempC, float humidity, float pressureHPa,
                          bool scanEnabled);
 
+    // NFC lookup result — update NFC panel with known spool info
+    void updateNfcLookup(const char* productName, const char* material,
+                         const char* returnLocation, bool isKnown,
+                         int emptySlotCount = 0);
+
+    // Update return location display (for cycling through empty slots)
+    void updateReturnLocation(const char* location, int currentIndex, int totalCount);
+
+    // Location cycle button pressed — set by LVGL event, consumed by main loop
+    volatile int locationCycleDelta = 0;  // +1 = next, -1 = prev
+
+    // Update scan button label (e.g. "SCAN" vs "UPDATE")
+    void setScanButtonLabel(const char* label);
+
     // Result screen — show after scan submission
     void showResult(const ScanResponse* resp, float weight, const char* sessionUrl);
 
@@ -156,12 +170,11 @@ private:
 
     // Dashboard (idle) screen — live sensor labels
     lv_obj_t* _dashWeightLabel = nullptr;
-    lv_obj_t* _dashWeightStatus = nullptr;
+    lv_obj_t* _dashWeightBadge = nullptr;     // STABLE/READING pill badge
+    lv_obj_t* _dashWeightBadgeLbl = nullptr;  // Label inside the badge
     lv_obj_t* _dashNfcLabel = nullptr;
-    lv_obj_t* _dashColorLabel = nullptr;
-    lv_obj_t* _dashColorSwatch = nullptr;
-    lv_obj_t* _dashTofLabel = nullptr;
-    lv_obj_t* _dashEnvLabel = nullptr;
+    lv_obj_t* _dashNfcDetail = nullptr;
+    lv_obj_t* _dashNfcUid = nullptr;
     lv_obj_t* _dashScanBtn = nullptr;
     lv_obj_t* _dashScanBtnLabel = nullptr;
 
@@ -184,6 +197,11 @@ private:
     void clearScreen();
     lv_obj_t* createStatusBar(lv_obj_t* parent, uint8_t icons);
 
+    // Location cycle buttons (on NFC panel)
+    lv_obj_t* _dashLocPrevBtn = nullptr;
+    lv_obj_t* _dashLocNextBtn = nullptr;
+    lv_obj_t* _dashLocCounter = nullptr;
+
     // LVGL event callbacks (static, forwarded to Display instance)
     static void onSettingsBtnClick(lv_event_t* e);
     static void onMenuItemClick(lv_event_t* e);
@@ -192,6 +210,8 @@ private:
     static void onScanBtnClick(lv_event_t* e);
     static void onDoneBtnClick(lv_event_t* e);
     static void onPrintBtnClick(lv_event_t* e);
+    static void onLocPrevClick(lv_event_t* e);
+    static void onLocNextClick(lv_event_t* e);
 };
 
 extern Display display;

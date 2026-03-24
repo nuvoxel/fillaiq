@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import CircularProgress from "@mui/material/CircularProgress";
-import Alert from "@mui/material/Alert";
+import { Loader2 } from "lucide-react";
 import { RackVisualizer, type RackVisualizerCallbacks } from "@/components/locations/rack-visualizer";
 import { getStorageTree } from "@/lib/actions/scan";
 
@@ -26,19 +23,19 @@ export function SlotPicker({ selectedSlotId, onSelect }: Props) {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-        <CircularProgress size={24} />
-      </Box>
+      <div className="flex justify-center py-3">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (tree.length === 0) {
     return (
-      <Box sx={{ py: 2, textAlign: "center" }}>
-        <Typography variant="body2" color="text.secondary">
+      <div className="py-2 text-center">
+        <p className="text-sm text-muted-foreground">
           No storage configured. Add zones and racks in Settings first.
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
@@ -50,17 +47,17 @@ export function SlotPicker({ selectedSlotId, onSelect }: Props) {
   };
 
   return (
-    <Box>
+    <div>
       {tree.map((zone: any) => (
-        <Box key={zone.id} sx={{ mb: 2 }}>
-          <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+        <div key={zone.id} className="mb-3">
+          <span className="text-xs font-semibold text-muted-foreground block mb-1">
             {zone.name}
-          </Typography>
+          </span>
           {zone.racks?.map((rack: any) => (
-            <Box key={rack.id} sx={{ mb: 1.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block", pl: 1 }}>
+            <div key={rack.id} className="mb-2">
+              <span className="text-xs text-muted-foreground block mb-1 pl-1">
                 {rack.name}
-              </Typography>
+              </span>
               <RackVisualizer
                 rack={{
                   id: rack.id,
@@ -95,26 +92,26 @@ export function SlotPicker({ selectedSlotId, onSelect }: Props) {
                 callbacks={callbacks}
                 selectedSlotId={selectedSlotId}
               />
-            </Box>
+            </div>
           ))}
-        </Box>
+        </div>
       ))}
 
       {/* Legend */}
-      <Box sx={{ display: "flex", gap: 1.5, mt: 1, pt: 1, borderTop: 1, borderColor: "divider" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "#9CA3AF", border: 1, borderColor: "divider" }} />
-          <Typography variant="caption" color="text.secondary">Empty</Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "#16A34A", border: 1, borderColor: "divider" }} />
-          <Typography variant="caption" color="text.secondary">Occupied</Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "#1976d2", border: 3, borderColor: "#1976d2" }} />
-          <Typography variant="caption" color="text.secondary">Selected</Typography>
-        </Box>
-      </Box>
-    </Box>
+      <div className="flex gap-3 mt-2 pt-2 border-t border-border">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: "#94A3B8" }} />
+          <span className="text-xs text-muted-foreground">Empty</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: "#00E676" }} />
+          <span className="text-xs text-muted-foreground">Occupied</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-sm border-[3px]" style={{ backgroundColor: "#00D2FF", borderColor: "#00D2FF" }} />
+          <span className="text-xs text-muted-foreground">Selected</span>
+        </div>
+      </div>
+    </div>
   );
 }

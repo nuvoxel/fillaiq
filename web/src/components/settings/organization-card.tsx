@@ -1,28 +1,19 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import Card from "@mui/material/Card";
-import CardHeader from "@mui/material/CardHeader";
-import CardContent from "@mui/material/CardContent";
-import Divider from "@mui/material/Divider";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import TextField from "@mui/material/TextField";
-import Chip from "@mui/material/Chip";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import CheckIcon from "@mui/icons-material/Check";
-import GroupIcon from "@mui/icons-material/Group";
-import PersonIcon from "@mui/icons-material/Person";
-import AddIcon from "@mui/icons-material/Add";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
+import { Check, Users, User, Plus } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { authClient } from "@/lib/auth-client";
 
 type Org = {
@@ -32,7 +23,13 @@ type Org = {
   logo?: string | null;
 };
 
-export function OrganizationCard() {
+export function OrganizationCard({
+  cardSx: _cardSx,
+  titleSx: _titleSx,
+}: {
+  cardSx?: unknown;
+  titleSx?: unknown;
+} = {}) {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [activeOrg, setActiveOrg] = useState<Org | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +71,13 @@ export function OrganizationCard() {
 
   const handleCreate = () => {
     if (!newOrgName.trim()) return;
-    const slug = newOrgSlug.trim() || newOrgName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const slug =
+      newOrgSlug.trim() ||
+      newOrgName
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
     startTransition(async () => {
       await authClient.organization.create({ name: newOrgName.trim(), slug });
       setCreateOpen(false);
@@ -85,97 +88,116 @@ export function OrganizationCard() {
   };
 
   return (
-    <Card>
-      <CardHeader
-        title="Organization"
-        titleTypographyProps={{ fontWeight: 600 }}
-        action={
-          <Button size="small" startIcon={<AddIcon />} variant="outlined" onClick={() => setCreateOpen(true)}>
+    <Card className="rounded-xl shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-display font-bold text-xl flex items-center gap-1.5 before:content-[''] before:inline-block before:w-1 before:h-5 before:rounded-sm before:bg-[#00D2FF] before:shrink-0">
+            Organization
+          </h3>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="size-4 mr-1" />
             Create
           </Button>
-        }
-      />
-      <Divider />
-      <CardContent sx={{ p: 0 }}>
+        </div>
+
+        <div className="border-t border-border" />
+
         {loading ? (
-          <Box sx={{ textAlign: "center", py: 4 }}>
-            <Typography variant="body2" color="text.secondary">Loading...</Typography>
-          </Box>
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
         ) : (
-          <List disablePadding>
-            <ListItem disablePadding>
-              <ListItemButton onClick={handleUsePersonal} selected={!activeOrg} disabled={isPending}>
-                <ListItemIcon>
-                  <PersonIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Personal"
-                  secondary="Use your individual library"
-                />
-                {!activeOrg && <CheckIcon color="success" />}
-              </ListItemButton>
-            </ListItem>
-            <Divider />
+          <div>
+            {/* Personal */}
+            <button
+              onClick={handleUsePersonal}
+              disabled={isPending}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
+                !activeOrg ? "bg-muted" : "hover:bg-muted/50"
+              } disabled:opacity-50`}
+            >
+              <User className="size-5 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Personal</p>
+                <p className="text-xs text-muted-foreground">Use your individual library</p>
+              </div>
+              {!activeOrg && <Check className="size-5 text-green-500 shrink-0" />}
+            </button>
+
+            <div className="border-t border-border" />
+
             {orgs.map((org) => (
-              <ListItem key={org.id} disablePadding>
-                <ListItemButton
-                  onClick={() => handleSetActive(org.id)}
-                  selected={activeOrg?.id === org.id}
-                  disabled={isPending}
-                >
-                  <ListItemIcon>
-                    <GroupIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={org.name}
-                    secondary={org.slug}
-                  />
-                  {activeOrg?.id === org.id && <CheckIcon color="success" />}
-                </ListItemButton>
-              </ListItem>
+              <button
+                key={org.id}
+                onClick={() => handleSetActive(org.id)}
+                disabled={isPending}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
+                  activeOrg?.id === org.id ? "bg-muted" : "hover:bg-muted/50"
+                } disabled:opacity-50`}
+              >
+                <Users className="size-5 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">{org.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{org.slug}</p>
+                </div>
+                {activeOrg?.id === org.id && (
+                  <Check className="size-5 text-green-500 shrink-0" />
+                )}
+              </button>
             ))}
+
             {orgs.length === 0 && (
-              <ListItem>
-                <ListItemText
-                  secondary="No organizations yet. Create one to share your library with team members."
-                  sx={{ textAlign: "center", py: 2 }}
-                />
-              </ListItem>
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No organizations yet. Create one to share your library with team members.
+              </p>
             )}
-          </List>
+          </div>
         )}
       </CardContent>
 
       {/* Create Org Dialog */}
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Create Organization</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Organizations let multiple users share scan stations, spools, and inventory.
-          </Typography>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Organization Name"
-            value={newOrgName}
-            onChange={(e) => setNewOrgName(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Slug (optional)"
-            placeholder="auto-generated from name"
-            value={newOrgSlug}
-            onChange={(e) => setNewOrgSlug(e.target.value)}
-            helperText="URL-friendly identifier"
-          />
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Create Organization</DialogTitle>
+            <DialogDescription>
+              Organizations let multiple users share scan stations, spools, and inventory.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-sm font-medium block mb-1">Organization Name</label>
+              <Input
+                autoFocus
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Slug (optional)</label>
+              <Input
+                placeholder="auto-generated from name"
+                value={newOrgSlug}
+                onChange={(e) => setNewOrgSlug(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-0.5">URL-friendly identifier</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={handleCreate}
+              disabled={!newOrgName.trim() || isPending}
+              className="bg-[#00D2FF] text-[#00566a] hover:bg-[#00bce6]"
+            >
+              Create
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!newOrgName.trim() || isPending}>
-            Create
-          </Button>
-        </DialogActions>
       </Dialog>
     </Card>
   );

@@ -2,40 +2,36 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Alert from "@mui/material/Alert";
-import CircularProgress from "@mui/material/CircularProgress";
-import Autocomplete from "@mui/material/Autocomplete";
-import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
-import Grid from "@mui/material/Grid";
-import InputAdornment from "@mui/material/InputAdornment";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import Rating from "@mui/material/Rating";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
-import SearchIcon from "@mui/icons-material/Search";
-import PlaceIcon from "@mui/icons-material/Place";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import PrintIcon from "@mui/icons-material/Print";
-import DeleteIcon from "@mui/icons-material/Delete";
-import CameraAltIcon from "@mui/icons-material/CameraAlt";
-import TextFieldsIcon from "@mui/icons-material/TextFields";
-import ScaleIcon from "@mui/icons-material/Scale";
-import HeightIcon from "@mui/icons-material/Height";
-import NfcIcon from "@mui/icons-material/Nfc";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import DataObjectIcon from "@mui/icons-material/DataObject";
-import StarIcon from "@mui/icons-material/Star";
+import {
+  ScanLine,
+  Search,
+  MapPin,
+  CheckCircle,
+  Printer,
+  Trash2,
+  Camera,
+  Type,
+  Weight,
+  Ruler,
+  Nfc,
+  ChevronDown,
+  Code,
+  Star,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
 import { ProductCard } from "@/components/scan/product-card";
 import { SlotPicker } from "@/components/scan/slot-picker";
@@ -82,12 +78,12 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [error, setError] = useState<string | null>(null);
   const parsed = stationData?.nfcParsedData;
 
-  // ── Editable Station Readings ───────────────────────────────────────────────
+  // -- Editable Station Readings --
   const [weight, setWeight] = useState(stationData?.weightG?.toFixed(1) ?? "");
   const [height, setHeight] = useState(stationData?.heightMm?.toFixed(0) ?? "");
   const [colorHex, setColorHex] = useState(stationData?.colorHex ?? "");
 
-  // ── Product Identification ──────────────────────────────────────────────────
+  // -- Product Identification --
   const [showCamera, setShowCamera] = useState(false);
   const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
   const [barcode, setBarcode] = useState<{ value: string; format: string } | null>(null);
@@ -101,17 +97,17 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [searching, setSearching] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
 
-  // ── OCR ─────────────────────────────────────────────────────────────────────
+  // -- OCR --
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [ocrRunning, setOcrRunning] = useState(false);
 
-  // ── Photos ──────────────────────────────────────────────────────────────────
+  // -- Photos --
   const [photos, setPhotos] = useState<string[]>([]);
   const [primaryPhoto, setPrimaryPhoto] = useState<number>(0);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Product Details ─────────────────────────────────────────────────────────
+  // -- Product Details --
   const [packageType, setPackageType] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
@@ -122,28 +118,28 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [serialNumber, setSerialNumber] = useState("");
   const [rating, setRating] = useState<number | null>(null);
 
-  // ── Weight Details ────────────────────────────────────────────────────────
+  // -- Weight Details --
   const [netFilamentWeightG, setNetFilamentWeightG] = useState(parsed?.spoolNetWeight?.toString() ?? "");
   const [spoolWeightG, setSpoolWeightG] = useState("");
   const [storageLocation, setStorageLocation] = useState("");
 
-  // ── Spool Dimensions ──────────────────────────────────────────────────────
+  // -- Spool Dimensions --
   const [spoolOuterDia, setSpoolOuterDia] = useState("");
   const [spoolInnerDia, setSpoolInnerDia] = useState("");
   const [spoolWidth, setSpoolWidth] = useState("");
   const [spoolHubHoleDia, setSpoolHubHoleDia] = useState("");
   const [spoolMeasuredWeight, setSpoolMeasuredWeight] = useState("");
 
-  // ── Location ────────────────────────────────────────────────────────────────
+  // -- Location --
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedSlotAddress, setSelectedSlotAddress] = useState("");
 
-  // ── Save ────────────────────────────────────────────────────────────────────
+  // -- Save --
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  // -- Handlers --
 
   const handleCodesDetected = useCallback(async (codes: DetectedCode[]) => {
     setDetectedCodes(codes);
@@ -263,24 +259,32 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
     setSaved(true);
   };
 
-  // ── Render: Saved ─────────────────────────────────────────────────────────
+  // -- Render: Saved --
 
   if (saved) {
     return (
-      <Stack spacing={2}>
-        <Alert severity="success" variant="filled">Item added to inventory!</Alert>
+      <div className="flex flex-col gap-3">
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="size-4 text-green-600" />
+          <AlertDescription className="text-green-700">Item added to inventory!</AlertDescription>
+        </Alert>
         {productMatch && <ProductCard data={productMatch} />}
         {selectedSlotAddress && (
-          <Alert severity="info" icon={<PlaceIcon />}>Stored at: <strong>{selectedSlotAddress}</strong></Alert>
+          <Alert>
+            <MapPin className="size-4" />
+            <AlertDescription>Stored at: <strong>{selectedSlotAddress}</strong></AlertDescription>
+          </Alert>
         )}
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<PrintIcon />} onClick={() => setShowPrintDialog(true)} sx={{ textTransform: "none" }}>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowPrintDialog(true)}>
+            <Printer className="size-4 mr-1" />
             Print Label
           </Button>
-          <Button variant="contained" startIcon={<QrCodeScannerIcon />} onClick={() => router.push("/scan")} sx={{ flex: 1, textTransform: "none" }}>
+          <Button onClick={() => router.push("/scan")} className="flex-1">
+            <ScanLine className="size-4 mr-1" />
             Back to Scans
           </Button>
-        </Stack>
+        </div>
         <PrintLabelDialog
           open={showPrintDialog} onClose={() => setShowPrintDialog(false)}
           items={[{
@@ -291,361 +295,400 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
             location: selectedSlotAddress || undefined,
           }]}
         />
-      </Stack>
+      </div>
     );
   }
 
-  // ── Render: Active ────────────────────────────────────────────────────────
+  // -- Render: Active --
 
   return (
-    <Stack spacing={2}>
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+    <div className="flex flex-col gap-3">
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      {/* ═══ 1. Station Readings (editable) ═══════════════════════════════ */}
-      <Card variant="outlined">
+      {/* 1. Station Readings (editable) */}
+      <Card>
         <CardContent>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Measurements
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField fullWidth size="small" label="Weight (g)" type="number"
-                value={weight} onChange={(e) => setWeight(e.target.value)}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start"><ScaleIcon sx={{ fontSize: 16 }} /></InputAdornment> } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField fullWidth size="small" label="Height (mm)" type="number"
-                value={height} onChange={(e) => setHeight(e.target.value)}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start"><HeightIcon sx={{ fontSize: 16 }} /></InputAdornment> } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField fullWidth size="small" label="Color" value={colorHex}
-                onChange={(e) => setColorHex(e.target.value)} placeholder="#FF5500"
-                slotProps={{ input: {
-                  startAdornment: colorHex ? (
-                    <InputAdornment position="start">
-                      <Box sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: colorHex, border: 1, borderColor: "divider" }} />
-                    </InputAdornment>
-                  ) : undefined,
-                } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
+          <p className="text-sm font-semibold text-muted-foreground mb-2">Measurements</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Weight (g)</Label>
+              <div className="flex items-center gap-1">
+                <Weight className="size-3.5 text-muted-foreground" />
+                <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" className="h-7" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Height (mm)</Label>
+              <div className="flex items-center gap-1">
+                <Ruler className="size-3.5 text-muted-foreground" />
+                <Input value={height} onChange={(e) => setHeight(e.target.value)} type="number" className="h-7" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Color</Label>
+              <div className="flex items-center gap-1">
+                {colorHex && (
+                  <div className="w-4 h-4 rounded-full border border-border shrink-0" style={{ backgroundColor: colorHex }} />
+                )}
+                <Input value={colorHex} onChange={(e) => setColorHex(e.target.value)} placeholder="#FF5500" className="h-7" />
+              </div>
+            </div>
+            <div className="flex items-end">
               {stationData?.nfcUid && (
-                <Chip icon={<NfcIcon sx={{ fontSize: "16px !important" }} />}
-                  label={stationData.nfcTagFormat && stationData.nfcTagFormat !== "unknown"
+                <Badge variant="outline" className="mt-1">
+                  <Nfc className="size-3 mr-1" />
+                  {stationData.nfcTagFormat && stationData.nfcTagFormat !== "unknown"
                     ? stationData.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
                     : stationData.nfcUid.slice(0, 12) + "..."}
-                  variant="outlined" color="primary" sx={{ mt: 0.5 }}
-                />
+                </Badge>
               )}
-            </Grid>
-          </Grid>
+            </div>
+          </div>
           {/* NFC parsed data chips */}
           {parsed?.material && (
-            <Box sx={{ mt: 1.5, display: "flex", gap: 0.75, flexWrap: "wrap" }}>
-              <Chip label={parsed.material} size="small" color="secondary" />
-              {parsed.name && <Chip label={parsed.name} size="small" variant="outlined" />}
-              {parsed.nozzleTempMin && <Chip label={`Nozzle: ${parsed.nozzleTempMin}–${parsed.nozzleTempMax}°C`} size="small" variant="outlined" />}
-              {parsed.bedTemp && <Chip label={`Bed: ${parsed.bedTemp}°C`} size="small" variant="outlined" />}
-              {parsed.spoolNetWeight && <Chip label={`Net: ${parsed.spoolNetWeight}g`} size="small" variant="outlined" />}
-            </Box>
+            <div className="mt-2 flex gap-1 flex-wrap">
+              <Badge variant="secondary">{parsed.material}</Badge>
+              {parsed.name && <Badge variant="outline">{parsed.name}</Badge>}
+              {parsed.nozzleTempMin && <Badge variant="outline">Nozzle: {parsed.nozzleTempMin}--{parsed.nozzleTempMax}&deg;C</Badge>}
+              {parsed.bedTemp && <Badge variant="outline">Bed: {parsed.bedTemp}&deg;C</Badge>}
+              {parsed.spoolNetWeight && <Badge variant="outline">Net: {parsed.spoolNetWeight}g</Badge>}
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* ═══ 2. Raw Scan Data (collapsible) ═══════════════════════════════ */}
+      {/* 2. Raw Scan Data (collapsible) */}
       {stationData && (stationData.nfcRawData || stationData.spectralData || stationData.nfcParsedData) && (
-        <Accordion disableGutters variant="outlined" sx={{ "&:before": { display: "none" } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <DataObjectIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-              <Typography variant="caption" fontWeight={600} color="text.secondary">Raw Scan Data</Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ pt: 0 }}>
-            {stationData.nfcParsedData && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>NFC Parsed</Typography>
-                <Box component="pre" sx={{ fontSize: "0.7rem", fontFamily: "monospace", bgcolor: "grey.50", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 200, m: 0 }}>
-                  {JSON.stringify(stationData.nfcParsedData, null, 2)}
-                </Box>
-              </Box>
-            )}
-            {stationData.nfcRawData && stationData.nfcSectorsRead && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                  NFC Raw ({stationData.nfcSectorsRead} sectors)
-                </Typography>
-                <Box component="pre" sx={{ fontSize: "0.65rem", fontFamily: "monospace", bgcolor: "grey.900", color: "grey.100", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 300, m: 0 }}>
-                  {Array.from({ length: stationData.nfcSectorsRead }).map((_, s) => {
-                    const bps = stationData.nfcRawData!.length / 2 / stationData.nfcSectorsRead!;
-                    const bpb = bps / 16;
-                    const lines: string[] = [`── Sector ${s} ──`];
-                    for (let b = 0; b < bpb; b++) {
-                      const start = (s * bps + b * 16) * 2;
-                      const hex = stationData.nfcRawData!.slice(start, start + 32);
-                      const ascii = hex.match(/.{2}/g)?.map(h => { const c = parseInt(h, 16); return c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : "."; }).join("") ?? "";
-                      lines.push(`  B${b}: ${hex.match(/.{2}/g)?.join(" ") ?? hex}  |${ascii}|`);
-                    }
-                    return lines.join("\n");
-                  }).join("\n\n")}
-                </Box>
-              </Box>
-            )}
-            {stationData.spectralData && (
-              <Box>
-                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: "block", mb: 0.5 }}>Spectral Data</Typography>
-                <Box component="pre" sx={{ fontSize: "0.7rem", fontFamily: "monospace", bgcolor: "grey.50", p: 1.5, borderRadius: 1, overflow: "auto", maxHeight: 200, m: 0 }}>
-                  {JSON.stringify(stationData.spectralData, null, 2)}
-                </Box>
-              </Box>
-            )}
-          </AccordionDetails>
+        <Accordion>
+          <AccordionItem value="raw-data">
+            <AccordionTrigger>
+              <div className="flex items-center gap-1">
+                <Code className="size-4 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground">Raw Scan Data</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              {stationData.nfcParsedData && (
+                <div className="mb-3">
+                  <span className="text-xs font-semibold text-muted-foreground block mb-1">NFC Parsed</span>
+                  <pre className="text-[0.7rem] font-mono bg-muted p-2 rounded overflow-auto max-h-48 m-0">
+                    {JSON.stringify(stationData.nfcParsedData, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {stationData.nfcRawData && stationData.nfcSectorsRead && (
+                <div className="mb-3">
+                  <span className="text-xs font-semibold text-muted-foreground block mb-1">
+                    NFC Raw ({stationData.nfcSectorsRead} sectors)
+                  </span>
+                  <pre className="text-[0.65rem] font-mono bg-gray-900 text-gray-100 p-2 rounded overflow-auto max-h-72 m-0">
+                    {Array.from({ length: stationData.nfcSectorsRead }).map((_, s) => {
+                      const bps = stationData.nfcRawData!.length / 2 / stationData.nfcSectorsRead!;
+                      const bpb = bps / 16;
+                      const lines: string[] = [`-- Sector ${s} --`];
+                      for (let b = 0; b < bpb; b++) {
+                        const start = (s * bps + b * 16) * 2;
+                        const hex = stationData.nfcRawData!.slice(start, start + 32);
+                        const ascii = hex.match(/.{2}/g)?.map(h => { const c = parseInt(h, 16); return c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : "."; }).join("") ?? "";
+                        lines.push(`  B${b}: ${hex.match(/.{2}/g)?.join(" ") ?? hex}  |${ascii}|`);
+                      }
+                      return lines.join("\n");
+                    }).join("\n\n")}
+                  </pre>
+                </div>
+              )}
+              {stationData.spectralData && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground block mb-1">Spectral Data</span>
+                  <pre className="text-[0.7rem] font-mono bg-muted p-2 rounded overflow-auto max-h-48 m-0">
+                    {JSON.stringify(stationData.spectralData, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
         </Accordion>
       )}
 
-      {/* ═══ 3. Photos ════════════════════════════════════════════════════ */}
-      <Card variant="outlined">
+      {/* 3. Photos */}
+      <Card>
         <CardContent>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>Photos</Typography>
+          <p className="text-sm font-semibold text-muted-foreground mb-2">Photos</p>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ""; }}
           />
           {photos.length > 0 && (
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+            <div className="flex gap-2 flex-wrap mb-2">
               {photos.map((url, i) => (
-                <Box key={url} sx={{ position: "relative", width: 80, height: 80 }}>
-                  <Box component="img" src={url} alt={`Photo ${i + 1}`}
-                    sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, border: i === primaryPhoto ? 3 : 1, borderColor: i === primaryPhoto ? "primary.main" : "divider", cursor: "pointer" }}
+                <div key={url} className="relative w-20 h-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`Photo ${i + 1}`}
+                    className="w-20 h-20 object-cover rounded cursor-pointer"
+                    style={{ border: i === primaryPhoto ? "3px solid var(--primary)" : "1px solid var(--border)" }}
                     onClick={() => setPrimaryPhoto(i)}
                   />
-                  <IconButton size="small" onClick={() => { setPhotos((p) => p.filter((_, j) => j !== i)); if (primaryPhoto >= i && primaryPhoto > 0) setPrimaryPhoto(primaryPhoto - 1); }}
-                    sx={{ position: "absolute", top: -6, right: -6, bgcolor: "background.paper", boxShadow: 1, p: 0.25, "&:hover": { bgcolor: "error.light", color: "white" } }}>
-                    <DeleteIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
+                  <button
+                    className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-card shadow-sm hover:bg-destructive hover:text-white"
+                    onClick={() => { setPhotos((p) => p.filter((_, j) => j !== i)); if (primaryPhoto >= i && primaryPhoto > 0) setPrimaryPhoto(primaryPhoto - 1); }}
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
                   {i === primaryPhoto && (
-                    <StarIcon sx={{ position: "absolute", bottom: 2, left: 2, fontSize: 16, color: "primary.main", filter: "drop-shadow(0 0 2px white)" }} />
+                    <Star className="absolute bottom-0.5 left-0.5 size-4 text-primary" style={{ filter: "drop-shadow(0 0 2px white)" }} />
                   )}
-                </Box>
+                </div>
               ))}
-            </Box>
+            </div>
           )}
-          <Stack direction="row" spacing={1}>
-            <Button variant="outlined" startIcon={uploading ? <CircularProgress size={16} /> : <CameraAltIcon />}
-              disabled={uploading} onClick={() => fileInputRef.current?.click()} sx={{ textTransform: "none", flex: 1 }}>
-              {uploading ? "Uploading..." : "Take Photo"}
-            </Button>
-          </Stack>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-full">
+            {uploading ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Camera className="size-4 mr-1" />}
+            {uploading ? "Uploading..." : "Take Photo"}
+          </Button>
           {photos.length > 1 && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+            <p className="text-xs text-muted-foreground mt-1">
               Tap a photo to set it as primary. Primary photo is used as the product image.
-            </Typography>
+            </p>
           )}
         </CardContent>
       </Card>
 
-      {/* ═══ 4. Product Identification ════════════════════════════════════ */}
+      {/* 4. Product Identification */}
       {productMatch ? (
         <>
           <ProductCard data={productMatch} />
-          <Button variant="text" size="small" onClick={() => setProductMatch(null)} sx={{ textTransform: "none" }}>
+          <Button variant="link" size="sm" onClick={() => setProductMatch(null)}>
             Wrong product? Search again
           </Button>
         </>
       ) : (
-        <Card variant="outlined">
+        <Card>
           <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>Identify Product</Typography>
+            <p className="text-sm font-semibold text-muted-foreground mb-2">Identify Product</p>
             {showCamera ? (
               <BarcodeScanner onDetected={handleCodesDetected} onClose={() => setShowCamera(false)} />
             ) : (
-              <Button fullWidth variant="contained" startIcon={<QrCodeScannerIcon />}
-                onClick={() => setShowCamera(true)} sx={{ mb: 1.5, textTransform: "none" }}>
+              <Button onClick={() => setShowCamera(true)} className="w-full mb-2">
+                <ScanLine className="size-4 mr-1" />
                 Scan Barcode
               </Button>
             )}
             {detectedCodes.length > 0 && (
-              <Box sx={{ mb: 1.5 }}>
-                <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mb: 0.5 }}>
+              <div className="mb-2">
+                <div className="flex flex-wrap gap-1 mb-1">
                   {detectedCodes.map((code) => (
-                    <Chip key={code.value} label={`${code.value} (${code.format})`} size="small" variant="outlined"
-                      color={code.value === barcode?.value ? "primary" : "default"} />
+                    <Badge key={code.value} variant={code.value === barcode?.value ? "default" : "outline"}>
+                      {code.value} ({code.format})
+                    </Badge>
                   ))}
-                </Stack>
-                {lookingUp && <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><CircularProgress size={16} /><Typography variant="body2">Looking up...</Typography></Box>}
-                {!lookingUp && !productMatch && <Typography variant="body2" color="text.secondary">No match. Try OCR or search.</Typography>}
-              </Box>
+                </div>
+                {lookingUp && (
+                  <div className="flex items-center gap-1">
+                    <Loader2 className="size-4 animate-spin" />
+                    <span className="text-sm">Looking up...</span>
+                  </div>
+                )}
+                {!lookingUp && !productMatch && <p className="text-sm text-muted-foreground">No match. Try OCR or search.</p>}
+              </div>
             )}
             {!showCamera && (
-              <Button fullWidth variant="outlined" startIcon={ocrRunning ? <CircularProgress size={16} /> : <TextFieldsIcon />}
-                onClick={handleRunOcr} disabled={ocrRunning} sx={{ mb: 1.5, textTransform: "none" }}>
+              <Button variant="outline" onClick={handleRunOcr} disabled={ocrRunning} className="w-full mb-2">
+                {ocrRunning ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Type className="size-4 mr-1" />}
                 {ocrRunning ? "Reading..." : "Capture & Read Label (OCR)"}
               </Button>
             )}
             {ocrText && (
-              <Alert severity="info" sx={{ mb: 1.5 }}>
-                <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.5 }}>EXTRACTED TEXT</Typography>
-                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem" }}>{ocrText}</Typography>
+              <Alert className="mb-2">
+                <AlertTitle className="text-xs font-semibold">EXTRACTED TEXT</AlertTitle>
+                <AlertDescription>
+                  <pre className="whitespace-pre-wrap font-mono text-xs">{ocrText}</pre>
+                </AlertDescription>
               </Alert>
             )}
             {!showCamera && (
-              <Autocomplete freeSolo options={searchResults}
-                getOptionLabel={(opt: any) => typeof opt === "string" ? opt : `${opt.brand?.name ?? ""} ${opt.product.name}`.trim()}
-                loading={searching} inputValue={searchQuery}
-                onInputChange={(_, val) => { setSearchQuery(val); handleSearch(val); }}
-                onChange={(_, val) => { if (val && typeof val !== "string") setProductMatch({ match: "search", ...val }); }}
-                renderOption={(props, option: any) => {
-                  const { key, ...rest } = props as any;
-                  return (
-                    <Box component="li" key={option.product.id} {...rest}>
-                      <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: option.product.colorHex ?? "#ccc", border: "1px solid", borderColor: "divider", mr: 1.5, flexShrink: 0 }} />
-                      <Box>
-                        <Typography variant="body2" fontWeight={600}>{option.product.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{option.brand?.name} &middot; {option.product.colorName ?? ""}</Typography>
-                      </Box>
-                    </Box>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField {...params} placeholder="Search by name, color, brand..."
-                    slotProps={{ input: { ...params.InputProps, startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} /> } }}
-                  />
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); handleSearch(e.target.value); }}
+                  placeholder="Search by name, color, brand..."
+                  className="pl-8"
+                />
+                {searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-60 overflow-auto">
+                    {searchResults.map((opt: any) => (
+                      <div
+                        key={opt.product.id}
+                        className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-muted"
+                        onClick={() => { setProductMatch({ match: "search", ...opt }); setSearchResults([]); setSearchQuery(""); }}
+                      >
+                        <div className="w-6 h-6 rounded-full shrink-0 border border-border" style={{ backgroundColor: opt.product.colorHex ?? "#ccc" }} />
+                        <div>
+                          <p className="text-sm font-semibold">{opt.product.name}</p>
+                          <p className="text-xs text-muted-foreground">{opt.brand?.name} &middot; {opt.product.colorName ?? ""}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              />
+              </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* ═══ 5. Product Details ═══════════════════════════════════════════ */}
-      <Card variant="outlined">
+      {/* 5. Product Details */}
+      <Card>
         <CardContent>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>Details</Typography>
+          <p className="text-sm font-semibold text-muted-foreground mb-2">Details</p>
 
           {/* Package type */}
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Package Type</Typography>
-          <ToggleButtonGroup value={packageType} exclusive size="small"
-            onChange={(_, val) => { if (val !== null) setPackageType(val); }}
-            sx={{ mb: 2, flexWrap: "wrap", gap: 0.5 }}>
+          <p className="text-xs text-muted-foreground mb-1">Package Type</p>
+          <div className="flex flex-wrap gap-1 mb-3">
             {PACKAGE_TYPES.map((pt) => (
-              <ToggleButton key={pt.value} value={pt.value} sx={{ textTransform: "none", px: 1.5 }}>{pt.label}</ToggleButton>
+              <button
+                key={pt.value}
+                onClick={() => setPackageType(pt.value === packageType ? null : pt.value)}
+                className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                  packageType === pt.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card border-border hover:bg-muted"
+                }`}
+              >
+                {pt.label}
+              </button>
             ))}
-          </ToggleButtonGroup>
+          </div>
 
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid size={{ xs: 6 }}>
-              <TextField fullWidth size="small" label="Purchase Price" type="number"
-                value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start">$</InputAdornment> } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField fullWidth size="small" label="Purchase Date" type="date"
-                value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField fullWidth size="small" label="Production Date" value={productionDate}
-                onChange={(e) => setProductionDate(e.target.value)} placeholder="2025-01-15"
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField fullWidth size="small" label="Lot Number" value={lotNumber}
-                onChange={(e) => setLotNumber(e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField fullWidth size="small" label="Serial Number" value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField fullWidth size="small" label="Storage Location" value={storageLocation}
-                onChange={(e) => setStorageLocation(e.target.value)} placeholder="Freetext (if no slot)"
-              />
-            </Grid>
-          </Grid>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Purchase Price</Label>
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-muted-foreground">$</span>
+                <Input value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} type="number" className="h-7" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Purchase Date</Label>
+              <Input value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} type="date" className="h-7" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Production Date</Label>
+              <Input value={productionDate} onChange={(e) => setProductionDate(e.target.value)} placeholder="2025-01-15" className="h-7" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Lot Number</Label>
+              <Input value={lotNumber} onChange={(e) => setLotNumber(e.target.value)} className="h-7" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Serial Number</Label>
+              <Input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} className="h-7" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Storage Location</Label>
+              <Input value={storageLocation} onChange={(e) => setStorageLocation(e.target.value)} placeholder="Freetext (if no slot)" className="h-7" />
+            </div>
+          </div>
 
           {/* Rating */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-            <Typography variant="caption" color="text.secondary">Rating</Typography>
-            <Rating value={rating} onChange={(_, v) => setRating(v)} size="small" />
-          </Box>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-muted-foreground">Rating</span>
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setRating(rating === v ? null : v)}
+                  className="p-0"
+                >
+                  <Star
+                    className={`size-4 ${rating != null && v <= rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
 
-          <TextField fullWidth size="small" label="Notes" multiline minRows={2}
-            value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes..."
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Any notes..."
+            rows={2}
           />
         </CardContent>
       </Card>
 
-      {/* ═══ 5b. Weight & Dimensions (expandable) ═════════════════════════ */}
-      <Accordion disableGutters variant="outlined" sx={{ "&:before": { display: "none" } }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 40, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
-          <Typography variant="subtitle2" color="text.secondary">Weight & Spool Dimensions</Typography>
-        </AccordionSummary>
-        <AccordionDetails sx={{ pt: 0 }}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 4 }}>
-              <TextField fullWidth size="small" label="Net Filament (g)" type="number"
-                value={netFilamentWeightG} onChange={(e) => setNetFilamentWeightG(e.target.value)} />
-            </Grid>
-            <Grid size={{ xs: 4 }}>
-              <TextField fullWidth size="small" label="Spool/Pkg Weight (g)" type="number"
-                value={spoolWeightG} onChange={(e) => setSpoolWeightG(e.target.value)} />
-            </Grid>
-            <Grid size={{ xs: 4 }}>
-              <TextField fullWidth size="small" label="Measured Spool (g)" type="number"
-                value={spoolMeasuredWeight} onChange={(e) => setSpoolMeasuredWeight(e.target.value)} />
-            </Grid>
-            <Grid size={{ xs: 3 }}>
-              <TextField fullWidth size="small" label="Outer Dia. (mm)" type="number"
-                value={spoolOuterDia} onChange={(e) => setSpoolOuterDia(e.target.value)} />
-            </Grid>
-            <Grid size={{ xs: 3 }}>
-              <TextField fullWidth size="small" label="Inner Dia. (mm)" type="number"
-                value={spoolInnerDia} onChange={(e) => setSpoolInnerDia(e.target.value)} />
-            </Grid>
-            <Grid size={{ xs: 3 }}>
-              <TextField fullWidth size="small" label="Width (mm)" type="number"
-                value={spoolWidth} onChange={(e) => setSpoolWidth(e.target.value)} />
-            </Grid>
-            <Grid size={{ xs: 3 }}>
-              <TextField fullWidth size="small" label="Hub Hole (mm)" type="number"
-                value={spoolHubHoleDia} onChange={(e) => setSpoolHubHoleDia(e.target.value)} />
-            </Grid>
-          </Grid>
-        </AccordionDetails>
+      {/* 5b. Weight & Dimensions (expandable) */}
+      <Accordion>
+        <AccordionItem value="weight-dims">
+          <AccordionTrigger>
+            <span className="text-sm font-semibold text-muted-foreground">Weight & Spool Dimensions</span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Net Filament (g)</Label>
+                <Input value={netFilamentWeightG} onChange={(e) => setNetFilamentWeightG(e.target.value)} type="number" className="h-7" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Spool/Pkg Weight (g)</Label>
+                <Input value={spoolWeightG} onChange={(e) => setSpoolWeightG(e.target.value)} type="number" className="h-7" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Measured Spool (g)</Label>
+                <Input value={spoolMeasuredWeight} onChange={(e) => setSpoolMeasuredWeight(e.target.value)} type="number" className="h-7" />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-3 mt-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Outer Dia. (mm)</Label>
+                <Input value={spoolOuterDia} onChange={(e) => setSpoolOuterDia(e.target.value)} type="number" className="h-7" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Inner Dia. (mm)</Label>
+                <Input value={spoolInnerDia} onChange={(e) => setSpoolInnerDia(e.target.value)} type="number" className="h-7" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Width (mm)</Label>
+                <Input value={spoolWidth} onChange={(e) => setSpoolWidth(e.target.value)} type="number" className="h-7" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Hub Hole (mm)</Label>
+                <Input value={spoolHubHoleDia} onChange={(e) => setSpoolHubHoleDia(e.target.value)} type="number" className="h-7" />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
 
-      {/* ═══ 6. Storage Location ══════════════════════════════════════════ */}
-      <Card variant="outlined">
+      {/* 6. Storage Location */}
+      <Card>
         <CardContent>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            <PlaceIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.5 }} />
+          <p className="text-sm font-semibold text-muted-foreground mb-1">
+            <MapPin className="size-4 inline-block align-middle mr-1" />
             Storage Location
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          </p>
+          <p className="text-sm text-muted-foreground mb-3">
             Pick a slot or skip to assign later.
-          </Typography>
+          </p>
           <SlotPicker selectedSlotId={selectedSlotId}
             onSelect={(id, addr) => { setSelectedSlotId(id); setSelectedSlotAddress(addr); }}
           />
           {selectedSlotAddress && (
-            <Alert severity="success" sx={{ mt: 1 }}>Selected: <strong>{selectedSlotAddress}</strong></Alert>
+            <Alert className="mt-2 bg-green-50 border-green-200">
+              <AlertDescription className="text-green-700">Selected: <strong>{selectedSlotAddress}</strong></AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>
 
-      {/* ═══ 7. Save ══════════════════════════════════════════════════════ */}
-      <Button variant="contained" size="large" fullWidth onClick={handleSave} disabled={saving}
-        startIcon={saving ? <CircularProgress size={18} /> : <CheckCircleOutlineIcon />}
-        sx={{ textTransform: "none" }}>
+      {/* 7. Save */}
+      <Button size="lg" onClick={handleSave} disabled={saving} className="w-full">
+        {saving ? <Loader2 className="size-4 mr-1 animate-spin" /> : <CheckCircle className="size-4 mr-1" />}
         {saving ? "Saving..." : "Save to Inventory"}
       </Button>
-    </Stack>
+    </div>
   );
 }

@@ -1,23 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
-import Snackbar from "@mui/material/Snackbar";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
+import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import {
   removeMachineToolHead,
   createMachineToolHead,
@@ -33,6 +33,7 @@ import { WorkSurfaceDialog } from "@/components/hardware/work-surface-dialog";
 import { MaterialSlotDialog } from "@/components/hardware/material-slot-dialog";
 import { AccessoryDialog } from "@/components/hardware/accessory-dialog";
 import { useDeleteWithUndo } from "@/components/hardware/use-delete-with-undo";
+import { toast } from "sonner";
 
 type ToolHead = {
   id: string;
@@ -89,11 +90,11 @@ type Accessory = {
   [key: string]: unknown;
 };
 
-const wearColors: Record<string, "success" | "info" | "warning" | "error"> = {
-  new: "success",
-  good: "info",
-  worn: "warning",
-  replace: "error",
+const wearVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  new: "default",
+  good: "secondary",
+  worn: "outline",
+  replace: "destructive",
 };
 
 const changerLabels: Record<string, string> = {
@@ -105,20 +106,35 @@ const changerLabels: Record<string, string> = {
 
 function SectionHeader({ title, onAdd }: { title: string; onAdd: () => void }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-      <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
-      <IconButton size="small" onClick={onAdd}><AddIcon fontSize="small" /></IconButton>
-    </Box>
+    <div className="flex items-center gap-2 mb-1">
+      <span className="text-sm font-semibold">{title}</span>
+      <button className="p-0.5 rounded-md hover:bg-muted" onClick={onAdd}>
+        <Plus className="size-4" />
+      </button>
+    </div>
   );
 }
 
 function ActionButtons({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
-    <Stack direction="row" spacing={0.5}>
-      <IconButton size="small" onClick={onEdit}><EditIcon fontSize="small" /></IconButton>
-      <IconButton size="small" onClick={onDelete}><DeleteIcon fontSize="small" /></IconButton>
-    </Stack>
+    <div className="flex gap-1">
+      <button className="p-1 rounded-md hover:bg-muted" onClick={onEdit}><Pencil className="size-3.5" /></button>
+      <button className="p-1 rounded-md hover:bg-muted" onClick={onDelete}><Trash2 className="size-3.5" /></button>
+    </div>
   );
+}
+
+function useUndoToast(undo: { snackbarOpen: boolean; snackbarMessage: string; handleUndo: () => Promise<void>; handleSnackbarClose: (...args: any[]) => void }) {
+  useEffect(() => {
+    if (undo.snackbarOpen && undo.snackbarMessage) {
+      toast(undo.snackbarMessage, {
+        action: { label: "UNDO", onClick: undo.handleUndo },
+        duration: 6000,
+        onAutoClose: () => undo.handleSnackbarClose(),
+        onDismiss: () => undo.handleSnackbarClose(),
+      });
+    }
+  }, [undo.snackbarOpen, undo.snackbarMessage, undo.handleUndo, undo.handleSnackbarClose]);
 }
 
 export function MachineDetail({
@@ -178,6 +194,12 @@ export function MachineDetail({
     entityLabel: "Accessory",
   });
 
+  // Wire up toasts
+  useUndoToast(toolHeadUndo);
+  useUndoToast(workSurfaceUndo);
+  useUndoToast(materialSlotUndo);
+  useUndoToast(accessoryUndo);
+
   const maxUnit = materialSlots.length > 0 ? Math.max(...materialSlots.map((s) => s.unitNumber)) : 0;
   const changerType = materialSlots.length > 0 ? materialSlots[0].changerType : null;
 
@@ -187,39 +209,39 @@ export function MachineDetail({
   const lasers = toolHeads.filter((t) => t.toolCategory === "laser_module");
 
   return (
-    <>
-      <Stack spacing={3} sx={{ pt: 1 }}>
-        {/* Nozzles */}
-        {(nozzles.length > 0 || true) && (
-          <Box>
-            <SectionHeader title="Nozzles" onAdd={() => { setEditingToolHead(null); setToolHeadDialogOpen(true); }} />
-            {nozzles.length > 0 && (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
+    <TooltipProvider>
+      <>
+        <div className="flex flex-col gap-4 pt-1">
+          {/* Nozzles */}
+          {(nozzles.length > 0 || true) && (
+            <div>
+              <SectionHeader title="Nozzles" onAdd={() => { setEditingToolHead(null); setToolHeadDialogOpen(true); }} />
+              {nozzles.length > 0 && (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Diameter</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Material</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Wear</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Installs</TableCell>
-                      <TableCell />
+                      <TableHead>Diameter</TableHead>
+                      <TableHead>Material</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Wear</TableHead>
+                      <TableHead>Installs</TableHead>
+                      <TableHead />
                     </TableRow>
-                  </TableHead>
+                  </TableHeader>
                   <TableBody>
                     {nozzles.map((n) => (
                       <TableRow key={n.id}>
                         <TableCell>{n.diameterMm}mm</TableCell>
-                        <TableCell sx={{ textTransform: "capitalize" }}>
-                          {n.nozzleMaterial?.replace(/_/g, " ") ?? "—"}
-                        </TableCell>
-                        <TableCell sx={{ textTransform: "uppercase" }}>{n.nozzleType ?? "—"}</TableCell>
+                        <TableCell className="capitalize">{n.nozzleMaterial?.replace(/_/g, " ") ?? "\u2014"}</TableCell>
+                        <TableCell className="uppercase">{n.nozzleType ?? "\u2014"}</TableCell>
                         <TableCell>
-                          <Chip label={n.isInstalled ? "Installed" : "Spare"} size="small" color={n.isInstalled ? "primary" : "default"} variant={n.isInstalled ? "filled" : "outlined"} />
+                          <Badge variant={n.isInstalled ? "default" : "outline"}>
+                            {n.isInstalled ? "Installed" : "Spare"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
-                          <Chip label={n.wearLevel} size="small" color={wearColors[n.wearLevel] ?? "default"} variant="outlined" />
+                          <Badge variant={wearVariant[n.wearLevel] ?? "outline"}>{n.wearLevel}</Badge>
                         </TableCell>
                         <TableCell>{n.installCount}</TableCell>
                         <TableCell>
@@ -232,42 +254,40 @@ export function MachineDetail({
                     ))}
                   </TableBody>
                 </Table>
-              </TableContainer>
-            )}
-          </Box>
-        )}
+              )}
+            </div>
+          )}
 
-        {/* Spindle Bits */}
-        {bits.length > 0 && (
-          <Box>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Spindle Bits</Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
+          {/* Spindle Bits */}
+          {bits.length > 0 && (
+            <div>
+              <span className="text-sm font-semibold mb-1 block">Spindle Bits</span>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Diameter</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Flutes</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Material</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Wear</TableCell>
-                    <TableCell />
+                    <TableHead>Name</TableHead>
+                    <TableHead>Diameter</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Flutes</TableHead>
+                    <TableHead>Material</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Wear</TableHead>
+                    <TableHead />
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {bits.map((b) => (
                     <TableRow key={b.id}>
-                      <TableCell>{b.name ?? "—"}</TableCell>
-                      <TableCell>{b.bitDiameterMm != null ? `${b.bitDiameterMm}mm` : "—"}</TableCell>
-                      <TableCell sx={{ textTransform: "capitalize" }}>{b.bitType?.replace(/_/g, " ") ?? "—"}</TableCell>
-                      <TableCell>{b.fluteCount ?? "—"}</TableCell>
-                      <TableCell sx={{ textTransform: "capitalize" }}>{b.bitMaterial?.replace(/_/g, " ") ?? "—"}</TableCell>
+                      <TableCell>{b.name ?? "\u2014"}</TableCell>
+                      <TableCell>{b.bitDiameterMm != null ? `${b.bitDiameterMm}mm` : "\u2014"}</TableCell>
+                      <TableCell className="capitalize">{b.bitType?.replace(/_/g, " ") ?? "\u2014"}</TableCell>
+                      <TableCell>{b.fluteCount ?? "\u2014"}</TableCell>
+                      <TableCell className="capitalize">{b.bitMaterial?.replace(/_/g, " ") ?? "\u2014"}</TableCell>
                       <TableCell>
-                        <Chip label={b.isInstalled ? "Installed" : "Spare"} size="small" color={b.isInstalled ? "primary" : "default"} variant={b.isInstalled ? "filled" : "outlined"} />
+                        <Badge variant={b.isInstalled ? "default" : "outline"}>{b.isInstalled ? "Installed" : "Spare"}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Chip label={b.wearLevel} size="small" color={wearColors[b.wearLevel] ?? "default"} variant="outlined" />
+                        <Badge variant={wearVariant[b.wearLevel] ?? "outline"}>{b.wearLevel}</Badge>
                       </TableCell>
                       <TableCell>
                         <ActionButtons
@@ -279,39 +299,37 @@ export function MachineDetail({
                   ))}
                 </TableBody>
               </Table>
-            </TableContainer>
-          </Box>
-        )}
+            </div>
+          )}
 
-        {/* Laser Modules */}
-        {lasers.length > 0 && (
-          <Box>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Laser Modules</Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
+          {/* Laser Modules */}
+          {lasers.length > 0 && (
+            <div>
+              <span className="text-sm font-semibold mb-1 block">Laser Modules</span>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Power</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Wavelength</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Focal Length</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Wear</TableCell>
-                    <TableCell />
+                    <TableHead>Name</TableHead>
+                    <TableHead>Power</TableHead>
+                    <TableHead>Wavelength</TableHead>
+                    <TableHead>Focal Length</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Wear</TableHead>
+                    <TableHead />
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {lasers.map((l) => (
                     <TableRow key={l.id}>
-                      <TableCell>{l.name ?? "—"}</TableCell>
-                      <TableCell>{l.laserPowerW != null ? `${l.laserPowerW}W` : "—"}</TableCell>
-                      <TableCell>{l.laserWavelengthNm != null ? `${l.laserWavelengthNm}nm` : "—"}</TableCell>
-                      <TableCell>{l.focalLengthMm != null ? `${l.focalLengthMm}mm` : "—"}</TableCell>
+                      <TableCell>{l.name ?? "\u2014"}</TableCell>
+                      <TableCell>{l.laserPowerW != null ? `${l.laserPowerW}W` : "\u2014"}</TableCell>
+                      <TableCell>{l.laserWavelengthNm != null ? `${l.laserWavelengthNm}nm` : "\u2014"}</TableCell>
+                      <TableCell>{l.focalLengthMm != null ? `${l.focalLengthMm}mm` : "\u2014"}</TableCell>
                       <TableCell>
-                        <Chip label={l.isInstalled ? "Installed" : "Spare"} size="small" color={l.isInstalled ? "primary" : "default"} variant={l.isInstalled ? "filled" : "outlined"} />
+                        <Badge variant={l.isInstalled ? "default" : "outline"}>{l.isInstalled ? "Installed" : "Spare"}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Chip label={l.wearLevel} size="small" color={wearColors[l.wearLevel] ?? "default"} variant="outlined" />
+                        <Badge variant={wearVariant[l.wearLevel] ?? "outline"}>{l.wearLevel}</Badge>
                       </TableCell>
                       <TableCell>
                         <ActionButtons
@@ -323,35 +341,33 @@ export function MachineDetail({
                   ))}
                 </TableBody>
               </Table>
-            </TableContainer>
-          </Box>
-        )}
+            </div>
+          )}
 
-        {/* Work Surfaces */}
-        <Box>
-          <SectionHeader title="Work Surfaces" onAdd={() => { setEditingWorkSurface(null); setWorkSurfaceDialogOpen(true); }} />
-          {workSurfaces.length > 0 && (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
+          {/* Work Surfaces */}
+          <div>
+            <SectionHeader title="Work Surfaces" onAdd={() => { setEditingWorkSurface(null); setWorkSurfaceDialogOpen(true); }} />
+            {workSurfaces.length > 0 && (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Condition</TableCell>
-                    <TableCell />
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Condition</TableHead>
+                    <TableHead />
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {workSurfaces.map((ws) => (
                     <TableRow key={ws.id}>
                       <TableCell>{ws.name}</TableCell>
-                      <TableCell sx={{ textTransform: "capitalize" }}>{ws.type.replace(/_/g, " ")}</TableCell>
+                      <TableCell className="capitalize">{ws.type.replace(/_/g, " ")}</TableCell>
                       <TableCell>
-                        <Chip label={ws.isInstalled ? "Installed" : "Spare"} size="small" color={ws.isInstalled ? "primary" : "default"} variant={ws.isInstalled ? "filled" : "outlined"} />
+                        <Badge variant={ws.isInstalled ? "default" : "outline"}>{ws.isInstalled ? "Installed" : "Spare"}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Chip label={ws.surfaceCondition} size="small" color={wearColors[ws.surfaceCondition] ?? "default"} variant="outlined" />
+                        <Badge variant={wearVariant[ws.surfaceCondition] ?? "outline"}>{ws.surfaceCondition}</Badge>
                       </TableCell>
                       <TableCell>
                         <ActionButtons
@@ -363,130 +379,102 @@ export function MachineDetail({
                   ))}
                 </TableBody>
               </Table>
-            </TableContainer>
-          )}
-        </Box>
+            )}
+          </div>
 
-        {/* Material Slots */}
-        <Box>
-          <SectionHeader
-            title={`Material Slots${changerType ? ` (${changerLabels[changerType] ?? changerType})` : ""}`}
-            onAdd={() => { setEditingMaterialSlot(null); setMaterialSlotDialogOpen(true); }}
-          />
-          {materialSlots.length > 0 &&
-            Array.from({ length: maxUnit }, (_, i) => i + 1).map((unit) => {
-              const unitSlots = materialSlots
-                .filter((s) => s.unitNumber === unit)
-                .sort((a, b) => a.slotPosition - b.slotPosition);
-              return (
-                <Box key={unit} sx={{ mb: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Unit {unit}
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 1 }}>
-                    {unitSlots.map((slot) => {
-                      const loaded = !!slot.spoolId;
-                      return (
-                        <Tooltip
-                          key={slot.id}
-                          title={loaded ? `Slot ${slot.slotPosition}: Spool loaded` : `Slot ${slot.slotPosition}: Empty`}
-                          arrow
-                        >
-                          <Box
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 2,
-                              border: 2,
-                              borderColor: loaded ? "primary.main" : "divider",
-                              bgcolor: loaded ? "primary.light" : "grey.100",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              position: "relative",
-                            }}
-                            onClick={() => { setEditingMaterialSlot(slot); setMaterialSlotDialogOpen(true); }}
-                          >
-                            <Typography variant="caption" fontWeight={600}>
-                              {slot.slotPosition}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                      );
-                    })}
-                  </Box>
-                </Box>
-              );
-            })}
-        </Box>
+          {/* Material Slots */}
+          <div>
+            <SectionHeader
+              title={`Material Slots${changerType ? ` (${changerLabels[changerType] ?? changerType})` : ""}`}
+              onAdd={() => { setEditingMaterialSlot(null); setMaterialSlotDialogOpen(true); }}
+            />
+            {materialSlots.length > 0 &&
+              Array.from({ length: maxUnit }, (_, i) => i + 1).map((unit) => {
+                const unitSlots = materialSlots
+                  .filter((s) => s.unitNumber === unit)
+                  .sort((a, b) => a.slotPosition - b.slotPosition);
+                return (
+                  <div key={unit} className="mb-1">
+                    <span className="text-xs text-muted-foreground block mb-1">Unit {unit}</span>
+                    <div className="flex gap-1">
+                      {unitSlots.map((slot) => {
+                        const loaded = !!(slot as any).spoolId;
+                        return (
+                          <Tooltip key={slot.id}>
+                            <TooltipTrigger>
+                              <div
+                                className="w-10 h-10 rounded-lg border-2 flex items-center justify-center cursor-pointer"
+                                style={{
+                                  borderColor: loaded ? "var(--primary)" : "var(--border)",
+                                  backgroundColor: loaded ? "hsl(var(--primary) / 0.1)" : "var(--muted)",
+                                }}
+                                onClick={() => { setEditingMaterialSlot(slot); setMaterialSlotDialogOpen(true); }}
+                              >
+                                <span className="text-xs font-semibold">{slot.slotPosition}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {loaded ? `Slot ${slot.slotPosition}: Spool loaded` : `Slot ${slot.slotPosition}: Empty`}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
 
-        {/* Accessories */}
-        <Box>
-          <SectionHeader title="Accessories" onAdd={() => { setEditingAccessory(null); setAccessoryDialogOpen(true); }} />
-          {accessories.length > 0 && (
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {accessories.map((acc) => (
-                <Chip
-                  key={acc.id}
-                  label={`${acc.name}${acc.manufacturer ? ` (${acc.manufacturer})` : ""}`}
-                  size="small"
-                  color={acc.isActive ? "primary" : "default"}
-                  variant="outlined"
-                  onDelete={() => accessoryUndo.handleDelete(acc)}
-                  onClick={() => { setEditingAccessory(acc); setAccessoryDialogOpen(true); }}
-                />
-              ))}
-            </Stack>
-          )}
-        </Box>
-      </Stack>
+          {/* Accessories */}
+          <div>
+            <SectionHeader title="Accessories" onAdd={() => { setEditingAccessory(null); setAccessoryDialogOpen(true); }} />
+            {accessories.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {accessories.map((acc) => (
+                  <Badge
+                    key={acc.id}
+                    variant={acc.isActive ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => { setEditingAccessory(acc); setAccessoryDialogOpen(true); }}
+                  >
+                    {acc.name}{acc.manufacturer ? ` (${acc.manufacturer})` : ""}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
-      {/* Dialogs */}
-      <ToolHeadDialog
-        open={toolHeadDialogOpen}
-        onClose={() => { setToolHeadDialogOpen(false); setEditingToolHead(null); }}
-        onSaved={onRefresh}
-        machineId={machineId}
-        existing={editingToolHead}
-      />
-      <WorkSurfaceDialog
-        open={workSurfaceDialogOpen}
-        onClose={() => { setWorkSurfaceDialogOpen(false); setEditingWorkSurface(null); }}
-        onSaved={onRefresh}
-        machineId={machineId}
-        existing={editingWorkSurface}
-      />
-      <MaterialSlotDialog
-        open={materialSlotDialogOpen}
-        onClose={() => { setMaterialSlotDialogOpen(false); setEditingMaterialSlot(null); }}
-        onSaved={onRefresh}
-        machineId={machineId}
-        existing={editingMaterialSlot}
-      />
-      <AccessoryDialog
-        open={accessoryDialogOpen}
-        onClose={() => { setAccessoryDialogOpen(false); setEditingAccessory(null); }}
-        onSaved={onRefresh}
-        machineId={machineId}
-        existing={editingAccessory}
-      />
-
-      {/* Snackbars for undo */}
-      {[toolHeadUndo, workSurfaceUndo, materialSlotUndo, accessoryUndo].map((undo, i) => (
-        <Snackbar
-          key={i}
-          open={undo.snackbarOpen}
-          autoHideDuration={6000}
-          onClose={undo.handleSnackbarClose}
-          message={undo.snackbarMessage}
-          action={
-            <Button color="inherit" size="small" onClick={undo.handleUndo}>
-              UNDO
-            </Button>
-          }
+        {/* Dialogs */}
+        <ToolHeadDialog
+          open={toolHeadDialogOpen}
+          onClose={() => { setToolHeadDialogOpen(false); setEditingToolHead(null); }}
+          onSaved={onRefresh}
+          machineId={machineId}
+          existing={editingToolHead}
         />
-      ))}
-    </>
+        <WorkSurfaceDialog
+          open={workSurfaceDialogOpen}
+          onClose={() => { setWorkSurfaceDialogOpen(false); setEditingWorkSurface(null); }}
+          onSaved={onRefresh}
+          machineId={machineId}
+          existing={editingWorkSurface}
+        />
+        <MaterialSlotDialog
+          open={materialSlotDialogOpen}
+          onClose={() => { setMaterialSlotDialogOpen(false); setEditingMaterialSlot(null); }}
+          onSaved={onRefresh}
+          machineId={machineId}
+          existing={editingMaterialSlot}
+        />
+        <AccessoryDialog
+          open={accessoryDialogOpen}
+          onClose={() => { setAccessoryDialogOpen(false); setEditingAccessory(null); }}
+          onSaved={onRefresh}
+          machineId={machineId}
+          existing={editingAccessory}
+        />
+      </>
+    </TooltipProvider>
   );
 }

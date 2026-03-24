@@ -1,17 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createEquipment, updateEquipment } from "@/lib/actions/user-library";
 import { enumToOptions, equipmentTypeLabels } from "./enum-labels";
 
@@ -101,45 +110,70 @@ export function EquipmentDialog({ open, onClose, onSaved, existing }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{existing ? "Edit Equipment" : "Add Equipment"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <TextField
-            select
-            label="Type"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            required
-            size="small"
-          >
-            {typeOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required size="small" />
-          <TextField label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} size="small" />
-          <TextField label="Model" value={model} onChange={(e) => setModel(e.target.value)} size="small" />
-          <TextField label="Capacity (spools)" value={capacity} onChange={(e) => setCapacity(e.target.value)} type="number" size="small" />
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Equipment" : "Add Equipment"}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-1.5">
+            <Label>Type</Label>
+            <Select value={type} onValueChange={(v) => v && setType(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {typeOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Manufacturer</Label>
+            <Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Model</Label>
+            <Input value={model} onChange={(e) => setModel(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Capacity (spools)</Label>
+            <Input value={capacity} onChange={(e) => setCapacity(e.target.value)} type="number" />
+          </div>
           {type === "drybox" && (
             <>
-              <TextField label="Max Temp (°C)" value={maxTemp} onChange={(e) => setMaxTemp(e.target.value)} type="number" size="small" />
-              <FormControlLabel
-                control={<Switch checked={hasHumidityControl} onChange={(e) => setHasHumidityControl(e.target.checked)} />}
-                label="Humidity Control"
-              />
+              <div className="space-y-1.5">
+                <Label>Max Temp (°C)</Label>
+                <Input value={maxTemp} onChange={(e) => setMaxTemp(e.target.value)} type="number" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={hasHumidityControl} onCheckedChange={setHasHumidityControl} />
+                <Label>Humidity Control</Label>
+              </div>
             </>
           )}
-          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline rows={2} size="small" />
-        </Stack>
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!name || saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={!name || saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

@@ -1,28 +1,25 @@
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SpoolDetailLoading() {
   return (
     <div>
-      <Skeleton variant="text" width={120} height={32} sx={{ mb: 2 }} />
-      <Skeleton variant="text" width={200} height={40} sx={{ mb: 3 }} />
+      <Skeleton className="w-[120px] h-8 mb-4" />
+      <Skeleton className="w-[200px] h-10 mb-6" />
 
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Skeleton variant="rounded" height={320} />
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Skeleton variant="rounded" height={320} />
-        </Grid>
-        <Grid size={{ xs: 12 }}>
-          <Skeleton variant="rounded" height={340} />
-        </Grid>
-        <Grid size={{ xs: 12 }}>
-          <Skeleton variant="rounded" height={280} />
-        </Grid>
-      </Grid>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div className="md:col-span-8">
+          <Skeleton className="h-80 rounded-xl" />
+        </div>
+        <div className="md:col-span-4">
+          <Skeleton className="h-80 rounded-xl" />
+        </div>
+        <div className="md:col-span-12">
+          <Skeleton className="h-[340px] rounded-xl" />
+        </div>
+        <div className="md:col-span-12">
+          <Skeleton className="h-[280px] rounded-xl" />
+        </div>
+      </div>
     </div>
   );
 }

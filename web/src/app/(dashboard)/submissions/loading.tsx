@@ -1,27 +1,25 @@
-import Box from "@mui/material/Box";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SubmissionsLoading() {
   return (
     <div>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Skeleton variant="text" width={140} height={40} />
-          <Skeleton variant="text" width={280} height={20} />
-        </Box>
-        <Skeleton variant="rounded" width={150} height={40} />
-      </Box>
-      <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+      <div className="flex justify-between mb-6">
+        <div>
+          <Skeleton className="h-10 w-[140px] mb-1" />
+          <Skeleton className="h-5 w-[280px]" />
+        </div>
+        <Skeleton className="h-10 w-[150px] rounded" />
+      </div>
+      <div className="flex gap-2 mb-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" width={80} height={36} sx={{ borderRadius: 2 }} />
+          <Skeleton key={i} className="h-9 w-20 rounded-lg" />
         ))}
-      </Box>
-      <Stack spacing={1}>
+      </div>
+      <div className="space-y-2">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={52} />
+          <Skeleton key={i} className="h-[52px] w-full rounded" />
         ))}
-      </Stack>
+      </div>
     </div>
   );
 }

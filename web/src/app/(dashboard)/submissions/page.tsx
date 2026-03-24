@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import Typography from "@mui/material/Typography";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
-import AddIcon from "@mui/icons-material/Add";
-import SendIcon from "@mui/icons-material/Send";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Plus, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/page-header";
 import { SubmissionDialog } from "@/components/submissions/submission-dialog";
 import { listCatalogSubmissions } from "@/lib/actions/submissions";
@@ -23,66 +24,29 @@ type Submission = {
   targetTable: string | null;
   targetId: string | null;
   createdAt: Date;
+  userId?: string;
   [key: string]: unknown;
 };
 
-const statusColors: Record<string, "warning" | "success" | "error" | "default"> = {
-  pending: "warning",
-  approved: "success",
-  rejected: "error",
-  duplicate: "default",
+const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  pending: "outline",
+  approved: "default",
+  rejected: "destructive",
+  duplicate: "secondary",
 };
 
-const typeColors: Record<string, "primary" | "secondary" | "info" | "default"> = {
-  new_product: "primary",
-  correction: "info",
-  alias: "default",
+const typeVariants: Record<string, "default" | "secondary" | "outline"> = {
+  new_product: "default",
+  correction: "outline",
+  alias: "secondary",
 };
 
-const columns: GridColDef[] = [
-  {
-    field: "type",
-    headerName: "Type",
-    width: 160,
-    renderCell: (params) => (
-      <Chip
-        label={(params.value as string).replace("_", " ")}
-        size="small"
-        color={typeColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-  {
-    field: "targetTable",
-    headerName: "Target",
-    width: 140,
-    valueFormatter: (value: string | null) => value ?? "—",
-  },
-  {
-    field: "status",
-    headerName: "Status",
-    width: 130,
-    renderCell: (params) => (
-      <Chip
-        label={params.value}
-        size="small"
-        color={statusColors[params.value as string] ?? "default"}
-      />
-    ),
-  },
-  {
-    field: "userId",
-    headerName: "Submitted By",
-    width: 160,
-    valueGetter: (value: string) => value?.slice(0, 8) ?? "—",
-  },
-  {
-    field: "createdAt",
-    headerName: "Date",
-    width: 180,
-    valueFormatter: (value: Date) =>
-      value ? new Date(value).toLocaleDateString() : "—",
-  },
+const filterOptions = [
+  { value: null, label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "duplicate", label: "Duplicate" },
 ];
 
 export default function SubmissionsPage() {
@@ -90,6 +54,8 @@ export default function SubmissionsPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const loadSubmissions = () => {
     setLoading(true);
@@ -107,71 +73,111 @@ export default function SubmissionsPage() {
     ? submissions.filter((s) => s.status === statusFilter)
     : submissions;
 
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
+
   return (
     <div>
       <PageHeader
         title="Submissions"
         description="Review community catalog submissions."
         action={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="size-4 mr-1" />
             New Submission
           </Button>
         }
       />
 
-      <Box sx={{ mb: 2 }}>
-        <ToggleButtonGroup
-          value={statusFilter}
-          exclusive
-          onChange={(_, val) => setStatusFilter(val)}
-          size="small"
-        >
-          <ToggleButton value="pending" sx={{ color: "warning.main", "&.Mui-selected": { bgcolor: "warning.light", color: "warning.dark" } }}>
-            Pending
-          </ToggleButton>
-          <ToggleButton value="approved" sx={{ color: "success.main", "&.Mui-selected": { bgcolor: "success.light", color: "success.dark" } }}>
-            Approved
-          </ToggleButton>
-          <ToggleButton value="rejected" sx={{ color: "error.main", "&.Mui-selected": { bgcolor: "error.light", color: "error.dark" } }}>
-            Rejected
-          </ToggleButton>
-          <ToggleButton value="duplicate" sx={{ color: "text.secondary", "&.Mui-selected": { bgcolor: "grey.200" } }}>
-            Duplicate
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
+      <div className="mb-2 flex gap-1 flex-wrap">
+        {filterOptions.map((opt) => (
+          <button
+            key={opt.label}
+            onClick={() => { setStatusFilter(opt.value); setPage(0); }}
+            className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
+              statusFilter === opt.value
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
-        <Stack spacing={1}>
+        <div className="flex flex-col gap-1">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={52} />
+            <Skeleton key={i} className="h-[52px] rounded-lg" />
           ))}
-        </Stack>
+        </div>
       ) : filtered.length === 0 ? (
-        <Box sx={{ textAlign: "center", py: 8 }}>
-          <SendIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-          <Typography variant="subtitle1" fontWeight={500}>
-            No submissions found
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+        <div className="text-center py-8">
+          <Send className="size-12 text-muted-foreground/30 mx-auto mb-1" />
+          <p className="text-base font-medium">No submissions found</p>
+          <p className="text-sm text-muted-foreground">
             {statusFilter ? "Try a different filter." : "No catalog submissions yet."}
-          </Typography>
-        </Box>
+          </p>
+        </div>
       ) : (
-        <DataGrid
-          rows={filtered}
-          columns={columns}
-          initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-          pageSizeOptions={[10, 25, 50]}
-          disableRowSelectionOnClick
-          autoHeight
-          sx={{
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 3,
-            "& .MuiDataGrid-columnHeaders": { bgcolor: "background.paper" },
-          }}
-        />
+        <>
+          <div className="border rounded-xl">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted By</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paged.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell>
+                      <Badge variant={typeVariants[s.type] ?? "secondary"}>
+                        {s.type.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{s.targetTable ?? "\u2014"}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariants[s.status] ?? "secondary"}>
+                        {s.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {(s.userId as string)?.slice(0, 8) ?? "\u2014"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "\u2014"}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-sm text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </p>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  Previous
+                </Button>
+                <Button size="sm" variant="outline" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <SubmissionDialog

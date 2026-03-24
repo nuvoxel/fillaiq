@@ -208,6 +208,17 @@ export const hardwareIdentifierTypeEnum = pgEnum("hardware_identifier_type", [
   "serial_pattern",
 ]);
 
+// ── Machine Protocols ────────────────────────────────────────────────────────
+
+export const machineProtocolEnum = pgEnum("machine_protocol", [
+  "bambu",
+  "klipper",
+  "octoprint",
+  "prusalink",
+  "grbl",
+  "manual",
+]);
+
 // ── Machines ─────────────────────────────────────────────────────────────────
 
 export const machineTypeEnum = pgEnum("machine_type", [

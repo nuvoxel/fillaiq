@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-tertiary-container": "#6c4700",
+                        "on-tertiary": "#ffffff",
+                        "surface-bright": "#f7f9ff",
+                        "secondary-fixed-dim": "#b8c9cf",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#d4e6eb",
+                        "surface-variant": "#d8e4f3",
+                        "primary-fixed": "#b6ebff",
+                        "on-secondary-fixed-variant": "#39494e",
+                        "on-primary-fixed": "#001f28",
+                        "on-tertiary-fixed": "#291800",
+                        "tertiary-fixed-dim": "#ffba4a",
+                        "surface-dim": "#d0dbea",
+                        "inverse-surface": "#26313d",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#d8e4f3",
+                        "surface-container": "#e3effe",
+                        "surface-container-high": "#dee9f8",
+                        "outline-variant": "#bbc9cf",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#ffb229",
+                        "on-surface": "#111d27",
+                        "inverse-on-surface": "#e8f2ff",
+                        "secondary-container": "#d4e6eb",
+                        "secondary": "#516166",
+                        "surface-tint": "#00677f",
+                        "error": "#ba1a1a",
+                        "outline": "#6c797f",
+                        "tertiary": "#815600",
+                        "on-surface-variant": "#3c494e",
+                        "primary-container": "#00d2ff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#111d27",
+                        "tertiary-fixed": "#ffddb1",
+                        "primary": "#00677f",
+                        "on-secondary-container": "#57676c",
+                        "primary-fixed-dim": "#47d6ff",
+                        "on-primary-fixed-variant": "#004e60",
+                        "surface-container-low": "#edf4ff",
+                        "on-primary-container": "#00566a",
+                        "inverse-primary": "#47d6ff",
+                        "on-tertiary-fixed-variant": "#624000",
+                        "on-error-container": "#93000a",
+                        "background": "#f7f9ff",
+                        "surface": "#f7f9ff",
+                        "on-secondary-fixed": "#0e1e22"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Space Grotesk"],
+                        "mono": ["DM Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+        .mono-text { font-family: 'DM Mono', monospace; }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased overflow-hidden">
+<!-- SideNavBar Shell -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#0F1F23] shadow-[4px_0_12px_rgba(15,31,35,0.2)] flex flex-col py-6 z-50 font-['Space_Grotesk'] tracking-tight">
+<div class="px-6 mb-10">
+<div class="text-xl font-bold text-[#00D2FF] uppercase tracking-widest">FillaIQ</div>
+<div class="text-[10px] text-slate-500 tracking-[0.2em] mt-1 uppercase">Modern Maker</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 mx-2 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<!-- Active State: Catalog -->
+<a class="flex items-center gap-3 px-4 py-3 text-[#00D2FF] bg-[#00D2FF]/10 border-l-4 border-[#00D2FF] mx-2 rounded-r-lg scale-95 duration-200 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="text-sm font-medium">Catalog</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 mx-2 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="shelves">shelves</span>
+<span class="text-sm font-medium">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 mx-2 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="text-sm font-medium">Orders</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 mx-2 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="text-sm font-medium">Analytics</span>
+</a>
+</nav>
+<div class="mt-auto px-6 mb-6">
+<button class="w-full bg-[#00D2FF] text-[#001f28] py-2.5 rounded-lg font-bold text-sm shadow-lg shadow-[#00D2FF]/20 hover:opacity-90 transition-opacity">
+                New Entry
+            </button>
+</div>
+<div class="pt-6 border-t border-white/10 mx-2">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="text-sm font-medium">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="ml-64 min-h-screen flex flex-col relative bg-[#F7F9FF]">
+<!-- TopNavBar Shell -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 bg-white/80 backdrop-blur-md shadow-sm flex justify-between items-center px-8 z-40 font-['Plus_Jakarta_Sans'] font-medium">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-bold text-primary font-headline">Catalog</h1>
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-lg" data-icon="search">search</span>
+<input class="bg-surface-container-low border-none rounded-full py-1.5 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Search brands..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-primary-container text-on-primary-container px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-lg" data-icon="add">add</span>
+                    Add Brand
+                </button>
+<div class="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+</button>
+<img alt="Manager profile" class="w-8 h-8 rounded-full border border-primary-container/30" data-alt="close-up portrait of a professional man with glasses in a modern office setting, soft bokeh background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHC9XEdlUkj7J8kapSX9FwtpsJ3IpVmofcmK-pTOPRUQ1nrsyag2wT4zIHZJNyqgVhpWaISbbtJlnGiBjwzKfRiWqeCEp7udUAo3RyP5UPBRjmogGMW6wZ45AOXTKISHrq5Gl9gofCowBQnq_aYDFOOsrV2INMW8wM9F4i9pAPaIuUqkG26KnFqrfywArYq6KefjbkwGd0R5utbCoySSrd3dOTcZBd8ypnkffg6eMD7hQtmDac9B9cQ0-qSKCaScykHBkK8F3hOPU"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="pt-24 px-8 pb-8 flex-1 overflow-y-auto">
+<!-- Tab Bar Selection -->
+<div class="flex gap-8 border-b border-slate-200 mb-8">
+<button class="text-[#00677F] border-b-2 border-[#00D2FF] pb-3 px-1 font-bold text-sm tracking-wide transition-all">Brands</button>
+<button class="text-slate-500 hover:text-[#00677F] pb-3 px-1 font-medium text-sm tracking-wide transition-all">Materials</button>
+<button class="text-slate-500 hover:text-[#00677F] pb-3 px-1 font-medium text-sm tracking-wide transition-all">Products</button>
+<button class="text-slate-500 hover:text-[#00677F] pb-3 px-1 font-medium text-sm tracking-wide transition-all">Hardware</button>
+</div>
+<!-- Table Card Container -->
+<div class="bg-white rounded-xl shadow-[0_4px_12px_rgba(26,37,48,0.06)] overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline">Logo</th>
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline">Brand Name</th>
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline">Slug</th>
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline">Website</th>
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline text-center">Products</th>
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline">Status</th>
+<th class="py-4 px-6 text-[11px] font-bold uppercase tracking-widest text-slate-500 font-headline text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<!-- Row 1: Bambu Lab -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Bambu Lab Logo" data-alt="minimalist abstract geometric logo icon with teal and black shapes on a clean white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6njUVMSvb0angc46xOKA6sVItpMnUuIwNrN8kDyMtsJTrpLsmz2YNfY7d_qzF-4Wj2S5V3bLfgR0J_OS3ior_E_CQWwwvLCWc57e9EZrAAUHotS8eqSsumm3wnsBlgv6w2-YU-mZufwMYkymt-0pQa6EnZ4wQB-mUQnOQHhAZ_uC_agnJQObsLzINCgVbbe76lK01T5pBPmqqzRt6sExYu5XQ3EAuHaRl6VLjF1JbxoPnpieseEl42q81CD68W7Whh44SSgZgSI0"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Bambu Lab</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">bambu-lab</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">bambulab.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">124</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Polymaker -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Polymaker Logo" data-alt="clean vector logo design featuring circular shapes and professional deep blue color palette" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEbmmgebK8mNko9KKO7jw7UH7qVhcLZbHX0bd95c_U_9a-VEB9FS9NQ5MXhZfKvEJZUP27h5NyJbkI70D3-872SOpPtdHhD7YkSoqGafAnlPHkH6SjjKHMkv-pMZtj5wODRoanAkHoiI5Cx1hwRkuoyrCY_NYoMep7o8P1Obn99KxLmJm15oJpYvO7Goc3VheSwwOhHYHCqa_X34xMs4JmMPMW2abBdWg4DcB7oJEdfHI3YGINzCyxoO3moQMuTykyFD1jMkhHQDc"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Polymaker</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">polymaker</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">polymaker.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">89</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: Prusament -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Prusament Logo" data-alt="tech company logo with orange accent color and geometric hexagon motif on white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLCDJXTPpJ6vUdA8nzXD8T2NoPoIl9vusKi3Mp8kGzEaaTUW6hRCa8Zypzn_TUc5bLw9u4taOHVNYFuwSZLdo4pCrsdZV2xpXGjxig8bZIKhvY7lyn9DPW0eoPUw_jmF1ZeRrKTeZmhdMGzM-9a1y15IioqKr31BCeckynDN2VPdWKw5IuXJ3lIfT7eCbLtAAT-5meKOXFDv_V0wYW4Evbchc4e8SnoO9ek-eiBORENKrS4Ym0dYk7Z4z1OjbNTtr9PwTOu1PDOuk"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Prusament</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">prusament</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">prusa3d.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">210</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: Hatchbox -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Hatchbox Logo" data-alt="professional logo featuring square shapes and dark slate colors for industrial brand identity" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCMFYlXDaoFb-ZvGMc9GardZp6bFjgaNGTZHjcszlKhMA7aCd4Lu_8nJN_crtmIpI4nTx_WyQL-w2SqoERf9PEgOVEEsB9hYSHb54W9YVe3VRdHdh8Jl59HTSyYOOwALhL4-wa6OjarfaG8Euj62TbCDe96ycE2t5Bkvc1n3Y8oK7Vqo7jGXwiQ0S7a72dcOoWwxtaPrJ4MdTHIO-GJ_nawQ1q-W7y0fbbrXBaJKgOx5Nq5d7LhC8fkKOb3bsWhT3jAshoXspWQos"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Hatchbox</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">hatchbox</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">hatchbox3d.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">45</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700">Pending</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 5: eSUN -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="eSUN Logo" data-alt="modern corporate logo with green leaf or sun elements representing eco-friendly technology" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAM8HIUwMxhEMe5Jzd2oLshOjoNhBigtZrmsEE0hMFxprWX8dQSmf03LqTb3DBl19c3QbCea0uyyIrOGHQPheHcL-PuY5mXdsxxYgXwJQmTeXEZMGisae73n_KmScNIA5mjhR2eISV4XbNfszwYO1XsD6XHwdk91RmoWWK3AftZM3qgJmXyBER-97x6FGK0RIXYRDMbIL0cL4Wu7jyoqOwIiAdg96cOXaBeE_HGsCVu9BYp3CswntjVH0Lnke0Qsv-QFTvv4JXbYKE"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">eSUN</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">esun-3d</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">esun3d.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">156</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 6: Overture -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Overture Logo" data-alt="sleek black and white typography-based logo for a premium technology brand" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHf5PImhlu_zLwAErpEQ7d3b1uIZQ-2R9G3Ap06X2qm51DK-QVzB56Ow5YmGBQP8Wu4wMMy-CRWi_9gR_rQuQj21UCLKBKVlRXE2qbbZjzGFtXbKGhdw5TRtt05se4r2rNQMjmgbLg2fV651gEB0oMo9kwKGld_a7uO89T0pi3lBoUpGUkyrpUmwzxV4G_Rll4EwBi1CdOjoWAYGnC5fGz_iUqFKxkjupYqxFFbijMMZgSbDrUJEygWPM1knXskNEXoE6Y5HJwmOA"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Overture</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">overture-3d</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">overture3d.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">32</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">Unverified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 7: Sunlu -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Sunlu Logo" data-alt="bright modern logo design with yellow and blue color scheme and circular motion lines" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzBNMX9IG0OChxDMdWz-SXgUAqjV6AImuodNikUBE4gIpeZYUKLqNJ3f7QttlARucV_TcacWqrR8g5IwI08dDMiM4SgJ-dNsw33KemmBY1kh8EP532FOWqHi0PqUarGHYQyHfsM8vaVWLR--a9zfPGRFaV_y3CzPu17BRQxgaXzhk0TlRfhUHvvQfEcgGYMrgAln80DP5TjrkNitpslmeqYaZ098FUK4v3eMJgwo4ue2B9cpIIZOVK0wG8nJTgA7bsqwjDtnUTSw0"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Sunlu</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">sunlu</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">sunlu.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">67</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 8: Inland -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="Inland Logo" data-alt="sturdy industrial logo mark in bold red and gray tones on white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaz0s2hWGEUg2NDt6Uy50X5pvOXeeQfeifZCpOwxD6h-bnfYitUZhmXUtMZBIrFQI4dvUWBziEyOxEB9XFFajlAsmWc6FCMp_itRMVB0qv1v3lkoFINnRfvILw0c-FS2b1yheieA0ngLp3-vDozBPfJwWG65WEPTfDWTFIagMN-7etJEYjxKSUYjfFfO7DmL_Q3wFRhBvyh6xWR1n_BDR5pkvEaUkMdQ8tynF-TrsOH0MvKW81M5hVhrgIeXdW4c40f5sCcTeL5Co"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">Inland</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">inland</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">microcenter.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">112</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700">Pending</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 9: MatterHackers -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="MatterHackers Logo" data-alt="modern tech logo with blue robotic or hacker inspired elements and sharp angles" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClY_G02u6HfoPgekfy_Wp-3oBpv09OzMWBVaivkPgNWN0cfkaQKA8mGRlKImOLcUwU_GzABj_Gz0RP3QJlvt0XvZs41pXeXXPFqkcK4WkszeUe4HzONeOJa1yqCsKTlx6fHmSepXv5B2eMtUDQO3466H39feKw-LJJt3TT_jnFaCsMNBNHJznc1ZblSsND-G7ASWRYBGWg6yUoxciLubVeK6pRPj-bm-fdGTzlK3U-c_8szFAk_OaPYt3BEZyP9p5FHsKlH7kF6Iw"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">MatterHackers</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">matterhackers</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">matterhackers.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">340</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 10: ColorFabb -->
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 px-6">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+<img alt="ColorFabb Logo" data-alt="creative vibrant logo showing a spectrum of colors in a geometric flow for a high-end filament brand" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzNIwPSUE5ElCmkCy976ueOjkEL_-z8CgQZdHSM8kYTZKuaJY_bow76L6AlIBlvEwScRTcmL4tR_fs1i9wEv3cgXfxKgovH4W9Pm2MMDU3szBUBu4prrvH-K7kon_nuUzo7ro9wO2IH6VO2GZR5WvQFvZFhAdhhrS_GteeRweOGKwN1l_MSmuTl5-hQ5BL9VEOzQgiyUFIKYUR7jL-1fhbFYWSNnqTFCVhQyTsDfDmtrl94-iqh3DifxkbeMXuq6zYt88VJ8Xx8TM"/>
+</div>
+</td>
+<td class="py-4 px-6 font-semibold text-sm">ColorFabb</td>
+<td class="py-4 px-6 text-xs mono-text text-slate-500">colorfabb</td>
+<td class="py-4 px-6 text-sm text-primary hover:underline cursor-pointer">colorfabb.com</td>
+<td class="py-4 px-6 text-sm text-center font-medium">78</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Verified</span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination Footer -->
+<div class="px-6 py-4 border-t border-slate-50 flex items-center justify-between bg-surface-container-lowest">
+<span class="text-xs text-slate-500 font-medium italic">Showing 1-10 of 47 brands</span>
+<div class="flex items-center gap-2">
+<button class="p-1 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded-md bg-primary-container text-on-primary-container font-bold text-xs">1</button>
+<button class="w-8 h-8 rounded-md hover:bg-slate-50 text-slate-600 font-medium text-xs">2</button>
+<button class="w-8 h-8 rounded-md hover:bg-slate-50 text-slate-600 font-medium text-xs">3</button>
+<span class="text-slate-400 px-1">...</span>
+<button class="w-8 h-8 rounded-md hover:bg-slate-50 text-slate-600 font-medium text-xs">5</button>
+<button class="p-1 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Quick View Pill (Signature Component) -->
+<div class="fixed bottom-8 right-8 bg-surface-container-highest/60 backdrop-blur-xl border border-white/20 px-4 py-2 rounded-full flex items-center gap-3 shadow-2xl z-50">
+<div class="flex gap-1">
+<div class="w-1.5 h-4 bg-primary rounded-full"></div>
+<div class="w-1.5 h-4 bg-primary-container rounded-full"></div>
+</div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">System Optimal</span>
+</div>
+</main>
+</body></html>

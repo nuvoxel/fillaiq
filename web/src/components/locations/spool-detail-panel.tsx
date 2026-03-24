@@ -1,24 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Grid from "@mui/material/Grid";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
-import Rating from "@mui/material/Rating";
-import Skeleton from "@mui/material/Skeleton";
-import IconButton from "@mui/material/IconButton";
-import Divider from "@mui/material/Divider";
-import LinearProgress from "@mui/material/LinearProgress";
-import CloseIcon from "@mui/icons-material/Close";
-import ScaleIcon from "@mui/icons-material/Scale";
-import NfcIcon from "@mui/icons-material/Nfc";
-import PrintIcon from "@mui/icons-material/Print";
+import { X, Scale, Nfc, Printer, Star } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getUserItemWithRelations, updateUserItem } from "@/lib/actions/user-library";
 
 type Props = {
@@ -27,12 +16,32 @@ type Props = {
   onUpdate?: () => void;
 };
 
+function StarRating({ value, onChange, size = 16 }: { value: number | null; onChange?: (v: number | null) => void; size?: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          className={`p-0 ${onChange ? "cursor-pointer" : "cursor-default"}`}
+          onClick={() => onChange?.(value === star ? null : star)}
+          disabled={!onChange}
+        >
+          <Star
+            className={`${value != null && star <= value ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40"}`}
+            style={{ width: size, height: size }}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Editable fields
   const [notes, setNotes] = useState("");
   const [rating, setRating] = useState<number | null>(null);
   const [weight, setWeight] = useState("");
@@ -74,22 +83,20 @@ export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
 
   if (loading) {
     return (
-      <Card variant="outlined" sx={{ mt: 1.5 }}>
-        <CardContent>
-          <Skeleton variant="rounded" height={120} />
-        </CardContent>
-      </Card>
+      <div className="border rounded-lg mt-3 p-4">
+        <Skeleton className="h-[120px] rounded-lg" />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card variant="outlined" sx={{ borderColor: "error.main" }}>
-        <CardContent>
-          <Typography color="error" variant="body2">Error: {error}</Typography>
-          <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
-        </CardContent>
-      </Card>
+      <div className="border border-destructive rounded-lg p-4">
+        <p className="text-sm text-destructive">Error: {error}</p>
+        <button className="p-1" onClick={onClose}>
+          <X className="size-4" />
+        </button>
+      </div>
     );
   }
 
@@ -102,126 +109,120 @@ export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
   const pct = item.percentRemaining;
 
   return (
-    <Card variant="outlined" sx={{ borderColor: "primary.main", borderWidth: 2, position: "sticky", top: 80 }}>
-      <CardContent sx={{ pb: "12px !important" }}>
+    <div className="border-2 border-primary rounded-lg sticky top-20">
+      <div className="p-4 pb-3">
         {/* Header */}
-        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, mb: 1.5 }}>
+        <div className="flex items-start gap-3 mb-3">
           {/* Color swatch */}
-          <Box sx={{
-            width: 48, height: 48, borderRadius: 2, flexShrink: 0,
-            bgcolor: item.measuredColorHex ?? "#888",
-            boxShadow: "inset 0 1px 3px rgba(0,0,0,0.2)",
-          }} />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="subtitle1" fontWeight={700} noWrap>
+          <div
+            className="w-12 h-12 rounded-lg shrink-0 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]"
+            style={{ backgroundColor: item.measuredColorHex ?? "#888" }}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-bold truncate">
               {product?.name ?? "Unknown Item"}
-            </Typography>
-            <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mt: 0.25 }}>
-              {brand && <Chip label={brand.name} size="small" variant="outlined" />}
-              {material && <Chip label={material.abbreviation ?? material.name} size="small" variant="outlined" />}
-              {item.packageType && <Chip label={item.packageType} size="small" variant="outlined" sx={{ textTransform: "capitalize" }} />}
-              {item.nfcUid && <Chip icon={<NfcIcon sx={{ fontSize: "14px !important" }} />} label="NFC" size="small" variant="outlined" color="primary" />}
-            </Box>
-          </Box>
-          <IconButton size="small" onClick={onClose} sx={{ mt: -0.5, mr: -0.5 }}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </Box>
+            </p>
+            <div className="flex gap-1.5 flex-wrap mt-0.5">
+              {brand && <Badge variant="outline">{brand.name}</Badge>}
+              {material && <Badge variant="outline">{material.abbreviation ?? material.name}</Badge>}
+              {item.packageType && <Badge variant="outline" className="capitalize">{item.packageType}</Badge>}
+              {item.nfcUid && (
+                <Badge variant="outline" className="text-primary border-primary">
+                  <Nfc className="size-3 mr-0.5" />NFC
+                </Badge>
+              )}
+            </div>
+          </div>
+          <button className="p-1 -mt-1 -mr-1" onClick={onClose}>
+            <X className="size-4" />
+          </button>
+        </div>
 
         {/* Progress bar */}
         {pct != null && (
-          <Box sx={{ mb: 1.5 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25 }}>
-              <Typography variant="caption" color="text.secondary">Remaining</Typography>
-              <Typography variant="caption" fontWeight={600}>{pct}%</Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={pct}
-              sx={{
-                height: 6, borderRadius: 3,
-                bgcolor: "grey.200",
-                "& .MuiLinearProgress-bar": {
-                  bgcolor: pct > 50 ? "success.main" : pct > 25 ? "warning.main" : "error.main",
-                  borderRadius: 3,
-                },
-              }}
-            />
-          </Box>
+          <div className="mb-3">
+            <div className="flex justify-between mb-0.5">
+              <span className="text-xs text-muted-foreground">Remaining</span>
+              <span className="text-xs font-semibold">{pct}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full ${pct > 50 ? "bg-green-500" : pct > 25 ? "bg-yellow-500" : "bg-red-500"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
         )}
 
         {/* Stats row */}
-        <Grid container spacing={2} sx={{ mb: 1.5 }}>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary">Weight</Typography>
-            <Typography variant="body2" fontWeight={600}>
-              {item.currentWeightG ? `${Math.round(item.currentWeightG)}g` : "—"}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary">Initial</Typography>
-            <Typography variant="body2" fontWeight={600}>
-              {item.initialWeightG ? `${Math.round(item.initialWeightG)}g` : "—"}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary">Height</Typography>
-            <Typography variant="body2" fontWeight={600}>
-              {item.measuredHeightMm ? `${Math.round(item.measuredHeightMm)}mm` : "—"}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary">Color</Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <div className="grid grid-cols-3 gap-4 mb-3">
+          <div>
+            <span className="text-xs text-muted-foreground block">Weight</span>
+            <span className="text-sm font-semibold">
+              {item.currentWeightG ? `${Math.round(item.currentWeightG)}g` : "\u2014"}
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground block">Initial</span>
+            <span className="text-sm font-semibold">
+              {item.initialWeightG ? `${Math.round(item.initialWeightG)}g` : "\u2014"}
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground block">Height</span>
+            <span className="text-sm font-semibold">
+              {item.measuredHeightMm ? `${Math.round(item.measuredHeightMm)}mm` : "\u2014"}
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground block">Color</span>
+            <div className="flex items-center gap-1">
               {item.measuredColorHex && (
-                <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: item.measuredColorHex, border: 1, borderColor: "divider" }} />
+                <div className="w-3.5 h-3.5 rounded-full border border-border" style={{ backgroundColor: item.measuredColorHex }} />
               )}
-              <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
-                {item.measuredColorHex ?? "—"}
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary">Location</Typography>
-            <Typography variant="body2" fontWeight={600}>
+              <span className="text-sm font-mono text-xs">
+                {item.measuredColorHex ?? "\u2014"}
+              </span>
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground block">Location</span>
+            <span className="text-sm font-semibold">
               {slot?.address ?? slot?.label ?? "Unassigned"}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary">Purchased</Typography>
-            <Typography variant="body2">
-              {item.purchasedAt ? new Date(item.purchasedAt).toLocaleDateString() : "—"}
-            </Typography>
-          </Grid>
-        </Grid>
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground block">Purchased</span>
+            <span className="text-sm">
+              {item.purchasedAt ? new Date(item.purchasedAt).toLocaleDateString() : "\u2014"}
+            </span>
+          </div>
+        </div>
 
-        <Divider sx={{ mb: 1.5 }} />
+        <Separator className="mb-3" />
 
         {/* Editable fields */}
-        <Grid container spacing={1.5} sx={{ mb: 1 }}>
-          <Grid size={{ xs: 4 }}>
-            <TextField fullWidth size="small" label="Weight (g)" type="number"
-              value={weight} onChange={(e) => setWeight(e.target.value)}
-            />
-          </Grid>
-          <Grid size={{ xs: 8 }}>
-            <TextField fullWidth size="small" label="Notes"
-              value={notes} onChange={(e) => setNotes(e.target.value)}
-            />
-          </Grid>
-        </Grid>
+        <div className="grid grid-cols-12 gap-3 mb-2">
+          <div className="col-span-4">
+            <Label>Weight (g)</Label>
+            <Input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </div>
+          <div className="col-span-8">
+            <Label>Notes</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">Rating</Typography>
-            <Rating value={rating} onChange={(_, v) => setRating(v)} size="small" />
-          </Box>
-          <Button size="small" variant="contained" onClick={handleSave} disabled={saving}
-            sx={{ textTransform: "none" }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">Rating</span>
+            <StarRating value={rating} onChange={setRating} size={16} />
+          </div>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
-        </Box>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 }

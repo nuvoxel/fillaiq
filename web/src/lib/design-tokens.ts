@@ -1,13 +1,23 @@
 /** Design tokens shared across web + future React Native / firmware */
 
 export const colors = {
+  /* Modern Maker palette */
+  makerCyan: "#00D2FF",
+  liveGreen: "#00E676",
+  alertRose: "#FF2A5F",
+  signalOrange: "#FF7A00",
+  blueprintSlate: "#1A2530",
+  toolGray: "#94A3B8",
+  softGround: "#F4F6F8",
+  deepWorkshop: "#0F1F23",
+
   action: {
-    create: { DEFAULT: "#16A34A", bg: "#F0FDF4" },
-    update: { DEFAULT: "#2563EB", bg: "#EFF6FF" },
-    delete: { DEFAULT: "#DC2626", bg: "#FEF2F2" },
+    create: { DEFAULT: "#00E676", bg: "#E8FFF0" },
+    update: { DEFAULT: "#00D2FF", bg: "#E0F7FF" },
+    delete: { DEFAULT: "#FF2A5F", bg: "#FFF0F3" },
     review: { DEFAULT: "#9333EA", bg: "#FAF5FF" },
-    login: { DEFAULT: "#0891B2", bg: "#ECFEFF" },
-    logout: { DEFAULT: "#6B7280", bg: "#F3F4F6" },
+    login: { DEFAULT: "#00D2FF", bg: "#E0F7FF" },
+    logout: { DEFAULT: "#94A3B8", bg: "#F1F5F9" },
   },
 } as const;
 

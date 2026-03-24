@@ -1,20 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { createHardwareModel, updateHardwareModel } from "@/lib/actions/hardware-catalog";
 import { enumToOptions, hardwareCategoryLabels } from "./enum-labels";
 import { ImageUpload } from "@/components/image-upload";
@@ -216,14 +222,20 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{existing ? "Edit Hardware Model" : "Add Hardware Model"}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{existing ? "Edit Hardware Model" : "Add Hardware Model"}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-1">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          {/* ── Identity ─────────────────────────────────────────── */}
-          <Box sx={{ display: "flex", gap: 2 }}>
+          {/* Identity */}
+          <div className="flex gap-3">
             <ImageUpload
               value={imageUrl}
               onChange={setImageUrl}
@@ -232,155 +244,178 @@ export function HardwareModelDialog({ open, onClose, onSaved, existing }: Props)
               width={120}
               height={120}
             />
-            <Grid container spacing={2} sx={{ flex: 1 }}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  label="Category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  required
-                  size="small"
-                  fullWidth
-                >
-                  {categoryOptions.map((o) => (
-                    <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} required size="small" fullWidth />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField label="Model" value={model} onChange={(e) => setModel(e.target.value)} required size="small" fullWidth />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} required size="small" fullWidth helperText="Auto-generated URL identifier" />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} size="small" fullWidth multiline rows={2} />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField label="Website URL" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} size="small" fullWidth />
-              </Grid>
-            </Grid>
-          </Box>
+            <div className="flex-1 grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Category *</Label>
+                <Select value={category} onValueChange={(v) => v && setCategory(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoryOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Manufacturer *</Label>
+                <Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Model *</Label>
+                <Input value={model} onChange={(e) => setModel(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Slug *</Label>
+                <Input value={slug} onChange={(e) => setSlug(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Auto-generated URL identifier</p>
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Description</Label>
+                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Website URL</Label>
+                <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} />
+              </div>
+            </div>
+          </div>
 
-          {/* ── Label Printer Specs ──────────────────────────────── */}
+          {/* Label Printer Specs */}
           {isLabelPrinter && (
             <>
-              <Typography variant="subtitle2" color="text.secondary">Label Printer Specs</Typography>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField label="Print Width (mm)" value={printWidthMm} onChange={(e) => setPrintWidthMm(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField label="Max Height (mm)" value={printHeightMaxMm} onChange={(e) => setPrintHeightMaxMm(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField label="DPI" value={printDpi} onChange={(e) => setPrintDpi(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField label="Dots/Line" value={dotsPerLine} onChange={(e) => setDotsPerLine(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <TextField
-                    select
-                    label="Technology"
-                    value={printTechnology}
-                    onChange={(e) => setPrintTechnology(e.target.value)}
-                    size="small"
-                    fullWidth
-                  >
-                    <MenuItem value="">—</MenuItem>
-                    <MenuItem value="thermal">Thermal</MenuItem>
-                    <MenuItem value="thermal_transfer">Thermal Transfer</MenuItem>
-                    <MenuItem value="inkjet">Inkjet</MenuItem>
-                  </TextField>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <FormControlLabel
-                    control={<Switch checked={continuousFeed} onChange={(e) => setContinuousFeed(e.target.checked)} />}
-                    label="Continuous Feed"
-                  />
-                </Grid>
-              </Grid>
+              <p className="text-sm font-semibold text-muted-foreground">Label Printer Specs</p>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Print Width (mm)</Label>
+                  <Input value={printWidthMm} onChange={(e) => setPrintWidthMm(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Max Height (mm)</Label>
+                  <Input value={printHeightMaxMm} onChange={(e) => setPrintHeightMaxMm(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>DPI</Label>
+                  <Input value={printDpi} onChange={(e) => setPrintDpi(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Dots/Line</Label>
+                  <Input value={dotsPerLine} onChange={(e) => setDotsPerLine(e.target.value)} type="number" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Technology</Label>
+                  <Select value={printTechnology || "_none"} onValueChange={(v) => v && setPrintTechnology(v === "_none" ? "" : v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">&mdash;</SelectItem>
+                      <SelectItem value="thermal">Thermal</SelectItem>
+                      <SelectItem value="thermal_transfer">Thermal Transfer</SelectItem>
+                      <SelectItem value="inkjet">Inkjet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2 pt-6">
+                  <Switch checked={continuousFeed} onCheckedChange={setContinuousFeed} />
+                  <Label>Continuous Feed</Label>
+                </div>
+              </div>
             </>
           )}
 
-          {/* ── Machine Specs ────────────────────────────────────── */}
+          {/* Machine Specs */}
           {isMachine && (
             <>
-              <Typography variant="subtitle2" color="text.secondary">Machine Specs</Typography>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 4 }}>
-                  <TextField label="Build X (mm)" value={buildVolumeX} onChange={(e) => setBuildVolumeX(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 4 }}>
-                  <TextField label="Build Y (mm)" value={buildVolumeY} onChange={(e) => setBuildVolumeY(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 4 }}>
-                  <TextField label="Build Z (mm)" value={buildVolumeZ} onChange={(e) => setBuildVolumeZ(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <TextField label="Max Nozzle Temp" value={maxNozzleTemp} onChange={(e) => setMaxNozzleTemp(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <TextField label="Max Bed Temp" value={maxBedTemp} onChange={(e) => setMaxBedTemp(e.target.value)} type="number" size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 4 }}>
-                  <FormControlLabel control={<Switch checked={hasEnclosure} onChange={(e) => setHasEnclosure(e.target.checked)} />} label="Enclosure" />
-                </Grid>
-                <Grid size={{ xs: 4 }}>
-                  <FormControlLabel control={<Switch checked={hasFilamentChanger} onChange={(e) => setHasFilamentChanger(e.target.checked)} />} label="Filament Changer" />
-                </Grid>
+              <p className="text-sm font-semibold text-muted-foreground">Machine Specs</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Build X (mm)</Label>
+                  <Input value={buildVolumeX} onChange={(e) => setBuildVolumeX(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Build Y (mm)</Label>
+                  <Input value={buildVolumeY} onChange={(e) => setBuildVolumeY(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Build Z (mm)</Label>
+                  <Input value={buildVolumeZ} onChange={(e) => setBuildVolumeZ(e.target.value)} type="number" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Max Nozzle Temp</Label>
+                  <Input value={maxNozzleTemp} onChange={(e) => setMaxNozzleTemp(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Max Bed Temp</Label>
+                  <Input value={maxBedTemp} onChange={(e) => setMaxBedTemp(e.target.value)} type="number" />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <Switch checked={hasEnclosure} onCheckedChange={setHasEnclosure} />
+                  <Label>Enclosure</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={hasFilamentChanger} onCheckedChange={setHasFilamentChanger} />
+                  <Label>Filament Changer</Label>
+                </div>
                 {hasFilamentChanger && (
-                  <Grid size={{ xs: 4 }}>
-                    <TextField label="Changer Slots" value={filamentChangerSlots} onChange={(e) => setFilamentChangerSlots(e.target.value)} type="number" size="small" fullWidth />
-                  </Grid>
+                  <div className="space-y-1.5">
+                    <Label>Changer Slots</Label>
+                    <Input value={filamentChangerSlots} onChange={(e) => setFilamentChangerSlots(e.target.value)} type="number" className="w-24" />
+                  </div>
                 )}
-              </Grid>
+              </div>
             </>
           )}
 
-          {/* ── Connectivity ─────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Connectivity</Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            <FormControlLabel control={<Switch checked={hasUsb} onChange={(e) => setHasUsb(e.target.checked)} size="small" />} label="USB" />
-            <FormControlLabel control={<Switch checked={hasBle} onChange={(e) => setHasBle(e.target.checked)} size="small" />} label="BLE" />
-            <FormControlLabel control={<Switch checked={hasWifi} onChange={(e) => setHasWifi(e.target.checked)} size="small" />} label="WiFi" />
-            <FormControlLabel control={<Switch checked={hasEthernet} onChange={(e) => setHasEthernet(e.target.checked)} size="small" />} label="Ethernet" />
-            <FormControlLabel control={<Switch checked={hasMqtt} onChange={(e) => setHasMqtt(e.target.checked)} size="small" />} label="MQTT" />
-          </Box>
+          {/* Connectivity */}
+          <p className="text-sm font-semibold text-muted-foreground">Connectivity</p>
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2"><Switch checked={hasUsb} onCheckedChange={setHasUsb} size="sm" /><Label>USB</Label></div>
+            <div className="flex items-center gap-2"><Switch checked={hasBle} onCheckedChange={setHasBle} size="sm" /><Label>BLE</Label></div>
+            <div className="flex items-center gap-2"><Switch checked={hasWifi} onCheckedChange={setHasWifi} size="sm" /><Label>WiFi</Label></div>
+            <div className="flex items-center gap-2"><Switch checked={hasEthernet} onCheckedChange={setHasEthernet} size="sm" /><Label>Ethernet</Label></div>
+            <div className="flex items-center gap-2"><Switch checked={hasMqtt} onCheckedChange={setHasMqtt} size="sm" /><Label>MQTT</Label></div>
+          </div>
 
-          {/* ── Protocol ─────────────────────────────────────────── */}
-          <Typography variant="subtitle2" color="text.secondary">Protocol</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Protocol" value={protocol} onChange={(e) => setProtocol(e.target.value)} size="small" fullWidth helperText="e.g. esc_pos, gcode, marlin" />
-            </Grid>
+          {/* Protocol */}
+          <p className="text-sm font-semibold text-muted-foreground">Protocol</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Protocol</Label>
+              <Input value={protocol} onChange={(e) => setProtocol(e.target.value)} placeholder="e.g. esc_pos, gcode, marlin" />
+            </div>
             {hasBle && (
               <>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField label="BLE Service UUID" value={bleServiceUuid} onChange={(e) => setBleServiceUuid(e.target.value)} size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField label="BLE Write Char UUID" value={bleWriteCharUuid} onChange={(e) => setBleWriteCharUuid(e.target.value)} size="small" fullWidth />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField label="BLE Notify Char UUID" value={bleNotifyCharUuid} onChange={(e) => setBleNotifyCharUuid(e.target.value)} size="small" fullWidth />
-                </Grid>
+                <div className="space-y-1.5">
+                  <Label>BLE Service UUID</Label>
+                  <Input value={bleServiceUuid} onChange={(e) => setBleServiceUuid(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>BLE Write Char UUID</Label>
+                  <Input value={bleWriteCharUuid} onChange={(e) => setBleWriteCharUuid(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>BLE Notify Char UUID</Label>
+                  <Input value={bleNotifyCharUuid} onChange={(e) => setBleNotifyCharUuid(e.target.value)} />
+                </div>
               </>
             )}
-          </Grid>
-        </Stack>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!manufacturer || !model || saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={!manufacturer || !model || saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

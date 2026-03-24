@@ -22,6 +22,7 @@ import {
   accessoryTypeEnum,
   workSurfaceTypeEnum,
   machineTypeEnum,
+  machineProtocolEnum,
   changerTypeEnum,
   toolCategoryEnum,
   printJobStatusEnum,
@@ -147,6 +148,7 @@ export const machines = pgTable("machines", {
     .notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   machineType: machineTypeEnum("machine_type").default("fdm").notNull(),
+  protocol: machineProtocolEnum("protocol").default("manual"),
   manufacturer: varchar("manufacturer", { length: 255 }),
   model: varchar("model", { length: 255 }),
   firmwareVersion: varchar("firmware_version", { length: 50 }),
@@ -162,9 +164,11 @@ export const machines = pgTable("machines", {
   mqttTopic: varchar("mqtt_topic", { length: 255 }),
   // Scan station that relays MQTT for this machine (local network bridge)
   scanStationId: uuid("scan_station_id"),
-  // LAN access code for Bambu printer MQTT auth
+  // Protocol-specific connection config (API keys, serial port, etc.)
+  connectionConfig: jsonb("connection_config"),
+  // LAN access code for Bambu printer MQTT auth (legacy — use connectionConfig)
   accessCode: varchar("access_code", { length: 64 }),
-  // Live status from printer MQTT (temps, progress, AMS, etc.)
+  // Normalized live status from machine plugin (NormalizedMachineStatus)
   liveStatus: jsonb("live_status"),
   toolHeadType: varchar("tool_head_type", { length: 50 }),
   nozzleSwapSystem: varchar("nozzle_swap_system", { length: 50 }),

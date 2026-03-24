@@ -1,27 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardHeader from "@mui/material/CardHeader";
-import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
-import CancelIcon from "@mui/icons-material/Cancel";
-import DeleteIcon from "@mui/icons-material/Delete";
-import PrintIcon from "@mui/icons-material/Print";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import { Ban, Trash2, Printer, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import { listMyPrintJobs, cancelPrintJob, deletePrintJob } from "@/lib/actions/user-library";
 
 type PrintJob = {
@@ -35,16 +27,13 @@ type PrintJob = {
   createdAt: Date;
 };
 
-const statusColors: Record<
-  string,
-  "default" | "primary" | "info" | "success" | "error" | "warning"
-> = {
-  pending: "warning",
-  sent: "info",
-  printing: "primary",
-  done: "success",
-  failed: "error",
-  cancelled: "default",
+const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  pending: "outline",
+  sent: "secondary",
+  printing: "default",
+  done: "default",
+  failed: "destructive",
+  cancelled: "outline",
 };
 
 function formatDate(date: Date | string) {
@@ -102,116 +91,96 @@ export function PrintJobsCard() {
 
   return (
     <Card>
-      <CardHeader
-        title="Print Jobs"
-        titleTypographyProps={{ fontWeight: 600 }}
-        action={
-          <IconButton onClick={loadData} size="small" title="Refresh">
-            <RefreshIcon />
-          </IconButton>
-        }
-      />
-      <Divider />
+      <CardHeader className="border-b">
+        <CardTitle className="font-semibold">Print Jobs</CardTitle>
+        <CardAction>
+          <Button variant="ghost" size="icon-sm" onClick={loadData} title="Refresh">
+            <RefreshCw className="size-4" />
+          </Button>
+        </CardAction>
+      </CardHeader>
       <CardContent>
         {loading ? (
-          <Stack spacing={1}>
+          <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} variant="rounded" height={40} />
+              <Skeleton key={i} className="h-10 w-full rounded" />
             ))}
-          </Stack>
+          </div>
         ) : jobs.length === 0 ? (
-          <Box sx={{ textAlign: "center", py: 4 }}>
-            <PrintIcon
-              sx={{ fontSize: 48, color: "text.disabled", mb: 1 }}
-            />
-            <Typography variant="subtitle1" fontWeight={500}>
-              No print jobs
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Print jobs will appear here when you print labels from the Spools
-              page.
-            </Typography>
-          </Box>
+          <div className="text-center py-8">
+            <Printer className="mx-auto size-12 text-muted-foreground/50 mb-2" />
+            <p className="text-sm font-medium">No print jobs</p>
+            <p className="text-sm text-muted-foreground">
+              Print jobs will appear here when you print labels from the Spools page.
+            </p>
+          </div>
         ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Label</TableCell>
-                  <TableCell>Copies</TableCell>
-                  <TableCell>Created</TableCell>
-                  <TableCell>Printed</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {jobs.map((job) => (
-                  <TableRow key={job.id} hover>
-                    <TableCell>
-                      <Chip
-                        label={job.status}
-                        size="small"
-                        color={statusColors[job.status] ?? "default"}
-                        sx={{ textTransform: "capitalize" }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {labelSummary(
-                          job.labelData as Record<string, any>
-                        )}
-                      </Typography>
-                      {job.errorMessage && (
-                        <Typography
-                          variant="caption"
-                          color="error.main"
-                          display="block"
-                        >
-                          {job.errorMessage}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{job.copies}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {formatDate(job.createdAt)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {job.printedAt ? formatDate(job.printedAt) : "—"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Stack direction="row" spacing={0}>
-                        {job.status === "pending" && (
-                          <IconButton
-                            size="small"
-                            color="warning"
-                            title="Cancel"
-                            disabled={busy === job.id}
-                            onClick={() => handleCancel(job.id)}
-                          >
-                            <CancelIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                        <IconButton
-                          size="small"
-                          color="error"
-                          title="Delete"
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Status</TableHead>
+                <TableHead>Label</TableHead>
+                <TableHead>Copies</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Printed</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((job) => (
+                <TableRow key={job.id}>
+                  <TableCell>
+                    <Badge variant={statusVariants[job.status] ?? "outline"} className="capitalize">
+                      {job.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm">
+                      {labelSummary(job.labelData as Record<string, any>)}
+                    </span>
+                    {job.errorMessage && (
+                      <span className="block text-xs text-destructive">
+                        {job.errorMessage}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>{job.copies}</TableCell>
+                  <TableCell>
+                    <span className="text-sm">{formatDate(job.createdAt)}</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm">
+                      {job.printedAt ? formatDate(job.printedAt) : "\u2014"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-0.5">
+                      {job.status === "pending" && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Cancel"
                           disabled={busy === job.id}
-                          onClick={() => handleDelete(job.id)}
+                          onClick={() => handleCancel(job.id)}
                         >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                          <Ban className="size-4 text-amber-500" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        title="Delete"
+                        disabled={busy === job.id}
+                        onClick={() => handleDelete(job.id)}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>

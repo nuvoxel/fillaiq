@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import Pagination from "@mui/material/Pagination";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function AuditPagination({
   totalPages,
@@ -13,19 +14,32 @@ export function AuditPagination({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  function handleChange(_: React.ChangeEvent<unknown>, page: number) {
+  function goToPage(page: number) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", String(page));
     router.push(`?${params.toString()}`);
   }
 
   return (
-    <Pagination
-      count={totalPages}
-      page={currentPage}
-      onChange={handleChange}
-      color="primary"
-      shape="rounded"
-    />
+    <div className="flex gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={currentPage <= 1}
+        onClick={() => goToPage(currentPage - 1)}
+      >
+        <ChevronLeft className="size-4 mr-1" />
+        Previous
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={currentPage >= totalPages}
+        onClick={() => goToPage(currentPage + 1)}
+      >
+        Next
+        <ChevronRight className="size-4 ml-1" />
+      </Button>
+    </div>
   );
 }
