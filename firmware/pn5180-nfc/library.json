@@ -1,0 +1,26 @@
+{
+    "name": "PN5180-NFC",
+    "version": "1.0.0",
+    "description": "NXP PN5180 NFC frontend library — ISO 14443A (MIFARE, NTAG), ISO 15693 (ICODE SLIX), LPCD, native Crypto1 auth",
+    "keywords": "nfc, rfid, pn5180, mifare, ntag, iso14443, iso15693, icode, slix, lpcd, rp2040, pico",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/nuvoxel/pn5180-nfc.git"
+    },
+    "authors": [
+        {"name": "Andreas Trappmann", "url": "https://github.com/ATrappmann"},
+        {"name": "Dirk Carstensen (tueddy)", "url": "https://github.com/tueddy"},
+        {"name": "jef-sure", "url": "https://components.espressif.com/components/jef-sure/pn5180"},
+        {"name": "Filla IQ / Nuvoxel", "url": "https://github.com/nuvoxel"}
+    ],
+    "license": "LGPL-2.1-or-later",
+    "frameworks": "arduino",
+    "platforms": ["espressif32", "raspberrypi", "atmelavr", "atmelsam"],
+    "build": {
+        "srcDir": "lib/PN5180",
+        "includeDir": "lib/PN5180"
+    },
+    "export": {
+        "exclude": ["src/", "include/", "docs/", ".pio/"]
+    }
+}

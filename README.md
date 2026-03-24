@@ -150,9 +150,9 @@ pio run -e scan_station             # DevKitC + PN532
 | Label rendering | 1-bit thermal bitmap generation (server-side), QR via `qrcode` |
 | NFC crypto | HKDF-SHA256 (BearSSL on RP2040, server-side Node.js) |
 
-## Related Projects
+## PN5180 NFC Library
 
-- **[nuvoxel/pn5180-nfc](https://github.com/nuvoxel/pn5180-nfc)** — PN5180 NFC Arduino library + RP2040 Pico I2C coprocessor. Open source (LGPL-2.1+ / MIT).
+The `firmware/pn5180-nfc/` directory contains the PN5180 NFC Arduino library and RP2040 Pico I2C coprocessor firmware. See its [README](firmware/pn5180-nfc/README.md) for details. Dual-licensed: LGPL-2.1+ (library), MIT (coprocessor firmware).
 
 ## Acknowledgments
 

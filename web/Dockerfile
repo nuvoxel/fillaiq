@@ -1,10 +1,13 @@
 FROM node:22-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+RUN corepack enable
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn .yarn
+RUN yarn install --immutable
 
 FROM node:22-slim AS builder
 WORKDIR /app
+RUN corepack enable
 ARG APP_VERSION=dev
 ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION
 # Placeholder env vars for build-time validation (overridden at runtime)
@@ -13,7 +16,7 @@ ENV BETTER_AUTH_SECRET="build-placeholder"
 ENV BETTER_AUTH_URL="http://localhost:3000"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN yarn build
 
 FROM node:22-slim AS runner
 WORKDIR /app

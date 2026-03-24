@@ -376,7 +376,7 @@ jobs:
         kubectl wait --for=condition=available deployment/fillaiq-web -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "Web not ready yet, skipping migrations"
 
         echo "Running database migrations..."
-        kubectl exec -n ${{ env.HELM_NAMESPACE }} deployment/fillaiq-web -- npx drizzle-kit migrate || echo "Migrations completed or not needed"
+        kubectl exec -n ${{ env.HELM_NAMESPACE }} deployment/fillaiq-web -- yarn drizzle-kit migrate || echo "Migrations completed or not needed"
 
     - name: Create deployment tag
       run: |
