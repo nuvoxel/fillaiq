@@ -119,6 +119,29 @@ Built with Next.js 16, Tailwind CSS, shadcn/ui, Drizzle ORM, PostgreSQL.
 | AS7265X | 18-channel tri-sensor | Near-lab quality UV/VIS/NIR |
 | TCS34725 | 4-channel RGBC | Basic fallback |
 
+## Local Development
+
+Prerequisites: Node.js, Yarn, Docker.
+
+```bash
+./scripts/dev.sh
+```
+
+This will:
+1. Create `web/.env` from `.env.example` with a generated auth secret (first run only)
+2. Start PostgreSQL 17 and Mosquitto MQTT broker via Docker Compose
+3. Install dependencies
+4. Run database migrations
+5. Start the Next.js dev server at http://localhost:3000
+
+OAuth providers (Google, GitHub, Microsoft) are optional for local dev — email/password works without them. To enable them, add the credentials to `web/.env`.
+
+To stop the Docker services:
+
+```bash
+docker compose -f docker-compose.dev.yml down
+```
+
 ## Firmware
 
 Built with PlatformIO + Arduino framework. Dual-core architecture: Core 0 handles NFC + network + weight, Core 1 handles display + sensors.
