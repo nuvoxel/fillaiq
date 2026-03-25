@@ -17,7 +17,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <AppShell user={{ name: session.user.name, image: session.user.image }}>
+    <AppShell user={{ name: session.user.name, image: session.user.image, role: (session.user as any).role }}>
       {children}
     </AppShell>
   );

@@ -6,8 +6,10 @@ import {
   Warehouse,
   Package,
   BookOpen,
-  Cpu,
+  Printer,
   Router,
+  History,
+  Send,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -31,8 +33,13 @@ const navItems = [
   { href: "/locations", label: "Dashboard", icon: Warehouse },
   { href: "/spools", label: "Inventory", icon: Package },
   { href: "/catalog", label: "Catalog", icon: BookOpen },
-  { href: "/hardware", label: "Hardware", icon: Cpu },
+  { href: "/hardware", label: "Hardware", icon: Printer },
   { href: "/scan-station", label: "Stations", icon: Router },
+];
+
+const adminItems = [
+  { href: "/audit", label: "Audit", icon: History },
+  { href: "/submissions", label: "Submissions", icon: Send },
 ];
 
 const bottomItems = [
@@ -131,9 +138,10 @@ function UserProfile({
 export function AppSidebar({
   user,
 }: {
-  user?: { name?: string | null; image?: string | null } | null;
+  user?: { name?: string | null; image?: string | null; role?: string | null } | null;
 }) {
   const pathname = usePathname();
+  const isAdmin = user?.role === "admin";
 
   return (
     <ShadcnSidebar
@@ -171,6 +179,38 @@ export function AppSidebar({
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <>
+            <SidebarSeparator className="bg-white/[0.08]" />
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminItems.map(({ href, label, icon: Icon }) => {
+                    const active = isActive(pathname, href);
+                    return (
+                      <SidebarMenuItem key={href}>
+                        <SidebarMenuButton
+                          render={<Link href={href} />}
+                          tooltip={label}
+                          isActive={active}
+                          className={
+                            active
+                              ? "bg-cyan-400/12 text-white hover:bg-cyan-400/16 [&_svg]:text-cyan-400"
+                              : "text-white/50 hover:bg-white/[0.06] hover:text-white"
+                          }
+                        >
+                          <Icon />
+                          <span>{label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-0">

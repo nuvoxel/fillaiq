@@ -9,7 +9,7 @@ export function AppShell({
   user,
 }: {
   children: ReactNode;
-  user?: { name?: string | null; image?: string | null } | null;
+  user?: { name?: string | null; image?: string | null; role?: string | null } | null;
 }) {
   return (
     <SidebarProvider>
