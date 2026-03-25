@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { admin, username, organization, apiKey, magicLink } from "better-auth/plugins";
+import { admin, username, organization, magicLink } from "better-auth/plugins";
+import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import {
   genericOAuth,
