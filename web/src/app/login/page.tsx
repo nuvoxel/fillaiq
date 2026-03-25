@@ -307,7 +307,7 @@ export default function LoginPage() {
                 setError(null);
                 const result = await authClient.signIn.passkey();
                 if (result?.error) {
-                  setError(result.error.message ?? "Passkey sign-in failed");
+                  setError(String(result.error.message ?? "Passkey sign-in failed"));
                 } else {
                   router.push("/locations");
                   router.refresh();
