@@ -88,7 +88,7 @@ export default function LoginPage() {
             </div>
             <h1 className="font-display text-xl font-bold">FillaIQ</h1>
             <p className="text-sm text-muted-foreground">
-              Filament spool monitoring platform
+              Smart workshop inventory
             </p>
           </div>
 
