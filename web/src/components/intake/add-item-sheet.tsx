@@ -88,7 +88,7 @@ type ScanSession = {
   matchMethod?: string | null;
   productName?: string | null;
   brandName?: string | null;
-  createdAt?: string | null;
+  createdAt?: string | Date | null;
 };
 
 type BrandOption = { id: string; name: string };
