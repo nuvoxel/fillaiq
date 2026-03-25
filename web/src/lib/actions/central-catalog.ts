@@ -35,7 +35,7 @@ import {
   insertProductAliasSchema,
   updateProductAliasSchema,
 } from "./schemas";
-import { requireAdmin } from "./auth";
+import { requireAdmin, requireAuth } from "./auth";
 import { emitAuditEvent } from "./audit";
 import { auditActorType } from "./audit-helpers";
 
@@ -202,6 +202,27 @@ export async function createProduct(input: unknown) {
   }
   return result;
 }
+/**
+ * Submit a new product as an unverified catalog entry.
+ * Any authenticated user can call this — the product is created
+ * with validationStatus "submitted" and tagged with the user's ID.
+ * An admin can later validate, merge, or reject it.
+ */
+export async function submitProduct(input: unknown) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+  const data = typeof input === "object" && input !== null ? input : {};
+  const result = await productsCrud.create({
+    ...data,
+    validationStatus: "submitted",
+    submittedByUserId: guard.data.userId,
+  });
+  if (result.error === null) {
+    emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "create", resourceType: "product", resourceId: result.data.id });
+  }
+  return result;
+}
+
 export async function getProductById(id: string) {
   return productsCrud.getById(id);
 }
