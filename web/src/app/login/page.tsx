@@ -19,7 +19,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  async function handleMagicLink() {
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    try {
+      const result = await authClient.signIn.magicLink({ email, callbackURL: "/locations" });
+      if (result.error) {
+        setError(result.error.message ?? "Failed to send magic link");
+      } else {
+        setSuccess("Check your email for a sign-in link.");
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleSignIn() {
     setError(null);
@@ -96,6 +115,12 @@ export default function LoginPage() {
               </Alert>
             )}
 
+            {success && (
+              <Alert className="mt-4">
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
             <TabsContent value="sign-in">
               <form
                 onSubmit={(e) => {
@@ -134,6 +159,20 @@ export default function LoginPage() {
                   ) : (
                     "Sign In"
                   )}
+                </Button>
+                <div className="relative my-2">
+                  <Separator />
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-3 text-xs text-muted-foreground">
+                    or
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={loading || !email}
+                  onClick={handleMagicLink}
+                >
+                  Email me a sign-in link
                 </Button>
               </form>
             </TabsContent>

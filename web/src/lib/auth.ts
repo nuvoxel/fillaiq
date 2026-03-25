@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { admin, username, organization, apiKey } from "better-auth/plugins";
+import { admin, username, organization, apiKey, magicLink } from "better-auth/plugins";
 import {
   genericOAuth,
   microsoftEntraId,
@@ -77,6 +77,15 @@ export const auth = betterAuth({
     username(),
     organization(),
     apiKey(),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        await sendEmail(
+          email,
+          "Sign in to FillaIQ",
+          `<p>Click the link below to sign in:</p><p><a href="${url}">${url}</a></p><p>This link expires in 5 minutes.</p>`,
+        );
+      },
+    }),
     genericOAuth({
       config: [
         microsoftEntraId({

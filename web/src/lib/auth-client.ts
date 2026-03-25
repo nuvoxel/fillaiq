@@ -4,8 +4,9 @@ import {
   usernameClient,
   organizationClient,
   apiKeyClient,
+  magicLinkClient,
 } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
-  plugins: [adminClient(), usernameClient(), organizationClient(), apiKeyClient()],
+  plugins: [adminClient(), usernameClient(), organizationClient(), apiKeyClient(), magicLinkClient()],
 });
