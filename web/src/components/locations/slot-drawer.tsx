@@ -133,6 +133,7 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [editing, setEditing] = useState(false);
 
@@ -269,7 +270,7 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
     const toFloat = (v: string) => v ? parseFloat(v) : null;
     const toInt = (v: string) => v ? parseInt(v) : null;
     const toDateOrNull = (v: string) => v || null;
-    await updateUserItem(item.id, {
+    const result = await updateUserItem(item.id, {
       packageType: f.packageType || null,
       status: f.status,
       notes: f.notes || null,
@@ -309,6 +310,10 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
       storageLocation: f.storageLocation || null,
       productId: selectedProduct?.product?.id ?? null,
     });
+    if (result.error) {
+      console.error("Failed to save item:", result.error);
+      setSaveError(result.error);
+    }
     setSaving(false);
     setEditing(false);
     onUpdate?.();
@@ -383,7 +388,7 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full md:w-[66vw] md:max-w-[900px] sm:max-w-none p-0 flex flex-col"
+        className="w-full sm:max-w-none! md:w-[66vw] md:max-w-225 p-0 flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
@@ -892,13 +897,18 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
                 </Accordion>
 
                 {/* Actions */}
+                {saveError && (
+                  <div className="px-5 py-2">
+                    <p className="text-sm text-destructive">Save failed: {saveError}</p>
+                  </div>
+                )}
                 <div className="px-5 py-4 flex gap-2 flex-wrap">
                   {editing ? (
                     <>
-                      <Button size="sm" onClick={handleSaveItem} disabled={saving} className="flex-1">
+                      <Button size="sm" onClick={() => { setSaveError(null); handleSaveItem(); }} disabled={saving} className="flex-1">
                         {saving ? "Saving..." : "Save All Changes"}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
+                      <Button variant="outline" size="sm" onClick={() => { setEditing(false); setSaveError(null); }}>Cancel</Button>
                     </>
                   ) : (
                     <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
