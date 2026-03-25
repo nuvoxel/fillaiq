@@ -426,13 +426,13 @@ export default function LandingPage() {
           .
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          <Link href="/privacy" className="underline-offset-2 hover:underline">
+          <a href="https://fillaiq.com/privacy" className="underline-offset-2 hover:underline">
             Privacy Policy
-          </Link>
+          </a>
           {" · "}
-          <Link href="/terms" className="underline-offset-2 hover:underline">
+          <a href="https://fillaiq.com/terms" className="underline-offset-2 hover:underline">
             Terms of Service
-          </Link>
+          </a>
         </p>
       </footer>
     </div>
