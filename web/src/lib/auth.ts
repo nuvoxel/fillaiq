@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { admin, username, organization, apiKey, magicLink } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import {
   genericOAuth,
   microsoftEntraId,
@@ -77,6 +78,7 @@ export const auth = betterAuth({
     username(),
     organization(),
     apiKey(),
+    passkey(),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
         await sendEmail(

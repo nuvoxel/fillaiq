@@ -126,6 +126,25 @@ export const invitations = pgTable("invitations", {
     .notNull(),
 });
 
+// ── Passkeys ────────────────────────────────────────────────────────────────
+
+export const passkeys = pgTable("passkeys", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name"),
+  publicKey: text("public_key").notNull(),
+  userId: uuid("user_id")
+    .references(() => users.id)
+    .notNull(),
+  credentialID: text("credential_id").notNull().unique(),
+  counter: integer("counter").default(0).notNull(),
+  deviceType: text("device_type"),
+  backedUp: boolean("backed_up").default(false).notNull(),
+  transports: text("transports"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // ── API Keys ─────────────────────────────────────────────────────────────────
 
 export const apikeys = pgTable("apikeys", {
