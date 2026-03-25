@@ -42,6 +42,7 @@ import { ProductCard } from "@/components/scan/product-card";
 import { SlotPicker } from "@/components/scan/slot-picker";
 import {
   listMyScanSessions,
+  getScanSession,
   lookupProductByBarcode,
   searchProducts,
   createIntakeItem,
@@ -189,8 +190,21 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     listMaterials({ limit: 200 }).then((r) => {
       if (r.data) setMaterials(r.data.map((m: any) => ({ id: m.id, name: m.name, abbreviation: m.abbreviation })));
     });
-    // Create a web session for phone companion
-    if (!sessionId) {
+    if (sessionId) {
+      // Load the specific session (e.g. from QR code / direct URL)
+      setSelectedSessionId(sessionId);
+      setActiveSessionId(sessionId);
+      getScanSession(sessionId).then((r) => {
+        if (r.data) {
+          const s = r.data as ScanSession;
+          setSessions((prev) => {
+            if (prev.find((p) => p.id === s.id)) return prev;
+            return [s, ...prev];
+          });
+        }
+      });
+    } else {
+      // Create a web session for phone companion
       createWebSession().then((r) => {
         if (r.data) {
           setActiveSessionId(r.data.id);
