@@ -89,6 +89,16 @@ async function seed() {
     console.log(`✓ Created dev user: ${DEV_EMAIL} / ${DEV_PASSWORD} (admin)`);
   }
 
+  // ── Check if already seeded ─────────────────────────────────────────────
+  const existingBrands = await db.select().from(schema.brands).limit(1);
+  if (existingBrands.length > 0) {
+    console.log("✓ Database already seeded, skipping\n");
+    console.log("Dev account: dev@fillaiq.com / devdevdev");
+    console.log("URL: http://localhost:3000/login");
+    await client.end();
+    return;
+  }
+
   // ── Brands ─────────────────────────────────────────────────────────────
   console.log("Creating brands...");
   const brandRows = await db
@@ -626,6 +636,8 @@ async function seed() {
   console.log("  8 accessories");
 
   console.log("\nSeed complete!");
+  console.log("\nDev account: dev@fillaiq.com / devdevdev");
+  console.log("URL: http://localhost:3000/login");
   await client.end();
 }
 
