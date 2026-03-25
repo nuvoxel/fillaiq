@@ -573,7 +573,12 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                       <p className="text-xs text-muted-foreground text-center max-w-xs">
                         Open this link on your phone to scan barcodes and take photos. Data syncs to this session automatically.
                       </p>
-                      <Button variant="ghost" size="sm" onClick={() => setShowQr(false)}>Dismiss</Button>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => { setShowQr(false); setShowCamera(true); }}>
+                          Use this device&apos;s camera
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowQr(false)}>Dismiss</Button>
+                      </div>
                     </div>
                   )}
 
