@@ -76,7 +76,16 @@ export const auth = betterAuth({
     nextCookies(),
     admin(),
     username(),
-    organization(),
+    organization({
+      async sendInvitationEmail(data) {
+        const inviteLink = `${process.env.BETTER_AUTH_URL}/accept-invitation/${data.id}`;
+        await sendEmail(
+          data.email,
+          `You've been invited to ${data.organization.name} on FillaIQ`,
+          `<p>${data.inviter.user.name} invited you to join <strong>${data.organization.name}</strong> on FillaIQ.</p><p><a href="${inviteLink}">Accept Invitation</a></p>`,
+        );
+      },
+    }),
     apiKey(),
     passkey(),
     magicLink({
