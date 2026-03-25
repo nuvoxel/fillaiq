@@ -72,6 +72,24 @@ else
   sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql://fillaiq:fillaiq@localhost:5432/fillaiq?sslmode=disable|' "$WEB/.env"
 fi
 
+# ── Mosquitto MQTT ──────────────────────────────────────────────────────────
+if docker ps --format '{{.Names}}' | grep -q fillaiq-mqtt; then
+  info "Mosquitto already running"
+elif docker ps -a --format '{{.Names}}' | grep -q fillaiq-mqtt; then
+  info "Starting existing Mosquitto container..."
+  docker start fillaiq-mqtt >/dev/null
+else
+  info "Starting Mosquitto..."
+  docker run -d \
+    --name fillaiq-mqtt \
+    -p 1883:1883 \
+    -v "$ROOT/mosquitto/mosquitto.local.conf:/mosquitto/config/mosquitto.conf:ro" \
+    -v fillaiq-mqttdata:/tmp/mosquitto \
+    eclipse-mosquitto:2 \
+    >/dev/null
+fi
+info "Mosquitto ready on mqtt://localhost:1883"
+
 # ── Dependencies ────────────────────────────────────────────────────────────
 info "Installing dependencies..."
 cd "$WEB"
