@@ -4,10 +4,14 @@ import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
 
+const DEV_EMAIL = "dev@fillaiq.com";
+const DEV_PASSWORD = "devdevdev";
+const DEV_NAME = "Dev User";
+
 const client = postgres(process.env.DATABASE_URL!);
 const db = drizzle(client, { schema });
 
-const USER_ID = "4a80cd34-fb8e-4582-9d41-2ebfed6badde"; // Mike DeLuca
+let USER_ID: string;
 
 // ─── Realistic filament data ───────────────────────────────────────────────
 
@@ -52,6 +56,33 @@ const AUDIT_ACTIONS = ["create", "update", "delete"] as const;
 
 async function seed() {
   console.log("Seeding database...\n");
+
+  // ── Dev user ───────────────────────────────────────────────────────────
+  const existing = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, DEV_EMAIL))
+    .limit(1);
+
+  if (existing.length > 0) {
+    console.log(`✓ Dev user already exists (${DEV_EMAIL})`);
+    USER_ID = existing[0].id;
+  } else {
+    const { auth } = await import("../src/lib/auth");
+    const result = await auth.api.signUpEmail({
+      body: { email: DEV_EMAIL, password: DEV_PASSWORD, name: DEV_NAME },
+    });
+    if (!result?.user) {
+      console.error("Failed to create dev user");
+      process.exit(1);
+    }
+    USER_ID = result.user.id;
+    await db
+      .update(schema.users)
+      .set({ role: "admin", emailVerified: true, username: "dev" })
+      .where(eq(schema.users.id, USER_ID));
+    console.log(`✓ Created dev user: ${DEV_EMAIL} / ${DEV_PASSWORD} (admin)`);
+  }
 
   // ── Brands ─────────────────────────────────────────────────────────────
   console.log("Creating brands...");

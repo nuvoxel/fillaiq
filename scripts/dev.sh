@@ -60,6 +60,10 @@ yarn install --silent 2>/dev/null || yarn install
 info "Running database migrations..."
 yarn db:migrate
 
+# ── Seed database ──────────────────────────────────────────────────────────
+info "Seeding database..."
+yarn db:seed
+
 # ── Start dev server ────────────────────────────────────────────────────────
 info "Starting Next.js dev server on http://localhost:3000"
 exec yarn dev
