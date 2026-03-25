@@ -64,8 +64,7 @@ export const scanSessions = pgTable("scan_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id),
   stationId: uuid("station_id")
-    .references(() => scanStations.id)
-    .notNull(),
+    .references(() => scanStations.id), // nullable for web-initiated sessions
   status: scanSessionStatusEnum("status").default("active").notNull(),
 
   // ── Accumulated best values ─────────────────────────────────────────────

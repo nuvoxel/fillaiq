@@ -417,6 +417,26 @@ export async function getScanSession(id: string) {
   return ok({ ...row.session, productName: row.productName, brandName: row.brandName });
 }
 
+/**
+ * Create a web-initiated scan session (no station).
+ * Used when the user starts an add-item flow from the web UI
+ * and wants to use their phone for barcode scanning or photos.
+ */
+export async function createWebSession() {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [session] = await db
+    .insert(scanSessions)
+    .values({
+      userId: guard.data.userId,
+      status: "active",
+    })
+    .returning();
+
+  return ok(session);
+}
+
 export async function abandonSession(id: string) {
   const guard = await requireAuth();
   if (guard.error !== null) return guard;

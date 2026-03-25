@@ -1,0 +1,1 @@
+ALTER TABLE "scan_sessions" ALTER COLUMN "station_id" DROP NOT NULL;

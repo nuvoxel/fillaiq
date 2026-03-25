@@ -45,9 +45,11 @@ import {
   lookupProductByBarcode,
   searchProducts,
   createIntakeItem,
+  createWebSession,
 } from "@/lib/actions/scan";
 import { createUserItem } from "@/lib/actions/user-library";
 import { submitProduct } from "@/lib/actions/central-catalog";
+import QRCode from "qrcode";
 import { listBrands, listMaterials } from "@/lib/actions/central-catalog";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -105,6 +107,11 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
   const [sessions, setSessions] = useState<ScanSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(sessionId ?? null);
   const [loadingSessions, setLoadingSessions] = useState(false);
+
+  // ── Active session (created on open for phone companion) ────────────────
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(sessionId ?? null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   // ── Product identification ─────────────────────────────────────────────
   const [productMatch, setProductMatch] = useState<any>(null);
@@ -164,11 +171,13 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
 
   const hasProduct = !!productMatch;
 
-  // ── Load sessions + brands + materials on open ─────────────────────────
+  // ── Load sessions + brands + materials on open, create web session ─────
   useEffect(() => {
     if (!open) return;
     setSaved(false);
     setSaveError(null);
+    setShowQr(false);
+    setQrDataUrl(null);
     setLoadingSessions(true);
     listMyScanSessions({ status: "active", limit: 20 }).then((r) => {
       if (r.data) setSessions(r.data as ScanSession[]);
@@ -180,7 +189,16 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     listMaterials({ limit: 200 }).then((r) => {
       if (r.data) setMaterials(r.data.map((m: any) => ({ id: m.id, name: m.name, abbreviation: m.abbreviation })));
     });
-  }, [open]);
+    // Create a web session for phone companion
+    if (!sessionId) {
+      createWebSession().then((r) => {
+        if (r.data) {
+          setActiveSessionId(r.data.id);
+          setSelectedSessionId(r.data.id);
+        }
+      });
+    }
+  }, [open, sessionId]);
 
   // ── Auto-fill from scan session ────────────────────────────────────────
   useEffect(() => {
@@ -238,6 +256,8 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
   // ── Reset ──────────────────────────────────────────────────────────────
   const resetForm = useCallback(() => {
     setSelectedSessionId(null);
+    setActiveSessionId(null);
+    setQrDataUrl(null); setShowQr(false);
     setProductMatch(null); setSearchQuery(""); setSearchResults([]);
     setCreatingNew(false);
     setNewProductName(""); setNewBrandId("_none"); setNewBrandName("");
@@ -527,13 +547,44 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                 /* ── Search / scan / manual ── */
                 <div className="flex flex-col gap-3">
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowCamera(true)}>
+                    <Button variant="outline" size="sm" onClick={async () => {
+                      const sid = activeSessionId ?? selectedSessionId;
+                      if (sid) {
+                        const url = `${window.location.origin}/scan/${sid}`;
+                        const dataUrl = await QRCode.toDataURL(url, { width: 200, margin: 2 });
+                        setQrDataUrl(dataUrl);
+                        setShowQr(true);
+                      } else {
+                        setShowCamera(true);
+                      }
+                    }}>
                       <ScanLine className="size-3.5 mr-1" />Scan Barcode
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setCreatingNew(true)}>
                       <Plus className="size-3.5 mr-1" />New Product
                     </Button>
                   </div>
+
+                  {/* QR code for phone companion */}
+                  {showQr && qrDataUrl && (
+                    <div className="flex flex-col items-center gap-2 p-4 rounded-lg border bg-white">
+                      <p className="text-sm font-medium text-center">Scan with your phone to use its camera</p>
+                      <img src={qrDataUrl} alt="QR Code" className="size-48" />
+                      <p className="text-xs text-muted-foreground text-center max-w-xs">
+                        Open this link on your phone to scan barcodes and take photos. Data syncs to this session automatically.
+                      </p>
+                      <Button variant="ghost" size="sm" onClick={() => setShowQr(false)}>Dismiss</Button>
+                    </div>
+                  )}
+
+                  {/* Webcam fallback (mobile or if no session) */}
+                  {showCamera && (
+                    <div>
+                      <BarcodeScanner onDetected={handleCodesDetected} />
+                      <Button variant="ghost" size="sm" className="mt-2" onClick={() => setShowCamera(false)}>Cancel</Button>
+                    </div>
+                  )}
+
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                     <Input
@@ -562,12 +613,6 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                   {lookingUp && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="size-4 animate-spin" />Looking up barcode...
-                    </div>
-                  )}
-                  {showCamera && (
-                    <div>
-                      <BarcodeScanner onDetected={handleCodesDetected} />
-                      <Button variant="ghost" size="sm" className="mt-2" onClick={() => setShowCamera(false)}>Cancel</Button>
                     </div>
                   )}
                 </div>
