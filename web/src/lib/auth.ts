@@ -10,12 +10,17 @@ import { EmailClient } from "@azure/communication-email";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 
-const emailClient = new EmailClient(process.env.ACS_CONNECTION_STRING!);
-const emailSender = process.env.ACS_SENDER_ADDRESS!;
+let _emailClient: EmailClient | undefined;
+function getEmailClient() {
+  if (!_emailClient) {
+    _emailClient = new EmailClient(process.env.ACS_CONNECTION_STRING!);
+  }
+  return _emailClient;
+}
 
 async function sendEmail(to: string, subject: string, html: string) {
-  await emailClient.beginSend({
-    senderAddress: emailSender,
+  await getEmailClient().beginSend({
+    senderAddress: process.env.ACS_SENDER_ADDRESS!,
     content: { subject, html },
     recipients: { to: [{ address: to }] },
   });
