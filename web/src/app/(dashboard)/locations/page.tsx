@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/page-header";
 import { LocationDialog } from "@/components/locations/location-dialog";
+import { SpoolDialog } from "@/components/spools/spool-dialog";
 import { RackTopologyTab } from "../hardware/rack-topology-tab";
 
 export default function LocationsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [zoneDialogOpen, setZoneDialogOpen] = useState(false);
+  const [addItemOpen, setAddItemOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
   return (
@@ -20,6 +22,20 @@ export default function LocationsPage() {
         description="Your storage layout and what's where."
         action={
           <div className="flex gap-1">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setAddItemOpen(true)}
+                  />
+                }
+              >
+                <Plus className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>Add item</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -54,6 +70,16 @@ export default function LocationsPage() {
           setZoneDialogOpen(false);
           setRefreshKey((k) => k + 1);
         }}
+      />
+
+      <SpoolDialog
+        open={addItemOpen}
+        onClose={() => setAddItemOpen(false)}
+        onSaved={() => {
+          setAddItemOpen(false);
+          setRefreshKey((k) => k + 1);
+        }}
+        existing={null}
       />
     </div>
   );
