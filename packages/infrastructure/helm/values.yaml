@@ -107,9 +107,17 @@ secrets:
   msClientSecret: ""
   msTenantId: ""
 
+  # Google OAuth
+  googleClientId: ""
+  googleClientSecret: ""
+
   # GitHub OAuth
   githubClientId: ""
   githubClientSecret: ""
+
+  # Azure Communication Services (Email)
+  acsConnectionString: ""
+  acsSenderAddress: ""
 
   # MQTT Broker URL (WebSocket URL for frontend/devices)
   mqttBrokerUrl: ""

@@ -6,8 +6,20 @@ import {
   genericOAuth,
   microsoftEntraId,
 } from "better-auth/plugins/generic-oauth";
+import { EmailClient } from "@azure/communication-email";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+
+const emailClient = new EmailClient(process.env.ACS_CONNECTION_STRING!);
+const emailSender = process.env.ACS_SENDER_ADDRESS!;
+
+async function sendEmail(to: string, subject: string, html: string) {
+  await emailClient.beginSend({
+    senderAddress: emailSender,
+    content: { subject, html },
+    recipients: { to: [{ address: to }] },
+  });
+}
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -26,11 +38,32 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    sendResetPassword: async ({ user, url }) => {
+      await sendEmail(
+        user.email,
+        "Reset your FillaIQ password",
+        `<p>Click the link below to reset your password:</p><p><a href="${url}">${url}</a></p>`,
+      );
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail(
+        user.email,
+        "Verify your FillaIQ email",
+        `<p>Click the link below to verify your email address:</p><p><a href="${url}">${url}</a></p>`,
+      );
+    },
   },
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
   },
   plugins: [

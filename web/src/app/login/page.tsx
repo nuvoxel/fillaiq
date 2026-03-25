@@ -223,6 +223,20 @@ export default function LoginPage() {
               onClick={() => {
                 setLoading(true);
                 authClient.signIn.social({
+                  provider: "google",
+                  callbackURL: "/locations",
+                });
+              }}
+            >
+              Continue with Google
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={loading}
+              onClick={() => {
+                setLoading(true);
+                authClient.signIn.social({
                   provider: "github",
                   callbackURL: "/locations",
                 });
