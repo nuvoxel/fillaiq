@@ -558,7 +558,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                         setShowCamera(true);
                       }
                     }}>
-                      <ScanLine className="size-3.5 mr-1" />Scan Barcode
+                      <ScanLine className="size-3.5 mr-1" />Scan with Phone
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setCreatingNew(true)}>
                       <Plus className="size-3.5 mr-1" />New Product
@@ -568,10 +568,10 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                   {/* QR code for phone companion */}
                   {showQr && qrDataUrl && (
                     <div className="flex flex-col items-center gap-2 p-4 rounded-lg border bg-white">
-                      <p className="text-sm font-medium text-center">Scan with your phone to use its camera</p>
+                      <p className="text-sm font-medium text-center">Use your phone&apos;s camera</p>
                       <img src={qrDataUrl} alt="QR Code" className="size-48" />
                       <p className="text-xs text-muted-foreground text-center max-w-xs">
-                        Open this link on your phone to scan barcodes and take photos. Data syncs to this session automatically.
+                        Scan barcodes, QR codes, take photos, and read labels with OCR. Everything syncs to this session automatically.
                       </p>
                       <div className="flex gap-2">
                         <Button variant="ghost" size="sm" onClick={() => { setShowQr(false); setShowCamera(true); }}>
