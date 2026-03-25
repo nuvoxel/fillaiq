@@ -4,6 +4,11 @@ import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
 
+if (process.env.NODE_ENV === "production") {
+  console.error("✗ Seed script cannot run in production");
+  process.exit(1);
+}
+
 const DEV_EMAIL = "dev@fillaiq.com";
 const DEV_PASSWORD = "devdevdev";
 const DEV_NAME = "Dev User";
