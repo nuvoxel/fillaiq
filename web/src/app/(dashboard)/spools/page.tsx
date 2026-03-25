@@ -33,7 +33,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/page-header";
-import { SpoolDialog } from "@/components/spools/spool-dialog";
+import { AddItemSheet } from "@/components/intake/add-item-sheet";
 import {
   PrintLabelDialog,
   type PrintLabelItem,
@@ -48,7 +48,7 @@ const ALERT_ROSE = "#FF2A5F";
 /* -- Status tab definitions -- */
 type StatusTab = { label: string; value: string | null };
 const STATUS_TABS: StatusTab[] = [
-  { label: "All Spools", value: null },
+  { label: "All Items", value: null },
   { label: "Active", value: "active" },
   { label: "Empty", value: "empty" },
   { label: "Archived", value: "archived" },
@@ -219,15 +219,15 @@ export default function SpoolsPage() {
   return (
     <div>
       <PageHeader
-        title="Spools"
-        description="Manage your filament spool inventory."
+        title="Inventory"
+        description="All your tracked items — spools, boxes, tools, and more."
         action={
           <Button
             onClick={handleOpenCreate}
             className="bg-[#00677F] hover:bg-[#005266]"
           >
             <Plus className="size-4" />
-            Add Material
+            Add Item
           </Button>
         }
       />
@@ -605,11 +605,10 @@ export default function SpoolsPage() {
         </div>
       )}
 
-      <SpoolDialog
-        open={dialogOpen}
+      <AddItemSheet
+        open={dialogOpen && !editingItem}
         onClose={handleDialogClose}
         onSaved={handleSaved}
-        existing={editingItem}
       />
 
       <PrintLabelDialog

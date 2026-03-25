@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Warehouse,
   Package,
-  QrCode,
   BookOpen,
   Cpu,
   Router,
@@ -33,8 +32,7 @@ import {
 
 const navItems = [
   { href: "/locations", label: "Dashboard", icon: Warehouse },
-  { href: "/spools", label: "Spools", icon: Package },
-  { href: "/scan", label: "Scan", icon: QrCode },
+  { href: "/spools", label: "Inventory", icon: Package },
   { href: "/catalog", label: "Catalog", icon: BookOpen },
   { href: "/hardware", label: "Hardware", icon: Cpu },
   { href: "/scan-station", label: "Stations", icon: Router },
