@@ -655,7 +655,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                   {/* Webcam fallback (mobile or if no session) */}
                   {showCamera && (
                     <div>
-                      <BarcodeScanner onDetected={handleCodesDetected} />
+                      <BarcodeScanner onDetected={handleCodesDetected} onClose={() => setShowCamera(false)} />
                       <Button variant="ghost" size="sm" className="mt-2" onClick={() => setShowCamera(false)}>Cancel</Button>
                     </div>
                   )}
