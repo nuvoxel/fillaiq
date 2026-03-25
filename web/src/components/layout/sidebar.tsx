@@ -8,9 +8,6 @@ import {
   BookOpen,
   Cpu,
   Router,
-  BarChart3,
-  History,
-  Send,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -36,9 +33,6 @@ const navItems = [
   { href: "/catalog", label: "Catalog", icon: BookOpen },
   { href: "/hardware", label: "Hardware", icon: Cpu },
   { href: "/scan-station", label: "Stations", icon: Router },
-  { href: "/dashboard", label: "Reporting", icon: BarChart3 },
-  { href: "/audit", label: "Audit", icon: History },
-  { href: "/submissions", label: "Submissions", icon: Send },
 ];
 
 const bottomItems = [

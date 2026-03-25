@@ -9,7 +9,6 @@ import { MachineDialog } from "@/components/hardware/machine-dialog";
 import { EquipmentDialog } from "@/components/hardware/equipment-dialog";
 import { MachinesTab } from "./machines-tab";
 import { EquipmentTab } from "./equipment-tab";
-import { FillaIqTab } from "./filla-iq-tab";
 
 export default function HardwarePage() {
   const [tab, setTab] = useState("machines");
@@ -31,12 +30,10 @@ export default function HardwarePage() {
         title="Hardware"
         description="Manage machines and equipment."
         action={
-          tab !== "fillaiq" ? (
-            <Button onClick={handleAdd}>
-              <Plus className="size-4 mr-1" />
-              {tab === "machines" ? "Add Machine" : "Add Equipment"}
-            </Button>
-          ) : undefined
+          <Button onClick={handleAdd}>
+            <Plus className="size-4 mr-1" />
+            {tab === "machines" ? "Add Machine" : "Add Equipment"}
+          </Button>
         }
       />
 
@@ -44,7 +41,6 @@ export default function HardwarePage() {
         <TabsList variant="line" className="mb-3">
           <TabsTrigger value="machines">Machines</TabsTrigger>
           <TabsTrigger value="equipment">Equipment</TabsTrigger>
-          <TabsTrigger value="fillaiq">Filla IQ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="machines">
@@ -52,9 +48,6 @@ export default function HardwarePage() {
         </TabsContent>
         <TabsContent value="equipment">
           <EquipmentTab refreshKey={refreshKey} />
-        </TabsContent>
-        <TabsContent value="fillaiq">
-          <FillaIqTab />
         </TabsContent>
       </Tabs>
 
