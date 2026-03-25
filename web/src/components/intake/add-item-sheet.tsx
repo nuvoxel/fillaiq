@@ -114,6 +114,11 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
 
+  // ── NFC reading ─────────────────────────────────────────────────────────
+  const [nfcReading, setNfcReading] = useState(false);
+  const [nfcSupported, setNfcSupported] = useState(false);
+  useEffect(() => { setNfcSupported(typeof window !== "undefined" && "NDEFReader" in window); }, []);
+
   // ── Product identification ─────────────────────────────────────────────
   const [productMatch, setProductMatch] = useState<any>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -560,7 +565,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
               ) : (
                 /* ── Search / scan / manual ── */
                 <div className="flex flex-col gap-3">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={async () => {
                       const sid = activeSessionId ?? selectedSessionId;
                       if (sid) {
@@ -574,6 +579,57 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     }}>
                       <ScanLine className="size-3.5 mr-1" />Scan with Phone
                     </Button>
+                    {nfcSupported && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={nfcReading}
+                        onClick={async () => {
+                          setNfcReading(true);
+                          try {
+                            const ndef = new (window as any).NDEFReader();
+                            await ndef.scan();
+                            ndef.addEventListener("reading", ({ serialNumber, message }: any) => {
+                              // Set NFC UID from serial number
+                              const uid = serialNumber?.replace(/:/g, "").toUpperCase() ?? "";
+                              setNfcUid(uid);
+                              setNfcTagFormat("ntag");
+
+                              // Try to extract text records for product matching
+                              for (const record of message?.records ?? []) {
+                                if (record.recordType === "text") {
+                                  const decoder = new TextDecoder(record.encoding || "utf-8");
+                                  const text = decoder.decode(record.data);
+                                  // Use NFC text as search query
+                                  if (text.length > 2) {
+                                    handleSearchChange(text);
+                                  }
+                                } else if (record.recordType === "url") {
+                                  const decoder = new TextDecoder();
+                                  const url = decoder.decode(record.data);
+                                  // Could be an OpenSpool/TigerTag URL
+                                  if (url.length > 2) {
+                                    handleSearchChange(url);
+                                  }
+                                }
+                              }
+                              setNfcReading(false);
+                            });
+                            ndef.addEventListener("readingerror", () => {
+                              setNfcReading(false);
+                            });
+                            // Auto-stop after 30 seconds
+                            setTimeout(() => setNfcReading(false), 30000);
+                          } catch (e) {
+                            console.error("NFC read failed:", e);
+                            setNfcReading(false);
+                          }
+                        }}
+                      >
+                        <Nfc className="size-3.5 mr-1" />
+                        {nfcReading ? "Waiting for tag..." : "Read NFC"}
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setCreatingNew(true)}>
                       <Plus className="size-3.5 mr-1" />New Product
                     </Button>
