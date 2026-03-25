@@ -548,7 +548,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                       <Input value={newDiameter} onChange={(e) => setNewDiameter(e.target.value)} type="number" placeholder="1.75" />
                     </div>
                   </div>
-                  <Accordion type="multiple" className="mt-2">
+                  <Accordion>
                     <AccordionItem value="temps">
                       <AccordionTrigger className="text-xs font-medium py-2">Temperature Settings</AccordionTrigger>
                       <AccordionContent>
@@ -746,7 +746,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                 ))}
               </div>
 
-              <Accordion type="multiple">
+              <Accordion>
                 <AccordionItem value="purchase">
                   <AccordionTrigger className="text-sm font-medium">Purchase & Lifecycle</AccordionTrigger>
                   <AccordionContent>
