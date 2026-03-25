@@ -37,8 +37,13 @@ if [ ! -f "$WEB/.env" ]; then
 fi
 
 # ── PostgreSQL ──────────────────────────────────────────────────────────────
-if ! docker ps --format '{{.Names}}' | grep -q fillaiq-postgres; then
-  info "Starting PostgreSQL..."
+if docker ps --format '{{.Names}}' | grep -q fillaiq-postgres; then
+  info "PostgreSQL already running"
+elif docker ps -a --format '{{.Names}}' | grep -q fillaiq-postgres; then
+  info "Starting existing PostgreSQL container..."
+  docker start fillaiq-postgres >/dev/null
+else
+  info "Creating PostgreSQL container..."
   docker run -d \
     --name fillaiq-postgres \
     -e POSTGRES_USER=fillaiq \
@@ -48,18 +53,17 @@ if ! docker ps --format '{{.Names}}' | grep -q fillaiq-postgres; then
     -v fillaiq-pgdata:/var/lib/postgresql/data \
     postgres:17 \
     >/dev/null
-
-  # Wait for postgres to be ready
-  for i in {1..30}; do
-    if docker exec fillaiq-postgres pg_isready -U fillaiq >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-  info "PostgreSQL ready"
-else
-  info "PostgreSQL already running"
 fi
+
+# Wait for postgres to be ready
+info "Waiting for PostgreSQL..."
+for i in {1..30}; do
+  if docker exec fillaiq-postgres pg_isready -U fillaiq >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+info "PostgreSQL ready"
 
 # Update DATABASE_URL in .env to match the container
 if [[ "$OSTYPE" == "darwin"* ]]; then
