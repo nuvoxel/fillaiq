@@ -510,7 +510,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     </div>
                     <div>
                       <Label className="text-xs">Brand</Label>
-                      <Select value={newBrandId} onValueChange={setNewBrandId}>
+                      <Select value={newBrandId} onValueChange={(v) => setNewBrandId(v ?? "_none")}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="_none">Select brand...</SelectItem>
@@ -520,7 +520,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     </div>
                     <div>
                       <Label className="text-xs">Material</Label>
-                      <Select value={newMaterialId} onValueChange={setNewMaterialId}>
+                      <Select value={newMaterialId} onValueChange={(v) => setNewMaterialId(v ?? "_none")}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="_none">Select material...</SelectItem>
@@ -708,7 +708,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div>
                   <Label className="text-xs">Package Type</Label>
-                  <Select value={packageType} onValueChange={setPackageType}>
+                  <Select value={packageType} onValueChange={(v) => setPackageType(v ?? "_none")}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_none">Auto</SelectItem>
@@ -718,7 +718,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                 </div>
                 <div>
                   <Label className="text-xs">Status</Label>
-                  <Select value={status} onValueChange={setStatus}>
+                  <Select value={status} onValueChange={(v) => setStatus(v ?? "active")}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
