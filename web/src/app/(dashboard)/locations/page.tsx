@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/page-header";
 import { LocationDialog } from "@/components/locations/location-dialog";
-import { SpoolDialog } from "@/components/spools/spool-dialog";
+import { AddItemSheet } from "@/components/intake/add-item-sheet";
 import { RackTopologyTab } from "../hardware/rack-topology-tab";
 
 export default function LocationsPage() {
@@ -72,14 +72,13 @@ export default function LocationsPage() {
         }}
       />
 
-      <SpoolDialog
+      <AddItemSheet
         open={addItemOpen}
         onClose={() => setAddItemOpen(false)}
         onSaved={() => {
           setAddItemOpen(false);
           setRefreshKey((k) => k + 1);
         }}
-        existing={null}
       />
     </div>
   );
