@@ -425,6 +425,15 @@ export default function LandingPage() {
           </a>
           .
         </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          <Link href="/privacy" className="underline-offset-2 hover:underline">
+            Privacy Policy
+          </Link>
+          {" · "}
+          <Link href="/terms" className="underline-offset-2 hover:underline">
+            Terms of Service
+          </Link>
+        </p>
       </footer>
     </div>
   );
