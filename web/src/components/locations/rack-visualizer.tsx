@@ -386,7 +386,7 @@ function SlotCell({
             outline: isSelected ? "3px solid hsl(var(--primary))" : "none",
             outlineOffset: 2,
             borderRadius: `${r}px`,
-            background: "linear-gradient(180deg, #78909C 0%, #607D8B 30%, #546E7A 70%, #455A64 100%)",
+            background: "linear-gradient(180deg, #A1887F 0%, #8D6E63 30%, #795548 70%, #5D4037 100%)",
             boxShadow: "0 2px 5px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
             overflow: "hidden",
             transition: "transform 0.12s ease, outline 0.12s ease",
