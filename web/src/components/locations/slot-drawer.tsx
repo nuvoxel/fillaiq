@@ -269,7 +269,7 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
     setSaving(true);
     const toFloat = (v: string) => v ? parseFloat(v) : null;
     const toInt = (v: string) => v ? parseInt(v) : null;
-    const toDateOrNull = (v: string) => v || null;
+    const toDateOrNull = (v: string) => v ? new Date(v) : null;
     const result = await updateUserItem(item.id, {
       packageType: f.packageType || null,
       status: f.status,
