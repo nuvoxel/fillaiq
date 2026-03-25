@@ -36,24 +36,9 @@ if [ ! -f "$WEB/.env" ]; then
   warn "Edit $WEB/.env to add OAuth credentials if needed"
 fi
 
-# ── PostgreSQL ──────────────────────────────────────────────────────────────
-if docker ps --format '{{.Names}}' | grep -q fillaiq-postgres; then
-  info "PostgreSQL already running"
-elif docker ps -a --format '{{.Names}}' | grep -q fillaiq-postgres; then
-  info "Starting existing PostgreSQL container..."
-  docker start fillaiq-postgres >/dev/null
-else
-  info "Creating PostgreSQL container..."
-  docker run -d \
-    --name fillaiq-postgres \
-    -e POSTGRES_USER=fillaiq \
-    -e POSTGRES_PASSWORD=fillaiq \
-    -e POSTGRES_DB=fillaiq \
-    -p 5432:5432 \
-    -v fillaiq-pgdata:/var/lib/postgresql/data \
-    postgres:17 \
-    >/dev/null
-fi
+# ── Docker services (PostgreSQL + Mosquitto) ────────────────────────────────
+info "Starting Docker services..."
+docker compose -f "$ROOT/docker-compose.dev.yml" up -d
 
 # Wait for postgres to be ready
 info "Waiting for PostgreSQL..."
@@ -64,30 +49,6 @@ for i in {1..30}; do
   sleep 1
 done
 info "PostgreSQL ready"
-
-# Update DATABASE_URL in .env to match the container
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  sed -i '' 's|^DATABASE_URL=.*|DATABASE_URL=postgresql://fillaiq:fillaiq@localhost:5432/fillaiq?sslmode=disable|' "$WEB/.env"
-else
-  sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql://fillaiq:fillaiq@localhost:5432/fillaiq?sslmode=disable|' "$WEB/.env"
-fi
-
-# ── Mosquitto MQTT ──────────────────────────────────────────────────────────
-if docker ps --format '{{.Names}}' | grep -q fillaiq-mqtt; then
-  info "Mosquitto already running"
-elif docker ps -a --format '{{.Names}}' | grep -q fillaiq-mqtt; then
-  info "Starting existing Mosquitto container..."
-  docker start fillaiq-mqtt >/dev/null
-else
-  info "Starting Mosquitto..."
-  docker run -d \
-    --name fillaiq-mqtt \
-    -p 1883:1883 \
-    -v "$ROOT/mosquitto/mosquitto.local.conf:/mosquitto/config/mosquitto.conf:ro" \
-    -v fillaiq-mqttdata:/tmp/mosquitto \
-    eclipse-mosquitto:2 \
-    >/dev/null
-fi
 info "Mosquitto ready on mqtt://localhost:1883"
 
 # ── Dependencies ────────────────────────────────────────────────────────────

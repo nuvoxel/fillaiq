@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: fillaiq-postgres
+    environment:
+      POSTGRES_USER: fillaiq
+      POSTGRES_PASSWORD: fillaiq
+      POSTGRES_DB: fillaiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - fillaiq-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: fillaiq-mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.local.conf:/mosquitto/config/mosquitto.conf:ro
+      - fillaiq-mqttdata:/tmp/mosquitto
+    restart: unless-stopped
+
+volumes:
+  fillaiq-pgdata:
+  fillaiq-mqttdata:
