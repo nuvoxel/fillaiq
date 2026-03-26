@@ -19,7 +19,6 @@ struct DeviceConfig {
 
     // Display
     uint8_t displayBrightness = 255;  // 0-255
-    uint8_t ledBrightness = 50;       // 0-255
 
 };
 
@@ -35,7 +34,6 @@ public:
     float weightCalibration() const { return _config.weightCalibration; }
     unsigned long otaCheckInterval() const { return _config.otaCheckIntervalMs; }
     uint8_t displayBrightness() const { return _config.displayBrightness; }
-    uint8_t ledBrightness() const { return _config.ledBrightness; }
 
     void setWeightCalibration(float factor);  // Update from local calibration
     void printStatus();

@@ -10,7 +10,6 @@
 #include "weight.h"
 #include "nfc.h"
 #include "api_client.h"
-#include "backlight.h"
 #include "display.h"
 #include "provision.h"
 #include "bambu_tag.h"
@@ -1877,9 +1876,7 @@ void setup() {
     Serial.printf("  Filla IQ -- FillaScan v%s (%s)\n", FW_VERSION, FW_CHANNEL);
     Serial.println("========================================\n");
 
-    // Display + backlight first -- show boot screen immediately
-    backlight.begin();
-    backlight.off();
+    // Display first -- show boot screen immediately
     display.begin();
     display.showBootScreen(FW_VERSION);
 
@@ -1944,12 +1941,8 @@ void setup() {
     deviceIdentity.begin();
 
     // NFC reader (SPI init happens in begin() -- still on main thread during setup)
-    // Turn off LEDs during NFC init — RF field needs clean power
     display.setBootStatus("NFC init...");
-    backlight.off();
-    delay(50);
     initNfc();
-    backlight.off();
     display.addBootItem("NFC", nfcScanner.isConnected());
 
     // Color sensor (auto-detect)
@@ -2035,7 +2028,6 @@ void setup() {
 #else
     caps.display.set("ST7789", "SPI", 0, TFT_CS_PIN);
 #endif
-    caps.leds.set("WS2812B", "GPIO", 0, LED_PIN);
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
@@ -2173,7 +2165,6 @@ void setup() {
 #endif
 
     Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
-    backlight.off();
     Serial.printf("  Heap: %u free, %u min | PSRAM: %u free\n",
         ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
     enterState(SCAN_IDLE);

@@ -10,7 +10,7 @@
 // ============================================================
 // Filla IQ — FillaScan Configuration
 // ESP32-S3-DevKitC-1 + PN532(SPI) + HX711 + ST7789(SPI)
-// + WS2812B + AS7341(I2C)
+// + AS7341(I2C)
 // ============================================================
 
 // --- Pin Assignments ---
@@ -44,11 +44,6 @@
 // NFC via Pico I2C coprocessor (PN5180 on Pico SPI)
 // Uses shared I2C bus (SDA=16, SCL=15) + interrupt pin
 #define NFC_PICO_INT_PIN    43   // Pico INT output (active LOW) — UART RXD pad
-
-// WS2812B LED Ring (wired to onboard RGB GPIO, frees IO21 for NFC RST)
-#define LED_PIN         42   // Onboard RGB pin — ring DIN soldered to same pad
-#define LED_SKIP         1   // Skip onboard RGB LED (pixel 0); ring starts at pixel 1
-#define LED_COUNT       25   // 1 onboard + 24 ring
 
 
 // Battery voltage ADC
@@ -94,11 +89,6 @@
 // HX711 Load Cell (single channel)
 #define HX711_SCK_PIN   17
 #define HX711_DT_PIN    18
-
-// WS2812B LED Ring
-#define LED_PIN         48
-#define LED_SKIP         0   // Onboard LED mirrors pixel 0 (parallel wiring)
-#define LED_COUNT       24   // 24 ring LEDs
 
 #endif
 

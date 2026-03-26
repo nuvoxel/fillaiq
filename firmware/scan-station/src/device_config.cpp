@@ -49,10 +49,6 @@ void DeviceConfigManager::applyFromJson(const char* json) {
         _config.displayBrightness = doc["displayBrightness"].as<uint8_t>();
         changed = true;
     }
-    if (doc.containsKey("ledBrightness")) {
-        _config.ledBrightness = doc["ledBrightness"].as<uint8_t>();
-        changed = true;
-    }
     if (changed) {
         Serial.println("[Config] Updated from server");
         save();
@@ -68,7 +64,6 @@ void DeviceConfigManager::save() {
     configPrefs.putInt("weightStable", _config.weightStableCount);
     configPrefs.putULong("otaInterval", _config.otaCheckIntervalMs);
     configPrefs.putUChar("dispBright", _config.displayBrightness);
-    configPrefs.putUChar("ledBright", _config.ledBrightness);
     configPrefs.end();
 }
 
@@ -81,7 +76,6 @@ void DeviceConfigManager::load() {
     _config.weightStableCount = configPrefs.getInt("weightStable", WEIGHT_STABLE_COUNT);
     _config.otaCheckIntervalMs = configPrefs.getULong("otaInterval", OTA_CHECK_INTERVAL_MS);
     _config.displayBrightness = configPrefs.getUChar("dispBright", 255);
-    _config.ledBrightness = configPrefs.getUChar("ledBright", 50);
     configPrefs.end();
 }
 
@@ -98,6 +92,5 @@ void DeviceConfigManager::printStatus() {
     Serial.printf("  Weight cal: %.4f  threshold: %.1fg  stable count: %d\n",
         _config.weightCalibration, _config.weightStableThreshold, _config.weightStableCount);
     Serial.printf("  OTA check: %lus\n", _config.otaCheckIntervalMs / 1000);
-    Serial.printf("  Display brightness: %d  LED brightness: %d\n",
-        _config.displayBrightness, _config.ledBrightness);
+    Serial.printf("  Display brightness: %d\n", _config.displayBrightness);
 }

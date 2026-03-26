@@ -120,7 +120,6 @@ struct DeviceCapabilities {
     SensorInfo scale;
     SensorInfo colorSensor;
     SensorInfo display;
-    SensorInfo leds;
     SensorInfo environment;
     SensorInfo touch;
     SensorInfo battery;

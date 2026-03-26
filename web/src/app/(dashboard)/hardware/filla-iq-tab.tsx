@@ -73,7 +73,6 @@ type StationConfig = {
     scale?: SensorDetail;
     colorSensor?: SensorDetail;
     display?: SensorDetail;
-    leds?: SensorDetail;
     turntable?: boolean;
     camera?: boolean;
     environment?: SensorDetail;
@@ -185,7 +184,6 @@ function StationCard({
     otaCheckIntervalMs: (settings.otaCheckIntervalMs ?? 300000) / 60000,
     weightCalibration: settings.weightCalibration ?? "",
     displayBrightness: settings.displayBrightness ?? 255,
-    ledBrightness: settings.ledBrightness ?? 50,
     printerSpeed: settings.printerSpeed ?? 3,
     printerDensity: settings.printerDensity ?? 10,
   });
@@ -199,7 +197,6 @@ function StationCard({
     if (configValues.weightCalibration)
       out.weightCalibration = parseFloat(String(configValues.weightCalibration));
     out.displayBrightness = configValues.displayBrightness;
-    out.ledBrightness = configValues.ledBrightness;
     out.printerSpeed = configValues.printerSpeed;
     out.printerDensity = configValues.printerDensity;
     onSaveConfig(station.id, out);
@@ -263,7 +260,6 @@ function StationCard({
                   <CapBadge label="Scale" detected={caps.scale?.detected} />
                   <CapBadge label="Color" detected={caps.colorSensor?.detected} />
                   <CapBadge label="Display" detected={caps.display?.detected} />
-                  <CapBadge label="LED" detected={caps.leds?.detected} />
                   <CapBadge label="Env" detected={caps.environment?.detected} />
                   <CapBadge label="Touch" detected={caps.touch?.detected} />
                   <CapBadge label="Battery" detected={caps.battery?.detected} />
@@ -278,7 +274,6 @@ function StationCard({
               <SensorRow label="Scale" sensor={caps?.scale} />
               <SensorRow label="Color" sensor={caps?.colorSensor} />
               <SensorRow label="Display" sensor={caps?.display} />
-              <SensorRow label="LEDs" sensor={caps?.leds} />
               <SensorRow label="Env" sensor={caps?.environment} />
               <SensorRow label="Touch" sensor={caps?.touch} />
               <SensorRow label="Battery" sensor={caps?.battery} />
@@ -357,12 +352,6 @@ function StationCard({
                 <Label className="text-xs">Display Brightness ({configValues.displayBrightness})</Label>
                 <input type="range" className="w-full" value={configValues.displayBrightness}
                   onChange={(e) => setConfigValues(v => ({ ...v, displayBrightness: Number(e.target.value) }))}
-                  min={0} max={255} step={1} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">LED Brightness ({configValues.ledBrightness})</Label>
-                <input type="range" className="w-full" value={configValues.ledBrightness}
-                  onChange={(e) => setConfigValues(v => ({ ...v, ledBrightness: Number(e.target.value) }))}
                   min={0} max={255} step={1} />
               </div>
               <div className="col-span-2 flex justify-end">

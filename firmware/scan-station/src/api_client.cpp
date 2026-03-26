@@ -478,7 +478,6 @@ String ApiClient::buildCapabilitiesJson() const {
     addSensor("scale", _capabilities.scale);
     addSensor("colorSensor", _capabilities.colorSensor);
     addSensor("display", _capabilities.display);
-    addSensor("leds", _capabilities.leds);
     addSensor("environment", _capabilities.environment);
     addSensor("touch", _capabilities.touch);
     addSensor("battery", _capabilities.battery);
