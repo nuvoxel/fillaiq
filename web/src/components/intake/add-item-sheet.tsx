@@ -877,7 +877,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                       <p className="text-sm font-medium text-center">Use your phone&apos;s camera</p>
                       <img src={qrDataUrl} alt="QR Code" className="size-48" />
                       <p className="text-xs text-muted-foreground text-center max-w-xs">
-                        Scan barcodes, QR codes, take photos, and read labels with OCR. Everything syncs to this session automatically.
+                        Scan barcodes, QR codes, and take photos. Everything syncs to this session automatically.
                       </p>
                       <div className="flex gap-2">
                         <Button variant="ghost" size="sm" onClick={() => { setShowQr(false); setShowCamera(true); }}>

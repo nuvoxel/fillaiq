@@ -41,9 +41,9 @@ const features = [
   },
   {
     icon: <ScanLine className="size-9" />,
-    title: "Barcode & OCR Scanning",
+    title: "Barcode & QR Scanning",
     description:
-      "Scan barcodes from your phone camera for instant catalog lookup. OCR reads label text when there's no NFC or barcode. Works with any packaged product.",
+      "Scan barcodes and QR codes from your phone camera for instant catalog lookup. Works with any packaged product.",
   },
   {
     icon: <Package className="size-9" />,

@@ -10,7 +10,6 @@ import {
   Printer,
   Trash2,
   Camera,
-  Type,
   Weight,
   Ruler,
   Nfc,
@@ -97,10 +96,6 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [searching, setSearching] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
 
-  // -- OCR --
-  const [ocrText, setOcrText] = useState<string | null>(null);
-  const [ocrRunning, setOcrRunning] = useState(false);
-
   // -- Photos --
   const [photos, setPhotos] = useState<string[]>([]);
   const [primaryPhoto, setPrimaryPhoto] = useState<number>(0);
@@ -168,34 +163,6 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
     const result = await searchProducts(query);
     setSearching(false);
     if (result.data) setSearchResults(result.data);
-  }, []);
-
-  const handleRunOcr = useCallback(async () => {
-    setOcrRunning(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.playsInline = true;
-      await video.play();
-      await new Promise((r) => setTimeout(r, 500));
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d")!.drawImage(video, 0, 0);
-      stream.getTracks().forEach((t) => t.stop());
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng");
-      const { data } = await worker.recognize(canvas);
-      await worker.terminate();
-      setOcrText(data.text.trim() || null);
-    } catch (e) {
-      console.error("OCR failed:", e);
-    } finally {
-      setOcrRunning(false);
-    }
   }, []);
 
   const handlePhotoUpload = async (file: File) => {
@@ -490,22 +457,8 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
                     <span className="text-sm">Looking up...</span>
                   </div>
                 )}
-                {!lookingUp && !productMatch && <p className="text-sm text-muted-foreground">No match. Try OCR or search.</p>}
+                {!lookingUp && !productMatch && <p className="text-sm text-muted-foreground">No match. Try searching by name.</p>}
               </div>
-            )}
-            {!showCamera && (
-              <Button variant="outline" onClick={handleRunOcr} disabled={ocrRunning} className="w-full mb-2">
-                {ocrRunning ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Type className="size-4 mr-1" />}
-                {ocrRunning ? "Reading..." : "Capture & Read Label (OCR)"}
-              </Button>
-            )}
-            {ocrText && (
-              <Alert className="mb-2">
-                <AlertTitle className="text-xs font-semibold">EXTRACTED TEXT</AlertTitle>
-                <AlertDescription>
-                  <pre className="whitespace-pre-wrap font-mono text-xs">{ocrText}</pre>
-                </AlertDescription>
-              </Alert>
             )}
             {!showCamera && (
               <div className="relative">
