@@ -53,6 +53,7 @@ export function ensureMqttConnected(): void {
   });
 
   client.on("message", (topic, payload) => {
+    console.log(`[MQTT] Message: ${topic} (${payload.length} bytes)`);
     try {
       handleMqttMessage(topic, payload);
     } catch (e) {
