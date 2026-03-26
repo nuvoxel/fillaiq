@@ -532,7 +532,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                           )}
                         </div>
 
-                        {/* Row 2: Temperatures */}
+                        {/* Row 2: Temperatures + Drying */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
                           {(parsed.nozzleTempMin != null || parsed.nozzleTempMax != null) && (
                             <div>
@@ -543,7 +543,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                           {parsed.bedTemp != null && parsed.bedTemp > 0 && (
                             <div>
                               <span className="text-muted-foreground">Bed Temp</span>
-                              <p className="mt-0.5">{parsed.bedTemp}°C</p>
+                              <p className="mt-0.5">{parsed.bedTemp}°C{parsed.bedTempType != null ? ` (type ${parsed.bedTempType})` : ""}</p>
                             </div>
                           )}
                           {parsed.dryingTemp != null && parsed.dryingTemp > 0 && (
@@ -552,15 +552,47 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                               <p className="mt-0.5">{parsed.dryingTemp}°C / {parsed.dryingTime}h</p>
                             </div>
                           )}
+                          {parsed.nozzleDiameter != null && (
+                            <div>
+                              <span className="text-muted-foreground">Nozzle Dia</span>
+                              <p className="mt-0.5">{parsed.nozzleDiameter.toFixed(2)}mm</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Row 3: Dates + Dimensions */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
                           {parsed.productionDate && (
                             <div>
                               <span className="text-muted-foreground">Production Date</span>
                               <p className="mt-0.5">{parsed.productionDate.replace(/_/g, "-")}</p>
                             </div>
                           )}
+                          {parsed.shortDate && (
+                            <div>
+                              <span className="text-muted-foreground">Short Date</span>
+                              <p className="mt-0.5">{parsed.shortDate.replace(/_/g, "-")}</p>
+                            </div>
+                          )}
+                          {parsed.spoolWidthMm != null && (
+                            <div>
+                              <span className="text-muted-foreground">Spool Width</span>
+                              <p className="mt-0.5">{parsed.spoolWidthMm}mm</p>
+                            </div>
+                          )}
+                          {parsed.secondaryColorHex && (
+                            <div>
+                              <span className="text-muted-foreground">Secondary Color</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <div className="size-4 rounded-sm border shrink-0" style={{ backgroundColor: parsed.secondaryColorHex }} />
+                                <span className="font-mono">{parsed.secondaryColorHex}</span>
+                                {parsed.colorCount && <span className="text-muted-foreground">({parsed.colorCount} colors)</span>}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Row 3: X-Cam */}
+                        {/* Row 4: X-Cam */}
                         {(parsed.xcamA != null || parsed.xcamB != null) && (
                           <div>
                             <span className="text-muted-foreground">X-Cam</span>
@@ -570,7 +602,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                           </div>
                         )}
 
-                        {/* Row 4: IDs */}
+                        {/* Row 5: IDs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                           {selectedSession.nfcUid && (
                             <div>
@@ -586,7 +618,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                           )}
                         </div>
 
-                        {/* Row 5: Multicolor + Sectors */}
+                        {/* Row 6: Multicolor + Sectors */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                           {parsed.multicolorData && (
                             <div>

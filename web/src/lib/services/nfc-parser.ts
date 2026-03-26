@@ -1,12 +1,13 @@
 /**
  * Server-side NFC tag parsing.
  *
- * Bambu MIFARE Classic layout (same for all tags):
- *   S0: [UID block] [variantId(8)+materialId(8)] [material name(16)]
- *   S1: [product name(16)] [RGBA(4)+netWeight(2)+reserved(2)+diameter(4)+reserved(4)] [dryTemp(2)+dryTime(2)+reserved(2)+bedTemp(2)+nozzleMax(2)+nozzleMin(2)+reserved(4)]
- *   S2: [xcam A-F(16)] [tray UID(16)] [reserved]
- *   S3: [production date(16)] [reserved] [reserved(4)+filamentLength(2)+reserved]
- *   S4: [multicolor data(16)] [reserved] [reserved]
+ * Bambu MIFARE Classic layout (ref: Bambu-Research-Group/RFID-Tag-Guide):
+ *   S0: [UID block] [variantId(8)+materialId(8)] [material/filament type(16)]
+ *   S1: [detailed name(16)] [RGBA(4)+netWeight(2)+reserved(2)+diameter(4)+reserved(4)]
+ *       [dryTemp(2)+dryTime(2)+bedTempType(2)+bedTemp(2)+nozzleMax(2)+nozzleMin(2)+reserved(4)]
+ *   S2: [xcam(12)+nozzleDiameter(4)] [tray UID(16)] [reserved(4)+spoolWidth(2)+reserved(10)]
+ *   S3: [production date(16)] [short date(16)] [reserved(4)+filamentLength(2)+reserved]
+ *   S4: [formatId(2)+colorCount(2)+secondaryColorABGR(4)+reserved(8)] [reserved] [reserved]
  *
  * The firmware sends ALL 16 sectors in the hex string with zeros for failed reads.
  * The `sectorOk` bitmask indicates which sectors were successfully authenticated
@@ -35,6 +36,7 @@ export interface BambuParsedData {
   filamentDiameter: number | null;
   dryingTemp: number | null;
   dryingTime: number | null;
+  bedTempType: number | null;
   bedTemp: number | null;
   nozzleTempMax: number | null;
   nozzleTempMin: number | null;
@@ -45,11 +47,16 @@ export interface BambuParsedData {
   xcamD: number | null;
   xcamE: number | null;
   xcamF: number | null;
+  nozzleDiameter: number | null;
   trayUid: string | null;
+  spoolWidthMm: number | null;
   // Sector 3
   productionDate: string | null;
+  shortDate: string | null;
   filamentLengthM: number | null;
   // Sector 4
+  colorCount: number | null;
+  secondaryColorHex: string | null;
   multicolorData: string | null;
   // Metadata
   sectorsOk: number[];
@@ -168,11 +175,11 @@ export function parseBambuRawData(
     colorR: null, colorG: null, colorB: null, colorA: null, colorHex: null,
     spoolNetWeight: null, filamentDiameter: null,
     dryingTemp: null, dryingTime: null,
-    bedTemp: null, nozzleTempMax: null, nozzleTempMin: null,
+    bedTempType: null, bedTemp: null, nozzleTempMax: null, nozzleTempMin: null,
     xcamA: null, xcamB: null, xcamC: null, xcamD: null, xcamE: null, xcamF: null,
-    trayUid: null,
-    productionDate: null, filamentLengthM: null,
-    multicolorData: null,
+    nozzleDiameter: null, trayUid: null, spoolWidthMm: null,
+    productionDate: null, shortDate: null, filamentLengthM: null,
+    colorCount: null, secondaryColorHex: null, multicolorData: null,
     sectorsOk,
     parseWarnings: warnings,
   };
@@ -219,11 +226,14 @@ export function parseBambuRawData(
     const diameter = readFloatLE(buf, off(1, 1, 8));
     if (diameter > 1.0 && diameter < 5.0) result.filamentDiameter = diameter;
 
-    // Block 2: drying info + temps
+    // Block 2: drying info + bed temp type + temps
     const dryTemp = readU16LE(buf, off(1, 2, 0));
     const dryTime = readU16LE(buf, off(1, 2, 2));
     if (isSaneTemp(dryTemp)) result.dryingTemp = dryTemp;
     if (dryTime > 0 && dryTime < 100) result.dryingTime = dryTime;
+
+    const bedTempType = readU16LE(buf, off(1, 2, 4));
+    result.bedTempType = bedTempType;
 
     const bedTemp = readU16LE(buf, off(1, 2, 6));
     const nozzleMax = readU16LE(buf, off(1, 2, 8));
@@ -235,28 +245,43 @@ export function parseBambuRawData(
     warnings.push("Sector 1: not read");
   }
 
-  // ── Sector 2: X-cam data, Tray UID ───────────────────────────────────
+  // ── Sector 2: X-cam data, nozzle diameter, Tray UID, spool width ────
   if (hasSector(2)) {
+    // Block 0: X-cam (12 bytes) + nozzle diameter (4 bytes)
     result.xcamA = readU16LE(buf, off(2, 0, 0));
     result.xcamB = readU16LE(buf, off(2, 0, 2));
     result.xcamC = readU16LE(buf, off(2, 0, 4));
     result.xcamD = readU16LE(buf, off(2, 0, 6));
     result.xcamE = readFloatLE(buf, off(2, 0, 8));
-    result.xcamF = readFloatLE(buf, off(2, 0, 12));
 
+    const nozzleDia = readFloatLE(buf, off(2, 0, 12));
+    if (nozzleDia > 0.1 && nozzleDia < 2.0) result.nozzleDiameter = nozzleDia;
+    // Legacy: store as xcamF too for backwards compat
+    result.xcamF = nozzleDia;
+
+    // Block 1: Tray UID
     if (!isZeroBlock(buf, off(2, 1, 0), 16)) {
       result.trayUid = toHex(buf, off(2, 1, 0), 16);
+    }
+
+    // Block 2: spool width (offset 4-5, value is mm*100)
+    const spoolWidthRaw = readU16LE(buf, off(2, 2, 4));
+    if (spoolWidthRaw > 0 && spoolWidthRaw < 20000) {
+      result.spoolWidthMm = spoolWidthRaw / 100;
     }
   } else {
     warnings.push("Sector 2: not read");
   }
 
-  // ── Sector 3: Production date, filament length ────────────────────────
+  // ── Sector 3: Production date, short date, filament length ──────────
   if (hasSector(3)) {
     const dateStr = readString(buf, off(3, 0, 0), 16);
     if (/^\d{4}/.test(dateStr)) {
       result.productionDate = dateStr;
     }
+
+    const shortDateStr = readString(buf, off(3, 1, 0), 16);
+    if (shortDateStr) result.shortDate = shortDateStr;
 
     const filLen = readU16LE(buf, off(3, 2, 4));
     if (filLen > 0 && filLen < 5000) result.filamentLengthM = filLen;
@@ -264,8 +289,21 @@ export function parseBambuRawData(
     warnings.push("Sector 3: not read");
   }
 
-  // ── Sector 4: Multicolor data ─────────────────────────────────────────
+  // ── Sector 4: Color info (format, count, secondary color) ──────────
   if (hasSector(4)) {
+    const formatId = readU16LE(buf, off(4, 0, 0));
+    const colorCount = readU16LE(buf, off(4, 0, 2));
+    if (colorCount > 0) result.colorCount = colorCount;
+
+    // Secondary color stored as ABGR (reversed)
+    if (formatId === 2 && colorCount >= 2) {
+      const a2 = buf[off(4, 0, 4)];
+      const b2 = buf[off(4, 0, 5)];
+      const g2 = buf[off(4, 0, 6)];
+      const r2 = buf[off(4, 0, 7)];
+      result.secondaryColorHex = "#" + r2.toString(16).padStart(2, "0") + g2.toString(16).padStart(2, "0") + b2.toString(16).padStart(2, "0");
+    }
+
     if (!isZeroBlock(buf, off(4, 0, 0), 16)) {
       result.multicolorData = toHex(buf, off(4, 0, 0), 16);
     }
