@@ -44,6 +44,11 @@ externalDatabase:
   sslmode: "require"
   url: ""
 
+# Secrets
+secrets:
+  # Web pod connects to broker internally (pod-to-pod), not via external WSS
+  mqttBrokerUrl: "mqtt://fillaiq-mqtt:1883"
+
 # Application Configuration
 app:
   nodeEnv: production
