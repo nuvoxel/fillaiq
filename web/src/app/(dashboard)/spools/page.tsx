@@ -97,7 +97,6 @@ export default function SpoolsPage() {
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<MyItem | null>(null);
   const [printItem, setPrintItem] = useState<PrintLabelItem | null>(null);
 
   const loadItems = useCallback(() => {
@@ -117,14 +116,8 @@ export default function SpoolsPage() {
     setDialogOpen(true);
   };
 
-  const handleOpenEdit = (item: MyItem) => {
-    setEditingItem(item);
-    setDialogOpen(true);
-  };
-
   const handleDialogClose = () => {
     setDialogOpen(false);
-    setEditingItem(null);
   };
 
   const handleSaved = () => {
@@ -482,7 +475,7 @@ export default function SpoolsPage() {
                                   className="p-1.5 rounded-md text-muted-foreground/50 hover:text-[#00677F] hover:bg-muted transition-colors"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleOpenEdit(item);
+                                    router.push(`/spools/${item.id}`);
                                   }}
                                 />
                               }
@@ -606,7 +599,7 @@ export default function SpoolsPage() {
       )}
 
       <AddItemSheet
-        open={dialogOpen && !editingItem}
+        open={dialogOpen}
         onClose={handleDialogClose}
         onSaved={handleSaved}
       />
