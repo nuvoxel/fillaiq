@@ -76,7 +76,7 @@ export function ApiKeysCard({ initialApiKeys }: Props) {
         const listResult = await authClient.apiKey.list();
         if (listResult.data) {
           setApiKeys(
-            listResult.data.map((k: any) => ({
+            (listResult.data.apiKeys ?? listResult.data).map((k: any) => ({
               id: k.id,
               name: k.name,
               prefix: k.prefix ?? k.start ?? null,
