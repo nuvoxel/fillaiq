@@ -279,11 +279,6 @@ function SessionCard({
                   {session.bestWeightG.toFixed(1)}g
                 </span>
               )}
-              {session.bestHeightMm != null && session.bestHeightMm > 0 && (
-                <span className="text-sm font-medium text-muted-foreground">
-                  {session.bestHeightMm.toFixed(0)}mm
-                </span>
-              )}
               {parsed?.nozzleTempMin && parsed?.nozzleTempMax && (
                 <span className="text-sm font-medium text-muted-foreground">
                   {parsed.nozzleTempMin}&ndash;{parsed.nozzleTempMax}&deg;C

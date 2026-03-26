@@ -67,7 +67,7 @@ struct ScanResponse {
 
 struct SensorInfo {
     bool detected = false;
-    char chip[24] = {0};        // e.g. "PN532", "HX711", "VL53L1X", "AS7341"
+    char chip[24] = {0};        // e.g. "PN532", "HX711", "AS7341"
     char interface[8] = {0};    // "SPI", "I2C", "GPIO"
     uint8_t i2cAddr = 0;        // I2C address (0 if not I2C)
     int pin1 = -1;              // CS pin (SPI) or SCK (GPIO)
@@ -118,7 +118,6 @@ struct PrinterInfo {
 struct DeviceCapabilities {
     SensorInfo nfc;
     SensorInfo scale;
-    SensorInfo tof;
     SensorInfo colorSensor;
     SensorInfo display;
     SensorInfo leds;
@@ -187,7 +186,6 @@ public:
     String buildCapabilitiesJson() const;
     bool hasNfc() const { return _capabilities.nfc.detected; }
     bool hasScale() const { return _capabilities.scale.detected; }
-    bool hasTof() const { return _capabilities.tof.detected; }
     bool hasColor() const { return _capabilities.colorSensor.detected; }
     bool hasTurntable() const { return _capabilities.turntable; }
     bool hasCamera() const { return _capabilities.camera; }

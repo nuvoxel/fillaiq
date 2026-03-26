@@ -169,12 +169,6 @@ export function SpoolDetailPanel({ itemId, onClose, onUpdate }: Props) {
             </span>
           </div>
           <div>
-            <span className="text-xs text-muted-foreground block">Height</span>
-            <span className="text-sm font-semibold">
-              {item.measuredHeightMm ? `${Math.round(item.measuredHeightMm)}mm` : "\u2014"}
-            </span>
-          </div>
-          <div>
             <span className="text-xs text-muted-foreground block">Color</span>
             <div className="flex items-center gap-1">
               {item.measuredColorHex && (

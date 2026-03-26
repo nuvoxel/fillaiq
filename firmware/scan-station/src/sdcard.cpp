@@ -61,7 +61,7 @@ bool SdCardDriver::_ensureDir(const char* path) {
 void SdCardDriver::logScan(const ScanResult& scan, const ScanResponse& resp) {
     if (!_connected) return;
 
-    // CSV header: timestamp,weight_g,stable,nfc_uid,height_mm,identified,item_name,material,color_hex
+    // CSV header: timestamp,weight_g,stable,nfc_uid,identified,item_name,material,color_hex
     const char* csvPath = "/scans/log.csv";
 
     bool needsHeader = !SD_MMC.exists(csvPath);
@@ -69,18 +69,14 @@ void SdCardDriver::logScan(const ScanResult& scan, const ScanResponse& resp) {
     if (!f) return;
 
     if (needsHeader) {
-        f.println("timestamp_ms,weight_g,stable,nfc_uid,height_mm,identified,item_name,material,color_hex");
+        f.println("timestamp_ms,weight_g,stable,nfc_uid,identified,item_name,material,color_hex");
     }
 
-    float height = 0;
-    if (scan.height.valid) height = scan.height.objectHeightMm;
-
-    f.printf("%lu,%.1f,%d,%s,%.0f,%d,%s,%s,%s\n",
+    f.printf("%lu,%.1f,%d,%s,%d,%s,%s,%s\n",
         scan.timestamp,
         scan.weight.grams,
         scan.weight.stable ? 1 : 0,
         scan.nfcPresent ? scan.nfcUid : "",
-        height,
         resp.identified ? 1 : 0,
         resp.identified ? resp.itemName : "",
         resp.identified ? resp.material : "",

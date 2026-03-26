@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
 
   // Extract boolean flags from rich capabilities manifest
   const capFlags = {
-    hasTofSensor: !!capabilities?.tof?.detected,
     hasColorSensor: !!capabilities?.colorSensor?.detected,
     hasTurntable: !!capabilities?.turntable,
     hasCamera: !!capabilities?.camera,

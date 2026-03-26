@@ -88,13 +88,12 @@ const products = [
     name: "FillaScan",
     tagline: "Scan Station",
     description:
-      "NFC reader + load cell + spectral color sensor + TOF distance + 2.8\" touch display. Identifies filaments, hardware, and supplies — reports to your dashboard via MQTT.",
+      "NFC reader + load cell + spectral color sensor + 2.8\" touch display. Identifies filaments, hardware, and supplies — reports to your dashboard via MQTT.",
     specs: [
       "ESP32-S3",
       "PN5180 NFC",
       "NAU7802 ADC",
       "AS7343 Color",
-      "VL53L1X TOF",
       "BLE Label Printer",
     ],
   },

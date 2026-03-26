@@ -10,7 +10,7 @@
 // ============================================================
 // Filla IQ — FillaScan Configuration
 // ESP32-S3-DevKitC-1 + PN532(SPI) + HX711 + ST7789(SPI)
-// + WS2812B + VL53L1X(I2C) + AS7341(I2C)
+// + WS2812B + AS7341(I2C)
 // ============================================================
 
 // --- Pin Assignments ---
@@ -38,7 +38,7 @@
 #define TOUCH_INT       17
 #define TOUCH_RST       18
 
-// I2C bus — shared with touch (NFC in I2C mode, NAU7802, TOF, color)
+// I2C bus — shared with touch (NFC in I2C mode, NAU7802, color)
 #define I2C_SDA         16
 #define I2C_SCL         15
 
@@ -104,7 +104,7 @@
 #define TFT_RST_PIN     16
 #define TFT_BLK_PIN      4
 
-// I2C bus (TOF + Color sensors)
+// I2C bus (Color sensors)
 #define I2C_SDA          8
 #define I2C_SCL          9
 
@@ -177,16 +177,6 @@
 // --- TCS34725 Settings ---
 #define COLOR_TCS34725_ITIME    0xEB  // 50ms integration
 
-// --- TOF Sensor ---
-#define VL53L1X_DEFAULT_ADDR    0x29
-#define VL53L1X_ADDR            0x52
-#ifdef BOARD_SCAN_TOUCH
-#define VL53L1X_XSHUT_PIN      -1   // Not wired on touch board (GPIO 42 = LED_PIN)
-#else
-#define VL53L1X_XSHUT_PIN      42
-#endif
-#define TOF_TIMING_BUDGET_MS    50
-#define TOF_ARM_HEIGHT_MM       250.0f
 
 // --- OTA Updates ---
 #define OTA_CHECK_INTERVAL_MS   (5 * 60 * 1000UL)  // 5 minutes

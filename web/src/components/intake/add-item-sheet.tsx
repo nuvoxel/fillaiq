@@ -7,7 +7,6 @@ import {
   Search,
   ScanLine,
   Weight,
-  Ruler,
   Nfc,
   Star,
   Loader2,
@@ -83,7 +82,6 @@ type ScanSession = {
   bestColorLabL?: number | null;
   bestColorLabA?: number | null;
   bestColorLabB?: number | null;
-  bestHeightMm?: number | null;
   nfcUid?: string | null;
   nfcTagFormat?: string | null;
   nfcParsedData?: Record<string, any> | null;
@@ -151,7 +149,6 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
 
   // ── Station readings (from scan) ───────────────────────────────────────
   const [weight, setWeight] = useState("");
-  const [height, setHeight] = useState("");
   const [colorHex, setColorHex] = useState("");
   const [nfcUid, setNfcUid] = useState("");
   const [nfcTagFormat, setNfcTagFormat] = useState("");
@@ -222,7 +219,6 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     const session = sessions.find((s) => s.id === selectedSessionId);
     if (!session) return;
     setWeight(session.bestWeightG?.toFixed(1) ?? "");
-    setHeight(session.bestHeightMm?.toFixed(0) ?? "");
     setColorHex(session.bestColorHex ?? "");
     setNfcUid(session.nfcUid ?? "");
     setNfcTagFormat(session.nfcTagFormat ?? "");
@@ -303,7 +299,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     setNewNetWeightG(""); setNewDiameter("1.75");
     setNewNozzleTempMin(""); setNewNozzleTempMax("");
     setNewBedTempMin(""); setNewBedTempMax("");
-    setWeight(""); setHeight(""); setColorHex(""); setNfcUid(""); setNfcTagFormat("");
+    setWeight(""); setColorHex(""); setNfcUid(""); setNfcTagFormat("");
     setPackageType("_none"); setStatus("active"); setNotes(""); setRating(0);
     setSpoolWeightG(""); setPurchasePrice(""); setPurchaseCurrency("USD");
     setPurchaseDate(""); setOpenedAt(""); setLotNumber(""); setSerialNumber("");
@@ -357,7 +353,6 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
         netFilamentWeightG: toFloat(newNetWeightG),
         spoolWeightG: toFloat(spoolWeightG),
         measuredColorHex: colorHex || undefined,
-        measuredHeightMm: toFloat(height),
         packageType: packageType !== "_none" ? packageType : undefined,
         purchasePrice: toFloat(purchasePrice),
         purchaseCurrency: purchaseCurrency || undefined,
@@ -380,7 +375,6 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
         netFilamentWeightG: toFloat(newNetWeightG) ?? null,
         spoolWeightG: toFloat(spoolWeightG) ?? null,
         measuredColorHex: colorHex || newColorHex || null,
-        measuredHeightMm: toFloat(height) ?? null,
         nfcUid: nfcUid || null,
         nfcTagFormat: nfcTagFormat || null,
         purchasePrice: toFloat(purchasePrice) ?? null,
@@ -644,15 +638,11 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     )}
 
                     {/* Station sensor readings */}
-                    {(weight || height) && (
+                    {weight && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 border-t">
                         <div>
                           <Label className="text-xs text-muted-foreground"><Weight className="size-3 inline mr-1" />Measured Weight</Label>
                           <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" placeholder="g" />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground"><Ruler className="size-3 inline mr-1" />Height</Label>
-                          <Input value={height} onChange={(e) => setHeight(e.target.value)} type="number" placeholder="mm" />
                         </div>
                         {colorHex && !parsed?.colorHex && (
                           <div>
@@ -676,15 +666,11 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
               })()}
 
               {/* Station readings when no session selected */}
-              {!selectedSession && (weight || height || colorHex || nfcUid) && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              {!selectedSession && (weight || colorHex || nfcUid) && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                   <div>
                     <Label className="text-xs text-muted-foreground"><Weight className="size-3 inline mr-1" />Weight</Label>
                     <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" placeholder="g" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground"><Ruler className="size-3 inline mr-1" />Height</Label>
-                    <Input value={height} onChange={(e) => setHeight(e.target.value)} type="number" placeholder="mm" />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Color</Label>

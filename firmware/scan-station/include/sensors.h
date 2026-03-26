@@ -69,19 +69,6 @@ struct ColorData {
     }
 };
 
-// --- TOF Distance Data (VL53L1X) ---
-struct DistanceData {
-    float distanceMm;       // Raw distance from sensor to object
-    float objectHeightMm;   // Calculated: armHeight - distance
-    bool valid;
-
-    void clear_data() {
-        distanceMm = 0;
-        objectHeightMm = 0;
-        valid = false;
-    }
-};
-
 // --- Weight Data ---
 struct WeightData {
     float grams;
@@ -128,7 +115,6 @@ inline const char* scanStateName(ScanState s) {
 struct ScanResult {
     WeightData weight;
     ColorData color;
-    DistanceData height;
     TurntableData turntable;
 
     // NFC (references external TagData/FilamentInfo)
@@ -142,7 +128,6 @@ struct ScanResult {
     void clear_data() {
         weight.clear_data();
         color.clear_data();
-        height.clear_data();
         turntable.clear_data();
         nfcPresent = false;
         memset(nfcUid, 0, sizeof(nfcUid));

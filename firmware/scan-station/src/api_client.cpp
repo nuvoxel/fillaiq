@@ -387,13 +387,6 @@ String ApiClient::buildScanPayload(const ScanResult& scan, const TagData* tagDat
         }
     }
 
-    // Height
-    if (scan.height.valid) {
-        JsonObject h = doc["height"].to<JsonObject>();
-        h["distanceMm"] = scan.height.distanceMm;
-        h["objectHeightMm"] = scan.height.objectHeightMm;
-    }
-
     // Turntable
     if (scan.turntable.homed) {
         doc["turntableAngle"] = scan.turntable.angleDeg;
@@ -483,7 +476,6 @@ String ApiClient::buildCapabilitiesJson() const {
     };
     addSensor("nfc", _capabilities.nfc);
     addSensor("scale", _capabilities.scale);
-    addSensor("tof", _capabilities.tof);
     addSensor("colorSensor", _capabilities.colorSensor);
     addSensor("display", _capabilities.display);
     addSensor("leds", _capabilities.leds);

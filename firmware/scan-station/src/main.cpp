@@ -14,7 +14,6 @@
 #include "display.h"
 #include "provision.h"
 #include "bambu_tag.h"
-#include "distance.h"
 #include "color.h"
 #include "ota_update.h"
 #include "environment.h"
@@ -43,7 +42,7 @@
 //   Core 0 (Weight task):  HX711 bit-bang only (NAU7802 polled on Core 1)
 //
 // Bus ownership:
-//   Wire (I2C):    Shared — guarded by i2cMutex (NAU7802, Pico NFC bridge, TOF, color, env)
+//   Wire (I2C):    Shared — guarded by i2cMutex (NAU7802, Pico NFC bridge, color, env)
 //   nfcSPI (HSPI): NFC task only (PN5180)
 //   WiFi/HTTP:     Network task only
 //   Display/LVGL:  Core 1 only
@@ -209,13 +208,11 @@ static void resumeBackgroundTasks() {
 
 // -- Sensor Cache (written by sensor task, read by main loop) --
 #ifdef BOARD_SCAN_TOUCH
-#include "distance.h"
 #include "color.h"
 #include "environment.h"
 
 struct SensorCache {
     SemaphoreHandle_t mutex;
-    DistanceData distance;
     ColorData color;
     EnvData env;
     volatile bool colorReadRequested = false;  // Set true to trigger LED-on color read
@@ -250,14 +247,14 @@ static void lvglTask(void* param) {
 // ============================================================
 // Sensor Task (Core 1, Priority 2) — Touch Board Only
 // ============================================================
-// Round-robin I2C reads: TOF, color (async), env.
+// Round-robin I2C reads: color (async), env.
 // Writes to sensorCache protected by mutex.
 
 #ifdef BOARD_SCAN_TOUCH
 static void sensorTask(void* param) {
     Serial.println("[Sensor Task] Started on core " + String(xPortGetCoreID()));
 
-    enum SensorSlot : uint8_t { SLOT_START_COLOR, SLOT_WAIT_COLOR, SLOT_TOF, SLOT_ENV };
+    enum SensorSlot : uint8_t { SLOT_START_COLOR, SLOT_WAIT_COLOR, SLOT_ENV };
     SensorSlot slot = SLOT_START_COLOR;
 
     for (;;) {
@@ -278,7 +275,7 @@ static void sensorTask(void* param) {
                     }
                     // else: mutex busy, retry next iteration
                 } else {
-                    slot = SLOT_TOF;
+                    slot = SLOT_ENV;
                 }
                 break;
             case SLOT_WAIT_COLOR:
@@ -293,26 +290,12 @@ static void sensorTask(void* param) {
                             sensorCache.color = c;
                             xSemaphoreGive(sensorCache.mutex);
                         }
-                        slot = SLOT_TOF;
+                        slot = SLOT_ENV;
                     } else {
                         xSemaphoreGive(i2cMutex);
                         // Still integrating — stay in WAIT_COLOR
                     }
                 }
-                break;
-            case SLOT_TOF:
-                if (distanceSensor.isConnected()) {
-                    if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(30)) == pdTRUE) {
-                        DistanceData d;
-                        bool ok = distanceSensor.read(d);
-                        xSemaphoreGive(i2cMutex);
-                        if (ok && xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-                            sensorCache.distance = d;
-                            xSemaphoreGive(sensorCache.mutex);
-                        }
-                    }
-                }
-                slot = SLOT_ENV;
                 break;
             case SLOT_ENV:
                 if (envSensor.isConnected()) {
@@ -994,13 +977,11 @@ void snapshotNfc() {
 
 // -- Sensor snapshot (read from sensor task cache, used by state machine) --
 #ifdef BOARD_SCAN_TOUCH
-static DistanceData cachedDist = {};
 static ColorData cachedColor = {};
 static EnvData cachedEnv = {};
 
 void snapshotSensors() {
     if (xSemaphoreTake(sensorCache.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-        cachedDist = sensorCache.distance;
         cachedColor = sensorCache.color;
         cachedEnv = sensorCache.env;
         xSemaphoreGive(sensorCache.mutex);
@@ -1028,15 +1009,10 @@ void triggerScan() {
 #ifdef BOARD_SCAN_TOUCH
     // Use cached sensor data from sensor task (no I2C blocking)
     if (cachedColor.valid) currentScan.color = cachedColor;
-    if (cachedDist.valid)  currentScan.height = cachedDist;
 #else
     if (colorSensor.isConnected()) {
         ColorData color;
         if (colorSensor.read(color)) currentScan.color = color;
-    }
-    if (distanceSensor.isConnected()) {
-        DistanceData dist;
-        if (distanceSensor.read(dist)) currentScan.height = dist;
     }
 #endif
 
@@ -1246,11 +1222,11 @@ void updateDisplayAndLed() {
         // Build the dashboard screen if not already showing
         const ScanResponse* serverData = nullptr;
         lv_lock();
-        display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons);
+        display.update(scanState, w, stable, nullptr, serverData, nullptr, icons);
         lv_unlock();
 
         // Sensor data comes from sensor task cache (snapshotSensors)
-        // No I2C reads here — dashboard uses cachedDist, cachedColor, cachedEnv
+        // No I2C reads here — dashboard uses cachedColor, cachedEnv
 
         // Build NFC info string — show reading progress
         static char nfcInfoBuf[80];
@@ -1376,12 +1352,6 @@ void updateDisplayAndLed() {
             colorInfo = colorInfoBuf;
         }
 
-        // TOF distance
-        float distMm = -1;
-        if (distanceSensor.isConnected() && cachedDist.valid) {
-            distMm = cachedDist.distanceMm;
-        }
-
         // Env data
         float tempC = -1, humidity = 0, pressureHPa = 0;
         if (envSensor.isConnected() && cachedEnv.valid) {
@@ -1392,7 +1362,7 @@ void updateDisplayAndLed() {
 
         lv_lock();
         display.updateDashboard(w, stable, nfcInfo, colorInfo, cR, cG, cB,
-                                 distMm, tempC, humidity, pressureHPa, true);
+                                 tempC, humidity, pressureHPa, true);
         lv_unlock();
     } else {
         // For SCAN_SUBMITTING or SCAN_RESULT — only rebuild screen on state change,
@@ -1407,7 +1377,7 @@ void updateDisplayAndLed() {
         }
 
         lv_lock();
-        display.update(scanState, w, stable, nullptr, serverData, nullptr, nullptr, icons,
+        display.update(scanState, w, stable, nullptr, serverData, nullptr, icons,
                        sessionUrl, labelPrinter.isConnected());
         lv_unlock();
     }
@@ -1492,7 +1462,6 @@ void printStatus() {
         Serial.println("    Scale:  --");
     }
     Serial.printf("    NFC:    %s\n", nfcSnap.connected ? "PN5180" : "--");
-    Serial.printf("    TOF:    %s\n", distanceSensor.isConnected() ? "VL53L1X" : "--");
     {
         const char* colorNames[] = {"--", "AS7341", "AS7265x", "TCS34725", "OPT4048", "AS7343", "AS7331"};
         Serial.printf("    Color:  %s\n", colorNames[colorSensor.isConnected() ? colorSensor.getType() : 0]);
@@ -1563,12 +1532,6 @@ void printScanDetails() {
         Serial.println();
     } else {
         Serial.println("  NFC: no tag");
-    }
-
-    if (distanceSensor.isConnected()) {
-        DistanceData d;
-        if (distanceSensor.read(d))
-            Serial.printf("  TOF: %.0fmm (height: %.0fmm)\n", d.distanceMm, d.objectHeightMm);
     }
 
     if (colorSensor.isConnected()) {
@@ -1962,7 +1925,7 @@ void setup() {
 
     // Probe known addresses only (full scan can hang on stuck bus)
     display.setBootStatus("Scanning I2C...");
-    const uint8_t knownAddrs[] = { NAU7802_ADDR, VL53L1X_ADDR, VL53L1X_DEFAULT_ADDR,
+    const uint8_t knownAddrs[] = { NAU7802_ADDR,
                                     AS7341_ADDR, TCS34725_ADDR, OPT4048_ADDR,
                                     AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/,
 #ifdef BOARD_SCAN_TOUCH
@@ -1991,15 +1954,6 @@ void setup() {
     initNfc();
     backlight.off();
     display.addBootItem("NFC", nfcScanner.isConnected());
-
-    // TOF distance sensor
-    display.setBootStatus("TOF init...");
-    distanceSensor.begin();
-    if (distanceSensor.isConnected()) {
-        display.setBootStatus("TOF baseline...");
-        distanceSensor.calibrateBaseline();
-    }
-    display.addBootItem("TOF", distanceSensor.isConnected());
 
     // Color sensor (auto-detect)
     display.setBootStatus("Color init...");
@@ -2061,7 +2015,6 @@ void setup() {
         uint8_t sf = 0;
         if (nfcScanner.isConnected())       sf |= SENSOR_NFC;
         if (scale.isConnected())            sf |= SENSOR_SCALE;
-        if (distanceSensor.isConnected())   sf |= SENSOR_TOF;
         if (colorSensor.isConnected())      sf |= SENSOR_COLOR;
         if (envSensor.isConnected())        sf |= SENSOR_ENV;
 #ifdef BOARD_SCAN_TOUCH
@@ -2086,8 +2039,6 @@ void setup() {
         else
             caps.scale.set("HX711", "GPIO", 0, HX711_SCK_PIN, HX711_DT_PIN);
     }
-    if (distanceSensor.isConnected())
-        caps.tof.set("VL53L1X", "I2C", VL53L1X_ADDR);
     if (colorSensor.isConnected()) {
         const char* chipName = "Unknown";
         uint8_t addr = 0;
@@ -2237,7 +2188,7 @@ void setup() {
     Serial.println("  Net task: started on core 0 (priority 1)");
 
 #ifdef BOARD_SCAN_TOUCH
-    // Sensor task on Core 1 — round-robin I2C reads (TOF, color, env)
+    // Sensor task on Core 1 — round-robin I2C reads (color, env)
     sensorCache.mutex = xSemaphoreCreateMutex();
     xTaskCreatePinnedToCore(sensorTask, "sensor", 4096, nullptr,
         2, &sensorTaskHandle, 1);
@@ -2562,17 +2513,6 @@ void loop() {
                     scale.getLastRawAdc(), scale.getScaleFactor());
             else
                 pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "Weight: --\n");
-
-            // TOF (cached)
-            if (distanceSensor.isConnected()) {
-                if (cachedDist.valid)
-                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos,
-                        "TOF: %.0fmm (obj: %.0fmm)\n", cachedDist.distanceMm, cachedDist.objectHeightMm);
-                else
-                    pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "TOF: waiting...\n");
-            } else {
-                pos += snprintf(sensorBuf + pos, sizeof(sensorBuf) - pos, "TOF: --\n");
-            }
 
             // Color (cached)
             if (colorSensor.isConnected() && cachedColor.valid) {

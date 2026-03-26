@@ -5,7 +5,6 @@ import {
   Scale,
   Nfc,
   Palette,
-  Ruler,
   Wifi,
   WifiOff,
   Radio,
@@ -40,8 +39,6 @@ export type StationScanData = {
   colorLabA: number | null;
   colorLabB: number | null;
   spectralData: any;
-  // Height
-  heightMm: number | null;
   // Auto-identified product
   autoProduct: { product: any; brand: any } | null;
 };
@@ -118,7 +115,6 @@ export function StationPanel({ onScanData, onStationChange }: Props) {
           colorLabA: session?.bestColorLabA ?? scanEvent.colorLabA,
           colorLabB: session?.bestColorLabB ?? scanEvent.colorLabB,
           spectralData: session?.bestSpectralData ?? scanEvent.spectralData,
-          heightMm: session?.bestHeightMm ?? scanEvent.heightMm,
           autoProduct: autoIdentified ?? null,
         };
 
@@ -260,16 +256,6 @@ export function StationPanel({ onScanData, onStationChange }: Props) {
                 active={currentScan.colorHex != null}
               />
 
-              {/* Height */}
-              <SensorChip
-                icon={<Ruler className="size-3.5" />}
-                label={
-                  currentScan.heightMm != null
-                    ? `${currentScan.heightMm.toFixed(0)}mm`
-                    : "No height"
-                }
-                active={currentScan.heightMm != null}
-              />
             </div>
 
             {/* NFC parsed info */}

@@ -73,7 +73,6 @@ export async function listMyStations() {
       lastSeenAt: scanStations.lastSeenAt,
       hasTurntable: scanStations.hasTurntable,
       hasColorSensor: scanStations.hasColorSensor,
-      hasTofSensor: scanStations.hasTofSensor,
       hasCamera: scanStations.hasCamera,
       deviceSku: scanStations.deviceSku,
       config: scanStations.config,

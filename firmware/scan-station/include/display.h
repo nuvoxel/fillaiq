@@ -14,11 +14,10 @@
 // Sensor icon flags (bitmask) — set once at boot
 #define SENSOR_NFC      0x01
 #define SENSOR_SCALE    0x02
-#define SENSOR_TOF      0x04
-#define SENSOR_COLOR    0x08
-#define SENSOR_ENV      0x10
-#define SENSOR_SD       0x20
-#define SENSOR_AUDIO    0x40
+#define SENSOR_COLOR    0x04
+#define SENSOR_ENV      0x08
+#define SENSOR_SD       0x10
+#define SENSOR_AUDIO    0x20
 
 class Display {
 public:
@@ -27,7 +26,6 @@ public:
     void update(ScanState state, float weight, bool stable,
                 const char* nfcUid,
                 const ScanResponse* serverData,
-                const DistanceData* distance,
                 const ColorData* color,
                 uint8_t statusIcons = 0,
                 const char* sessionUrl = nullptr,
@@ -86,7 +84,6 @@ public:
     void updateDashboard(float weight, bool stable,
                          const char* nfcInfo,
                          const char* colorInfo, uint8_t colorR, uint8_t colorG, uint8_t colorB,
-                         float distMm,
                          float tempC, float humidity, float pressureHPa,
                          bool scanEnabled);
 
@@ -141,7 +138,6 @@ private:
 
     // Scanning/unknown screen
     lv_obj_t* _weightLabel = nullptr;
-    lv_obj_t* _heightLabel = nullptr;
     lv_obj_t* _colorSwatch = nullptr;
 
     // Identified screen
@@ -189,8 +185,8 @@ private:
     void buildDashboardScreen(uint8_t icons);
     void buildResultScreen(const ScanResponse* resp, float weight, const char* sessionUrl, uint8_t icons);
     void buildIdleScreen(uint8_t icons);
-    void buildUnknownScreen(float weight, bool stable, const DistanceData* dist, const ColorData* color, uint8_t icons);
-    void buildIdentifiedScreen(float weight, bool stable, const ScanResponse& resp, const DistanceData* dist, uint8_t icons);
+    void buildUnknownScreen(float weight, bool stable, const ColorData* color, uint8_t icons);
+    void buildIdentifiedScreen(float weight, bool stable, const ScanResponse& resp, uint8_t icons);
     void buildMenuScreen();
     void updateStatusIcons(uint8_t icons);
 

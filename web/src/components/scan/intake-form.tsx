@@ -11,7 +11,6 @@ import {
   Trash2,
   Camera,
   Weight,
-  Ruler,
   Nfc,
   ChevronDown,
   Code,
@@ -63,7 +62,6 @@ export type StationData = {
   colorLabL?: number | null;
   colorLabA?: number | null;
   colorLabB?: number | null;
-  heightMm?: number | null;
   nfcUid?: string | null;
   nfcTagFormat?: string | null;
   nfcParsedData?: Record<string, any> | null;
@@ -80,7 +78,6 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
 
   // -- Editable Station Readings --
   const [weight, setWeight] = useState(stationData?.weightG?.toFixed(1) ?? "");
-  const [height, setHeight] = useState(stationData?.heightMm?.toFixed(0) ?? "");
   const [colorHex, setColorHex] = useState(stationData?.colorHex ?? "");
   const [showColorCapture, setShowColorCapture] = useState(false);
 
@@ -204,7 +201,6 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       measuredColorLabL: stationData?.colorLabL ?? undefined,
       measuredColorLabA: stationData?.colorLabA ?? undefined,
       measuredColorLabB: stationData?.colorLabB ?? undefined,
-      measuredHeightMm: height ? parseFloat(height) : undefined,
       measuredSpoolOuterDiameterMm: spoolOuterDia ? parseFloat(spoolOuterDia) : undefined,
       measuredSpoolInnerDiameterMm: spoolInnerDia ? parseFloat(spoolInnerDia) : undefined,
       measuredSpoolWidthMm: spoolWidth ? parseFloat(spoolWidth) : undefined,
@@ -281,19 +277,12 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
       <Card>
         <CardContent>
           <p className="text-sm font-semibold text-muted-foreground mb-2">Measurements</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Weight (g)</Label>
               <div className="flex items-center gap-1">
                 <Weight className="size-3.5 text-muted-foreground" />
                 <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" className="h-7" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Height (mm)</Label>
-              <div className="flex items-center gap-1">
-                <Ruler className="size-3.5 text-muted-foreground" />
-                <Input value={height} onChange={(e) => setHeight(e.target.value)} type="number" className="h-7" />
               </div>
             </div>
             <div className="space-y-1">

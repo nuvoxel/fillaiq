@@ -4,8 +4,6 @@
 #include <qrcode.h>
 #include <esp_heap_caps.h>
 #include "api_client.h"
-#include "distance.h"
-
 // Custom Font Awesome 6 icon font (14px)
 // Custom FA6 icon font — included directly to avoid linkage issues
 #include "fa_icons_14.cpp"
@@ -13,7 +11,6 @@
 // FA6 icon codepoints (UTF-8 encoded)
 #define FA_TOWER_BROADCAST  "\xEF\x94\x99"   // 0xF519 — NFC
 #define FA_WEIGHT_SCALE     "\xEF\x89\x8E"   // 0xF24E — Scale
-#define FA_RULER            "\xEF\x95\x85"   // 0xF545 — TOF
 #define FA_PALETTE          "\xEF\x94\xBF"   // 0xF53F — Color
 #define FA_THERMOMETER      "\xEF\x8B\x89"   // 0xF2C9 — Environment
 #define FA_PRINT            "\xEF\x80\xAF"   // 0xF02F — Printer
@@ -270,7 +267,7 @@ void Display::clearScreen() {
     _screen = scr;
     _iconWifi = _iconMqtt = _iconPrinter = nullptr;
     _idleTitle = _idleSubtitle = nullptr;
-    _weightLabel = _heightLabel = _colorSwatch = nullptr;
+    _weightLabel = _colorSwatch = nullptr;
     _itemName = _materialLabel = _tempLabel = nullptr;
     _msgLine1 = _msgLine2 = nullptr;
     _pairCode = nullptr;
@@ -318,7 +315,6 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
         struct { uint8_t flag; const char* symbol; } sensors[] = {
             { SENSOR_NFC,   FA_TOWER_BROADCAST },
             { SENSOR_SCALE, FA_WEIGHT_SCALE    },
-            { SENSOR_TOF,   FA_RULER           },
             { SENSOR_COLOR, FA_PALETTE         },
             { SENSOR_ENV,   FA_THERMOMETER     },
             { SENSOR_SD,    FA_SD_CARD         },
@@ -636,7 +632,6 @@ void Display::buildDashboardScreen(uint8_t icons) {
 void Display::updateDashboard(float weight, bool stable,
                                const char* nfcInfo,
                                const char* colorInfo, uint8_t colorR, uint8_t colorG, uint8_t colorB,
-                               float distMm,
                                float tempC, float humidity, float pressureHPa,
                                bool scanEnabled) {
     if (!_ready || _currentScreen != SCR_IDLE) return;
@@ -1032,7 +1027,7 @@ void Display::showResult(const ScanResponse* resp, float weight, const char* ses
 // ── Unknown / Scanning Screen ────────────────────────────────
 
 void Display::buildUnknownScreen(float weight, bool stable,
-                                  const DistanceData* dist, const ColorData* color,
+                                  const ColorData* color,
                                   uint8_t icons) {
     clearScreen();
     _currentScreen = SCR_UNKNOWN;
@@ -1139,31 +1134,7 @@ void Display::buildUnknownScreen(float weight, bool stable,
                   LV_ALIGN_BOTTOM_LEFT, 0, 0, "--");
     }
 
-    // --- Height panel (bottom-left) ---
-    lv_obj_t* tofPanel = lv_obj_create(_screen);
-    lv_obj_remove_style_all(tofPanel);
-    lv_obj_set_size(tofPanel, panelW, panelH);
-    lv_obj_set_style_bg_color(tofPanel, blueprintSlate, 0);
-    lv_obj_set_style_bg_opa(tofPanel, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(tofPanel, 6, 0);
-    lv_obj_set_style_pad_all(tofPanel, 6, 0);
-    lv_obj_set_pos(tofPanel, gridLeft, gridTop + panelH + gridGap);
-
-    makeLabel(tofPanel, &lv_font_montserrat_12, toolGray,
-              LV_ALIGN_TOP_LEFT, 0, 0, "Height");
-    if (dist && dist->valid) {
-        float heightMm = distanceSensor.getArmHeight() - dist->distanceMm;
-        if (heightMm < 0) heightMm = 0;
-        char hStr[24];
-        snprintf(hStr, sizeof(hStr), "%.0f mm", heightMm);
-        _heightLabel = makeLabel(tofPanel, &lv_font_montserrat_14, white,
-                                  LV_ALIGN_BOTTOM_LEFT, 0, 0, hStr);
-    } else {
-        _heightLabel = makeLabel(tofPanel, &lv_font_montserrat_14, white,
-                                  LV_ALIGN_BOTTOM_LEFT, 0, 0, "-- mm");
-    }
-
-    // --- Environment panel (bottom-right) — placeholder ---
+    // --- Environment panel (bottom-left) ---
     lv_obj_t* envPanel = lv_obj_create(_screen);
     lv_obj_remove_style_all(envPanel);
     lv_obj_set_size(envPanel, panelW, panelH);
@@ -1171,7 +1142,7 @@ void Display::buildUnknownScreen(float weight, bool stable,
     lv_obj_set_style_bg_opa(envPanel, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(envPanel, 6, 0);
     lv_obj_set_style_pad_all(envPanel, 6, 0);
-    lv_obj_set_pos(envPanel, gridMidX, gridTop + panelH + gridGap);
+    lv_obj_set_pos(envPanel, gridLeft, gridTop + panelH + gridGap);
 
     makeLabel(envPanel, &lv_font_montserrat_12, toolGray,
               LV_ALIGN_TOP_LEFT, 0, 0, "Environment");
@@ -1195,7 +1166,7 @@ void Display::buildUnknownScreen(float weight, bool stable,
 // ── Identified Screen ────────────────────────────────────────
 
 void Display::buildIdentifiedScreen(float weight, bool stable,
-                                     const ScanResponse& resp, const DistanceData* dist,
+                                     const ScanResponse& resp,
                                      uint8_t icons) {
     clearScreen();
     _currentScreen = SCR_IDENTIFIED;
@@ -1285,16 +1256,6 @@ void Display::buildIdentifiedScreen(float weight, bool stable,
                                         LV_ALIGN_TOP_LEFT, infoX, 38, typeLine);
         }
 
-        // Show height/size if available
-        if (dist && dist->valid) {
-            float heightMm = distanceSensor.getArmHeight() - dist->distanceMm;
-            if (heightMm > 0) {
-                char sStr[24];
-                snprintf(sStr, sizeof(sStr), "H: %.0f mm", heightMm);
-                _tempLabel = makeLabel(_screen, &lv_font_montserrat_14, grayLight,
-                                        LV_ALIGN_TOP_LEFT, infoX, 56, sStr);
-            }
-        }
     }
 
     // Return location banner — shown when this spool is already in inventory
@@ -1925,7 +1886,6 @@ void Display::showQrCode(const char* data, const char* label) {
 void Display::update(ScanState state, float weight, bool stable,
                      const char* nfcUid,
                      const ScanResponse* serverData,
-                     const DistanceData* distance,
                      const ColorData* color,
                      uint8_t statusIcons,
                      const char* sessionUrl,

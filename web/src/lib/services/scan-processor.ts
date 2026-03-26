@@ -18,7 +18,6 @@ import { getSlotPath } from "./storage-path";
 
 export type ScanInput = {
   weight?: { grams: number; stable: boolean };
-  height?: { objectHeightMm: number; distanceMm: number };
   color?: Record<string, any>;
   nfc?: {
     present: boolean;
@@ -79,8 +78,6 @@ export async function processScan(
       userId,
       weightG: input.weight?.grams ?? null,
       weightStable: input.weight?.stable ?? null,
-      heightMm: input.height?.objectHeightMm ?? null,
-      distanceMm: input.height?.distanceMm ?? null,
       spectralData: input.color ?? null,
       nfcPresent: input.nfc?.present ?? false,
       nfcUid: input.nfc?.uid ?? null,

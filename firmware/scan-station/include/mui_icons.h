@@ -90,41 +90,6 @@ static const lv_image_dsc_t icon_scale = {
     .data      = icon_scale_data,
 };
 
-// ── TOF / Distance ───────────────────────────────────────────
-// Ruler silhouette: solid top and bottom rails, tick marks of
-// varying height along the top edge. Instantly reads as "measure".
-static const uint8_t icon_tof_data[] = {
-    0xFF, 0xFF,  // ################  top rail
-    0x80, 0x00,  // #...............
-    0xF8, 0x00,  // #####...........  long tick
-    0x80, 0x00,  // #...............
-    0xE0, 0x00,  // ###.............  mid tick
-    0x80, 0x00,  // #...............
-    0xF8, 0x00,  // #####...........  long tick
-    0x80, 0x00,  // #...............
-    0xE0, 0x00,  // ###.............
-    0x80, 0x00,  // #...............
-    0xF8, 0x00,  // #####...........
-    0x80, 0x00,  // #...............
-    0xE0, 0x00,  // ###.............
-    0x80, 0x00,  // #...............
-    0x80, 0x00,  // #...............
-    0xFF, 0xFF,  // ################  bottom rail
-};
-
-static const lv_image_dsc_t icon_tof = {
-    .header = {
-        .magic  = LV_IMAGE_HEADER_MAGIC,
-        .cf     = LV_COLOR_FORMAT_A1,
-        .flags  = 0,
-        .w      = 16,
-        .h      = 16,
-        .stride = 2,
-    },
-    .data_size = 32,
-    .data      = icon_tof_data,
-};
-
 // ── Color / Palette ──────────────────────────────────────────
 // Filled circle (color wheel) with a triangular notch cut from
 // the bottom-right quadrant — the universal "color palette" shape.

@@ -71,7 +71,6 @@ type StationConfig = {
   capabilities?: {
     nfc?: SensorDetail;
     scale?: SensorDetail;
-    tof?: SensorDetail;
     colorSensor?: SensorDetail;
     display?: SensorDetail;
     leds?: SensorDetail;
@@ -110,7 +109,6 @@ type Station = {
   lastSeenAt: string | null;
   hasTurntable: boolean | null;
   hasColorSensor: boolean | null;
-  hasTofSensor: boolean | null;
   hasCamera: boolean | null;
   config: StationConfig;
   createdAt: string;
@@ -267,7 +265,6 @@ function StationCard({
                 <div className="flex gap-1 ml-2 flex-wrap">
                   <CapBadge label="NFC" detected={caps.nfc?.detected} />
                   <CapBadge label="Scale" detected={caps.scale?.detected} />
-                  <CapBadge label="TOF" detected={caps.tof?.detected} />
                   <CapBadge label="Color" detected={caps.colorSensor?.detected} />
                   <CapBadge label="Display" detected={caps.display?.detected} />
                   <CapBadge label="LED" detected={caps.leds?.detected} />
@@ -285,7 +282,6 @@ function StationCard({
             <div className="flex flex-col gap-1.5">
               <SensorRow label="NFC" sensor={caps?.nfc} />
               <SensorRow label="Scale" sensor={caps?.scale} />
-              <SensorRow label="TOF" sensor={caps?.tof} />
               <SensorRow label="Color" sensor={caps?.colorSensor} />
               <SensorRow label="Display" sensor={caps?.display} />
               <SensorRow label="LEDs" sensor={caps?.leds} />

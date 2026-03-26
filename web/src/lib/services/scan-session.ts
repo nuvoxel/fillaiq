@@ -58,11 +58,6 @@ export async function updateSessionAggregates(
     updates.bestWeightG = scanEvent.weightG;
   }
 
-  // Height: prefer latest
-  if (scanEvent.heightMm != null) {
-    updates.bestHeightMm = scanEvent.heightMm;
-  }
-
   // Color: prefer latest with hex
   if (scanEvent.colorHex) {
     updates.bestColorHex = scanEvent.colorHex;

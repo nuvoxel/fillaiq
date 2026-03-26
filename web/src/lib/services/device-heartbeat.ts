@@ -102,7 +102,6 @@ export async function processCapabilities(
   if (!station) return;
 
   const updateData: Record<string, any> = {
-    hasTofSensor: !!caps.tof?.detected,
     hasColorSensor: !!caps.colorSensor?.detected,
     hasTurntable: !!caps.turntable,
     hasCamera: !!caps.camera,

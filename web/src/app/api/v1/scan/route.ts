@@ -124,9 +124,6 @@ export async function POST(request: NextRequest) {
       // Weight
       weightG: body.weight?.grams ?? null,
       weightStable: body.weight?.stable ?? null,
-      // Height
-      heightMm: body.height?.objectHeightMm ?? null,
-      distanceMm: body.height?.distanceMm ?? null,
       // Color
       spectralData: body.color ?? null,
       // NFC
