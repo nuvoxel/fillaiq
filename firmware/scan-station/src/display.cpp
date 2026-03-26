@@ -417,6 +417,16 @@ void Display::onLocNextClick(lv_event_t* e) {
     display.locationCycleDelta = 1;
 }
 
+void Display::onColorReadClick(lv_event_t* e) {
+    (void)e;
+    display.colorReadButtonPressed = true;
+}
+
+void Display::onColorSkipClick(lv_event_t* e) {
+    (void)e;
+    display.colorSkipButtonPressed = true;
+}
+
 // ── Idle Screen ──────────────────────────────────────────────
 
 void Display::buildIdleScreen(uint8_t icons) {
@@ -753,6 +763,51 @@ void Display::setScanButtonEnabled(bool enabled) {
     } else {
         lv_obj_add_state(_dashScanBtn, LV_STATE_DISABLED);
     }
+}
+
+// ── Color Read Screen ────────────────────────────────────────
+
+void Display::buildColorReadScreen(uint8_t icons) {
+    clearScreen();
+    _currentScreen = SCR_COLOR_READ;
+    createStatusBar(_screen, icons);
+
+    // Title
+    makeLabel(_screen, &lv_font_montserrat_20, makerCyan,
+              LV_ALIGN_TOP_MID, 0, 40, "Read Color");
+
+    // Instruction
+    makeLabel(_screen, &lv_font_montserrat_14, toolGray,
+              LV_ALIGN_CENTER, 0, -30,
+              "Place spool against\nthe color sensor");
+
+    // Read Color button
+    lv_obj_t* readBtn = lv_btn_create(_screen);
+    lv_obj_set_size(readBtn, _screenW - 40, 44);
+    lv_obj_align(readBtn, LV_ALIGN_BOTTOM_MID, 0, -52);
+    lv_obj_set_style_bg_color(readBtn, makerCyan, 0);
+    lv_obj_set_style_radius(readBtn, 8, 0);
+    lv_obj_add_event_cb(readBtn, onColorReadClick, LV_EVENT_CLICKED, this);
+    lv_obj_t* readLabel = lv_label_create(readBtn);
+    lv_label_set_text(readLabel, "READ COLOR");
+    lv_obj_set_style_text_font(readLabel, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(readLabel, lv_color_hex(0x0D1B2A), 0);
+    lv_obj_center(readLabel);
+
+    // Skip button
+    lv_obj_t* skipBtn = lv_btn_create(_screen);
+    lv_obj_set_size(skipBtn, _screenW - 40, 36);
+    lv_obj_align(skipBtn, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_style_bg_opa(skipBtn, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(skipBtn, 1, 0);
+    lv_obj_set_style_border_color(skipBtn, toolGray, 0);
+    lv_obj_set_style_radius(skipBtn, 8, 0);
+    lv_obj_add_event_cb(skipBtn, onColorSkipClick, LV_EVENT_CLICKED, this);
+    lv_obj_t* skipLabel = lv_label_create(skipBtn);
+    lv_label_set_text(skipLabel, "SKIP");
+    lv_obj_set_style_text_font(skipLabel, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(skipLabel, toolGray, 0);
+    lv_obj_center(skipLabel);
 }
 
 // ── Result Screen ────────────────────────────────────────────
@@ -1893,6 +1948,9 @@ void Display::update(ScanState state, float weight, bool stable,
     case SCAN_IDLE:
         targetScreen = SCR_IDLE;
         break;
+    case SCAN_COLOR_READ:
+        targetScreen = SCR_COLOR_READ;
+        break;
     case SCAN_SUBMITTING:
         targetScreen = SCR_SUBMITTING;
         break;
@@ -1911,6 +1969,9 @@ void Display::update(ScanState state, float weight, bool stable,
         switch (state) {
         case SCAN_IDLE:
             buildDashboardScreen(statusIcons);
+            break;
+        case SCAN_COLOR_READ:
+            buildColorReadScreen(statusIcons);
             break;
         case SCAN_SUBMITTING:
             clearScreen();

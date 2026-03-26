@@ -98,6 +98,7 @@ struct TurntableData {
 // --- Scan Station State Machine ---
 enum ScanState : uint8_t {
     SCAN_IDLE = 0,          // Live sensor dashboard with Scan button
+    SCAN_COLOR_READ,        // Waiting for user to read color or skip
     SCAN_SUBMITTING,        // POSTing scan data to server
     SCAN_RESULT,            // Showing result (identified or needs enrichment)
 };
@@ -105,6 +106,7 @@ enum ScanState : uint8_t {
 inline const char* scanStateName(ScanState s) {
     switch (s) {
         case SCAN_IDLE:             return "Idle";
+        case SCAN_COLOR_READ:       return "Color Read";
         case SCAN_SUBMITTING:       return "Submitting...";
         case SCAN_RESULT:           return "Result";
         default:                    return "???";

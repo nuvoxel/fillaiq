@@ -61,6 +61,10 @@ public:
     // Print button pressed — set by LVGL event on result screen
     volatile bool printButtonPressed = false;
 
+    // Color read screen buttons
+    volatile bool colorReadButtonPressed = false;
+    volatile bool colorSkipButtonPressed = false;
+
     // Menu action callbacks (set by main.cpp)
     void (*onMenuWifiSetup)() = nullptr;
     void (*onMenuTareScale)() = nullptr;
@@ -118,7 +122,7 @@ private:
     bool _forceRedraw = true;
 
     // Current screen type (for knowing when to rebuild)
-    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_BOOT, SCR_PAIRING, SCR_QR, SCR_MENU, SCR_RAW_SENSORS, SCR_CALIBRATE, SCR_RESULT, SCR_SUBMITTING };
+    enum ScreenMode { SCR_NONE, SCR_IDLE, SCR_UNKNOWN, SCR_IDENTIFIED, SCR_MESSAGE, SCR_BOOT, SCR_PAIRING, SCR_QR, SCR_MENU, SCR_RAW_SENSORS, SCR_CALIBRATE, SCR_RESULT, SCR_SUBMITTING, SCR_COLOR_READ };
     ScreenMode _currentScreen = SCR_NONE;
 
     // LVGL objects — persistent across updates
@@ -180,6 +184,7 @@ private:
     lv_obj_t* _resultPrintBtn = nullptr;
 
     void buildDashboardScreen(uint8_t icons);
+    void buildColorReadScreen(uint8_t icons);
     void buildResultScreen(const ScanResponse* resp, float weight, const char* sessionUrl, uint8_t icons);
     void buildIdleScreen(uint8_t icons);
     void buildUnknownScreen(float weight, bool stable, const ColorData* color, uint8_t icons);
@@ -205,6 +210,8 @@ private:
     static void onPrintBtnClick(lv_event_t* e);
     static void onLocPrevClick(lv_event_t* e);
     static void onLocNextClick(lv_event_t* e);
+    static void onColorReadClick(lv_event_t* e);
+    static void onColorSkipClick(lv_event_t* e);
 };
 
 extern Display display;

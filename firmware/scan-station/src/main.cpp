@@ -1005,15 +1005,33 @@ void triggerScan() {
     }
 
 #ifdef BOARD_SCAN_TOUCH
-    // Use cached sensor data from sensor task (no I2C blocking)
-    if (cachedColor.valid) currentScan.color = cachedColor;
+    // If color sensor is connected, go to color read screen first
+    if (colorSensor.isConnected()) {
+        enterState(SCAN_COLOR_READ);
+        return;
+    }
 #else
+    // Non-touch boards: do blocking color read inline
     if (colorSensor.isConnected()) {
         ColorData color;
         if (colorSensor.read(color)) currentScan.color = color;
     }
 #endif
 
+    enterState(SCAN_SUBMITTING);
+}
+
+// Capture color data and proceed to submission
+void submitScanWithColor() {
+#ifdef BOARD_SCAN_TOUCH
+    snapshotSensors();
+    if (cachedColor.valid) currentScan.color = cachedColor;
+#endif
+    enterState(SCAN_SUBMITTING);
+}
+
+void submitScanSkipColor() {
+    // No color data — submit as-is
     enterState(SCAN_SUBMITTING);
 }
 
@@ -1033,12 +1051,30 @@ void updateScanState() {
 #ifdef BOARD_SCAN_TOUCH
         if (display.scanButtonPressed) {
             display.scanButtonPressed = false;
-            // Request illuminated color read — sensor task will LED on, read, LED off
-            sensorCache.colorReadRequested = true;
-            // Give sensor task time to do the read before we snapshot
-            vTaskDelay(pdMS_TO_TICKS(300));
             snapshotSensors();
             triggerScan();
+        }
+#endif
+        break;
+
+    case SCAN_COLOR_READ:
+#ifdef BOARD_SCAN_TOUCH
+        if (display.colorReadButtonPressed) {
+            display.colorReadButtonPressed = false;
+            Serial.println("[Scan] Reading color...");
+            sensorCache.colorReadRequested = true;
+            vTaskDelay(pdMS_TO_TICKS(300));
+            submitScanWithColor();
+        }
+        if (display.colorSkipButtonPressed) {
+            display.colorSkipButtonPressed = false;
+            Serial.println("[Scan] Color skipped");
+            submitScanSkipColor();
+        }
+        // Timeout after 30s — skip color automatically
+        if (elapsed > 30000) {
+            Serial.println("[Scan] Color read timeout, skipping");
+            submitScanSkipColor();
         }
 #endif
         break;
