@@ -90,7 +90,6 @@ export const userItems = pgTable("user_items", {
   measuredSpoolWidthMm: real("measured_spool_width_mm"),
   measuredSpoolHubHoleDiameterMm: real("measured_spool_hub_hole_diameter_mm"),
   measuredSpoolWeightG: real("measured_spool_weight_g"),
-  measuredHeightMm: real("measured_height_mm"),
   // Color from scan station sensor
   measuredColorHex: varchar("measured_color_hex", { length: 9 }),
   measuredColorLabL: real("measured_color_lab_l"),

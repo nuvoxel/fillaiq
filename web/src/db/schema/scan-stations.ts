@@ -28,11 +28,9 @@ export const scanStations = pgTable(
     firmwareChannel: varchar("firmware_channel", { length: 20 }).default("stable"),
     ipAddress: varchar("ip_address", { length: 45 }),
     // Calibration
-    platformHeightMm: real("platform_height_mm"),
     weightCalibrationFactor: real("weight_calibration_factor"),
     hasTurntable: boolean("has_turntable").default(false),
     hasColorSensor: boolean("has_color_sensor").default(false),
-    hasTofSensor: boolean("has_tof_sensor").default(false),
     hasCamera: boolean("has_camera").default(false),
     // Pairing
     deviceToken: varchar("device_token", { length: 128 }),
@@ -69,7 +67,6 @@ export const scanSessions = pgTable("scan_sessions", {
 
   // ── Accumulated best values ─────────────────────────────────────────────
   bestWeightG: real("best_weight_g"),
-  bestHeightMm: real("best_height_mm"),
   bestColorHex: varchar("best_color_hex", { length: 7 }),
   bestColorLabL: real("best_color_lab_l"),
   bestColorLabA: real("best_color_lab_a"),
@@ -115,10 +112,6 @@ export const scanEvents = pgTable("scan_events", {
   // ── Weight ────────────────────────────────────────────────────────────
   weightG: real("weight_g"),
   weightStable: boolean("weight_stable"),
-
-  // ── Height (TOF) ──────────────────────────────────────────────────────
-  heightMm: real("height_mm"),
-  distanceMm: real("distance_mm"),
 
   // ── Spectral color (AS7341 raw channels) ──────────────────────────────
   spectralData: jsonb("spectral_data"),
