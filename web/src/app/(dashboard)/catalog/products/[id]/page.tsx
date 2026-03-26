@@ -75,8 +75,10 @@ export default async function ProductDetailPage({
         </Button>
 
         {/* Header */}
-        <div className="flex items-center gap-2 mb-3">
-          {brand?.logoUrl ? (
+        <div className="flex items-start gap-4 mb-3">
+          {p.imageUrl ? (
+            <img src={p.imageUrl} alt={p.name} className="size-20 rounded-lg object-cover border shrink-0" />
+          ) : brand?.logoUrl ? (
             <Avatar className="size-12">
               <AvatarImage src={brand.logoUrl} />
               <AvatarFallback>{brand.name[0]}</AvatarFallback>
@@ -91,6 +93,7 @@ export default async function ProductDetailPage({
           <div className="flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <h1 className="text-2xl font-semibold">{p.name}</h1>
+              {p.colorName && <span className="text-2xl text-muted-foreground">{p.colorName}</span>}
               <Badge variant={validationVariants[p.validationStatus] ?? "secondary"}>
                 {p.validationStatus}
               </Badge>
@@ -103,6 +106,12 @@ export default async function ProductDetailPage({
               >
                 {brand.name}
               </Link>
+            )}
+            {(p.bambuVariantId || p.bambuMaterialId) && (
+              <div className="flex gap-2 mt-1">
+                {p.bambuVariantId && <Badge variant="outline" className="text-xs font-mono">{p.bambuVariantId}</Badge>}
+                {p.bambuMaterialId && <Badge variant="outline" className="text-xs font-mono">{p.bambuMaterialId}</Badge>}
+              </div>
             )}
           </div>
         </div>
