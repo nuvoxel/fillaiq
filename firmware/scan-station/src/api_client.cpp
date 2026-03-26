@@ -481,8 +481,6 @@ String ApiClient::buildCapabilitiesJson() const {
     addSensor("leds", _capabilities.leds);
     addSensor("environment", _capabilities.environment);
     addSensor("touch", _capabilities.touch);
-    addSensor("sdCard", _capabilities.sdCard);
-    addSensor("audio", _capabilities.audio);
     addSensor("battery", _capabilities.battery);
 
     if (_capabilities.printer.detected) {

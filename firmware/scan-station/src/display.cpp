@@ -15,11 +15,9 @@
 #define FA_THERMOMETER      "\xEF\x8B\x89"   // 0xF2C9 — Environment
 #define FA_PRINT            "\xEF\x80\xAF"   // 0xF02F — Printer
 #define FA_WIFI             "\xEF\x87\xAB"   // 0xF1EB — WiFi
-#define FA_SD_CARD          "\xEF\x9F\x82"   // 0xF7C2 — SD card
 #define FA_CHECK            "\xEF\x80\x8C"   // 0xF00C — Paired/OK
 #define FA_CLOUD            "\xEF\x83\x82"   // 0xF0C2 — MQTT/Cloud
 #define FA_GEAR             "\xEF\x80\x93"   // 0xF013 — Settings
-#define FA_VOLUME_MUTE      "\xEF\x9A\xA9"   // 0xF6A9 — Audio/Mute
 
 // LVGL native display drivers
 #include "src/drivers/display/lcd/lv_lcd_generic_mipi.h"
@@ -317,8 +315,6 @@ lv_obj_t* Display::createStatusBar(lv_obj_t* parent, uint8_t icons) {
             { SENSOR_SCALE, FA_WEIGHT_SCALE    },
             { SENSOR_COLOR, FA_PALETTE         },
             { SENSOR_ENV,   FA_THERMOMETER     },
-            { SENSOR_SD,    FA_SD_CARD         },
-            { SENSOR_AUDIO, FA_VOLUME_MUTE     },
         };
         for (auto& s : sensors) {
             if (_sensorFlags & s.flag) {
@@ -380,7 +376,6 @@ void Display::onBackBtnClick(lv_event_t* e) {
 void Display::onMenuItemClick(lv_event_t* e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     switch (idx) {
-        case 0: if (display.onMenuFormatSd)  display.onMenuFormatSd();  break;
         case 1: if (display.onMenuWifiSetup) display.onMenuWifiSetup(); break;
         case 2: if (display.onMenuTareScale) display.onMenuTareScale(); break;
         case 3: if (display.onMenuRawSensors) display.onMenuRawSensors(); break;
@@ -1580,8 +1575,6 @@ void Display::buildMenuScreen() {
                 onMenuItemClick, (void*)(intptr_t)6);
     makeMenuBtn(list, LV_SYMBOL_POWER, "Reboot",
                 onMenuItemClick, (void*)(intptr_t)5);
-    makeMenuBtn(list, LV_SYMBOL_SD_CARD, "Format SD Card",
-                onMenuItemClick, (void*)(intptr_t)0);
 
     // Device info line
     char info[64];

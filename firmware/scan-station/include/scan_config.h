@@ -32,7 +32,6 @@
 
 // Capacitive touch (FT6336G) + external sensors share I2C bus
 // The board's I2C header and touch controller are both on GPIO 15/16.
-// GPIO 5/6 are I2S audio (ES8311 codec) — NOT usable for I2C.
 #define TOUCH_SDA       16
 #define TOUCH_SCL       15
 #define TOUCH_INT       17
@@ -51,22 +50,6 @@
 #define LED_SKIP         1   // Skip onboard RGB LED (pixel 0); ring starts at pixel 1
 #define LED_COUNT       25   // 1 onboard + 24 ring
 
-// SD Card (SDMMC 4-bit mode)
-#define SD_CLK_PIN      38
-#define SD_CMD_PIN      40
-#define SD_D0_PIN       39
-#define SD_D1_PIN       41
-#define SD_D2_PIN       48
-#define SD_D3_PIN       47
-
-// Audio — ES8311 codec (I2C control + I2S data)
-#define ES8311_ADDR     0x18
-#define I2S_MCK_PIN      4
-#define I2S_BCK_PIN      5
-#define I2S_WS_PIN       7
-#define I2S_DOUT_PIN     8   // Speaker (DAC output)
-#define I2S_DIN_PIN      6   // Microphone (ADC input)
-#define AMP_EN_PIN       1   // Amplifier enable (LOW = on)
 
 // Battery voltage ADC
 #define BATTERY_ADC_PIN  9

@@ -26,8 +26,6 @@
 #include <WiFi.h>
 #ifdef BOARD_SCAN_TOUCH
 #include "touch.h"
-#include "sdcard.h"
-#include "audio.h"
 #endif
 #include <BLEDevice.h>
 #include <BLEScan.h>
@@ -69,7 +67,7 @@ uint8_t authFailCount = 0;
 
 // Menu action flags (set by LVGL callbacks, processed in main loop)
 #ifdef BOARD_SCAN_TOUCH
-enum MenuAction : uint8_t { MENU_NONE = 0, MENU_FORMAT_SD, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT, MENU_CHECK_UPDATE, MENU_BLE_SCAN };
+enum MenuAction : uint8_t { MENU_NONE = 0, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT, MENU_CHECK_UPDATE, MENU_BLE_SCAN };
 volatile MenuAction menuActionPending = MENU_NONE;
 #endif
 
@@ -1074,14 +1072,6 @@ void updateScanState() {
                     Serial.printf("[API] Scan posted: id=%s identified=%d\n",
                                  lastResponse.scanId, lastResponse.identified);
 
-#ifdef BOARD_SCAN_TOUCH
-                    if (lastResponse.identified) {
-                        if (audio.isConnected()) audio.playSuccessBeep();
-                    } else {
-                        if (audio.isConnected()) audio.playSubmitBeep();
-                    }
-                    if (sdCard.isConnected()) sdCard.logScan(currentScan, lastResponse);
-#endif
                     enterState(SCAN_RESULT);
                 } else if (status == API_AUTH_FAILED) {
                     authFailCount++;
@@ -1181,9 +1171,6 @@ void updateScanState() {
                 sharedScan.printInFlight = false;
                 if (sharedScan.printSuccess) {
                     Serial.println("[Print] Label printed successfully");
-#ifdef BOARD_SCAN_TOUCH
-                    if (audio.isConnected()) audio.playSuccessBeep();
-#endif
                 } else {
                     Serial.printf("[Print] Error: %s\n", sharedScan.printError);
                 }
@@ -1832,32 +1819,6 @@ void handleSerial() {
         xQueueSend(networkQueue, &item, 0);
     }
 
-#ifdef BOARD_SCAN_TOUCH
-    else if (line == "beep") {
-        if (audio.isConnected()) {
-            Serial.println("Playing submit beep...");
-            audio.playSubmitBeep();
-        } else {
-            Serial.println("Audio not connected.");
-        }
-    }
-    else if (line == "beep2") {
-        if (audio.isConnected()) {
-            Serial.println("Playing success beep...");
-            audio.playSuccessBeep();
-        } else {
-            Serial.println("Audio not connected.");
-        }
-    }
-    else if (line == "beep3") {
-        if (audio.isConnected()) {
-            Serial.println("Playing error beep...");
-            audio.playErrorBeep();
-        } else {
-            Serial.println("Audio not connected.");
-        }
-    }
-#endif
     else if (line == "reset" || line == "reboot") {
         Serial.println("Rebooting...");
         delay(500);
@@ -1929,7 +1890,7 @@ void setup() {
                                     AS7341_ADDR, TCS34725_ADDR, OPT4048_ADDR,
                                     AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/,
 #ifdef BOARD_SCAN_TOUCH
-                                    0x38 /*FT6336*/, ES8311_ADDR, 0x55 /*Pico NFC*/,
+                                    0x38 /*FT6336*/, 0x55 /*Pico NFC*/,
 #endif
                                     };
     Serial.print("  I2C:"); Serial.flush();
@@ -1993,22 +1954,6 @@ void setup() {
 #endif
     }
 
-    // SD card
-#ifdef BOARD_SCAN_TOUCH
-    display.setBootStatus("SD card init...");
-    sdCard.begin();
-    display.addBootItem("SD", sdCard.isConnected());
-#endif
-
-    // Audio
-#ifdef BOARD_SCAN_TOUCH
-    display.setBootStatus("Audio init...");
-    audio.begin();
-    if (audio.isConnected()) {
-        audio.setVolume(deviceConfig.audioVolume());
-    }
-    display.addBootItem("Audio", audio.isConnected());
-#endif
 
     // Set sensor flags for status bar icons on runtime screens
     {
@@ -2017,10 +1962,6 @@ void setup() {
         if (scale.isConnected())            sf |= SENSOR_SCALE;
         if (colorSensor.isConnected())      sf |= SENSOR_COLOR;
         if (envSensor.isConnected())        sf |= SENSOR_ENV;
-#ifdef BOARD_SCAN_TOUCH
-        if (sdCard.isConnected())           sf |= SENSOR_SD;
-        if (audio.isConnected())            sf |= SENSOR_AUDIO;
-#endif
         display.setSensorFlags(sf);
     }
 
@@ -2065,10 +2006,6 @@ void setup() {
 #ifdef BOARD_SCAN_TOUCH
     if (touchInput.isConnected())
         caps.touch.set("FT6336G", "I2C", 0x38);
-    if (sdCard.isConnected())
-        caps.sdCard.set(sdCard.getChipName(), "SDMMC");
-    if (audio.isConnected())
-        caps.audio.set("ES8311", "I2S", ES8311_ADDR);
     // Battery ADC -- always present on touch board
     caps.battery.set("ADC", "GPIO", 0, BATTERY_ADC_PIN);
 #endif
@@ -2122,7 +2059,6 @@ void setup() {
     // Menu action callbacks -- set flags for main loop to handle
     // (LVGL event callbacks run on lv_timer_handler stack, can't do heavy work)
 #ifdef BOARD_SCAN_TOUCH
-    display.onMenuFormatSd  = []() { menuActionPending = MENU_FORMAT_SD; };
     display.onMenuWifiSetup = []() { menuActionPending = MENU_WIFI_SETUP; };
     display.onMenuTareScale = []() { menuActionPending = MENU_TARE_SCALE; };
     display.onMenuRawSensors = []() { menuActionPending = MENU_RAW_SENSORS; };
@@ -2242,17 +2178,6 @@ void loop() {
         #define SHOW_CAL(l1, l2) do { display.requestCalibrate(l1, l2); vTaskDelay(pdMS_TO_TICKS(100)); } while(0)
 
         switch (action) {
-            case MENU_FORMAT_SD:
-                if (sdCard.isConnected()) {
-                    SHOW_MSG("Formatting...", "Please wait");
-                    sdCard.format();
-                    SHOW_MSG("SD Formatted", "Scan log cleared");
-                    vTaskDelay(pdMS_TO_TICKS(1500));
-                } else {
-                    SHOW_MSG("No SD Card", "Insert card and reboot");
-                    vTaskDelay(pdMS_TO_TICKS(1500));
-                }
-                break;
             case MENU_WIFI_SETUP:
                 scale.resumeTask();
                 resumeBackgroundTasks();

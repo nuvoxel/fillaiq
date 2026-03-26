@@ -16,8 +16,6 @@
 #define SENSOR_SCALE    0x02
 #define SENSOR_COLOR    0x04
 #define SENSOR_ENV      0x08
-#define SENSOR_SD       0x10
-#define SENSOR_AUDIO    0x20
 
 class Display {
 public:
@@ -64,7 +62,6 @@ public:
     volatile bool printButtonPressed = false;
 
     // Menu action callbacks (set by main.cpp)
-    void (*onMenuFormatSd)() = nullptr;
     void (*onMenuWifiSetup)() = nullptr;
     void (*onMenuTareScale)() = nullptr;
     void (*onMenuRawSensors)() = nullptr;

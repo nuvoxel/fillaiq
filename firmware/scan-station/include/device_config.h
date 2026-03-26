@@ -21,8 +21,6 @@ struct DeviceConfig {
     uint8_t displayBrightness = 255;  // 0-255
     uint8_t ledBrightness = 50;       // 0-255
 
-    // Audio
-    uint8_t audioVolume = 70;   // 0-100 (0 = mute)
 };
 
 class DeviceConfigManager {
@@ -38,7 +36,6 @@ public:
     unsigned long otaCheckInterval() const { return _config.otaCheckIntervalMs; }
     uint8_t displayBrightness() const { return _config.displayBrightness; }
     uint8_t ledBrightness() const { return _config.ledBrightness; }
-    uint8_t audioVolume() const { return _config.audioVolume; }
 
     void setWeightCalibration(float factor);  // Update from local calibration
     void printStatus();

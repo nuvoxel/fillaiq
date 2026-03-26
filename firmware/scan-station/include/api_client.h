@@ -123,8 +123,6 @@ struct DeviceCapabilities {
     SensorInfo leds;
     SensorInfo environment;
     SensorInfo touch;
-    SensorInfo sdCard;
-    SensorInfo audio;
     SensorInfo battery;
     PrinterInfo printer;
     bool turntable = false;

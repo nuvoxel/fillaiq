@@ -79,8 +79,6 @@ type StationConfig = {
     environment?: SensorDetail;
     printer?: PrinterDetail;
     touch?: SensorDetail;
-    sdCard?: SensorDetail;
-    audio?: SensorDetail;
     battery?: SensorDetail;
   };
   deviceSettings?: Record<string, any>;
@@ -188,7 +186,6 @@ function StationCard({
     weightCalibration: settings.weightCalibration ?? "",
     displayBrightness: settings.displayBrightness ?? 255,
     ledBrightness: settings.ledBrightness ?? 50,
-    audioVolume: settings.audioVolume ?? 70,
     printerSpeed: settings.printerSpeed ?? 3,
     printerDensity: settings.printerDensity ?? 10,
   });
@@ -203,7 +200,6 @@ function StationCard({
       out.weightCalibration = parseFloat(String(configValues.weightCalibration));
     out.displayBrightness = configValues.displayBrightness;
     out.ledBrightness = configValues.ledBrightness;
-    out.audioVolume = configValues.audioVolume;
     out.printerSpeed = configValues.printerSpeed;
     out.printerDensity = configValues.printerDensity;
     onSaveConfig(station.id, out);
@@ -270,8 +266,6 @@ function StationCard({
                   <CapBadge label="LED" detected={caps.leds?.detected} />
                   <CapBadge label="Env" detected={caps.environment?.detected} />
                   <CapBadge label="Touch" detected={caps.touch?.detected} />
-                  <CapBadge label="SD" detected={caps.sdCard?.detected} />
-                  <CapBadge label="Audio" detected={caps.audio?.detected} />
                   <CapBadge label="Battery" detected={caps.battery?.detected} />
                   {caps.printer?.detected && <Badge variant="secondary" className="h-5 text-[0.7rem] px-1.5">Printer</Badge>}
                 </div>
@@ -287,8 +281,6 @@ function StationCard({
               <SensorRow label="LEDs" sensor={caps?.leds} />
               <SensorRow label="Env" sensor={caps?.environment} />
               <SensorRow label="Touch" sensor={caps?.touch} />
-              <SensorRow label="SD Card" sensor={caps?.sdCard} />
-              <SensorRow label="Audio" sensor={caps?.audio} />
               <SensorRow label="Battery" sensor={caps?.battery} />
               {caps?.turntable && <Badge variant="outline" className="self-start">Turntable</Badge>}
               {caps?.camera && <Badge variant="outline" className="self-start">Camera</Badge>}
@@ -373,14 +365,6 @@ function StationCard({
                   onChange={(e) => setConfigValues(v => ({ ...v, ledBrightness: Number(e.target.value) }))}
                   min={0} max={255} step={1} />
               </div>
-              {caps?.audio?.detected && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Audio Volume ({configValues.audioVolume}%{configValues.audioVolume === 0 ? " -- Muted" : ""})</Label>
-                  <input type="range" className="w-full" value={configValues.audioVolume}
-                    onChange={(e) => setConfigValues(v => ({ ...v, audioVolume: Number(e.target.value) }))}
-                    min={0} max={100} step={5} />
-                </div>
-              )}
               <div className="col-span-2 flex justify-end">
                 <Button size="sm" onClick={handleSave} disabled={isPending}>
                   {isPending ? "Saving..." : "Save Settings"}
