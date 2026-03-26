@@ -47,7 +47,7 @@ const materialClassVariants: Record<string, "default" | "secondary"> = {
 
 export default function CatalogPage() {
   const router = useRouter();
-  const [tab, setTab] = useState("brands");
+  const [tab, setTab] = useState("products");
   const [search, setSearch] = useState("");
   const [brands, setBrands] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
