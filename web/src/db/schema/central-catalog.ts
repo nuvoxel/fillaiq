@@ -130,6 +130,10 @@ export const products = pgTable(
     certifications: text("certifications").array(),
     gtin: varchar("gtin", { length: 14 }),
 
+    // ── NFC / Manufacturer IDs ──────────────────────────────────────────
+    bambuVariantId: varchar("bambu_variant_id", { length: 50 }),
+    bambuMaterialId: varchar("bambu_material_id", { length: 50 }),
+
     // ── External IDs ──────────────────────────────────────────────────────
     externalSpoolmanDbId: varchar("external_spoolman_db_id", { length: 100 }),
     external3dFpShortCode: varchar("external_3dfp_short_code", {

@@ -53,6 +53,26 @@ async function matchByNfc(session: SessionLike): Promise<MatchResult | null> {
   const parsed = session.nfcParsedData as Record<string, any> | null;
   if (!parsed) return null;
 
+  // ── Strategy 0: Exact match by variantId on products table ──────────
+  if (parsed.variantId) {
+    const [match] = await db
+      .select({ product: products, brand: brands })
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .where(eq(products.bambuVariantId, parsed.variantId))
+      .limit(1);
+
+    if (match) {
+      return {
+        productId: match.product.id,
+        confidence: 0.99,
+        method: "nfc",
+        product: match.product,
+        brand: match.brand,
+      };
+    }
+  }
+
   // ── Strategy 1: Match by product name + material + color + brand ────
   // Bambu MIFARE tags give us: name ("PLA Basic"), material ("PLA"),
   // color (#D1D3D5), net weight (1000), and we know brand = Bambu Lab.

@@ -327,6 +327,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
 
     // If no product matched and user filled in new product fields, submit to catalog
     if (!productId && creatingNew && newProductName) {
+      const sessionParsedForProduct = selectedSession?.nfcParsedData as Record<string, any> | null;
       const productResult = await submitProduct({
         name: newProductName,
         brandId: newBrandId !== "_none" ? newBrandId : undefined,
@@ -334,7 +335,13 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
         category: "filament",
         colorName: newColorName || undefined,
         colorHex: newColorHex || colorHex || undefined,
+        colorR: sessionParsedForProduct?.colorR ?? undefined,
+        colorG: sessionParsedForProduct?.colorG ?? undefined,
+        colorB: sessionParsedForProduct?.colorB ?? undefined,
+        colorA: sessionParsedForProduct?.colorA ?? undefined,
         netWeightG: toFloat(newNetWeightG),
+        bambuVariantId: sessionParsedForProduct?.variantId || undefined,
+        bambuMaterialId: sessionParsedForProduct?.materialId || undefined,
       });
       if (productResult.error) {
         setSaveError(productResult.error);
