@@ -243,6 +243,8 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
       if (parsed.nozzleTempMin) setNewNozzleTempMin(String(parsed.nozzleTempMin));
       if (parsed.nozzleTempMax) setNewNozzleTempMax(String(parsed.nozzleTempMax));
       if (parsed.bedTemp) setNewBedTempMin(String(parsed.bedTemp));
+      if (parsed.trayUid) setSerialNumber(parsed.trayUid);
+      if (parsed.productionDate) setLotNumber(parsed.productionDate);
       if (parsed.material) {
         // Try to match material by name/abbreviation
         const match = materials.find(
