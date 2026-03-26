@@ -201,8 +201,6 @@ export async function removeUserItem(id: string) {
     await db.update(dryingSessions).set({ userItemId: null as any }).where(eq(dryingSessions.userItemId, id));
     await db.update(scanSessions).set({ resolvedUserItemId: null }).where(eq(scanSessions.resolvedUserItemId, id));
     await db.update(scanEvents).set({ identifiedUserItemId: null }).where(eq(scanEvents.identifiedUserItemId, id));
-    // Delete print jobs for this item
-    await db.delete(printJobs).where(eq(printJobs.userItemId, id));
   } catch (e) {
     return err(`Failed to clean up references: ${(e as Error).message}`);
   }
