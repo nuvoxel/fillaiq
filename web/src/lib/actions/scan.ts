@@ -589,7 +589,6 @@ export async function createIntakeItem(input: {
   measuredColorLabA?: number;
   measuredColorLabB?: number;
   measuredSpectralData?: any;
-  measuredHeightMm?: number;
   measuredSpoolOuterDiameterMm?: number;
   measuredSpoolInnerDiameterMm?: number;
   measuredSpoolWidthMm?: number;
@@ -634,7 +633,6 @@ export async function createIntakeItem(input: {
         measuredColorLabA: input.measuredColorLabA ?? null,
         measuredColorLabB: input.measuredColorLabB ?? null,
         measuredSpectralData: input.measuredSpectralData ?? null,
-        measuredHeightMm: input.measuredHeightMm ?? null,
         measuredSpoolOuterDiameterMm: input.measuredSpoolOuterDiameterMm ?? null,
         measuredSpoolInnerDiameterMm: input.measuredSpoolInnerDiameterMm ?? null,
         measuredSpoolWidthMm: input.measuredSpoolWidthMm ?? null,

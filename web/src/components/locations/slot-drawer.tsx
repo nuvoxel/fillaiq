@@ -181,7 +181,6 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
               netFilamentWeightG: item.netFilamentWeightG?.toString() ?? "",
               spoolWeightG: item.spoolWeightG?.toString() ?? "",
               percentRemaining: item.percentRemaining?.toString() ?? "",
-              measuredHeightMm: item.measuredHeightMm?.toString() ?? "",
               measuredColorHex: item.measuredColorHex ?? "",
               measuredColorLabL: item.measuredColorLabL?.toString() ?? "",
               measuredColorLabA: item.measuredColorLabA?.toString() ?? "",
@@ -280,7 +279,6 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
       netFilamentWeightG: toFloat(f.netFilamentWeightG),
       spoolWeightG: toFloat(f.spoolWeightG),
       percentRemaining: toInt(f.percentRemaining),
-      measuredHeightMm: toFloat(f.measuredHeightMm),
       measuredColorHex: f.measuredColorHex || null,
       measuredColorLabL: toFloat(f.measuredColorLabL),
       measuredColorLabA: toFloat(f.measuredColorLabA),
@@ -659,7 +657,6 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
                           {editNum("% Remaining", "percentRemaining", "%")}
                           {editNum("Net Filament", "netFilamentWeightG", "g")}
                           {editNum("Spool/Pkg Weight", "spoolWeightG", "g")}
-                          {editNum("Height", "measuredHeightMm", "mm")}
                           {editNum("Outer Diameter", "measuredSpoolOuterDiameterMm", "mm")}
                           {editNum("Inner Diameter", "measuredSpoolInnerDiameterMm", "mm")}
                           {editNum("Spool Width", "measuredSpoolWidthMm", "mm")}
@@ -673,7 +670,6 @@ export function SlotDrawer({ slotId, onClose, onUpdate, onPrintSlot }: Props) {
                           {displayNum("% Left", "percentRemaining", "%")}
                           {displayNum("Net Filament", "netFilamentWeightG", "g")}
                           {displayNum("Spool/Pkg", "spoolWeightG", "g")}
-                          {displayNum("Height", "measuredHeightMm", "mm")}
                           {displayNum("Outer Dia.", "measuredSpoolOuterDiameterMm", "mm")}
                           {displayNum("Inner Dia.", "measuredSpoolInnerDiameterMm", "mm")}
                           {displayNum("Width", "measuredSpoolWidthMm", "mm")}
