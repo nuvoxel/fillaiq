@@ -44,7 +44,9 @@ export function handleMqttMessage(topic: string, raw: Buffer): void {
 
   let payload: Record<string, any>;
   try {
-    payload = JSON.parse(raw.toString());
+    // Trim trailing null bytes (ESP32 C strings may include \0)
+    const str = raw.toString().replace(/\0+$/, "");
+    payload = JSON.parse(str);
   } catch {
     console.error(`[MQTT] Invalid JSON on ${topic}: ${raw.toString().slice(0, 200)}`);
     return;
