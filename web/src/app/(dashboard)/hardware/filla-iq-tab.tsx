@@ -85,6 +85,12 @@ type StationConfig = {
     battery?: SensorDetail;
   };
   deviceSettings?: Record<string, any>;
+  telemetry?: {
+    uptime?: number;
+    freeHeap?: number;
+    wifiRssi?: number;
+    printerConnected?: boolean;
+  };
 } | null;
 
 type Station = {
@@ -171,6 +177,7 @@ function StationCard({
 }) {
   const caps = (station.config as StationConfig)?.capabilities;
   const settings = (station.config as StationConfig)?.deviceSettings ?? {};
+  const telemetry = (station.config as StationConfig)?.telemetry;
 
   const [configValues, setConfigValues] = useState({
     envReportIntervalMs: (settings.envReportIntervalMs ?? 300000) / 60000,
@@ -215,6 +222,9 @@ function StationCard({
             <span>{station.deviceSku ?? "filla-scan"} &middot; {station.hardwareId}</span>
             <span className="font-mono">FW {station.firmwareVersion ?? "\u2014"}</span>
             {station.ipAddress && <span className="font-mono">{station.ipAddress}</span>}
+            {telemetry?.wifiRssi != null && <span>RSSI {telemetry.wifiRssi} dBm</span>}
+            {telemetry?.uptime != null && <span>Up {Math.floor(telemetry.uptime / 3600)}h {Math.floor((telemetry.uptime % 3600) / 60)}m</span>}
+            {telemetry?.freeHeap != null && <span>{Math.round(telemetry.freeHeap / 1024)}KB free</span>}
             {station.lastSeenAt && <span>Last seen {new Date(station.lastSeenAt).toLocaleString()}</span>}
           </div>
         </div>

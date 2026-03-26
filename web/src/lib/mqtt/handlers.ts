@@ -91,7 +91,9 @@ async function handleTelemetry(
     uptime: payload.uptime,
     freeHeap: payload.freeHeap,
     wifiRssi: payload.wifiRssi,
+    ipAddress: payload.ipAddress,
     weightCalibration: payload.weightCalibration,
+    printerConnected: payload.printerConnected,
   });
 }
 

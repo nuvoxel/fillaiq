@@ -19,7 +19,9 @@ export async function processHeartbeat(
     uptime?: number;
     freeHeap?: number;
     wifiRssi?: number;
+    ipAddress?: string;
     weightCalibration?: number;
+    printerConnected?: boolean;
   }
 ) {
   const [station] = await db
@@ -39,18 +41,37 @@ export async function processHeartbeat(
     updateData.firmwareVersion = telemetry.version;
   }
 
-  // Sync weight calibration reported by device
+  if (telemetry.sku) {
+    updateData.deviceSku = telemetry.sku;
+  }
+
+  if (telemetry.ipAddress) {
+    updateData.ipAddress = telemetry.ipAddress;
+  }
+
+  // Store runtime telemetry and weight calibration in config
+  const existingConfig = (station.config as any) ?? {};
+  const existingSettings = existingConfig.deviceSettings ?? {};
+  const telemetryData: Record<string, any> = {};
+
+  if (typeof telemetry.uptime === "number") telemetryData.uptime = telemetry.uptime;
+  if (typeof telemetry.freeHeap === "number") telemetryData.freeHeap = telemetry.freeHeap;
+  if (typeof telemetry.wifiRssi === "number") telemetryData.wifiRssi = telemetry.wifiRssi;
+  if (typeof telemetry.printerConnected === "boolean") telemetryData.printerConnected = telemetry.printerConnected;
+
+  const newSettings = { ...existingSettings };
   if (
     typeof telemetry.weightCalibration === "number" &&
     telemetry.weightCalibration > 0
   ) {
-    const existingConfig = (station.config as any) ?? {};
+    newSettings.weightCalibration = telemetry.weightCalibration;
+  }
+
+  if (Object.keys(telemetryData).length > 0 || newSettings !== existingSettings) {
     updateData.config = {
       ...existingConfig,
-      deviceSettings: {
-        ...(existingConfig.deviceSettings ?? {}),
-        weightCalibration: telemetry.weightCalibration,
-      },
+      deviceSettings: newSettings,
+      telemetry: telemetryData,
     };
   }
 
