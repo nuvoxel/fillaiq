@@ -209,7 +209,9 @@ function SessionCard({
   // Build display name: prefer catalog match, then NFC parsed data
   const displayName = isIdentified
     ? `${session.brandName ? session.brandName + " " : ""}${session.productName}`
-    : parsed?.name && parsed?.material && parsed.name !== parsed.material
+    : parsed?.name && parsed?.material
+        && parsed.name !== parsed.material
+        && !parsed.name.startsWith(parsed.material)
       ? `${parsed.material} \u2013 ${parsed.name}`
       : parsed?.name
         ? parsed.name
