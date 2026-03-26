@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { eq, ne, desc, and, or, ilike, gt, gte, isNull } from "drizzle-orm";
 import { scanStations, scanEvents, scanSessions } from "@/db/schema/scan-stations";
 import { environmentalReadings } from "@/db/schema/events";
-import { products, brands, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
+import { products, brands, materials, skuMappings, nfcTagPatterns } from "@/db/schema/central-catalog";
 import { userItems, userPrinters, printJobs } from "@/db/schema/user-library";
 import { zones, racks, shelves, bays, slots, slotStatus } from "@/db/schema/storage";
 import { requireAuth } from "./auth";
@@ -553,10 +553,18 @@ export async function searchProducts(query: string, limit = 10) {
     })
     .from(products)
     .leftJoin(brands, eq(products.brandId, brands.id))
+    .leftJoin(materials, eq(products.materialId, materials.id))
     .where(
       or(
         ilike(products.name, `%${query}%`),
-        ilike(products.colorName, `%${query}%`)
+        ilike(products.colorName, `%${query}%`),
+        ilike(products.colorHex, `%${query}%`),
+        ilike(brands.name, `%${query}%`),
+        ilike(materials.name, `%${query}%`),
+        ilike(materials.abbreviation, `%${query}%`),
+        ilike(products.bambuVariantId, `%${query}%`),
+        ilike(products.bambuMaterialId, `%${query}%`),
+        ilike(products.description, `%${query}%`),
       )
     )
     .orderBy(products.name)
