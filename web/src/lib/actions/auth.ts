@@ -44,8 +44,9 @@ export async function getApiKeyAuth(): Promise<ApiKeyContext | null> {
     const result = await auth.api.verifyApiKey({
       body: { key: apiKeyHeader },
     });
-    if (!result?.valid || !result?.key?.userId) return null;
-    return { type: "apiKey", userId: result.key.userId };
+    const keyUserId = (result?.key as any)?.referenceId ?? (result?.key as any)?.userId;
+    if (!result?.valid || !keyUserId) return null;
+    return { type: "apiKey", userId: keyUserId };
   } catch {
     return null;
   }
