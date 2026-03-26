@@ -137,6 +137,15 @@ export async function matchSession(session: ScanSession): Promise<ScanSession> {
     if (!p.colorA && parsed.colorA != null) enrichment.colorA = parsed.colorA;
     if (!p.netWeightG && parsed.spoolNetWeight) enrichment.netWeightG = parsed.spoolNetWeight;
 
+    // Update product name to include line + color: "PLA Basic Light Gray"
+    // NFC tag has the line name (e.g. "PLA Basic"), catalog has color name (e.g. "Light Gray")
+    if (parsed.name && p.colorName) {
+      const fullName = `${parsed.name} ${p.colorName}`;
+      if (p.name !== fullName && !p.name.includes(parsed.name)) {
+        enrichment.name = fullName;
+      }
+    }
+
     if (Object.keys(enrichment).length > 0) {
       enrichment.updatedAt = new Date();
       await db
