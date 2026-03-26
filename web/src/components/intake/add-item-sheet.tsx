@@ -13,6 +13,10 @@ import {
   Loader2,
   CheckCircle,
   Plus,
+  Thermometer,
+  Calendar,
+  Hash,
+  Palette,
 } from "lucide-react";
 import {
   Sheet,
@@ -452,32 +456,132 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                 </div>
               )}
 
-              {/* Scan session summary */}
-              {selectedSession && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 mb-4">
-                  {selectedSession.bestColorHex && (
-                    <div className="size-8 rounded-md shrink-0 shadow-inner" style={{ backgroundColor: selectedSession.bestColorHex }} />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {selectedSession.productName ?? (selectedSession.nfcParsedData as any)?.name ?? selectedSession.nfcUid ?? "Unidentified"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedSession.bestWeightG ? `${Math.round(selectedSession.bestWeightG)}g` : "—"}
-                      {selectedSession.bestHeightMm ? ` · ${Math.round(selectedSession.bestHeightMm)}mm` : ""}
-                    </p>
-                  </div>
-                  {selectedSession.nfcTagFormat && (
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      <Nfc className="size-3 mr-1" />{selectedSession.nfcTagFormat}
-                      {selectedSession.nfcUid && <span className="ml-1 font-mono text-[10px]">{selectedSession.nfcUid}</span>}
-                    </Badge>
-                  )}
-                </div>
-              )}
+              {/* Scan session summary + NFC parsed data */}
+              {selectedSession && (() => {
+                const parsed = selectedSession.nfcParsedData as Record<string, any> | null;
+                return (
+                  <div className="rounded-lg border bg-muted/30 mb-4 overflow-hidden">
+                    {/* Header bar */}
+                    <div className="flex items-center gap-3 px-4 py-3 bg-muted/50">
+                      {(selectedSession.bestColorHex || parsed?.colorHex) && (
+                        <div
+                          className="size-10 rounded-full shrink-0 border-2 border-background shadow-inner"
+                          style={{ backgroundColor: parsed?.colorHex || selectedSession.bestColorHex }}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {selectedSession.productName ?? parsed?.name ?? selectedSession.nfcUid ?? "Unidentified"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {parsed?.material && <span className="font-medium">{parsed.material}</span>}
+                          {parsed?.variantId && <span> · {parsed.variantId}</span>}
+                          {parsed?.materialId && parsed.materialId !== parsed.material && <span> · {parsed.materialId}</span>}
+                        </p>
+                      </div>
+                      {selectedSession.nfcTagFormat && (
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          <Nfc className="size-3 mr-1" />{selectedSession.nfcTagFormat}
+                        </Badge>
+                      )}
+                    </div>
 
-              {/* Station readings (if from scan) */}
-              {(weight || height || colorHex || nfcUid) && (
+                    {/* NFC parsed data grid */}
+                    {parsed && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 px-4 py-3 text-xs">
+                        {parsed.colorHex && (
+                          <div className="flex items-center gap-1.5">
+                            <Palette className="size-3 text-muted-foreground shrink-0" />
+                            <div className="size-4 rounded-sm border shrink-0" style={{ backgroundColor: parsed.colorHex }} />
+                            <span className="font-mono">{parsed.colorHex}</span>
+                            {parsed.colorName && <span className="text-muted-foreground">({parsed.colorName})</span>}
+                          </div>
+                        )}
+                        {parsed.spoolNetWeight && (
+                          <div className="flex items-center gap-1.5">
+                            <Weight className="size-3 text-muted-foreground shrink-0" />
+                            <span><span className="font-semibold">{parsed.spoolNetWeight}g</span> net</span>
+                          </div>
+                        )}
+                        {parsed.filamentDiameter && (
+                          <div className="flex items-center gap-1.5">
+                            <Ruler className="size-3 text-muted-foreground shrink-0" />
+                            <span>{parsed.filamentDiameter}mm dia</span>
+                          </div>
+                        )}
+                        {(parsed.nozzleTempMin || parsed.nozzleTempMax) && (
+                          <div className="flex items-center gap-1.5">
+                            <Thermometer className="size-3 text-muted-foreground shrink-0" />
+                            <span>Nozzle {parsed.nozzleTempMin}–{parsed.nozzleTempMax}°C</span>
+                          </div>
+                        )}
+                        {parsed.bedTemp > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <Thermometer className="size-3 text-muted-foreground shrink-0" />
+                            <span>Bed {parsed.bedTemp}°C</span>
+                          </div>
+                        )}
+                        {parsed.dryingTemp > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <Thermometer className="size-3 text-muted-foreground shrink-0" />
+                            <span>Dry {parsed.dryingTemp}°C / {parsed.dryingTime}h</span>
+                          </div>
+                        )}
+                        {parsed.filamentLengthM > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <Ruler className="size-3 text-muted-foreground shrink-0" />
+                            <span>{parsed.filamentLengthM}m length</span>
+                          </div>
+                        )}
+                        {parsed.productionDate && (
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="size-3 text-muted-foreground shrink-0" />
+                            <span>{parsed.productionDate.replace(/_/g, "-")}</span>
+                          </div>
+                        )}
+                        {parsed.trayUid && (
+                          <div className="flex items-center gap-1.5 col-span-2">
+                            <Hash className="size-3 text-muted-foreground shrink-0" />
+                            <span className="font-mono text-[10px] text-muted-foreground truncate">{parsed.trayUid}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Station sensor readings */}
+                    {(weight || height) && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 border-t">
+                        <div>
+                          <Label className="text-xs text-muted-foreground"><Weight className="size-3 inline mr-1" />Measured Weight</Label>
+                          <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" placeholder="g" />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground"><Ruler className="size-3 inline mr-1" />Height</Label>
+                          <Input value={height} onChange={(e) => setHeight(e.target.value)} type="number" placeholder="mm" />
+                        </div>
+                        {colorHex && !parsed?.colorHex && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Measured Color</Label>
+                            <div className="flex gap-2">
+                              <div className="size-9 rounded-md border shrink-0" style={{ backgroundColor: colorHex }} />
+                              <Input value={colorHex} onChange={(e) => setColorHex(e.target.value)} placeholder="#hex" />
+                            </div>
+                          </div>
+                        )}
+                        {nfcUid && !parsed && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground"><Nfc className="size-3 inline mr-1" />NFC UID</Label>
+                            <Input value={nfcUid} onChange={(e) => setNfcUid(e.target.value)} placeholder="UID" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Station readings when no session selected */}
+              {!selectedSession && (weight || height || colorHex || nfcUid) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                   <div>
                     <Label className="text-xs text-muted-foreground"><Weight className="size-3 inline mr-1" />Weight</Label>

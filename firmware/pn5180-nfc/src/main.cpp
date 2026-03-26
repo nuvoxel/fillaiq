@@ -411,6 +411,169 @@ static void updateRegs() {
     interrupts();
 }
 
+// ==================== Bambu Tag Parsing & Debug Dump ====================
+
+// Read a null-terminated ASCII string from sector data
+static String readSectorString(const PicoTagData &t, uint8_t sector, uint8_t block, uint8_t offset, uint8_t maxLen) {
+    if (!t.sector_ok[sector]) return "";
+    const uint8_t *src = &t.sector_data[sector][block][offset];
+    char buf[17] = {0};
+    uint8_t len = (maxLen > 16) ? 16 : maxLen;
+    for (uint8_t i = 0; i < len; i++) {
+        uint8_t c = src[i];
+        if (c == 0) break;
+        if (c < 0x20 || c > 0x7E) { buf[i] = '?'; } else { buf[i] = c; }
+    }
+    return String(buf);
+}
+
+static uint16_t readU16LE(const uint8_t *p) {
+    return p[0] | ((uint16_t)p[1] << 8);
+}
+
+static float readFloatLE(const uint8_t *p) {
+    float f;
+    memcpy(&f, p, 4);
+    return f;
+}
+
+static void dumpTagData(const PicoTagData &t) {
+    Serial.println("\n========== TAG RAW DUMP ==========");
+    Serial.printf("Type: %d  UID(%d): ", t.tag_type, t.uid_len);
+    for (int i = 0; i < t.uid_len; i++) Serial.printf("%02X", t.uid[i]);
+    Serial.println();
+
+    if (t.tag_type == TAG_TYPE_MIFARE_CLASSIC) {
+        // Dump sector bitmask
+        Serial.printf("Sectors read: %d  OK mask: ", t.sectors_read);
+        for (int s = 0; s < 16; s++) Serial.print(t.sector_ok[s] ? '1' : '0');
+        Serial.println();
+
+        // Dump raw hex for each sector
+        for (uint8_t s = 0; s < 16; s++) {
+            if (!t.sector_ok[s]) continue;
+            Serial.printf("  S%02d: ", s);
+            for (uint8_t b = 0; b < 3; b++) {
+                for (uint8_t i = 0; i < 16; i++) {
+                    Serial.printf("%02X", t.sector_data[s][b][i]);
+                }
+                if (b < 2) Serial.print(" | ");
+            }
+            Serial.println();
+        }
+
+        // Parse as Bambu tag
+        Serial.println("\n---------- BAMBU PARSE ----------");
+
+        // Sector 0: material ID
+        if (t.sector_ok[0]) {
+            String variantId = readSectorString(t, 0, 1, 0, 8);
+            String materialId = readSectorString(t, 0, 1, 8, 8);
+            String material = readSectorString(t, 0, 2, 0, 16);
+            Serial.printf("  S0 variantId : \"%s\"\n", variantId.c_str());
+            Serial.printf("  S0 materialId: \"%s\"\n", materialId.c_str());
+            Serial.printf("  S0 material  : \"%s\"\n", material.c_str());
+        } else {
+            Serial.println("  S0: NOT READ");
+        }
+
+        // Sector 1: name, color, weight, temps
+        if (t.sector_ok[1]) {
+            String name = readSectorString(t, 1, 0, 0, 16);
+            const uint8_t *b1 = t.sector_data[1][1];
+            uint8_t r = b1[0], g = b1[1], b = b1[2], a = b1[3];
+            uint16_t netWeight = readU16LE(&b1[4]);
+            float diameter = readFloatLE(&b1[8]);
+
+            const uint8_t *b2 = t.sector_data[1][2];
+            uint16_t dryTemp = readU16LE(&b2[0]);
+            uint16_t dryTime = readU16LE(&b2[2]);
+            uint16_t bedTemp = readU16LE(&b2[6]);
+            uint16_t nozzleMax = readU16LE(&b2[8]);
+            uint16_t nozzleMin = readU16LE(&b2[10]);
+
+            Serial.printf("  S1 name      : \"%s\"\n", name.c_str());
+            Serial.printf("  S1 color     : R=%d G=%d B=%d A=%d (#%02X%02X%02X)\n", r, g, b, a, r, g, b);
+            Serial.printf("  S1 netWeight : %d g\n", netWeight);
+            Serial.printf("  S1 diameter  : %.2f mm\n", diameter);
+            Serial.printf("  S1 dryTemp   : %d C  dryTime: %d h\n", dryTemp, dryTime);
+            Serial.printf("  S1 bedTemp   : %d C\n", bedTemp);
+            Serial.printf("  S1 nozzle    : %d-%d C\n", nozzleMin, nozzleMax);
+        } else {
+            Serial.println("  S1: NOT READ");
+        }
+
+        // Sector 2: X-cam, tray UID
+        if (t.sector_ok[2]) {
+            const uint8_t *b0 = t.sector_data[2][0];
+            uint16_t xcA = readU16LE(&b0[0]);
+            uint16_t xcB = readU16LE(&b0[2]);
+            uint16_t xcC = readU16LE(&b0[4]);
+            uint16_t xcD = readU16LE(&b0[6]);
+            float xcE = readFloatLE(&b0[8]);
+            float xcF = readFloatLE(&b0[12]);
+            Serial.printf("  S2 xcam      : A=%d B=%d C=%d D=%d E=%.2f F=%.2f\n", xcA, xcB, xcC, xcD, xcE, xcF);
+
+            Serial.print("  S2 trayUid   : ");
+            for (int i = 0; i < 16; i++) Serial.printf("%02X", t.sector_data[2][1][i]);
+            Serial.println();
+        } else {
+            Serial.println("  S2: NOT READ");
+        }
+
+        // Sector 3: production date, filament length
+        if (t.sector_ok[3]) {
+            String prodDate = readSectorString(t, 3, 0, 0, 16);
+            uint16_t filLen = readU16LE(&t.sector_data[3][2][4]);
+            Serial.printf("  S3 prodDate  : \"%s\"\n", prodDate.c_str());
+            Serial.printf("  S3 filLength : %d m\n", filLen);
+        } else {
+            Serial.println("  S3: NOT READ");
+        }
+
+        // Sector 4: multicolor
+        if (t.sector_ok[4]) {
+            Serial.print("  S4 multicolor: ");
+            bool allZero = true;
+            for (int i = 0; i < 16; i++) {
+                Serial.printf("%02X", t.sector_data[4][0][i]);
+                if (t.sector_data[4][0][i] != 0) allZero = false;
+            }
+            Serial.println(allZero ? " (empty)" : "");
+        } else {
+            Serial.println("  S4: NOT READ");
+        }
+
+        // Dump the hex string as it would be sent over I2C (for comparison with server)
+        Serial.println("\n---------- I2C DATA HEX ----------");
+        Serial.printf("Length: %d bytes\n", data_buf_len);
+        for (uint16_t i = 0; i < data_buf_len; i++) {
+            Serial.printf("%02X", data_buf[i]);
+            if ((i + 1) % 48 == 0) Serial.printf("  [S%d]\n", i / 48);
+        }
+        if (data_buf_len % 48 != 0) Serial.println();
+
+        Serial.println("==================================\n");
+
+    } else if (t.tag_type == TAG_TYPE_NTAG) {
+        Serial.printf("NTAG pages: %d\n", t.pages_read);
+        for (uint8_t p = 0; p < t.pages_read; p++) {
+            Serial.printf("  P%03d: %02X %02X %02X %02X\n", p,
+                t.page_data[p][0], t.page_data[p][1], t.page_data[p][2], t.page_data[p][3]);
+        }
+        Serial.println("==================================\n");
+
+    } else if (t.tag_type == TAG_TYPE_ISO15693) {
+        Serial.printf("ISO15693 blocks: %d\n", t.pages_read);
+        for (uint8_t b = 0; b < t.pages_read; b++) {
+            Serial.printf("  B%03d: %02X %02X %02X %02X\n", b,
+                t.page_data[b][0], t.page_data[b][1], t.page_data[b][2], t.page_data[b][3]);
+        }
+        Serial.println("==================================\n");
+    }
+    Serial.flush();
+}
+
 // ==================== State Machine ====================
 
 static void nfcPoll() {
@@ -526,6 +689,9 @@ static void nfcPoll() {
         Serial.printf("[NFC] Done: %d %s\n",
             tag.tag_type == TAG_TYPE_MIFARE_CLASSIC ? tag.sectors_read : tag.pages_read,
             tag.tag_type == TAG_TYPE_MIFARE_CLASSIC ? "sectors" : "pages");
+
+        // Dump raw data and parse Bambu tags for debugging
+        dumpTagData(tag);
 
         data_ready_flag = true;
         digitalWrite(PIN_INT, LOW);  // Signal ESP32
