@@ -312,6 +312,103 @@ export function parseBambuRawData(
   return result;
 }
 
+// ── Creality Parser ─────────────────────────────────────────────────────────
+
+/**
+ * Creality NTAG tag format.
+ * Data in pages 4-15 (48 bytes), ASCII-encoded, 46-character structure:
+ *   AAA BBBBB CCCC DDDDD #EEEEEE FFFFF GGGGGGGGGGGGGGGGGG
+ *   [0-2]   batch number (hex)
+ *   [3-7]   manufacturing date (YYMDD)
+ *   [8-11]  supplier ID (hex)
+ *   [12-16] material ID (hex, e.g. "01001" = PLA)
+ *   [17-22] color RGB (e.g. "000000")
+ *   [23-27] spool ID (hex, unconfirmed)
+ *   [28-45] unknown/reserved
+ */
+export interface CrealityParsedData {
+  format: "creality";
+  batchNumber: string | null;
+  manufacturingDate: string | null;
+  supplierId: string | null;
+  materialId: string | null;
+  colorHex: string | null;
+  spoolId: string | null;
+  rawString: string;
+  parseWarnings: string[];
+}
+
+// Known Creality material IDs
+const CREALITY_MATERIALS: Record<string, string> = {
+  "01001": "PLA",
+  "01002": "PLA+",
+  "02001": "PETG",
+  "03001": "ABS",
+  "04001": "TPU",
+  "05001": "ASA",
+  "06001": "PA",
+  "07001": "PC",
+};
+
+export function parseCrealityData(
+  hexString: string,
+  pagesRead: number,
+): CrealityParsedData | null {
+  if (pagesRead < 12) return null; // Need pages 4-15
+
+  const buf = hexToBuffer(hexString);
+  const warnings: string[] = [];
+
+  // Pages 4-15 start at byte offset 16 (page 4 × 4 bytes/page)
+  // Each page is 4 bytes, pages 4-15 = 48 bytes
+  const dataStart = 4 * 4; // page 4
+  if (buf.length < dataStart + 46) {
+    warnings.push("Not enough data for Creality format");
+    return null;
+  }
+
+  const ascii = buf.subarray(dataStart, dataStart + 46).toString("ascii").replace(/\0/g, "");
+  if (ascii.length < 23) return null;
+
+  // Validate it looks like Creality data (should be mostly hex/alphanumeric)
+  if (!/^[0-9A-Fa-f#]{20,}/.test(ascii.replace(/\s/g, ""))) return null;
+
+  const raw = ascii.replace(/\s/g, ""); // strip any whitespace
+  const batchNumber = raw.substring(0, 3) || null;
+  const dateStr = raw.substring(3, 8) || null;
+  const supplierId = raw.substring(8, 12) || null;
+  const materialId = raw.substring(12, 17) || null;
+  const colorRaw = raw.substring(17, 23);
+  const spoolId = raw.substring(23, 28) || null;
+
+  // Parse manufacturing date from YYMDD
+  let manufacturingDate: string | null = null;
+  if (dateStr && /^\d{5}$/.test(dateStr)) {
+    const year = 2000 + parseInt(dateStr.substring(0, 2));
+    const month = parseInt(dateStr.substring(2, 3));
+    const day = parseInt(dateStr.substring(3, 5));
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      manufacturingDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  // Color hex (strip # if present in raw)
+  const colorClean = colorRaw.replace("#", "");
+  const colorHex = /^[0-9A-Fa-f]{6}$/.test(colorClean) ? `#${colorClean}` : null;
+
+  return {
+    format: "creality",
+    batchNumber,
+    manufacturingDate,
+    supplierId,
+    materialId,
+    colorHex,
+    spoolId,
+    rawString: ascii,
+    parseWarnings: warnings,
+  };
+}
+
 // ── Tag Format Detection ────────────────────────────────────────────────────
 
 export function detectTagFormat(
@@ -326,6 +423,12 @@ export function detectTagFormat(
     if (parsed && parsed.material) {
       return "bambu_mifare";
     }
+  }
+
+  if (nfcTagType === 2 && pagesRead && pagesRead >= 12) {
+    const creality = parseCrealityData(nfcRawData, pagesRead);
+    if (creality) return "creality";
+    return "ntag";
   }
 
   if (nfcTagType === 2 && pagesRead) {
@@ -354,6 +457,10 @@ export function parseNfcRawData(
   switch (format) {
     case "bambu_mifare": {
       const parsed = parseBambuRawData(nfcRawData, sectorsRead!, sectorOk);
+      return { format, parsed };
+    }
+    case "creality": {
+      const parsed = parseCrealityData(nfcRawData, pagesRead!);
       return { format, parsed };
     }
     default:
