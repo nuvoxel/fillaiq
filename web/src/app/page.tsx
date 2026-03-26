@@ -25,7 +25,7 @@ const features = [
     icon: <Nfc className="size-9" />,
     title: "NFC Identification",
     description:
-      "Reads Bambu Lab, Creality, OpenSpool, TigerTag, and NTAG tags. Decrypts Bambu MIFARE with HKDF key derivation. Place the item — it's identified instantly.",
+      "Reads Bambu Lab, Creality, OpenSpool, TigerTag, and NTAG tags. Decrypts Bambu Lab NFC with HKDF key derivation. Place the item — it's identified instantly.",
   },
   {
     icon: <Scale className="size-9" />,

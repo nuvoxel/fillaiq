@@ -74,7 +74,7 @@ const ITEM_STATUSES = [
 ];
 
 const NFC_TAG_FORMATS = [
-  { value: "bambu_mifare", label: "Bambu (MIFARE)" },
+  { value: "bambu_mifare", label: "Bambu Lab NFC" },
   { value: "creality", label: "Creality" },
   { value: "open_print_tag", label: "OpenPrintTag" },
   { value: "open_spool", label: "OpenSpool" },

@@ -219,8 +219,19 @@ function SessionCard({
           ? parsed.material
           : "Unidentified item";
 
+  const NFC_FORMAT_LABELS: Record<string, string> = {
+    bambu_mifare: "Bambu Lab NFC",
+    creality: "Creality NFC",
+    open_print_tag: "OpenPrintTag",
+    open_spool: "OpenSpool",
+    open_tag_3d: "OpenTag3D",
+    tiger_tag: "TigerTag",
+    ntag: "NTAG",
+    filla_iq: "FillaIQ",
+    unknown: "NFC",
+  };
   const nfcBadge = session.nfcTagFormat
-    ? session.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+    ? NFC_FORMAT_LABELS[session.nfcTagFormat] ?? session.nfcTagFormat
     : session.nfcUid
       ? "NFC"
       : null;
