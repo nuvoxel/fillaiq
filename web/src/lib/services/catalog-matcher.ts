@@ -128,7 +128,44 @@ async function matchByNfc(session: SessionLike): Promise<MatchResult | null> {
       }
     }
 
-    // Relax: try just name + brand (without color/material)
+    // Relax: try material + color + brand (tag name may differ from catalog)
+    if (bambuBrand && parsed.colorHex) {
+      const matConditions: any[] = [
+        eq(products.brandId, bambuBrand.id),
+        ilike(products.colorHex, parsed.colorHex),
+      ];
+      // Add material if we resolved it
+      const [mat2] = parsed.material ? await db
+        .select({ id: materials.id })
+        .from(materials)
+        .where(or(
+          ilike(materials.name, parsed.material),
+          ilike(materials.abbreviation, parsed.material)
+        ))
+        .limit(1) : [null];
+      if (mat2) matConditions.push(eq(products.materialId, mat2.id));
+
+      if (matConditions.length >= 3) {
+        const [match] = await db
+          .select({ product: products, brand: brands })
+          .from(products)
+          .leftJoin(brands, eq(products.brandId, brands.id))
+          .where(and(...matConditions))
+          .limit(1);
+
+        if (match) {
+          return {
+            productId: match.product.id,
+            confidence: 0.85,
+            method: "nfc",
+            product: match.product,
+            brand: match.brand,
+          };
+        }
+      }
+    }
+
+    // Relax further: try just name + brand
     if (bambuBrand) {
       const [match] = await db
         .select({ product: products, brand: brands })

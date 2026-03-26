@@ -11,6 +11,7 @@ import {
   scanSessions,
   scanEvents,
 } from "@/db/schema/scan-stations";
+import { products } from "@/db/schema/central-catalog";
 import { eq, and, desc, gte } from "drizzle-orm";
 import { matchToCatalog } from "./catalog-matcher";
 
@@ -104,6 +105,7 @@ export async function updateSessionAggregates(
 
 /**
  * Run catalog matching and update the session.
+ * If matched, backfill any missing fields on the product from NFC data.
  */
 export async function matchSession(session: ScanSession): Promise<ScanSession> {
   const match = await matchToCatalog(session);
@@ -119,6 +121,30 @@ export async function matchSession(session: ScanSession): Promise<ScanSession> {
     })
     .where(eq(scanSessions.id, session.id))
     .returning();
+
+  // Backfill missing product fields from NFC parsed data
+  const parsed = session.nfcParsedData as Record<string, any> | null;
+  if (parsed && match.product) {
+    const enrichment: Record<string, any> = {};
+    const p = match.product;
+
+    if (!p.bambuVariantId && parsed.variantId) enrichment.bambuVariantId = parsed.variantId;
+    if (!p.bambuMaterialId && parsed.materialId) enrichment.bambuMaterialId = parsed.materialId;
+    if (!p.colorHex && parsed.colorHex) enrichment.colorHex = parsed.colorHex;
+    if (!p.colorR && parsed.colorR != null) enrichment.colorR = parsed.colorR;
+    if (!p.colorG && parsed.colorG != null) enrichment.colorG = parsed.colorG;
+    if (!p.colorB && parsed.colorB != null) enrichment.colorB = parsed.colorB;
+    if (!p.colorA && parsed.colorA != null) enrichment.colorA = parsed.colorA;
+    if (!p.netWeightG && parsed.spoolNetWeight) enrichment.netWeightG = parsed.spoolNetWeight;
+
+    if (Object.keys(enrichment).length > 0) {
+      enrichment.updatedAt = new Date();
+      await db
+        .update(products)
+        .set(enrichment)
+        .where(eq(products.id, match.productId));
+    }
+  }
 
   return updated;
 }
