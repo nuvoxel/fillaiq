@@ -444,13 +444,20 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     }}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select source..." />
+                      <SelectValue placeholder="Select source...">
+                        {(value: any) => {
+                          if (!value || value === "_manual") return "Manual Entry";
+                          const s = sessions.find((s) => s.id === value);
+                          if (!s) return value;
+                          return `${s.productName ?? (s.nfcParsedData as any)?.name ?? s.nfcUid ?? "Scan"} — ${s.bestWeightG ? `${Math.round(s.bestWeightG)}g` : "—"} — ${s.createdAt ? new Date(s.createdAt).toLocaleTimeString() : ""}`;
+                        }}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_manual">Manual Entry</SelectItem>
                       {sessions.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
-                          {s.productName ?? s.nfcUid ?? "Scan"} — {s.bestWeightG ? `${Math.round(s.bestWeightG)}g` : "—"} — {s.createdAt ? new Date(s.createdAt).toLocaleTimeString() : ""}
+                          {s.productName ?? (s.nfcParsedData as any)?.name ?? s.nfcUid ?? "Scan"} — {s.bestWeightG ? `${Math.round(s.bestWeightG)}g` : "—"} — {s.createdAt ? new Date(s.createdAt).toLocaleTimeString() : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -687,7 +694,12 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     <div>
                       <Label className="text-xs">Brand</Label>
                       <Select value={newBrandId} onValueChange={(v) => setNewBrandId(v ?? "_none")}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue>
+                          {(value: any) => {
+                            if (!value || value === "_none") return "Select brand...";
+                            return brands.find((b) => b.id === value)?.name ?? value;
+                          }}
+                        </SelectValue></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="_none">Select brand...</SelectItem>
                           {brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -697,7 +709,13 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     <div>
                       <Label className="text-xs">Material</Label>
                       <Select value={newMaterialId} onValueChange={(v) => setNewMaterialId(v ?? "_none")}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue>
+                          {(value: any) => {
+                            if (!value || value === "_none") return "Select material...";
+                            const m = materials.find((m) => m.id === value);
+                            return m ? (m.abbreviation ?? m.name) : value;
+                          }}
+                        </SelectValue></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="_none">Select material...</SelectItem>
                           {materials.map((m) => <SelectItem key={m.id} value={m.id}>{m.abbreviation ?? m.name}</SelectItem>)}
