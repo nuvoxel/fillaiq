@@ -11,8 +11,8 @@ export default function ScanSessionPage() {
     <AddItemSheet
       open={true}
       sessionId={sessionId}
-      onClose={() => router.push("/locations")}
-      onSaved={() => router.push("/locations")}
+      onClose={() => router.push("/scan-station")}
+      onSaved={() => router.push("/scan-station")}
     />
   );
 }

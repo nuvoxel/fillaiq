@@ -280,7 +280,7 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
             <Printer className="size-4 mr-1" />
             Print Label
           </Button>
-          <Button onClick={() => router.push("/scan")} className="flex-1">
+          <Button onClick={() => router.push("/scan-station")} className="flex-1">
             <ScanLine className="size-4 mr-1" />
             Back to Scans
           </Button>

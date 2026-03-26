@@ -11,9 +11,9 @@ export default function NewManualScanPage() {
 
   return (
     <div>
-      <Button variant="ghost" onClick={() => router.push("/scan")} className="mb-1">
+      <Button variant="ghost" onClick={() => router.push("/scan-station")} className="mb-1">
         <ArrowLeft className="size-4 mr-1" />
-        Back to Scans
+        Back to Stations
       </Button>
 
       <PageHeader
