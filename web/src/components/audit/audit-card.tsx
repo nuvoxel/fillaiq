@@ -89,12 +89,12 @@ export function AuditCard({
           )}
         </p>
 
-        {log.resourceId && (
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Resource ID:{" "}
-            <span className="font-mono">{log.resourceId}</span>
-          </p>
-        )}
+        {(() => {
+          const meta = log.metadata as Record<string, any> | null;
+          const name = meta?.name ?? meta?.resourceName;
+          if (name) return <p className="text-sm text-muted-foreground mt-0.5">{name}</p>;
+          return null;
+        })()}
 
         {log.metadata != null &&
           Object.keys(log.metadata as object).length > 0 && (

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { eq, or, ilike, and, type SQL } from "drizzle-orm";
+import { eq, or, ilike, and, getTableColumns, type SQL } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   brands,
@@ -241,8 +241,12 @@ export async function listProducts(
     if (params?.search)
       conditions.push(ilike(products.name, `%${params.search}%`));
     const q = db
-      .select()
+      .select({
+        ...getTableColumns(products),
+        brandName: brands.name,
+      })
       .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .$dynamic();
     if (params?.limit) q.limit(params.limit);

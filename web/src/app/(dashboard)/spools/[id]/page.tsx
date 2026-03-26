@@ -15,6 +15,7 @@ import {
   listDryingSessionsByUserItemId,
   listItemMovementsByUserItemId,
 } from "@/lib/actions/events";
+import { getSlotPath } from "@/lib/services/storage-path";
 
 /* -- Helpers -- */
 
@@ -103,7 +104,20 @@ export default async function SpoolDetailPage({
       ? movementsResult.value.data
       : [];
 
-  const pct = userItem.percentRemaining ?? 0;
+  // Resolve slot path for human-readable location display
+  const slotPath = userItem.currentSlotId
+    ? await getSlotPath(userItem.currentSlotId)
+    : null;
+
+  // Compute remaining percentage: use stored value, or derive from weight vs product net weight
+  const netWeight = (userItem.product as any)?.netWeightG as number | undefined;
+  const spoolWeight = (userItem as any).spoolWeightG as number | undefined;
+  const currentWeight = userItem.currentWeightG as number | undefined;
+  let pct = userItem.percentRemaining ?? 0;
+  if (pct === 0 && netWeight && netWeight > 0 && currentWeight && currentWeight > 0) {
+    const filamentWeight = spoolWeight ? currentWeight - spoolWeight : currentWeight;
+    pct = Math.max(0, Math.min(100, Math.round((filamentWeight / netWeight) * 100)));
+  }
   const product = userItem.product as
     | {
         name?: string;
@@ -268,8 +282,9 @@ export default async function SpoolDetailPage({
                   </p>
                   <p className="text-sm font-bold">
                     {userItem.storageLocation ??
+                      slotPath ??
                       (userItem.currentSlotId
-                        ? `Slot ${userItem.currentSlotId.slice(0, 8)}`
+                        ? "Assigned"
                         : "Not assigned")}
                   </p>
                 </div>

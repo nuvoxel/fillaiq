@@ -128,7 +128,6 @@ export default function SubmissionsPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Submitted By</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -145,11 +144,6 @@ export default function SubmissionsPage() {
                       <Badge variant={statusVariants[s.status] ?? "secondary"}>
                         {s.status}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {(s.userId as string)?.slice(0, 8) ?? "\u2014"}
-                      </span>
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-muted-foreground">

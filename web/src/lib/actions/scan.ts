@@ -371,6 +371,7 @@ export async function listMyScanSessions(params?: {
       session: scanSessions,
       productName: products.name,
       brandName: brands.name,
+      catalogColorHex: products.colorHex,
     })
     .from(scanSessions)
     .leftJoin(products, eq(scanSessions.matchedProductId, products.id))
@@ -384,6 +385,7 @@ export async function listMyScanSessions(params?: {
       ...r.session,
       productName: r.productName,
       brandName: r.brandName,
+      catalogColorHex: r.catalogColorHex,
     }))
   );
 }

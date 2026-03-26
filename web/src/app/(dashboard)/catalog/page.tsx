@@ -283,7 +283,7 @@ export default function CatalogPage() {
                                   {row.website.replace(/^https?:\/\//, "")}
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground/50">\u2014</span>
+                                <span className="text-muted-foreground/50">{"\u2014"}</span>
                               )}
                             </TableCell>
                             <TableCell>
@@ -306,7 +306,7 @@ export default function CatalogPage() {
                                   {row.materialClass.toUpperCase()}
                                 </Badge>
                               ) : (
-                                <span className="text-muted-foreground/50">\u2014</span>
+                                <span className="text-muted-foreground/50">{"\u2014"}</span>
                               )}
                             </TableCell>
                             <TableCell>{row.density != null ? `${row.density} g/cm\u00B3` : "\u2014"}</TableCell>
@@ -322,7 +322,10 @@ export default function CatalogPage() {
                                 style={{ backgroundColor: row.colorHex || "#ccc" }}
                               />
                             </TableCell>
-                            <TableCell className="font-semibold">{row.name}</TableCell>
+                            <TableCell>
+                              <p className="font-semibold">{row.name}</p>
+                              {row.brandName && <p className="text-xs text-muted-foreground">{row.brandName}</p>}
+                            </TableCell>
                             <TableCell>{row.colorName ?? "\u2014"}</TableCell>
                             <TableCell>{row.diameter != null ? `${row.diameter}mm` : "\u2014"}</TableCell>
                             <TableCell>{row.netWeightG != null ? `${row.netWeightG}g` : "\u2014"}</TableCell>

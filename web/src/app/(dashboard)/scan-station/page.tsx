@@ -206,13 +206,16 @@ function SessionCard({
   const statusColor = STATUS_COLORS[session.status] ?? STATUS_COLORS.active;
   const statusLabel = STATUS_LABELS[session.status] ?? session.status;
 
+  // Build display name: prefer catalog match, then NFC parsed data
   const displayName = isIdentified
     ? `${session.brandName ? session.brandName + " " : ""}${session.productName}`
-    : parsed?.name
-      ? `${parsed.material ? parsed.material + " – " : ""}${parsed.name}`
-      : parsed?.material
-        ? parsed.material
-        : "Unidentified item";
+    : parsed?.name && parsed?.material && parsed.name !== parsed.material
+      ? `${parsed.material} \u2013 ${parsed.name}`
+      : parsed?.name
+        ? parsed.name
+        : parsed?.material
+          ? parsed.material
+          : "Unidentified item";
 
   const nfcBadge = session.nfcTagFormat
     ? session.nfcTagFormat.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
@@ -234,7 +237,7 @@ function SessionCard({
           <div
             className="w-14 h-14 rounded-full shrink-0 border-4 border-muted"
             style={{
-              backgroundColor: session.bestColorHex ?? "#E0E0E0",
+              backgroundColor: session.catalogColorHex ?? session.bestColorHex ?? parsed?.colorHex ?? "#E0E0E0",
               boxShadow: "inset 0 2px 6px rgba(0,0,0,0.12)",
             }}
           />
@@ -255,7 +258,7 @@ function SessionCard({
             </div>
 
             <div className="flex items-center gap-3 mt-1 flex-wrap">
-              {session.bestWeightG != null && (
+              {session.bestWeightG != null && session.bestWeightG > 0 && (
                 <span
                   className="font-semibold text-[0.85rem] text-primary"
                   style={{ fontFamily: FONT_MONO }}
@@ -263,12 +266,12 @@ function SessionCard({
                   {session.bestWeightG.toFixed(1)}g
                 </span>
               )}
-              {session.bestHeightMm != null && (
+              {session.bestHeightMm != null && session.bestHeightMm > 0 && (
                 <span className="text-sm font-medium text-muted-foreground">
                   {session.bestHeightMm.toFixed(0)}mm
                 </span>
               )}
-              {parsed?.nozzleTempMin && (
+              {parsed?.nozzleTempMin && parsed?.nozzleTempMax && (
                 <span className="text-sm font-medium text-muted-foreground">
                   {parsed.nozzleTempMin}&ndash;{parsed.nozzleTempMax}&deg;C
                 </span>

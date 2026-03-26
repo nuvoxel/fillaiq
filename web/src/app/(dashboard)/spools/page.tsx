@@ -380,7 +380,7 @@ export default function SpoolsPage() {
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground/50">
-                            \u2014
+                            {"\u2014"}
                           </span>
                         )}
                       </TableCell>
