@@ -31,8 +31,8 @@ export function ensureMqttConnected(): void {
   console.log(`[MQTT] Connecting to ${MQTT_BROKER_URL}...`);
 
   const client = mqtt.connect(MQTT_BROKER_URL, {
-    clientId: `fillaiq-server-${process.pid}`,
-    clean: true,
+    clientId: "fillaiq-server",
+    clean: false, // Persistent session — broker queues QoS 1 messages during reconnects
     keepalive: 60,
     reconnectPeriod: 5000,
     connectTimeout: 10000,
