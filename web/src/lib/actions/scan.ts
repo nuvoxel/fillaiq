@@ -354,24 +354,16 @@ export async function listMyScanSessions(params?: {
     baseConditions.push(eq(scanSessions.stationId, params.stationId));
   }
 
-  // Exclude abandoned sessions
-  baseConditions.push(ne(scanSessions.status, "abandoned" as any));
-
   if (params?.status) {
     baseConditions.push(eq(scanSessions.status, params.status as any));
   } else if (params?.includeRecent) {
-    // Show all non-finalized (active) sessions regardless of age,
-    // plus resolved sessions from the last 24h
+    // Show all sessions with data from the last 24h (active, abandoned, resolved)
+    // Abandoned sessions still have valid NFC/sensor data worth using
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    baseConditions.push(
-      or(
-        eq(scanSessions.status, "active" as any),
-        and(
-          eq(scanSessions.status, "resolved" as any),
-          gte(scanSessions.updatedAt, twentyFourHoursAgo)
-        )
-      )
-    );
+    baseConditions.push(gte(scanSessions.updatedAt, twentyFourHoursAgo));
+  } else {
+    // Default: exclude abandoned
+    baseConditions.push(ne(scanSessions.status, "abandoned" as any));
   }
 
   const rows = await db

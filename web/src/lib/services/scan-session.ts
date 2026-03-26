@@ -30,19 +30,8 @@ export async function findOrCreateSession(
   scanEvent: ScanEvent,
   forceNew = false
 ): Promise<ScanSession> {
-  // Abandon any existing active session on this station —
-  // each scan button press is a new session.
-  await db
-    .update(scanSessions)
-    .set({ status: "abandoned", updatedAt: new Date() })
-    .where(
-      and(
-        eq(scanSessions.stationId, stationId),
-        eq(scanSessions.status, "active")
-      )
-    );
-
-  // Create new session
+  // Create a new session for each scan — previous sessions stay active
+  // until the user adds them to inventory (resolved) or deletes them.
   const [session] = await db
     .insert(scanSessions)
     .values({

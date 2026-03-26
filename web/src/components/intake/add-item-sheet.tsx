@@ -212,15 +212,8 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
           });
         }
       });
-    } else {
-      // Create a web session for phone companion
-      createWebSession().then((r) => {
-        if (r.data) {
-          setActiveSessionId(r.data.id);
-          setSelectedSessionId(r.data.id);
-        }
-      });
     }
+    // No web session created on open — only when user clicks "Scan with Phone"
   }, [open, sessionId]);
 
   // ── Auto-fill from scan session ────────────────────────────────────────
@@ -802,7 +795,15 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                 <div className="flex flex-col gap-3">
                   <div className="flex gap-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={async () => {
-                      const sid = activeSessionId ?? selectedSessionId;
+                      let sid = activeSessionId ?? selectedSessionId;
+                      if (!sid) {
+                        // Create a web session on demand for phone companion
+                        const r = await createWebSession();
+                        if (r.data) {
+                          sid = r.data.id;
+                          setActiveSessionId(sid);
+                        }
+                      }
                       if (sid) {
                         const url = `${window.location.origin}/scan/${sid}`;
                         const dataUrl = await QRCode.toDataURL(url, { width: 200, margin: 2 });
