@@ -315,9 +315,9 @@ export function parseBambuRawData(
 // ── Creality Parser ─────────────────────────────────────────────────────────
 
 /**
- * Creality NTAG tag format.
- * Data in pages 4-15 (48 bytes), ASCII-encoded, 46-character structure:
- *   AAA BBBBB CCCC DDDDD #EEEEEE FFFFF GGGGGGGGGGGGGGGGGG
+ * Creality MIFARE Classic tag format.
+ * Data in blocks 4-6 (sector 1, blocks 0-2), ASCII-encoded, 46-character structure:
+ *   AAA BBBBB CCCC DDDDD EEEEEE FFFFF GGGGGGGGGGGGGGGGGG
  *   [0-2]   batch number (hex)
  *   [3-7]   manufacturing date (YYMDD)
  *   [8-11]  supplier ID (hex)
@@ -325,6 +325,9 @@ export function parseBambuRawData(
  *   [17-22] color RGB (e.g. "000000")
  *   [23-27] spool ID (hex, unconfirmed)
  *   [28-45] unknown/reserved
+ *
+ * Blocks 4-6 = sector 1 in our data layout (sector 1 × 48 bytes offset).
+ * No special keys needed — uses default MIFARE key (0xFFFFFFFFFFFF).
  */
 export interface CrealityParsedData {
   format: "creality";
@@ -332,6 +335,7 @@ export interface CrealityParsedData {
   manufacturingDate: string | null;
   supplierId: string | null;
   materialId: string | null;
+  material: string | null;
   colorHex: string | null;
   spoolId: string | null;
   rawString: string;
@@ -350,36 +354,45 @@ const CREALITY_MATERIALS: Record<string, string> = {
   "07001": "PC",
 };
 
+/**
+ * Try to parse MIFARE Classic sector data as Creality format.
+ * Sector 1 (blocks 4-6) contains 48 bytes of ASCII data.
+ */
 export function parseCrealityData(
   hexString: string,
-  pagesRead: number,
+  sectorsRead: number,
+  sectorOk: number | null = null,
 ): CrealityParsedData | null {
-  if (pagesRead < 12) return null; // Need pages 4-15
+  if (sectorsRead < 2) return null; // Need at least sector 1
 
   const buf = hexToBuffer(hexString);
-  const warnings: string[] = [];
+  const bytesPerSector = 3 * 16;
 
-  // Pages 4-15 start at byte offset 16 (page 4 × 4 bytes/page)
-  // Each page is 4 bytes, pages 4-15 = 48 bytes
-  const dataStart = 4 * 4; // page 4
-  if (buf.length < dataStart + 46) {
-    warnings.push("Not enough data for Creality format");
-    return null;
-  }
+  // Sector 1 starts at byte 48
+  if (buf.length < bytesPerSector * 2) return null;
 
-  const ascii = buf.subarray(dataStart, dataStart + 46).toString("ascii").replace(/\0/g, "");
+  // Check if sector 1 was read
+  if (!isSectorOk(1, sectorOk, buf)) return null;
+
+  // Read sector 1 (48 bytes) as ASCII
+  const sectorStart = 1 * bytesPerSector;
+  const ascii = buf.subarray(sectorStart, sectorStart + 48).toString("ascii").replace(/[\x00\s]+$/g, "");
   if (ascii.length < 23) return null;
 
-  // Validate it looks like Creality data (should be mostly hex/alphanumeric)
-  if (!/^[0-9A-Fa-f#]{20,}/.test(ascii.replace(/\s/g, ""))) return null;
+  // Validate it looks like Creality data (hex/alphanumeric, with a color-like pattern)
+  const raw = ascii.replace(/[#\s]/g, "");
+  if (!/^[0-9A-Fa-f]{23,}/.test(raw)) return null;
 
-  const raw = ascii.replace(/\s/g, ""); // strip any whitespace
+  const warnings: string[] = [];
   const batchNumber = raw.substring(0, 3) || null;
   const dateStr = raw.substring(3, 8) || null;
   const supplierId = raw.substring(8, 12) || null;
-  const materialId = raw.substring(12, 17) || null;
+  const materialIdRaw = raw.substring(12, 17) || null;
   const colorRaw = raw.substring(17, 23);
   const spoolId = raw.substring(23, 28) || null;
+
+  // Resolve material name
+  const material = materialIdRaw ? (CREALITY_MATERIALS[materialIdRaw] ?? null) : null;
 
   // Parse manufacturing date from YYMDD
   let manufacturingDate: string | null = null;
@@ -392,7 +405,7 @@ export function parseCrealityData(
     }
   }
 
-  // Color hex (strip # if present in raw)
+  // Color hex
   const colorClean = colorRaw.replace("#", "");
   const colorHex = /^[0-9A-Fa-f]{6}$/.test(colorClean) ? `#${colorClean}` : null;
 
@@ -401,7 +414,8 @@ export function parseCrealityData(
     batchNumber,
     manufacturingDate,
     supplierId,
-    materialId,
+    materialId: materialIdRaw,
+    material,
     colorHex,
     spoolId,
     rawString: ascii,
@@ -419,16 +433,17 @@ export function detectTagFormat(
   sectorOk: number | null = null,
 ): NfcTagFormat {
   if (nfcTagType === 1 && sectorsRead && sectorsRead >= 1) {
-    const parsed = parseBambuRawData(nfcRawData, sectorsRead, sectorOk);
-    if (parsed && parsed.material) {
+    // Try Bambu first (encrypted sectors with material data)
+    const bambu = parseBambuRawData(nfcRawData, sectorsRead, sectorOk);
+    if (bambu && bambu.material) {
       return "bambu_mifare";
     }
-  }
 
-  if (nfcTagType === 2 && pagesRead && pagesRead >= 12) {
-    const creality = parseCrealityData(nfcRawData, pagesRead);
-    if (creality) return "creality";
-    return "ntag";
+    // Try Creality (ASCII data in sector 1, default keys)
+    const creality = parseCrealityData(nfcRawData, sectorsRead, sectorOk);
+    if (creality) {
+      return "creality";
+    }
   }
 
   if (nfcTagType === 2 && pagesRead) {
@@ -460,7 +475,7 @@ export function parseNfcRawData(
       return { format, parsed };
     }
     case "creality": {
-      const parsed = parseCrealityData(nfcRawData, pagesRead!);
+      const parsed = parseCrealityData(nfcRawData, sectorsRead!, sectorOk);
       return { format, parsed };
     }
     default:
