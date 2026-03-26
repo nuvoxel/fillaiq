@@ -343,12 +343,14 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     }
 
     if (selectedSessionId) {
+      const sessionParsed = selectedSession?.nfcParsedData as Record<string, any> | null;
       const result = await createIntakeItem({
         productId,
         sessionId: selectedSessionId,
         slotId: selectedSlotId ?? undefined,
         nfcUid: nfcUid || undefined,
         nfcTagFormat: nfcTagFormat || undefined,
+        bambuTrayUid: sessionParsed?.trayUid || undefined,
         initialWeightG: toFloat(weight),
         netFilamentWeightG: toFloat(newNetWeightG),
         spoolWeightG: toFloat(spoolWeightG),

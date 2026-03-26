@@ -156,7 +156,9 @@ export async function processScan(
   let returnLocation: string | undefined;
 
   if (session.nfcUid && userId) {
-    const existingItem = await db
+    // Try NFC UID first, then fall back to Bambu trayUid (same spool, other tag)
+    const trayUid = (updates.nfcParsedData as any)?.trayUid ?? (session.nfcParsedData as any)?.trayUid;
+    let existingItem = await db
       .select({
         id: userItems.id,
         storageLocation: userItems.storageLocation,
@@ -172,6 +174,25 @@ export async function processScan(
         )
       )
       .limit(1);
+
+    if (existingItem.length === 0 && trayUid) {
+      existingItem = await db
+        .select({
+          id: userItems.id,
+          storageLocation: userItems.storageLocation,
+          currentSlotId: userItems.currentSlotId,
+          currentWeightG: userItems.currentWeightG,
+          productId: userItems.productId,
+        })
+        .from(userItems)
+        .where(
+          and(
+            eq(userItems.userId, userId),
+            eq(userItems.bambuTrayUid, trayUid)
+          )
+        )
+        .limit(1);
+    }
 
     if (existingItem.length > 0) {
       const item = existingItem[0];

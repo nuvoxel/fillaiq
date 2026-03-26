@@ -7,8 +7,8 @@
  */
 
 import { db } from "@/db";
-import { scanStations, machines, userItems, products, materials, slots, bays, shelves, racks, zones } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { scanStations, scanSessions, machines, userItems, products, materials, slots, bays, shelves, racks, zones } from "@/db/schema";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { normalizeStatus } from "@/lib/machines";
 import {
   processHeartbeat,
@@ -205,17 +205,19 @@ async function handleNfcLookup(
   if (!station || !station.userId) return;
 
   // Look up user_item by NFC UID for this user, joining product + material
-  const rows = await db
-    .select({
-      itemId: userItems.id,
-      productName: products.name,
-      materialName: materials.name,
-      colorName: products.colorName,
-      colorHex: products.colorHex,
-      currentWeightG: userItems.currentWeightG,
-      status: userItems.status,
-      currentSlotId: userItems.currentSlotId,
-    })
+  const selectFields = {
+    itemId: userItems.id,
+    productName: products.name,
+    materialName: materials.name,
+    colorName: products.colorName,
+    colorHex: products.colorHex,
+    currentWeightG: userItems.currentWeightG,
+    status: userItems.status,
+    currentSlotId: userItems.currentSlotId,
+  };
+
+  let rows = await db
+    .select(selectFields)
     .from(userItems)
     .leftJoin(products, eq(userItems.productId, products.id))
     .leftJoin(materials, eq(products.materialId, materials.id))
@@ -226,6 +228,38 @@ async function handleNfcLookup(
       )
     )
     .limit(1);
+
+  // Fallback: match by Bambu trayUid (same spool, different NFC tag)
+  if (rows.length === 0) {
+    // Check the active session on this station for a trayUid
+    const [session] = await db
+      .select({ nfcParsedData: scanSessions.nfcParsedData })
+      .from(scanSessions)
+      .where(
+        and(
+          eq(scanSessions.stationId, station.id),
+          eq(scanSessions.status, "active")
+        )
+      )
+      .orderBy(desc(scanSessions.updatedAt))
+      .limit(1);
+
+    const trayUid = (session?.nfcParsedData as any)?.trayUid;
+    if (trayUid) {
+      rows = await db
+        .select(selectFields)
+        .from(userItems)
+        .leftJoin(products, eq(userItems.productId, products.id))
+        .leftJoin(materials, eq(products.materialId, materials.id))
+        .where(
+          and(
+            eq(userItems.bambuTrayUid, trayUid),
+            eq(userItems.userId, station.userId)
+          )
+        )
+        .limit(1);
+    }
+  }
 
   if (rows.length === 0) {
     publishNfcLookupResult(hardwareId, { known: false });
