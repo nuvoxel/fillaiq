@@ -32,6 +32,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { BarcodeScanner, type DetectedCode } from "@/components/scan/barcode-scanner";
+import { ColorCapture } from "@/components/scan/color-capture";
 import { ProductCard } from "@/components/scan/product-card";
 import { SlotPicker } from "@/components/scan/slot-picker";
 import {
@@ -81,6 +82,7 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
   const [weight, setWeight] = useState(stationData?.weightG?.toFixed(1) ?? "");
   const [height, setHeight] = useState(stationData?.heightMm?.toFixed(0) ?? "");
   const [colorHex, setColorHex] = useState(stationData?.colorHex ?? "");
+  const [showColorCapture, setShowColorCapture] = useState(false);
 
   // -- Product Identification --
   const [showCamera, setShowCamera] = useState(false);
@@ -300,7 +302,10 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
                 {colorHex && (
                   <div className="w-4 h-4 rounded-full border border-border shrink-0" style={{ backgroundColor: colorHex }} />
                 )}
-                <Input value={colorHex} onChange={(e) => setColorHex(e.target.value)} placeholder="#FF5500" className="h-7" />
+                <Input value={colorHex} onChange={(e) => setColorHex(e.target.value)} placeholder="#FF5500" className="h-7 flex-1" />
+                <Button variant="outline" size="sm" className="h-7 px-2 shrink-0" onClick={() => setShowColorCapture(true)}>
+                  <Camera className="size-3.5" />
+                </Button>
               </div>
             </div>
             <div className="flex items-end">
@@ -641,6 +646,19 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
         {saving ? <Loader2 className="size-4 mr-1 animate-spin" /> : <CheckCircle className="size-4 mr-1" />}
         {saving ? "Saving..." : "Save to Inventory"}
       </Button>
+
+      {/* Color picker from camera */}
+      {showColorCapture && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <ColorCapture
+            onCapture={(color) => {
+              setColorHex(color.hex);
+              setShowColorCapture(false);
+            }}
+            onClose={() => setShowColorCapture(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
