@@ -486,63 +486,115 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                       )}
                     </div>
 
-                    {/* NFC parsed data grid */}
+                    {/* NFC parsed data — all fields */}
                     {parsed && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 px-4 py-3 text-xs">
-                        {parsed.colorHex && (
-                          <div className="flex items-center gap-1.5">
-                            <Palette className="size-3 text-muted-foreground shrink-0" />
-                            <div className="size-4 rounded-sm border shrink-0" style={{ backgroundColor: parsed.colorHex }} />
-                            <span className="font-mono">{parsed.colorHex}</span>
-                            {parsed.colorName && <span className="text-muted-foreground">({parsed.colorName})</span>}
+                      <div className="px-4 py-3 text-xs space-y-3">
+                        {/* Row 1: Color + Weight + Diameter */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
+                          {parsed.colorHex != null && (
+                            <div>
+                              <span className="text-muted-foreground">Color</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <div className="size-5 rounded-sm border shrink-0" style={{ backgroundColor: parsed.colorHex }} />
+                                <span className="font-mono">{parsed.colorHex}</span>
+                                <span className="text-muted-foreground">RGBA({parsed.colorR},{parsed.colorG},{parsed.colorB},{parsed.colorA})</span>
+                              </div>
+                            </div>
+                          )}
+                          {parsed.spoolNetWeight != null && (
+                            <div>
+                              <span className="text-muted-foreground">Net Weight</span>
+                              <p className="font-semibold mt-0.5">{parsed.spoolNetWeight}g</p>
+                            </div>
+                          )}
+                          {parsed.filamentDiameter != null && (
+                            <div>
+                              <span className="text-muted-foreground">Diameter</span>
+                              <p className="mt-0.5">{parsed.filamentDiameter}mm</p>
+                            </div>
+                          )}
+                          {parsed.filamentLengthM != null && parsed.filamentLengthM > 0 && (
+                            <div>
+                              <span className="text-muted-foreground">Length</span>
+                              <p className="mt-0.5">{parsed.filamentLengthM}m</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Row 2: Temperatures */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
+                          {(parsed.nozzleTempMin != null || parsed.nozzleTempMax != null) && (
+                            <div>
+                              <span className="text-muted-foreground">Nozzle Temp</span>
+                              <p className="mt-0.5">{parsed.nozzleTempMin}–{parsed.nozzleTempMax}°C</p>
+                            </div>
+                          )}
+                          {parsed.bedTemp != null && parsed.bedTemp > 0 && (
+                            <div>
+                              <span className="text-muted-foreground">Bed Temp</span>
+                              <p className="mt-0.5">{parsed.bedTemp}°C</p>
+                            </div>
+                          )}
+                          {parsed.dryingTemp != null && parsed.dryingTemp > 0 && (
+                            <div>
+                              <span className="text-muted-foreground">Drying</span>
+                              <p className="mt-0.5">{parsed.dryingTemp}°C / {parsed.dryingTime}h</p>
+                            </div>
+                          )}
+                          {parsed.productionDate && (
+                            <div>
+                              <span className="text-muted-foreground">Production Date</span>
+                              <p className="mt-0.5">{parsed.productionDate.replace(/_/g, "-")}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Row 3: X-Cam */}
+                        {(parsed.xcamA != null || parsed.xcamB != null) && (
+                          <div>
+                            <span className="text-muted-foreground">X-Cam</span>
+                            <p className="font-mono mt-0.5">
+                              A={parsed.xcamA} B={parsed.xcamB} C={parsed.xcamC} D={parsed.xcamD} E={parsed.xcamE?.toFixed(2)} F={parsed.xcamF?.toFixed(2)}
+                            </p>
                           </div>
                         )}
-                        {parsed.spoolNetWeight && (
-                          <div className="flex items-center gap-1.5">
-                            <Weight className="size-3 text-muted-foreground shrink-0" />
-                            <span><span className="font-semibold">{parsed.spoolNetWeight}g</span> net</span>
-                          </div>
-                        )}
-                        {parsed.filamentDiameter && (
-                          <div className="flex items-center gap-1.5">
-                            <Ruler className="size-3 text-muted-foreground shrink-0" />
-                            <span>{parsed.filamentDiameter}mm dia</span>
-                          </div>
-                        )}
-                        {(parsed.nozzleTempMin || parsed.nozzleTempMax) && (
-                          <div className="flex items-center gap-1.5">
-                            <Thermometer className="size-3 text-muted-foreground shrink-0" />
-                            <span>Nozzle {parsed.nozzleTempMin}–{parsed.nozzleTempMax}°C</span>
-                          </div>
-                        )}
-                        {parsed.bedTemp > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <Thermometer className="size-3 text-muted-foreground shrink-0" />
-                            <span>Bed {parsed.bedTemp}°C</span>
-                          </div>
-                        )}
-                        {parsed.dryingTemp > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <Thermometer className="size-3 text-muted-foreground shrink-0" />
-                            <span>Dry {parsed.dryingTemp}°C / {parsed.dryingTime}h</span>
-                          </div>
-                        )}
-                        {parsed.filamentLengthM > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <Ruler className="size-3 text-muted-foreground shrink-0" />
-                            <span>{parsed.filamentLengthM}m length</span>
-                          </div>
-                        )}
-                        {parsed.productionDate && (
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="size-3 text-muted-foreground shrink-0" />
-                            <span>{parsed.productionDate.replace(/_/g, "-")}</span>
-                          </div>
-                        )}
-                        {parsed.trayUid && (
-                          <div className="flex items-center gap-1.5 col-span-2">
-                            <Hash className="size-3 text-muted-foreground shrink-0" />
-                            <span className="font-mono text-[10px] text-muted-foreground truncate">{parsed.trayUid}</span>
+
+                        {/* Row 4: IDs */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                          {selectedSession.nfcUid && (
+                            <div>
+                              <span className="text-muted-foreground">NFC UID</span>
+                              <p className="font-mono mt-0.5">{selectedSession.nfcUid}</p>
+                            </div>
+                          )}
+                          {parsed.trayUid && (
+                            <div>
+                              <span className="text-muted-foreground">Tray UID</span>
+                              <p className="font-mono mt-0.5 truncate">{parsed.trayUid}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Row 5: Multicolor + Sectors */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                          {parsed.multicolorData && (
+                            <div>
+                              <span className="text-muted-foreground">Multicolor Data</span>
+                              <p className="font-mono mt-0.5 truncate">{parsed.multicolorData}</p>
+                            </div>
+                          )}
+                          {parsed.sectorsOk && (
+                            <div>
+                              <span className="text-muted-foreground">Sectors OK</span>
+                              <p className="font-mono mt-0.5">[{(parsed.sectorsOk as number[]).join(", ")}]</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Warnings */}
+                        {parsed.parseWarnings && (parsed.parseWarnings as string[]).length > 0 && (
+                          <div className="text-amber-600 dark:text-amber-400">
+                            <span className="font-medium">Warnings:</span> {(parsed.parseWarnings as string[]).join("; ")}
                           </div>
                         )}
                       </div>
