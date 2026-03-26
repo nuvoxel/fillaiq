@@ -21,7 +21,12 @@ export async function processHeartbeat(
     wifiRssi?: number;
     ipAddress?: string;
     weightCalibration?: number;
-    printerConnected?: boolean;
+    printer?: {
+      connected?: boolean;
+      battery?: number;
+      paperLoaded?: boolean;
+      coverClosed?: boolean;
+    };
   }
 ) {
   const [station] = await db
@@ -57,7 +62,7 @@ export async function processHeartbeat(
   if (typeof telemetry.uptime === "number") telemetryData.uptime = telemetry.uptime;
   if (typeof telemetry.freeHeap === "number") telemetryData.freeHeap = telemetry.freeHeap;
   if (typeof telemetry.wifiRssi === "number") telemetryData.wifiRssi = telemetry.wifiRssi;
-  if (typeof telemetry.printerConnected === "boolean") telemetryData.printerConnected = telemetry.printerConnected;
+  if (telemetry.printer) telemetryData.printer = telemetry.printer;
 
   const newSettings = { ...existingSettings };
   if (

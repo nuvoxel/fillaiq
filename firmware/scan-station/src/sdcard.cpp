@@ -30,7 +30,7 @@ void SdCardDriver::begin() {
     _usedMB = SD_MMC.usedBytes() / (1024 * 1024);
     _connected = true;
 
-    _ensureDir("/sdcard/scans");
+    _ensureDir("/scans");
 
     const char* typeStr = "Unknown";
     switch (cardType) {
@@ -62,7 +62,7 @@ void SdCardDriver::logScan(const ScanResult& scan, const ScanResponse& resp) {
     if (!_connected) return;
 
     // CSV header: timestamp,weight_g,stable,nfc_uid,height_mm,identified,item_name,material,color_hex
-    const char* csvPath = "/sdcard/scans/log.csv";
+    const char* csvPath = "/scans/log.csv";
 
     bool needsHeader = !SD_MMC.exists(csvPath);
     File f = SD_MMC.open(csvPath, FILE_APPEND);
@@ -95,7 +95,7 @@ bool SdCardDriver::format() {
     if (!_connected) return false;
 
     // Remove scan logs
-    SD_MMC.remove("/sdcard/scans/log.csv");
+    SD_MMC.remove("/scans/log.csv");
     Serial.println("SD: scan log cleared");
     _usedMB = SD_MMC.usedBytes() / (1024 * 1024);
     return true;

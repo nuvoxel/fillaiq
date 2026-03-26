@@ -89,7 +89,12 @@ type StationConfig = {
     uptime?: number;
     freeHeap?: number;
     wifiRssi?: number;
-    printerConnected?: boolean;
+    printer?: {
+      connected?: boolean;
+      battery?: number;
+      paperLoaded?: boolean;
+      coverClosed?: boolean;
+    };
   };
 } | null;
 
@@ -465,9 +470,11 @@ function PrinterCard({
   onSaveSettings?: (settings: Record<string, any>) => void;
   onDelete?: () => void;
 }) {
-  const isOnline = stationOnline ?? false;
+  const livePrinter = stationConfig?.telemetry?.printer;
+  const isOnline = (stationOnline && livePrinter?.connected) ?? false;
   const caps = stationConfig?.capabilities?.printer;
   const settings = stationConfig?.deviceSettings ?? {};
+  const batteryPercent = livePrinter?.battery ?? printer.batteryPercent;
   const [printerSpeed, setPrinterSpeed] = useState(settings.printerSpeed ?? 3);
   const [printerDensity, setPrinterDensity] = useState(settings.printerDensity ?? 10);
   const activeJobs = jobs.filter((j) => ["pending", "sent", "printing"].includes(j.status));
@@ -496,13 +503,19 @@ function PrinterCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {printer.batteryPercent != null && (
-            <Badge variant={printer.batteryPercent <= 10 ? "destructive" : "outline"}>
-              {printer.batteryPercent <= 10 ? <BatteryWarning className="size-3 mr-1" /> :
-               printer.batteryPercent <= 30 ? <BatteryLow className="size-3 mr-1" /> :
-               printer.batteryPercent <= 70 ? <BatteryMedium className="size-3 mr-1" /> :
+          {livePrinter?.paperLoaded === false && (
+            <Badge variant="destructive" className="h-5 text-[0.7rem]">No Paper</Badge>
+          )}
+          {livePrinter?.coverClosed === false && (
+            <Badge variant="destructive" className="h-5 text-[0.7rem]">Cover Open</Badge>
+          )}
+          {batteryPercent != null && (
+            <Badge variant={batteryPercent <= 10 ? "destructive" : "outline"}>
+              {batteryPercent <= 10 ? <BatteryWarning className="size-3 mr-1" /> :
+               batteryPercent <= 30 ? <BatteryLow className="size-3 mr-1" /> :
+               batteryPercent <= 70 ? <BatteryMedium className="size-3 mr-1" /> :
                <BatteryFull className="size-3 mr-1" />}
-              {printer.batteryPercent}%
+              {batteryPercent}%
             </Badge>
           )}
           {onDelete && (

@@ -448,23 +448,14 @@ static void networkTask(void* param) {
                 }
 
                 if (fillaiqMqtt.isConnected()) {
-                    // Publish scan via MQTT (no second TLS connection needed)
                     const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
                     const char* slotPtr = targetSlotCopy[0] ? targetSlotCopy : nullptr;
                     String payload = apiClient.buildScanPayload(scanCopy, tagPtr, slotPtr);
                     fillaiqMqtt.publishScan(payload.c_str());
                     Serial.printf("[Scan] Published via MQTT (%d bytes)\n", payload.length());
-                    // Response will arrive via onScanResult callback
                 } else {
-                    // Fallback: HTTP POST (will fail if heap is low)
-                    const TagData* tagPtr = hasTag ? &tagCopy : nullptr;
-                    ScanResponse resp;
-                    ApiStatus status = apiClient.postScan(scanCopy, tagPtr, resp);
-
+                    Serial.println("[Scan] MQTT not connected, cannot submit");
                     if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                        sharedScan.response = resp;
-                        sharedScan.lastStatus = status;
-                        sharedScan.responseReady = true;
                         sharedScan.postInFlight = false;
                         xSemaphoreGive(sharedScan.mutex);
                     }
@@ -518,7 +509,16 @@ static void networkTask(void* param) {
                     break;
                 }
                 if (env.valid) {
-                    apiClient.postEnvironment(env);
+                    if (fillaiqMqtt.isConnected()) {
+                        JsonDocument doc;
+                        doc["temperatureC"] = env.temperatureC;
+                        doc["humidity"] = env.humidity;
+                        if (env.pressureHPa > 0) doc["pressureHPa"] = env.pressureHPa;
+                        String payload;
+                        serializeJson(doc, payload);
+                        fillaiqMqtt.publishEnv(payload.c_str());
+                        Serial.printf("[Env] Reported via MQTT: T=%.1fC H=%.0f%%\n", env.temperatureC, env.humidity);
+                    }
                 }
                 break;
             }
@@ -763,10 +763,21 @@ static void networkTask(void* param) {
                 doc["uptime"] = millis() / 1000;
                 doc["freeHeap"] = ESP.getFreeHeap();
                 doc["wifiRssi"] = WiFi.RSSI();
+                doc["ipAddress"] = WiFi.localIP().toString();
                 doc["weightCalibration"] = deviceConfig.weightCalibration();
 
-                // Include printer online status in telemetry
-                doc["printerConnected"] = labelPrinter.isConnected();
+                // Include label printer status in telemetry
+                if (labelPrinter.isConnected()) {
+                    JsonObject pr = doc["printer"].to<JsonObject>();
+                    pr["connected"] = true;
+                    const auto& ps = labelPrinter.getState();
+                    pr["battery"] = ps.batteryPercent;
+                    pr["paperLoaded"] = ps.paperLoaded;
+                    pr["coverClosed"] = ps.coverClosed;
+                } else {
+                    JsonObject pr = doc["printer"].to<JsonObject>();
+                    pr["connected"] = false;
+                }
 
                 String payload;
                 serializeJson(doc, payload);
@@ -1138,10 +1149,14 @@ void updateScanState() {
             }
         }
 
-        // Timeout submitting (5s for MQTT, 15s for HTTP fallback)
-        unsigned long submitTimeout = fillaiqMqtt.isConnected() ? 5000 : 15000;
+        // Timeout submitting
+        unsigned long submitTimeout = 5000;
         if (elapsed > submitTimeout) {
             Serial.println("[Scan] Submit timeout");
+            if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                sharedScan.postInFlight = false;
+                xSemaphoreGive(sharedScan.mutex);
+            }
             enterState(SCAN_RESULT);
         }
         break;

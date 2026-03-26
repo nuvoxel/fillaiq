@@ -93,7 +93,7 @@ async function handleTelemetry(
     wifiRssi: payload.wifiRssi,
     ipAddress: payload.ipAddress,
     weightCalibration: payload.weightCalibration,
-    printerConnected: payload.printerConnected,
+    printer: payload.printer,
   });
 }
 
