@@ -219,7 +219,6 @@ export function IntakeForm({ stationData }: { stationData?: StationData | null }
     setError(null);
     const notesParts: string[] = [];
     if (notes) notesParts.push(notes);
-    if (ocrText) notesParts.push(`OCR: ${ocrText}`);
 
     const result = await createIntakeItem({
       productId: productMatch?.product?.id,
