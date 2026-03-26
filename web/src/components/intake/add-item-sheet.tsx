@@ -229,10 +229,30 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     setColorHex(session.bestColorHex ?? "");
     setNfcUid(session.nfcUid ?? "");
     setNfcTagFormat(session.nfcTagFormat ?? "");
-    const parsed = session.nfcParsedData;
-    if (parsed?.spoolNetWeight) setNewNetWeightG(String(parsed.spoolNetWeight));
-    if (parsed?.colorName) setNewColorName(parsed.colorName);
-    if (session.bestColorHex) setNewColorHex(session.bestColorHex);
+    const parsed = session.nfcParsedData as Record<string, any> | null;
+    if (parsed) {
+      if (parsed.spoolNetWeight) setNewNetWeightG(String(parsed.spoolNetWeight));
+      if (parsed.colorName) setNewColorName(parsed.colorName);
+      if (parsed.colorHex) setNewColorHex(parsed.colorHex);
+      if (parsed.name) setNewProductName(parsed.name);
+      if (parsed.filamentDiameter) setNewDiameter(String(parsed.filamentDiameter));
+      if (parsed.nozzleTempMin) setNewNozzleTempMin(String(parsed.nozzleTempMin));
+      if (parsed.nozzleTempMax) setNewNozzleTempMax(String(parsed.nozzleTempMax));
+      if (parsed.bedTemp) setNewBedTempMin(String(parsed.bedTemp));
+      if (parsed.material) {
+        // Try to match material by name/abbreviation
+        const match = materials.find(
+          (m) => m.name.toLowerCase() === parsed.material?.toLowerCase() ||
+                 m.abbreviation?.toLowerCase() === parsed.material?.toLowerCase()
+        );
+        if (match) setNewMaterialId(match.id);
+      }
+      // If NFC has parsed data but no catalog match, auto-open the new product form
+      if (!session.matchedProductId && parsed.name) {
+        setCreatingNew(true);
+      }
+    }
+    if (session.bestColorHex && !parsed?.colorHex) setNewColorHex(session.bestColorHex);
     if (session.matchedProductId) {
       setProductMatch({
         match: session.matchMethod,
@@ -240,7 +260,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
         brand: session.brandName ? { name: session.brandName } : null,
       });
     }
-  }, [selectedSessionId, sessions]);
+  }, [selectedSessionId, sessions, materials]);
 
   // ── Product search ─────────────────────────────────────────────────────
   const handleSearchChange = (query: string) => {
@@ -440,21 +460,19 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {selectedSession.productName ?? selectedSession.nfcUid ?? "Unidentified"}
+                      {selectedSession.productName ?? (selectedSession.nfcParsedData as any)?.name ?? selectedSession.nfcUid ?? "Unidentified"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {selectedSession.bestWeightG ? `${Math.round(selectedSession.bestWeightG)}g` : "—"}
-                      {selectedSession.nfcTagFormat && ` · ${selectedSession.nfcTagFormat}`}
+                      {selectedSession.bestHeightMm ? ` · ${Math.round(selectedSession.bestHeightMm)}mm` : ""}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}/scan/${selectedSession.id}`)}
-                  >
-                    <QrCode className="size-3.5 mr-1" />
-                    Copy Link
-                  </Button>
+                  {selectedSession.nfcTagFormat && (
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      <Nfc className="size-3 mr-1" />{selectedSession.nfcTagFormat}
+                      {selectedSession.nfcUid && <span className="ml-1 font-mono text-[10px]">{selectedSession.nfcUid}</span>}
+                    </Badge>
+                  )}
                 </div>
               )}
 
@@ -727,10 +745,13 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-xs">Weight (g)</Label>
-                  <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" placeholder="Total weight" />
-                </div>
+                {/* Only show weight here if not already shown in station readings */}
+                {!selectedSession && (
+                  <div>
+                    <Label className="text-xs">Weight (g)</Label>
+                    <Input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" placeholder="Total weight" />
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs">Spool/Pkg (g)</Label>
                   <Input value={spoolWeightG} onChange={(e) => setSpoolWeightG(e.target.value)} type="number" placeholder="Empty spool" />
