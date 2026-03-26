@@ -292,7 +292,6 @@ jobs:
           --set secrets.githubClientSecret="${{ secrets.GH_OAUTH_CLIENT_SECRET }}" \
           --set secrets.acsConnectionString="${{ secrets.ACS_CONNECTION_STRING }}" \
           --set secrets.acsSenderAddress="${{ secrets.ACS_SENDER_ADDRESS }}" \
-          --set secrets.mqttBrokerUrl="${{ secrets.MQTT_BROKER_URL }}" \
           --set postgres.password="${{ secrets.POSTGRES_PASSWORD }}" \
           --set externalDatabase.host="${{ secrets.DB_HOST }}" \
           --set externalDatabase.user="${{ secrets.DB_USER }}" \
@@ -325,7 +324,6 @@ jobs:
               --set secrets.githubClientSecret="${{ secrets.GH_OAUTH_CLIENT_SECRET }}" \
               --set secrets.acsConnectionString="${{ secrets.ACS_CONNECTION_STRING }}" \
               --set secrets.acsSenderAddress="${{ secrets.ACS_SENDER_ADDRESS }}" \
-              --set secrets.mqttBrokerUrl="${{ secrets.MQTT_BROKER_URL }}" \
               --set postgres.password="${{ secrets.POSTGRES_PASSWORD }}" \
               --set externalDatabase.host="${{ secrets.DB_HOST }}" \
               --set externalDatabase.user="${{ secrets.DB_USER }}" \
