@@ -1974,7 +1974,6 @@ void setup() {
     }
     display.addBootItem(scale.isConnected() ? scale.getChipName() : "Scale", scale.isConnected());
     if (scale.isConnected()) {
-        scale.tare();
 #ifdef BOARD_SCAN_TOUCH
         // Weight task on Core 1 — NAU7802 I2C guarded by i2cMutex internally
         scale.startTask(1, 3);  // Core 1, priority 3 (above sensors, below LVGL)

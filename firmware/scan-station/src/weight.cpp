@@ -1,5 +1,6 @@
 #include "weight.h"
 #include <Wire.h>
+#include <Preferences.h>
 
 // I2C bus mutex — shared with sensor/NFC/touch tasks
 extern SemaphoreHandle_t i2cMutex;
@@ -53,7 +54,12 @@ void ScaleDriver::begin() {
         if (goodReadings >= 3) {
             _driverType = WEIGHT_NAU7802;
             _connected = true;
-            Serial.printf("  Weight: NAU7802 (I2C 0x%02X, %d/10 reads OK)\n", NAU7802_ADDR, goodReadings);
+            // Restore tare offset from NVS (survives reboot)
+            Preferences prefs;
+            prefs.begin("weight", true);
+            _nauOffset = prefs.getLong("nauOffset", 0);
+            prefs.end();
+            Serial.printf("  Weight: NAU7802 (I2C 0x%02X, %d/10 reads OK, offset=%ld)\n", NAU7802_ADDR, goodReadings, _nauOffset);
             return;
         } else {
             Serial.printf("  Weight: NAU7802 detected but not responding (%d/10 reads)\n", goodReadings);
@@ -297,9 +303,29 @@ void ScaleDriver::tare(uint8_t samples) {
                 count++;
             }
         }
-        if (count > 0) _nauOffset = sum / count;
+        if (count > 0) {
+            _nauOffset = sum / count;
+            // Persist tare offset to NVS so it survives reboot
+            Preferences prefs;
+            prefs.begin("weight", false);
+            prefs.putLong("nauOffset", _nauOffset);
+            prefs.end();
+        }
     } else {
         _hx.tare(samples);
+    }
+
+    // Reset moving average buffer so old pre-tare readings don't pollute output
+    memset(_buf, 0, sizeof(_buf));
+    _bufIdx = 0;
+    _bufFull = false;
+    _stableCount = 0;
+    _prevAvg = 0;
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(50))) {
+        _weightRaw = 0;
+        _weightStable = 0;
+        _isStable = false;
+        xSemaphoreGive(_mutex);
     }
 }
 
