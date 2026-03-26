@@ -2,19 +2,21 @@
  * Catalog matcher — tries to identify a product from session data.
  *
  * Priority:
- *   1. NFC parsed data (Bambu materialId/variantId via nfcTagPatterns)
- *   2. Barcode (skuMappings / products)
- *   3. null (no match)
+ *   1. NFC parsed data (match products by name, material, color, weight)
+ *   2. NFC tag patterns table (legacy variantId/materialId mappings)
+ *   3. Barcode (skuMappings / products)
+ *   4. null (no match)
  */
 
 import { db } from "@/db";
 import {
   products,
   brands,
+  materials,
   nfcTagPatterns,
   skuMappings,
 } from "@/db/schema/central-catalog";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, ilike } from "drizzle-orm";
 
 interface MatchResult {
   productId: string;
@@ -51,7 +53,86 @@ async function matchByNfc(session: SessionLike): Promise<MatchResult | null> {
   const parsed = session.nfcParsedData as Record<string, any> | null;
   if (!parsed) return null;
 
-  // Bambu: match by materialId and/or variantId
+  // ── Strategy 1: Match by product name + material + color + brand ────
+  // Bambu MIFARE tags give us: name ("PLA Basic"), material ("PLA"),
+  // color (#D1D3D5), net weight (1000), and we know brand = Bambu Lab.
+  if (parsed.name && parsed.format === "bambu_mifare") {
+    const conditions: any[] = [ilike(products.name, parsed.name)];
+
+    // Match material by name/abbreviation
+    if (parsed.material) {
+      const [mat] = await db
+        .select({ id: materials.id })
+        .from(materials)
+        .where(or(
+          ilike(materials.name, parsed.material),
+          ilike(materials.abbreviation, parsed.material)
+        ))
+        .limit(1);
+      if (mat) conditions.push(eq(products.materialId, mat.id));
+    }
+
+    // Match color by hex (normalize to lowercase)
+    if (parsed.colorHex) {
+      conditions.push(ilike(products.colorHex, parsed.colorHex));
+    }
+
+    // Match brand = "Bambu Lab" or similar
+    const [bambuBrand] = await db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(or(
+        ilike(brands.name, "Bambu Lab"),
+        ilike(brands.name, "Bambu%"),
+        ilike(brands.name, "BambuLab"),
+      ))
+      .limit(1);
+    if (bambuBrand) conditions.push(eq(products.brandId, bambuBrand.id));
+
+    if (conditions.length >= 2) {
+      const [match] = await db
+        .select({ product: products, brand: brands })
+        .from(products)
+        .leftJoin(brands, eq(products.brandId, brands.id))
+        .where(and(...conditions))
+        .limit(1);
+
+      if (match) {
+        return {
+          productId: match.product.id,
+          confidence: conditions.length >= 4 ? 0.95 : conditions.length >= 3 ? 0.9 : 0.8,
+          method: "nfc",
+          product: match.product,
+          brand: match.brand,
+        };
+      }
+    }
+
+    // Relax: try just name + brand (without color/material)
+    if (bambuBrand) {
+      const [match] = await db
+        .select({ product: products, brand: brands })
+        .from(products)
+        .leftJoin(brands, eq(products.brandId, brands.id))
+        .where(and(
+          ilike(products.name, parsed.name),
+          eq(products.brandId, bambuBrand.id)
+        ))
+        .limit(1);
+
+      if (match) {
+        return {
+          productId: match.product.id,
+          confidence: 0.7,
+          method: "nfc",
+          product: match.product,
+          brand: match.brand,
+        };
+      }
+    }
+  }
+
+  // ── Strategy 2: Legacy nfcTagPatterns table (variantId/materialId) ──
   if (parsed.materialId || parsed.variantId) {
     const conditions = [];
     if (parsed.materialId) {
@@ -70,14 +151,9 @@ async function matchByNfc(session: SessionLike): Promise<MatchResult | null> {
       .limit(1);
 
     if (match) {
-      // Both materialId AND variantId match = high confidence
-      // Just materialId = medium confidence
-      const confidence =
-        parsed.variantId && parsed.materialId ? 0.95 : 0.8;
-
       return {
         productId: match.product.id,
-        confidence,
+        confidence: parsed.variantId && parsed.materialId ? 0.95 : 0.8,
         method: "nfc",
         product: match.product,
         brand: match.brand,
