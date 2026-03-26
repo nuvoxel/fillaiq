@@ -94,13 +94,17 @@ export function SpoolActions({ spool, product, brandName, materialName }: Props)
     }
   };
 
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const handleDelete = async () => {
     setDeleting(true);
+    setDeleteError(null);
     const result = await removeUserItem(spool.id);
     setDeleting(false);
     if (result.error === null) {
       setDeleteOpen(false);
       router.push("/spools");
+    } else {
+      setDeleteError(result.error);
     }
   };
 
@@ -279,6 +283,9 @@ export function SpoolActions({ spool, product, brandName, materialName }: Props)
               cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive px-1">{deleteError}</p>
+          )}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>
               Cancel

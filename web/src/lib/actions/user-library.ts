@@ -191,6 +191,21 @@ export async function removeUserItem(id: string) {
   if (existing.error !== null) return existing;
   const ownership = assertOwnership(guard.data, existing.data.userId);
   if (ownership) return ownership;
+  try {
+    // Clean up FK references before deleting
+    const { weightEvents, usageSessions, dryingSessions, itemMovements } = await import("@/db/schema/events");
+    const { scanSessions, scanEvents } = await import("@/db/schema/scan-stations");
+    await db.delete(weightEvents).where(eq(weightEvents.userItemId, id));
+    await db.delete(itemMovements).where(eq(itemMovements.userItemId, id));
+    await db.update(usageSessions).set({ userItemId: null as any }).where(eq(usageSessions.userItemId, id));
+    await db.update(dryingSessions).set({ userItemId: null as any }).where(eq(dryingSessions.userItemId, id));
+    await db.update(scanSessions).set({ resolvedUserItemId: null }).where(eq(scanSessions.resolvedUserItemId, id));
+    await db.update(scanEvents).set({ identifiedUserItemId: null }).where(eq(scanEvents.identifiedUserItemId, id));
+    // Delete print jobs for this item
+    await db.delete(printJobs).where(eq(printJobs.userItemId, id));
+  } catch (e) {
+    return err(`Failed to clean up references: ${(e as Error).message}`);
+  }
   const result = await userItemsCrud.remove(id);
   if (result.error === null) {
     emitAuditEvent({ actorId: guard.data.userId, actorType: auditActorType(guard.data), action: "delete", resourceType: "user_item", resourceId: result.data.id });
