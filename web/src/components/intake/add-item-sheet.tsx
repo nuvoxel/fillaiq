@@ -189,7 +189,7 @@ export function AddItemSheet({ open, onClose, onSaved, sessionId }: Props) {
     setShowQr(false);
     setQrDataUrl(null);
     setLoadingSessions(true);
-    listMyScanSessions({ status: "active", limit: 20 }).then((r) => {
+    listMyScanSessions({ includeRecent: true, limit: 20 }).then((r) => {
       if (r.data) setSessions(r.data as ScanSession[]);
       setLoadingSessions(false);
     });

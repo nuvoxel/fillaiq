@@ -149,56 +149,59 @@ bool NfcI2CBridge::readTagData(TagData &out) {
     writeReg(PICO_REG_DATA_PTR_H, 0);
     writeReg(PICO_REG_DATA_PTR_L, 0);
 
-    // Read data in chunks — each chunk acquires/releases i2cMutex
+    // Read data in chunks — Pico always sends 32 bytes per I2C request
+    // (its onRequest handler fills a 32-byte buffer and advances data_ptr
+    // by 32 regardless of how many bytes the master actually clocks).
+    // We MUST always request exactly 32 bytes to stay in sync.
     if (out.type == TAG_MIFARE_CLASSIC) {
-        // Read into sector_data[16][3][16] — 768 bytes
+        // Read into sector_data[16][3][16] — 768 bytes total
+        // Read 32 bytes at a time (2 blocks per read), 24 reads total
         uint16_t offset = 0;
-        for (uint8_t s = 0; s < TagData::NUM_SECTORS && offset < data_len; s++) {
-            for (uint8_t b = 0; b < 3 && offset < data_len; b++) {
-                for (uint8_t chunk_start = 0; chunk_start < 16; chunk_start += I2C_CHUNK_SIZE) {
-                    uint8_t chunk = 16 - chunk_start;
-                    if (chunk > I2C_CHUNK_SIZE) chunk = I2C_CHUNK_SIZE;
-
-                    if (!i2cLock()) continue;
-                    _wire->beginTransmission(NFC_PICO_ADDR);
-                    _wire->write(PICO_REG_DATA);
-                    _wire->endTransmission(false);
-                    _wire->requestFrom((uint8_t)NFC_PICO_ADDR, chunk);
-                    for (uint8_t i = 0; i < chunk && _wire->available(); i++) {
-                        out.sector_data[s][b][chunk_start + i] = _wire->read();
-                    }
-                    i2cUnlock();
+        while (offset < data_len && offset < TagData::NUM_SECTORS * 3 * 16) {
+            if (!i2cLock()) { offset += I2C_CHUNK_SIZE; continue; }
+            _wire->beginTransmission(NFC_PICO_ADDR);
+            _wire->write(PICO_REG_DATA);
+            _wire->endTransmission(false);
+            _wire->requestFrom((uint8_t)NFC_PICO_ADDR, (uint8_t)I2C_CHUNK_SIZE);
+            for (uint8_t i = 0; i < I2C_CHUNK_SIZE && _wire->available(); i++) {
+                uint16_t pos = offset + i;
+                uint8_t s = pos / 48;          // sector (48 bytes each)
+                uint8_t b = (pos % 48) / 16;   // block within sector
+                uint8_t j = pos % 16;           // byte within block
+                if (s < TagData::NUM_SECTORS) {
+                    out.sector_data[s][b][j] = _wire->read();
+                } else {
+                    _wire->read();
                 }
-                offset += 16;
             }
+            i2cUnlock();
+            offset += I2C_CHUNK_SIZE;
         }
     } else {
         // NTAG or ISO15693 — read into page_data[N][4]
         uint16_t pages = data_len / 4;
         if (pages > TagData::MAX_PAGES) pages = TagData::MAX_PAGES;
 
-        uint16_t remaining = pages * 4;
-        while (remaining > 0) {
-            uint8_t chunk = (remaining > I2C_CHUNK_SIZE) ? I2C_CHUNK_SIZE : remaining;
-
-            if (!i2cLock()) { remaining -= chunk; continue; }
+        uint16_t total = pages * 4;
+        uint16_t offset = 0;
+        while (offset < total) {
+            if (!i2cLock()) { offset += I2C_CHUNK_SIZE; continue; }
             _wire->beginTransmission(NFC_PICO_ADDR);
             _wire->write(PICO_REG_DATA);
             _wire->endTransmission(false);
-            _wire->requestFrom((uint8_t)NFC_PICO_ADDR, chunk);
-
-            for (uint8_t i = 0; i < chunk && _wire->available(); i++) {
-                uint16_t abs_byte = (pages * 4 - remaining) + i;
-                uint16_t p = abs_byte / 4;
-                uint8_t b = abs_byte % 4;
-                if (p < TagData::MAX_PAGES) {
+            _wire->requestFrom((uint8_t)NFC_PICO_ADDR, (uint8_t)I2C_CHUNK_SIZE);
+            for (uint8_t i = 0; i < I2C_CHUNK_SIZE && _wire->available(); i++) {
+                uint16_t pos = offset + i;
+                uint16_t p = pos / 4;
+                uint8_t b = pos % 4;
+                if (p < TagData::MAX_PAGES && pos < total) {
                     out.page_data[p][b] = _wire->read();
                 } else {
                     _wire->read();
                 }
             }
             i2cUnlock();
-            remaining -= chunk;
+            offset += I2C_CHUNK_SIZE;
         }
     }
 

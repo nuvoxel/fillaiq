@@ -198,8 +198,8 @@ void FillaiqMqtt::begin(const char* brokerUrl, const char* deviceToken,
     config.lwt_qos = 1;
     config.lwt_retain = 1;
     config.reconnect_timeout_ms = 5000;
-    config.buffer_size = 4096;
-    config.out_buffer_size = 4096;
+    config.buffer_size = 6144;
+    config.out_buffer_size = 6144;
 
     _client = esp_mqtt_client_init(&config);
     if (!_client) {
