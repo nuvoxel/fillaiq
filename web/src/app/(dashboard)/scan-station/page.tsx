@@ -18,7 +18,7 @@ import { FillaIqTab } from "../hardware/filla-iq-tab";
 import { AddItemSheet } from "@/components/intake/add-item-sheet";
 import {
   listMyScanSessions,
-  abandonSession,
+  deleteSession,
 } from "@/lib/actions/scan";
 
 /* -- Design tokens -- */
@@ -59,9 +59,9 @@ export default function StationsPage() {
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
 
-  const handleAbandon = useCallback(
+  const handleDelete = useCallback(
     async (sessionId: string) => {
-      await abandonSession(sessionId);
+      await deleteSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     },
     []
@@ -135,7 +135,7 @@ export default function StationsPage() {
                 key={session.id}
                 session={session}
                 onAddItem={() => handleAddItem(session.id)}
-                onDelete={session.status !== "resolved" ? () => handleAbandon(session.id) : undefined}
+                onDelete={() => handleDelete(session.id)}
               />
             ))}
           </div>

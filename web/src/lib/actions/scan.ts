@@ -455,6 +455,29 @@ export async function abandonSession(id: string) {
   return ok({ abandoned: true });
 }
 
+export async function deleteSession(id: string) {
+  const guard = await requireAuth();
+  if (guard.error !== null) return guard;
+
+  const [session] = await db
+    .select()
+    .from(scanSessions)
+    .where(
+      and(
+        eq(scanSessions.id, id),
+        eq(scanSessions.userId, guard.data.userId)
+      )
+    );
+
+  if (!session) return err("Session not found");
+
+  // Clean up scan events first (FK constraint)
+  await db.delete(scanEvents).where(eq(scanEvents.sessionId, id));
+  await db.delete(scanSessions).where(eq(scanSessions.id, id));
+
+  return ok({ deleted: true });
+}
+
 // ── Recent Scans ──────────────────────────────────────────────────────────────
 
 export async function listMyRecentScans(limit = 20) {
