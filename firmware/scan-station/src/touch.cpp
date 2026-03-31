@@ -1,7 +1,5 @@
 #include "touch.h"
 
-#ifdef BOARD_SCAN_TOUCH
-
 #include <Wire.h>
 
 TouchDriver touchInput;
@@ -103,5 +101,3 @@ void TouchDriver::registerLvglInput() {
     lv_indev_set_read_cb(_indev, lvglReadCb);
     Serial.println("  LVGL touch input registered");
 }
-
-#endif // BOARD_SCAN_TOUCH

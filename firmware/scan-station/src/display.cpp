@@ -21,9 +21,6 @@
 
 // LVGL native display drivers
 #include "src/drivers/display/lcd/lv_lcd_generic_mipi.h"
-#ifndef BOARD_SCAN_TOUCH
-#include "src/drivers/display/st7789/lv_st7789.h"
-#endif
 
 Display display;
 
@@ -106,7 +103,6 @@ static void spiSendColor(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size
 // Complete panel-specific init from vendor SDK.  Sent after the
 // generic MIPI create (which handles reset, sleep-out, MADCTL,
 // pixel format and display-on).
-#ifdef BOARD_SCAN_TOUCH
 static const uint8_t ili9341v_init_cmds[] = {
     0xCF, 3, 0x00, 0xC1, 0x30,         // Power Control B
     0xED, 4, 0x64, 0x03, 0x12, 0x81,   // Power On Sequence
@@ -134,7 +130,6 @@ static const uint8_t ili9341v_init_cmds[] = {
               0x32, 0x34, 0x0F,
     LV_LCD_CMD_DELAY_MS, LV_LCD_CMD_EOF
 };
-#endif
 
 // ── Display Init ─────────────────────────────────────────────
 
@@ -172,7 +167,6 @@ void Display::begin() {
     Serial.println("  LVGL init done"); Serial.flush();
 
     // Create display using LVGL generic MIPI driver + board-specific init
-#ifdef BOARD_SCAN_TOUCH
     // ILI9341V IPS — 320x240 landscape via MADCTL hardware rotation
     _screenW = 320;
     _screenH = 240;
@@ -184,13 +178,6 @@ void Display::begin() {
     // IPS panel requires display inversion ON for correct colors
     lv_lcd_generic_mipi_set_invert(lvDisp, true);
     Serial.println("  ILI9341V init done"); Serial.flush();
-#else
-    // ST7789 240x280 — portrait
-    _screenW = 240;
-    _screenH = 280;
-    lvDisp = lv_st7789_create(_screenW, _screenH, LV_LCD_FLAG_NONE, spiSendCmd, spiSendColor);
-    lv_st7789_set_gap(lvDisp, 0, 20);  // 1.69" display VRAM offset
-#endif
 
     // Allocate draw buffers — partial mode, 40 rows at a time
     // Larger buffers = fewer SPI flush calls per frame = faster rendering
@@ -235,11 +222,7 @@ void Display::begin() {
     showMessage("Filla IQ", "Booting...");
 
     const char* chipName;
-#ifdef BOARD_SCAN_TOUCH
     chipName = "ILI9341";
-#else
-    chipName = "ST7789";
-#endif
     Serial.printf("  TFT: %s %dx%d LVGL native\n", chipName, _screenW, _screenH);
 }
 
@@ -436,7 +419,6 @@ void Display::buildIdleScreen(uint8_t icons) {
     createStatusBar(_screen, icons);
 
     // Settings gear button (bottom-right)
-#ifdef BOARD_SCAN_TOUCH
     lv_obj_t* gearBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(gearBtn);
     lv_obj_set_size(gearBtn, 48, 48);
@@ -451,7 +433,6 @@ void Display::buildIdleScreen(uint8_t icons) {
     lv_obj_set_style_text_font(gearIcon, &fa_icons_14, 0);
     lv_obj_set_style_text_color(gearIcon, grayLight, 0);
     lv_obj_center(gearIcon);
-#endif
 
     // Two-pill FillaIQ logo — two vertical cyan capsules side by side
     lv_obj_t* pillLeft = lv_obj_create(_screen);
@@ -486,7 +467,6 @@ void Display::buildDashboardScreen(uint8_t icons) {
     createStatusBar(_screen, icons);
 
     // Settings gear button (top-right area, below status bar)
-#ifdef BOARD_SCAN_TOUCH
     lv_obj_t* gearBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(gearBtn);
     lv_obj_set_size(gearBtn, 48, 48);
@@ -501,7 +481,6 @@ void Display::buildDashboardScreen(uint8_t icons) {
     lv_obj_set_style_text_font(gearIcon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(gearIcon, grayLight, 0);
     lv_obj_center(gearIcon);
-#endif
 
     // Weight — large centered display at top
     _dashWeightLabel = makeLabel(_screen, &lv_font_montserrat_28, white,
@@ -609,7 +588,6 @@ void Display::buildDashboardScreen(uint8_t icons) {
     lv_obj_add_flag(_dashLocCounter, LV_OBJ_FLAG_HIDDEN);
 
     // SCAN button — full-width, prominent, at bottom
-#ifdef BOARD_SCAN_TOUCH
     _dashScanBtn = lv_btn_create(_screen);
     lv_obj_remove_style_all(_dashScanBtn);
     lv_obj_set_size(_dashScanBtn, _screenW - 16, 44);
@@ -631,7 +609,6 @@ void Display::buildDashboardScreen(uint8_t icons) {
 
     // Start disabled
     lv_obj_add_state(_dashScanBtn, LV_STATE_DISABLED);
-#endif
 }
 
 void Display::updateDashboard(float weight, bool stable,
@@ -667,9 +644,7 @@ void Display::updateDashboard(float weight, bool stable,
     }
 
     // Scan button enable/disable
-#ifdef BOARD_SCAN_TOUCH
     setScanButtonEnabled(scanEnabled);
-#endif
 }
 
 void Display::updateNfcLookup(const char* productName, const char* material,
@@ -1023,7 +998,6 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
     }
 
     // Bottom buttons — Done (left) + Print (right)
-#ifdef BOARD_SCAN_TOUCH
     int btnGap = 8;
     int btnH = 44;
     int btnW = (_screenW - 24 - btnGap) / 2;
@@ -1061,7 +1035,6 @@ void Display::buildResultScreen(const ScanResponse* resp, float weight, const ch
     lv_obj_set_style_text_font(printLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(printLbl, white, 0);
     lv_obj_center(printLbl);
-#endif
 
     // No lv_refr_now — let lv_timer_handler() handle it on next tick
 }
@@ -1207,10 +1180,8 @@ void Display::buildUnknownScreen(float weight, bool stable,
               LV_ALIGN_BOTTOM_MID, 0, -12, "Tap screen or scan QR to add details");
 
     // Touch-to-submit: make the screen tappable
-#ifdef BOARD_SCAN_TOUCH
     lv_obj_add_flag(_screen, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(_screen, onSubmitTap, LV_EVENT_CLICKED, NULL);
-#endif
 }
 
 // ── Identified Screen ────────────────────────────────────────
@@ -1350,8 +1321,7 @@ void Display::buildIdentifiedScreen(float weight, bool stable,
         lv_obj_center(nfcLbl);
     }
 
-    // Done + Print buttons (touch boards)
-#ifdef BOARD_SCAN_TOUCH
+    // Done + Print buttons
     int btnGap = 8;
     int btnH = 42;
     int btnW = (_screenW - 24 - btnGap) / 2;
@@ -1390,7 +1360,6 @@ void Display::buildIdentifiedScreen(float weight, bool stable,
     lv_obj_set_style_text_font(printLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(printLbl, white, 0);
     lv_obj_center(printLbl);
-#endif
 }
 
 // ── Pending Command System (thread-safe main loop → LVGL task) ───

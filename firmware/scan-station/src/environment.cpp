@@ -1,7 +1,6 @@
 #include "environment.h"
 #include "color.h"
 #include <Wire.h>
-#include <DHT.h>
 
 EnvironmentSensor envSensor;
 
@@ -9,10 +8,6 @@ EnvironmentSensor envSensor;
 #define BME280_ADDR_A  0x76
 #define BME280_ADDR_B  0x77
 #define SHT31_ADDR     0x44
-#define AHT20_ADDR     0x38
-
-// DHT sensor instance (created on demand)
-static DHT* dhtSensor = nullptr;
 
 // ── BME280 registers and calibration ──────────────────────────────────────────
 #define BME280_REG_ID          0xD0
@@ -182,42 +177,9 @@ void EnvironmentSensor::begin() {
             }
         }
     }
-#ifndef BOARD_SCAN_TOUCH
-    // AHT20 at 0x38 conflicts with FT6336G touch controller on the touch board
-    else if (_i2cProbe(AHT20_ADDR)) {
-        _i2cAddr = AHT20_ADDR;
-        _type = ENV_AHT20;
-        _connected = true;
-    }
-#endif
-
-    // Fall back to DHT on GPIO if no I2C sensor found
-#ifdef DHT_PIN
-    if (!_connected && DHT_PIN >= 0) {
-        dhtSensor = new DHT(DHT_PIN, DHT_TYPE);
-        dhtSensor->begin();
-        delay(1000);  // DHT needs time to stabilize
-
-        float t = dhtSensor->readTemperature();
-        float h = dhtSensor->readHumidity();
-        if (!isnan(t) && !isnan(h)) {
-            _type = (DHT_TYPE == 22) ? ENV_DHT22 : ENV_DHT11;
-            _connected = true;
-        } else {
-            delete dhtSensor;
-            dhtSensor = nullptr;
-        }
-    }
-#endif
 
     if (_connected) {
-        if (_type == ENV_DHT11 || _type == ENV_DHT22) {
-#ifdef DHT_PIN
-            Serial.printf("  Env: %s on GPIO%d\n", getChipName(), DHT_PIN);
-#endif
-        } else {
-            Serial.printf("  Env: %s at 0x%02X\n", getChipName(), _i2cAddr);
-        }
+        Serial.printf("  Env: %s at 0x%02X\n", getChipName(), _i2cAddr);
     } else {
         Serial.println("  Env: not detected");
     }
@@ -225,20 +187,6 @@ void EnvironmentSensor::begin() {
 
 bool EnvironmentSensor::read(EnvData& data) {
     if (!_connected) return false;
-
-    if ((_type == ENV_DHT11 || _type == ENV_DHT22) && dhtSensor) {
-        float t = dhtSensor->readTemperature();
-        float h = dhtSensor->readHumidity();
-        if (isnan(t) || isnan(h)) return false;
-
-        data.valid = true;
-        data.temperatureC = t;
-        data.humidity = h;
-        data.pressureHPa = 0;  // DHT doesn't measure pressure
-        data.timestamp = millis();
-        _lastReading = data;
-        return true;
-    }
 
     if (_type == ENV_BME280) {
         if (bmeRead(_i2cAddr, data)) {
@@ -267,29 +215,6 @@ bool EnvironmentSensor::read(EnvData& data) {
         return true;
     }
 
-    if (_type == ENV_AHT20) {
-        // AHT20: trigger measurement
-        Wire.beginTransmission(_i2cAddr);
-        Wire.write(0xAC); Wire.write(0x33); Wire.write(0x00);
-        if (Wire.endTransmission() != 0) return false;
-        delay(80);
-        Wire.requestFrom(_i2cAddr, (uint8_t)6);
-        if (Wire.available() < 6) return false;
-        uint8_t state = Wire.read();
-        if (state & 0x80) return false; // busy
-        uint32_t raw = ((uint32_t)Wire.read() << 12) | ((uint32_t)Wire.read() << 4);
-        uint8_t shared = Wire.read();
-        raw |= (shared >> 4);
-        uint32_t rawT = ((uint32_t)(shared & 0x0F) << 16) | ((uint32_t)Wire.read() << 8) | Wire.read();
-        data.humidity = (float)raw / 1048576.0f * 100.0f;
-        data.temperatureC = (float)rawT / 1048576.0f * 200.0f - 50.0f;
-        data.pressureHPa = 0;
-        data.valid = true;
-        data.timestamp = millis();
-        _lastReading = data;
-        return true;
-    }
-
     data.valid = false;
     return false;
 }
@@ -299,9 +224,6 @@ const char* EnvironmentSensor::getChipName() const {
         case ENV_BME280: return "BME280";
         case ENV_BME680: return "BME680";
         case ENV_SHT31:  return "SHT31";
-        case ENV_AHT20:  return "AHT20";
-        case ENV_DHT11:  return "DHT11";
-        case ENV_DHT22:  return "DHT22";
         default:         return "None";
     }
 }
@@ -314,13 +236,7 @@ bool EnvironmentSensor::_i2cProbe(uint8_t addr) {
 void EnvironmentSensor::printStatus() {
     Serial.printf("  Env sensor: %s", _connected ? getChipName() : "not detected");
     if (_connected) {
-        if (_type == ENV_DHT11 || _type == ENV_DHT22) {
-#ifdef DHT_PIN
-            Serial.printf(" (GPIO%d)", DHT_PIN);
-#endif
-        } else {
-            Serial.printf(" (I2C 0x%02X)", _i2cAddr);
-        }
+        Serial.printf(" (I2C 0x%02X)", _i2cAddr);
         if (_lastReading.valid) {
             Serial.printf(" T=%.1f°C H=%.1f%%", _lastReading.temperatureC, _lastReading.humidity);
             if (_lastReading.pressureHPa > 0) {

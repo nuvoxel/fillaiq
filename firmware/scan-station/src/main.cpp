@@ -23,9 +23,7 @@
 #include "bambu_mqtt.h"
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#ifdef BOARD_SCAN_TOUCH
 #include "touch.h"
-#endif
 #include <BLEDevice.h>
 #include <BLEScan.h>
 
@@ -65,10 +63,8 @@ uint8_t authFailCount = 0;
 #define AUTH_FAIL_THRESHOLD  3
 
 // Menu action flags (set by LVGL callbacks, processed in main loop)
-#ifdef BOARD_SCAN_TOUCH
 enum MenuAction : uint8_t { MENU_NONE = 0, MENU_WIFI_SETUP, MENU_TARE_SCALE, MENU_RAW_SENSORS, MENU_CALIBRATE, MENU_REBOOT, MENU_CHECK_UPDATE, MENU_BLE_SCAN };
 volatile MenuAction menuActionPending = MENU_NONE;
-#endif
 
 // ============================================================
 // FreeRTOS Shared State
@@ -186,10 +182,8 @@ static volatile bool otaRunning = false;
 // Task handles
 static TaskHandle_t nfcTaskHandle = nullptr;
 static TaskHandle_t networkTaskHandle = nullptr;
-#ifdef BOARD_SCAN_TOUCH
 static TaskHandle_t lvglTaskHandle = nullptr;
 static TaskHandle_t sensorTaskHandle = nullptr;
-#endif
 
 // Pause background tasks during calibration, tare, settings, etc.
 // Uses a cooperative flag — tasks check it each loop and sleep if set.
@@ -204,7 +198,6 @@ static void resumeBackgroundTasks() {
 }
 
 // -- Sensor Cache (written by sensor task, read by main loop) --
-#ifdef BOARD_SCAN_TOUCH
 #include "color.h"
 #include "environment.h"
 
@@ -216,7 +209,6 @@ struct SensorCache {
     uint8_t colorLedBrightness = 200;          // LED brightness for color measurement
 };
 static SensorCache sensorCache;
-#endif
 
 // ============================================================
 // ============================================================
@@ -225,7 +217,6 @@ static SensorCache sensorCache;
 // Highest priority on Core 1 so UI always preempts sensor reads.
 // Touch input callback runs within lv_timer_handler via LVGL indev.
 
-#ifdef BOARD_SCAN_TOUCH
 static void lvglTask(void* param) {
     Serial.println("[LVGL Task] Started on core " + String(xPortGetCoreID()));
     const TickType_t period = pdMS_TO_TICKS(30);  // ~33fps
@@ -239,7 +230,6 @@ static void lvglTask(void* param) {
         vTaskDelayUntil(&lastWake, period);
     }
 }
-#endif
 
 // ============================================================
 // Sensor Task (Core 1, Priority 2) — Touch Board Only
@@ -247,7 +237,6 @@ static void lvglTask(void* param) {
 // Round-robin I2C reads: color (async), env.
 // Writes to sensorCache protected by mutex.
 
-#ifdef BOARD_SCAN_TOUCH
 static void sensorTask(void* param) {
     Serial.println("[Sensor Task] Started on core " + String(xPortGetCoreID()));
 
@@ -313,7 +302,6 @@ static void sensorTask(void* param) {
         vTaskDelay(pdMS_TO_TICKS(50));  // Yield between slots
     }
 }
-#endif
 
 // ============================================================
 // NFC Task (Core 0, Priority 2, 8KB stack)
@@ -973,7 +961,6 @@ void snapshotNfc() {
 }
 
 // -- Sensor snapshot (read from sensor task cache, used by state machine) --
-#ifdef BOARD_SCAN_TOUCH
 static ColorData cachedColor = {};
 static EnvData cachedEnv = {};
 
@@ -984,7 +971,6 @@ void snapshotSensors() {
         xSemaphoreGive(sensorCache.mutex);
     }
 }
-#endif
 
 // -- Trigger a scan (snapshot sensors + enter SUBMITTING state) --
 
@@ -1003,29 +989,19 @@ void triggerScan() {
         currentScan.nfcTagType = nfcSnap.hasData ? nfcSnap.tagData.type : 0;
     }
 
-#ifdef BOARD_SCAN_TOUCH
     // If color sensor is connected, go to color read screen first
     if (colorSensor.isConnected()) {
         enterState(SCAN_COLOR_READ);
         return;
     }
-#else
-    // Non-touch boards: do blocking color read inline
-    if (colorSensor.isConnected()) {
-        ColorData color;
-        if (colorSensor.read(color)) currentScan.color = color;
-    }
-#endif
 
     enterState(SCAN_SUBMITTING);
 }
 
 // Capture color data and proceed to submission
 void submitScanWithColor() {
-#ifdef BOARD_SCAN_TOUCH
     snapshotSensors();
     if (cachedColor.valid) currentScan.color = cachedColor;
-#endif
     enterState(SCAN_SUBMITTING);
 }
 
@@ -1046,18 +1022,14 @@ void updateScanState() {
 
     case SCAN_IDLE:
         // No auto-transitions. The Scan button press triggers SCAN_SUBMITTING.
-        // For DevKitC (non-touch): serial "scan" command triggers it via handleSerial().
-#ifdef BOARD_SCAN_TOUCH
         if (display.scanButtonPressed) {
             display.scanButtonPressed = false;
             snapshotSensors();
             triggerScan();
         }
-#endif
         break;
 
     case SCAN_COLOR_READ:
-#ifdef BOARD_SCAN_TOUCH
         if (display.colorReadButtonPressed) {
             display.colorReadButtonPressed = false;
             Serial.println("[Scan] Reading color...");
@@ -1075,7 +1047,6 @@ void updateScanState() {
             Serial.println("[Scan] Color read timeout, skipping");
             submitScanSkipColor();
         }
-#endif
         break;
 
     case SCAN_SUBMITTING: {
@@ -1165,7 +1136,6 @@ void updateScanState() {
 
     case SCAN_RESULT: {
         // Wait for user tap "Done" or "Print", or 30s timeout
-#ifdef BOARD_SCAN_TOUCH
         if (display.doneButtonPressed) {
             display.doneButtonPressed = false;
             enterState(SCAN_IDLE);
@@ -1212,7 +1182,6 @@ void updateScanState() {
             }
             xSemaphoreGive(sharedScan.mutex);
         }
-#endif
         if (elapsed > 30000) {
             enterState(SCAN_IDLE);
         }
@@ -1908,23 +1877,19 @@ void setup() {
     Serial.printf("  I2C bus: SDA=%d SCL=%d @ 400kHz\n", I2C_SDA, I2C_SCL); Serial.flush();
 
     // Touch init first -- reset FT6336G so it releases SDA before we scan
-#ifdef BOARD_SCAN_TOUCH
     display.setBootStatus("Touch init...");
     touchInput.begin();
     if (touchInput.isConnected()) {
         touchInput.registerLvglInput();
     }
     display.addBootItem("Touch", touchInput.isConnected());
-#endif
 
     // Probe known addresses only (full scan can hang on stuck bus)
     display.setBootStatus("Scanning I2C...");
     const uint8_t knownAddrs[] = { NAU7802_ADDR,
                                     AS7341_ADDR, TCS34725_ADDR, OPT4048_ADDR,
                                     AS7265X_ADDR, AS7331_ADDR, 0x24 /*PN532*/,
-#ifdef BOARD_SCAN_TOUCH
                                     0x38 /*FT6336*/, 0x55 /*Pico NFC*/,
-#endif
                                     };
     Serial.print("  I2C:"); Serial.flush();
     for (size_t i = 0; i < sizeof(knownAddrs); i++) {
@@ -1974,12 +1939,8 @@ void setup() {
     }
     display.addBootItem(scale.isConnected() ? scale.getChipName() : "Scale", scale.isConnected());
     if (scale.isConnected()) {
-#ifdef BOARD_SCAN_TOUCH
         // Weight task on Core 1 — NAU7802 I2C guarded by i2cMutex internally
         scale.startTask(1, 3);  // Core 1, priority 3 (above sensors, below LVGL)
-#else
-        scale.startTask(0, 2);  // DevKitC: Core 0 for HX711 bit-bang
-#endif
     }
 
 
@@ -1996,11 +1957,7 @@ void setup() {
     // Build hardware manifest from detected sensors
     DeviceCapabilities caps;
     if (nfcScanner.isConnected()) {
-#ifdef BOARD_SCAN_TOUCH
         caps.nfc.set("PN5180", "I2C", 0x55);
-#else
-        caps.nfc.set("PN532", "SPI", 0, NFC_CS_PIN);
-#endif
     }
     if (scale.isConnected()) {
         if (scale.getDriverType() == WEIGHT_NAU7802)
@@ -2022,20 +1979,14 @@ void setup() {
         }
         caps.colorSensor.set(chipName, "I2C", addr);
     }
-#ifdef BOARD_SCAN_TOUCH
     caps.display.set("ILI9341", "SPI", 0, TFT_CS_PIN);
-#else
-    caps.display.set("ST7789", "SPI", 0, TFT_CS_PIN);
-#endif
     if (envSensor.isConnected())
         caps.environment.set(envSensor.getChipName(), "I2C", envSensor.getI2CAddr());
 
-#ifdef BOARD_SCAN_TOUCH
     if (touchInput.isConnected())
         caps.touch.set("FT6336G", "I2C", 0x38);
     // Battery ADC -- always present on touch board
     caps.battery.set("ADC", "GPIO", 0, BATTERY_ADC_PIN);
-#endif
 
     // Label printer -- BLE scan
     display.setBootStatus("Scanning BLE printer...");
@@ -2085,7 +2036,6 @@ void setup() {
 
     // Menu action callbacks -- set flags for main loop to handle
     // (LVGL event callbacks run on lv_timer_handler stack, can't do heavy work)
-#ifdef BOARD_SCAN_TOUCH
     display.onMenuWifiSetup = []() { menuActionPending = MENU_WIFI_SETUP; };
     display.onMenuTareScale = []() { menuActionPending = MENU_TARE_SCALE; };
     display.onMenuRawSensors = []() { menuActionPending = MENU_RAW_SENSORS; };
@@ -2093,7 +2043,6 @@ void setup() {
     display.onMenuReboot       = []() { menuActionPending = MENU_REBOOT; };
     display.onMenuCheckUpdate  = []() { menuActionPending = MENU_CHECK_UPDATE; };
     display.onMenuBleScan      = []() { menuActionPending = MENU_BLE_SCAN; };
-#endif
 
     // OTA updates (init only -- periodic checks happen in network task)
     otaBegin();
@@ -2123,7 +2072,6 @@ void setup() {
     networkQueue = xQueueCreate(NET_QUEUE_SIZE, sizeof(NetworkWorkItem));
 
     // Create NFC task on Core 0 (PN5180 uses its own HSPI bus)
-#ifdef BOARD_SCAN_TOUCH
     if (nfcScanner.isConnected()) {
         xTaskCreatePinnedToCore(
             nfcTask,            // task function
@@ -2136,7 +2084,6 @@ void setup() {
         );
         Serial.println("  NFC task: started on core 0 (priority 2)");
     }
-#endif
 
     // Create network task on Core 0
     xTaskCreatePinnedToCore(
@@ -2150,7 +2097,6 @@ void setup() {
     );
     Serial.println("  Net task: started on core 0 (priority 1)");
 
-#ifdef BOARD_SCAN_TOUCH
     // Sensor task on Core 1 — round-robin I2C reads (color, env)
     sensorCache.mutex = xSemaphoreCreateMutex();
     xTaskCreatePinnedToCore(sensorTask, "sensor", 4096, nullptr,
@@ -2161,7 +2107,6 @@ void setup() {
     xTaskCreatePinnedToCore(lvglTask, "lvgl", 8192, nullptr,
         5, &lvglTaskHandle, 1);
     Serial.println("  LVGL task: started on core 1 (priority 5)");
-#endif
 
     Wire.setTimeOut(500);  // Restore normal I2C timeout for runtime
     Serial.printf("  Heap: %u free, %u min | PSRAM: %u free\n",
@@ -2183,15 +2128,9 @@ static unsigned long lastSerialStatus = 0;
 void loop() {
     unsigned long now = millis();
 
-#ifdef BOARD_SCAN_TOUCH
     // LVGL ticking handled by dedicated lvglTask (priority 5)
-#else
-    // DevKitC: no LVGL task, tick inline
-    display.tick();
-#endif
 
     // Process deferred menu actions (set by LVGL event callbacks)
-#ifdef BOARD_SCAN_TOUCH
     if (menuActionPending != MENU_NONE) {
         MenuAction action = menuActionPending;
         menuActionPending = MENU_NONE;
@@ -2306,7 +2245,6 @@ void loop() {
         scale.resumeTask();
         resumeBackgroundTasks();
     }
-#endif
 
     // Weight polling handled by weight task (Core 1, priority 3)
     // Snapshot weight once per loop (avoids repeated mutex acquisitions)
@@ -2314,26 +2252,7 @@ void loop() {
 
     // Snapshot NFC state from NFC task (thread-safe read)
     snapshotNfc();
-#ifdef BOARD_SCAN_TOUCH
     snapshotSensors();
-#endif
-
-    // NFC polling for DevKitC (PN532 on shared SPI -- no NFC task)
-#ifndef BOARD_SCAN_TOUCH
-    pollNfc();
-    // For DevKitC, manually populate nfcSnap from nfcScanner directly
-    nfcSnap.tagPresent = nfcScanner.isTagPresent();
-    nfcSnap.connected = nfcScanner.isConnected();
-    if (nfcSnap.tagPresent) {
-        nfcScanner.getUid(nfcSnap.uid, &nfcSnap.uidLen);
-        strncpy(nfcSnap.uidString, nfcScanner.getUidString().c_str(), sizeof(nfcSnap.uidString) - 1);
-        nfcSnap.uidString[sizeof(nfcSnap.uidString) - 1] = '\0';
-        nfcSnap.hasData = nfcScanner.hasTagData();
-        if (nfcSnap.hasData) {
-            nfcSnap.tagData = nfcScanner.getTagData();
-        }
-    }
-#endif
 
     // Captive portal processing (must run frequently when AP is active)
     provisioner.loop();
@@ -2409,7 +2328,6 @@ void loop() {
         if (envSensor.isConnected() && apiClient.isPaired() && apiClient.isWiFiConnected()
             && now - lastEnvReport >= deviceConfig.envReportInterval()) {
             lastEnvReport = now;
-#ifdef BOARD_SCAN_TOUCH
             if (cachedEnv.valid) {
                 if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
                     sharedScan.envData = cachedEnv;
@@ -2418,17 +2336,6 @@ void loop() {
                     xQueueSend(networkQueue, &item, 0);
                 }
             }
-#else
-            EnvData env;
-            if (envSensor.read(env)) {
-                if (xSemaphoreTake(sharedScan.mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-                    sharedScan.envData = env;
-                    xSemaphoreGive(sharedScan.mutex);
-                    NetworkWorkItem item = { NET_POST_ENV };
-                    xQueueSend(networkQueue, &item, 0);
-                }
-            }
-#endif
         }
     }
 
@@ -2443,7 +2350,6 @@ void loop() {
         updateDisplayAndLed();
     }
 
-#ifdef BOARD_SCAN_TOUCH
     // Live sensor screens -- continuous update
     if (display.isMenuActive() && now - lastDisplayUpdate >= 200) {
         lastDisplayUpdate = now;
@@ -2538,7 +2444,6 @@ void loop() {
         }
         } // isRawSensorsScreen
     }
-#endif
 
     // Periodic serial status line
     if (now - lastSerialStatus >= deviceConfig.statusInterval()) {

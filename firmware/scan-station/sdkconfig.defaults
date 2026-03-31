@@ -1,4 +1,4 @@
-# ESP-IDF sdkconfig overrides for FillaScan (BOARD_SCAN_TOUCH)
+# ESP-IDF sdkconfig overrides for FillaScan
 #
 # NOTE: Arduino-ESP32 uses precompiled ESP-IDF libraries. These values
 # are NOT automatically applied. The corresponding sdkconfig.h must be

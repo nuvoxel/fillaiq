@@ -3,8 +3,6 @@
 #include <Arduino.h>
 #include "scan_config.h"
 
-#ifdef BOARD_SCAN_TOUCH
-
 #include <lvgl.h>
 
 // FT6336G I2C address
@@ -26,5 +24,3 @@ private:
 };
 
 extern TouchDriver touchInput;
-
-#endif // BOARD_SCAN_TOUCH

@@ -9,13 +9,12 @@
 
 // ============================================================
 // Filla IQ — FillaScan Configuration
-// ESP32-S3-DevKitC-1 + PN532(SPI) + HX711 + ST7789(SPI)
+// ESP32-S3 2.8" ILI9341 Touch Board + PN5180(Pico) + NAU7802
 // + AS7341(I2C)
 // ============================================================
 
 // --- Pin Assignments ---
 
-#ifdef BOARD_SCAN_TOUCH
 // ── ESP32-S3 2.8" ILI9341 Touch Board (lcdwiki 2.8inch ESP32-S3) ──
 // Display is built-in; 4 expansion GPIOs on 1.25mm connector: IO2, IO3, IO14, IO21
 
@@ -45,7 +44,6 @@
 // Uses shared I2C bus (SDA=16, SCL=15) + interrupt pin
 #define NFC_PICO_INT_PIN    43   // Pico INT output (active LOW) — UART RXD pad
 
-
 // Battery voltage ADC
 #define BATTERY_ADC_PIN  9
 
@@ -55,42 +53,6 @@
 // UART (exposed on header)
 #define UART_RX_PIN     43
 #define UART_TX_PIN     44
-
-// No HX711 GPIOs — use NAU7802 (I2C) only
-#define HX711_SCK_PIN   -1
-#define HX711_DT_PIN    -1
-
-// No DHT pin available — use I2C environmental sensors (SHT31, BME280, etc.)
-#undef DHT_PIN
-
-#else
-// ── ESP32-S3 DevKitC-1 + separate ST7789 SPI display ──
-
-// FSPI Bus (shared: NFC + TFT display)
-#define SPI_SCK_PIN     12
-#define SPI_MOSI_PIN    11
-#define SPI_MISO_PIN    13
-
-// PN532 NFC reader (SPI mode)
-#define NFC_CS_PIN      14
-#define NFC_IRQ_PIN      7
-#define NFC_RST_PIN      6
-
-// ST7789V3 TFT Display (240x280, 1.69" SPI)
-#define TFT_CS_PIN      21
-#define TFT_DC_PIN      15
-#define TFT_RST_PIN     16
-#define TFT_BLK_PIN      4
-
-// I2C bus (Color sensors)
-#define I2C_SDA          8
-#define I2C_SCL          9
-
-// HX711 Load Cell (single channel)
-#define HX711_SCK_PIN   17
-#define HX711_DT_PIN    18
-
-#endif
 
 // --- Weight Settings ---
 #define WEIGHT_SAMPLES          10
@@ -169,12 +131,6 @@
 #define PRINTER_MAX_HEIGHT_MM   200     // Continuous feed
 #define PRINTER_DPI             203
 #define PRINTER_DOTS_PER_LINE   384     // 48mm * 8 dots/mm
-
-// --- DHT Temperature/Humidity Sensor ---
-#ifndef BOARD_SCAN_TOUCH
-#define DHT_PIN                 5
-#define DHT_TYPE                11      // 11 = DHT11, 22 = DHT22
-#endif
 
 // --- Serial ---
 #define SERIAL_BAUD             115200
