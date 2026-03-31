@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "scan-station-wiring")(type "KiCad")(uri "/Users/mdeluca/git/fillaiq/hardware/scan-station-wiring/scan-station-wiring.kicad_sym")(options "")(descr ""))
+)
