@@ -1,12 +1,14 @@
 {
   "mcpServers": {
-    "fusion360": {
+    "kicad": {
       "type": "stdio",
-      "command": "python3",
-      "args": [
-        "/Users/mdeluca/fillaiq/tools/ClaudeFusion360MCP/mcp-server/fusion360_mcp_server.py"
-      ],
-      "env": {}
+      "command": "node",
+      "args": ["/Users/mdeluca/git/KiCAD-MCP-Server/dist/index.js"],
+      "timeout": 600,
+      "env": {
+        "PYTHONPATH": "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages",
+        "LOG_LEVEL": "info"
+      }
     }
   }
 }

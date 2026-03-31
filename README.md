@@ -90,11 +90,7 @@ Built with Next.js 16, Tailwind CSS, shadcn/ui, Drizzle ORM, PostgreSQL.
 | NFC | PN5180 via RP2040 Pico I2C coprocessor | SPI (Pico) + I2C (ESP32) |
 | Weight | NAU7802 24-bit ADC + load cell | I2C |
 | Color | AS7341/AS7343 spectral (11-14 channel) | I2C (Stemma QT) |
-| Distance | VL53L1X time-of-flight | I2C (Stemma QT) |
 | Display | ILI9341 2.8" TFT + FT6336G capacitive touch | SPI + I2C |
-| Audio | ES8311 codec + I2S speaker | I2C + I2S |
-| LED | WS2812B 24-LED ring | GPIO |
-| Storage | Micro SD (SDMMC 4-bit) | SDMMC |
 | Printer | Phomemo M120 BLE thermal | BLE |
 | Environment | BME280 / SHT31 | I2C |
 
@@ -158,7 +154,6 @@ pio run -e scan_station             # DevKitC + PN532
 |---------|---------|
 | `scan-station/` | FillaScan — full scan station with touch display, NFC, sensors, MQTT |
 | `filla-shelf/` | FillaShelf — multi-bay shelf module with NFC + weight per slot |
-| `slot-module/` | Individual slot module (single-slot variant of FillaShelf) |
 
 ## Tech Stack
 
