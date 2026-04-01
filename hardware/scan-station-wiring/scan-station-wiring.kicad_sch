@@ -1338,7 +1338,7 @@
       )
       (embedded_fonts no)
     )
-    (symbol "scan-station-wiring:AHT20"
+    (symbol "jlcpcb-parts:AHT20_C2757850"
       (exclude_from_sim no)
       (in_bom yes)
       (on_board yes)
@@ -1350,7 +1350,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" "scan-station-wiring:AHT20_LGA-4_3x3mm"
+      (property "Footprint" "jlcpcb-parts:SENSOR-SMD_L3.0-W3.0-P1.00-BR"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -1405,7 +1405,7 @@
         )
       )
     )
-    (symbol "scan-station-wiring:PN5180"
+    (symbol "jlcpcb-parts:PN5180A0HN/C3E"
       (exclude_from_sim no)
       (in_bom yes)
       (on_board yes)
@@ -1417,7 +1417,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" "Package_DFN_QFN:HVQFN-40-1EP_6x6mm_P0.5mm_EP4.1x4.1mm_ThermalVias"
+      (property "Footprint" "jlcpcb-parts:HVQFN-40_L6.0-W6.0-PS0.50-BL"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -1659,7 +1659,7 @@
       )
       (embedded_fonts no)
     )
-    (symbol "scan-station-wiring:AS7341"
+    (symbol "jlcpcb-parts:AS7341-DLGM"
       (exclude_from_sim no)
       (in_bom yes)
       (on_board yes)
@@ -1671,7 +1671,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" "Package_LGA:AMS_OLGA-8_2x3.1mm_P0.8mm"
+      (property "Footprint" "jlcpcb-parts:TFLGA-8_L3.1-W2.0-P0.80-BL"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -6884,7 +6884,7 @@
     (uuid "a5ab857a-f7f2-48c1-807a-aa1c85eb47a7")
   )
   (symbol
-    (lib_id "scan-station-wiring:AHT20")
+    (lib_id "jlcpcb-parts:AHT20_C2757850")
     (at 60 180 0)
     (unit 1)
     (in_bom yes)
@@ -6899,7 +6899,7 @@
       (at 60 182.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "scan-station-wiring:AHT20_LGA-4_3x3mm"
+    (property "Footprint" "jlcpcb-parts:SENSOR-SMD_L3.0-W3.0-P1.00-BR"
       (at 60 180 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )
@@ -6957,7 +6957,7 @@
     (uuid "a32b0530-99c7-4107-acc5-895e4e63287d")
   )
   (symbol
-    (lib_id "scan-station-wiring:PN5180")
+    (lib_id "jlcpcb-parts:PN5180A0HN/C3E")
     (at 60 40 0)
     (unit 1)
     (in_bom yes)
@@ -6972,7 +6972,7 @@
       (at 60 42.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "Package_DFN_QFN:HVQFN-40-1EP_6x6mm_P0.5mm_EP4.1x4.1mm_ThermalVias"
+    (property "Footprint" "jlcpcb-parts:HVQFN-40_L6.0-W6.0-PS0.50-BL"
       (at 60 40 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )
@@ -7156,7 +7156,7 @@
     (uuid "fe69b55b-add2-4bc0-9a03-33bddd01538f")
   )
   (symbol
-    (lib_id "scan-station-wiring:AS7341")
+    (lib_id "jlcpcb-parts:AS7341-DLGM")
     (at 60 220 0)
     (unit 1)
     (in_bom yes)
@@ -7171,7 +7171,7 @@
       (at 60 222.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "Package_LGA:AMS_OLGA-8_2x3.1mm_P0.8mm"
+    (property "Footprint" "jlcpcb-parts:TFLGA-8_L3.1-W2.0-P0.80-BL"
       (at 60 220 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )
