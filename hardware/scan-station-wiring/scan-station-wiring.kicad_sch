@@ -1350,7 +1350,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" "Package_DFN_QFN:CDFN-4_2.5x3.2mm_P2.1mm"
+      (property "Footprint" "scan-station-wiring:AHT20_LGA-4_3x3mm"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -6899,7 +6899,7 @@
       (at 60 182.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "Package_DFN_QFN:CDFN-4_2.5x3.2mm_P2.1mm"
+    (property "Footprint" "scan-station-wiring:AHT20_LGA-4_3x3mm"
       (at 60 180 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )

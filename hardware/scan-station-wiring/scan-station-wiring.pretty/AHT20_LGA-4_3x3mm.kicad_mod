@@ -1,0 +1,80 @@
+(footprint "AHT20_LGA-4_3x3mm"
+  (version 20241229)
+  (generator "kicad-mcp")
+  (generator_version "9.0")
+  (layer "F.Cu")
+  (descr "Aosong AHT20 Temperature/Humidity Sensor, LGA-4, 3x3mm")
+  (tags "AHT20 humidity temperature sensor LGA SMD")
+
+  (property "Reference" "REF**" (at 0 -1.27 0)
+    (layer "F.SilkS")
+    (uuid "b5431c7e-1e95-413b-b0e3-54e97f01d9d3")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (property "Value" "AHT20_LGA-4_3x3mm" (at 0 1.27 0)
+    (layer "F.Fab")
+    (uuid "d822346c-9102-499f-b2a4-468f74337343")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (property "Datasheet" "" (at 0 0 0)
+    (layer "F.Fab")
+    (uuid "eebcc317-f3f6-4bcc-bee8-b6fbe9f6bd32")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+
+  (fp_rect
+    (start -1.75 -1.75)
+    (end 1.75 1.75)
+    (stroke (width 0.05) (type default))
+    (fill none)
+    (layer "F.CrtYd")
+    (uuid "397f97ef-a4ac-4875-96f9-743b92360879")
+  )
+
+  (fp_rect
+    (start -1.6 -1.6)
+    (end 1.6 1.6)
+    (stroke (width 0.12) (type default))
+    (fill none)
+    (layer "F.SilkS")
+    (uuid "b904a549-36f1-4f95-877c-c50298726858")
+  )
+
+  (fp_rect
+    (start -1.5 -1.5)
+    (end 1.5 1.5)
+    (stroke (width 0.1) (type default))
+    (fill none)
+    (layer "F.Fab")
+    (uuid "3557c7a4-eecf-4f4c-9a63-828eebb4050a")
+  )
+
+  (pad "1" smd rect
+    (at -1 -0.75)
+    (size 0.8 0.7)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (uuid "e02be350-1d40-4372-8703-fdd15656ced6")
+  )
+
+  (pad "2" smd rect
+    (at 1 -0.75)
+    (size 0.8 0.7)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (uuid "fb180ea5-75b6-4139-a5fa-6bd11650dc16")
+  )
+
+  (pad "3" smd rect
+    (at 1 0.75)
+    (size 0.8 0.7)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (uuid "4d290214-ebc5-47fc-8872-154edfc9d48c")
+  )
+
+  (pad "4" smd rect
+    (at -1 0.75)
+    (size 0.8 0.7)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (uuid "b10dc00d-fd3e-411a-9d2e-29c62778f46d")
+  )
+
+)
