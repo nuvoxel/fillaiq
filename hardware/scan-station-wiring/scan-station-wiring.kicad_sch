@@ -1350,7 +1350,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" ""
+      (property "Footprint" "Package_DFN_QFN:CDFN-4_2.5x3.2mm_P2.1mm"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -1417,7 +1417,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" ""
+      (property "Footprint" "Package_DFN_QFN:HVQFN-40-1EP_6x6mm_P0.5mm_EP4.1x4.1mm_ThermalVias"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -1671,7 +1671,7 @@
         (at 0 -2.54 0)
         (effects (font (size 1.27 1.27)))
       )
-      (property "Footprint" ""
+      (property "Footprint" "Package_LGA:AMS_OLGA-8_2x3.1mm_P0.8mm"
         (at 0 -5.08 0)
         (effects (font (size 1.27 1.27)))
         (hide yes)
@@ -6899,7 +6899,7 @@
       (at 60 182.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "Sensor:Aosong_AHT20"
+    (property "Footprint" "Package_DFN_QFN:CDFN-4_2.5x3.2mm_P2.1mm"
       (at 60 180 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )
@@ -6972,7 +6972,7 @@
       (at 60 42.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "Package_DFN_QFN:HVQFN-40-1EP_6x6mm_P0.5mm_ThermalVias"
+    (property "Footprint" "Package_DFN_QFN:HVQFN-40-1EP_6x6mm_P0.5mm_EP4.1x4.1mm_ThermalVias"
       (at 60 40 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )
@@ -7171,7 +7171,7 @@
       (at 60 222.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "Package_LGA:AMS_LGA-8_2x3.1mm_P0.8mm"
+    (property "Footprint" "Package_LGA:AMS_OLGA-8_2x3.1mm_P0.8mm"
       (at 60 220 0)
       (effects (font (size 1.27 1.27)) (hide yes))
     )
