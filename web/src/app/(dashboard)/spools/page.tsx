@@ -112,7 +112,6 @@ export default function SpoolsPage() {
   }, [loadItems]);
 
   const handleOpenCreate = () => {
-    setEditingItem(null);
     setDialogOpen(true);
   };
 
