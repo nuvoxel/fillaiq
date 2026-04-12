@@ -96,6 +96,14 @@ app:
   nodeEnv: development
   emailFrom: "Filla IQ <hello@fillaiq.com>"
 
+# Azure Workload Identity (for managed identity auth)
+workloadIdentity:
+  clientId: ""
+
+# Azure Blob Storage (uploads)
+azureStorage:
+  accountName: ""
+
 # Secrets Configuration (K8s secrets)
 # IMPORTANT: Override these values using --set or external secrets management
 secrets:

@@ -31,6 +31,7 @@ import { BrandDialog } from "@/components/catalog/brand-dialog";
 import { MaterialDialog } from "@/components/catalog/material-dialog";
 import { ProductDialog } from "@/components/catalog/product-dialog";
 import { hardwareCategoryLabels } from "@/components/hardware/enum-labels";
+import { materialClassLabels } from "@/lib/labels";
 
 /* ── Status badge styling ──────────────────────────────────────────── */
 const statusVariants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -303,7 +304,7 @@ export default function CatalogPage() {
                             <TableCell>
                               {row.materialClass ? (
                                 <Badge variant={materialClassVariants[row.materialClass] ?? "secondary"}>
-                                  {row.materialClass.toUpperCase()}
+                                  {materialClassLabels[row.materialClass] ?? row.materialClass.toUpperCase()}
                                 </Badge>
                               ) : (
                                 <span className="text-muted-foreground/50">{"\u2014"}</span>

@@ -21,13 +21,11 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { createMaterial, updateMaterial } from "@/lib/actions/central-catalog";
+import { materialClassLabels } from "@/lib/labels";
 
 const materialClassOptions = [
   { value: "_none", label: "\u2014" },
-  { value: "fff", label: "FFF" },
-  { value: "sla", label: "SLA" },
-  { value: "cnc", label: "CNC" },
-  { value: "laser", label: "Laser" },
+  ...Object.entries(materialClassLabels).map(([value, label]) => ({ value, label })),
 ];
 
 type Material = {

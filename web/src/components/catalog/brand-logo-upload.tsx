@@ -19,6 +19,7 @@ export function BrandLogoUpload({ brandId, brandName, logoUrl: initialLogoUrl, l
   const [logoBwUrl, setLogoBwUrl] = useState(initialLogoBwUrl);
   const [uploadingColor, setUploadingColor] = useState(false);
   const [uploadingBw, setUploadingBw] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
   const bwInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,18 +28,19 @@ export function BrandLogoUpload({ brandId, brandName, logoUrl: initialLogoUrl, l
     const setUrl = type === "color" ? setLogoUrl : setLogoBwUrl;
     const field = type === "color" ? "logoUrl" : "logoBwUrl";
 
+    setError(null);
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/v1/upload?category=brands", { method: "POST", body: formData });
       const result = await res.json();
-      if (!res.ok) { console.error(result.error); return; }
+      if (!res.ok) { setError(result.error ?? "Upload failed"); return; }
 
       setUrl(result.url);
       await updateBrand(brandId, { [field]: result.url });
     } catch (e) {
-      console.error("Upload failed:", e);
+      setError("Upload failed — check your connection and try again");
     } finally {
       setUploading(false);
     }
@@ -53,6 +55,8 @@ export function BrandLogoUpload({ brandId, brandName, logoUrl: initialLogoUrl, l
 
   return (
     <TooltipProvider>
+      <div className="flex flex-col gap-2">
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-3 flex-wrap">
         {/* Color Logo */}
         <div>
@@ -133,6 +137,8 @@ export function BrandLogoUpload({ brandId, brandName, logoUrl: initialLogoUrl, l
             </Button>
           </div>
         </div>
+      </div>
+      <p className="text-[0.625rem] text-muted-foreground">PNG, JPEG, WebP, or SVG — max 5 MB</p>
       </div>
     </TooltipProvider>
   );

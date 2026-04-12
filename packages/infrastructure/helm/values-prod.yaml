@@ -49,6 +49,14 @@ secrets:
   # Web pod connects to broker internally (pod-to-pod), not via external WSS
   mqttBrokerUrl: "mqtt://fillaiq-mqtt:1883"
 
+# Azure Workload Identity
+workloadIdentity:
+  clientId: "0766155c-3a98-4604-9a24-f6a298b29ddc"
+
+# Azure Blob Storage
+azureStorage:
+  accountName: "fillaiqmedia"
+
 # Application Configuration
 app:
   nodeEnv: production

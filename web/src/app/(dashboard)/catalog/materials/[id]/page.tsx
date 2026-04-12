@@ -13,6 +13,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { getMaterialById, listProducts } from "@/lib/actions/central-catalog";
+import { materialClassLabels } from "@/lib/labels";
 
 const validationVariants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "secondary",
@@ -64,7 +65,7 @@ export default async function MaterialDetailPage({
         )}
         {mat.materialClass && (
           <Badge variant={materialClassVariants[mat.materialClass] ?? "secondary"}>
-            {mat.materialClass.toUpperCase()}
+            {materialClassLabels[mat.materialClass] ?? mat.materialClass.toUpperCase()}
           </Badge>
         )}
       </div>

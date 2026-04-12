@@ -18,6 +18,9 @@ spec:
       labels:
         app: fillaiq
         component: web
+        {{- if .Values.workloadIdentity.clientId }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
       serviceAccountName: fillaiq-web
       {{- if .Values.imagePullSecrets }}
@@ -144,6 +147,12 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: MQTT_BROKER_URL
+
+            # Azure Blob Storage (uploads)
+            {{- if .Values.azureStorage.accountName }}
+            - name: AZURE_STORAGE_ACCOUNT
+              value: {{ .Values.azureStorage.accountName | quote }}
+            {{- end }}
 
           livenessProbe:
             httpGet:
