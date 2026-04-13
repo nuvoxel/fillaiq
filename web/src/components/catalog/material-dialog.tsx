@@ -21,11 +21,16 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { createMaterial, updateMaterial } from "@/lib/actions/central-catalog";
-import { materialClassLabels } from "@/lib/labels";
+import { materialClassLabels, fillTypeLabels } from "@/lib/labels";
 
 const materialClassOptions = [
   { value: "_none", label: "\u2014" },
   ...Object.entries(materialClassLabels).map(([value, label]) => ({ value, label })),
+];
+
+const fillTypeOptions = [
+  { value: "_none", label: "\u2014" },
+  ...Object.entries(fillTypeLabels).map(([value, label]) => ({ value, label })),
 ];
 
 type Material = {
@@ -50,6 +55,12 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
   const [hygroscopic, setHygroscopic] = useState(false);
   const [defaultDryingTemp, setDefaultDryingTemp] = useState("");
   const [defaultDryingTimeMin, setDefaultDryingTimeMin] = useState("");
+  const [isoClassification, setIsoClassification] = useState("");
+  const [fillType, setFillType] = useState("_none");
+  const [fillPercentage, setFillPercentage] = useState("");
+  const [fiberLengthMm, setFiberLengthMm] = useState("");
+  const [shoreHardnessA, setShoreHardnessA] = useState("");
+  const [shoreHardnessD, setShoreHardnessD] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -70,6 +81,20 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
       setDefaultDryingTimeMin(
         e.defaultDryingTimeMin != null ? String(e.defaultDryingTimeMin) : ""
       );
+      setIsoClassification(e.isoClassification ?? "");
+      setFillType(e.fillType || "_none");
+      setFillPercentage(
+        e.fillPercentage != null ? String(e.fillPercentage) : ""
+      );
+      setFiberLengthMm(
+        e.fiberLengthMm != null ? String(e.fiberLengthMm) : ""
+      );
+      setShoreHardnessA(
+        e.shoreHardnessA != null ? String(e.shoreHardnessA) : ""
+      );
+      setShoreHardnessD(
+        e.shoreHardnessD != null ? String(e.shoreHardnessD) : ""
+      );
     } else {
       setName("");
       setAbbreviation("");
@@ -79,6 +104,12 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
       setHygroscopic(false);
       setDefaultDryingTemp("");
       setDefaultDryingTimeMin("");
+      setIsoClassification("");
+      setFillType("_none");
+      setFillPercentage("");
+      setFiberLengthMm("");
+      setShoreHardnessA("");
+      setShoreHardnessD("");
     }
     setError(null);
   }, [open, existing]);
@@ -98,6 +129,12 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
       defaultDryingTimeMin: defaultDryingTimeMin
         ? Number(defaultDryingTimeMin)
         : null,
+      isoClassification: isoClassification || null,
+      fillType: fillType === "_none" ? null : fillType,
+      fillPercentage: fillPercentage ? Number(fillPercentage) : null,
+      fiberLengthMm: fiberLengthMm ? Number(fiberLengthMm) : null,
+      shoreHardnessA: shoreHardnessA ? Number(shoreHardnessA) : null,
+      shoreHardnessD: shoreHardnessD ? Number(shoreHardnessD) : null,
     };
 
     const result = existing
@@ -170,9 +207,18 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
             </div>
           </div>
 
+          <div>
+            <label className="text-xs font-medium block mb-1">ISO Classification</label>
+            <Input
+              value={isoClassification}
+              onChange={(e) => setIsoClassification(e.target.value)}
+              placeholder="e.g. ISO 11469"
+            />
+          </div>
+
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-xs font-medium block mb-1">Density (g/cm\u00B3)</label>
+              <label className="text-xs font-medium block mb-1">{"Density (g/cm³)"}</label>
               <Input
                 value={density}
                 onChange={(e) => setDensity(e.target.value)}
@@ -180,7 +226,7 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
               />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1">Drying Temp (\u00B0C)</label>
+              <label className="text-xs font-medium block mb-1">{"Drying Temp (°C)"}</label>
               <Input
                 value={defaultDryingTemp}
                 onChange={(e) => setDefaultDryingTemp(e.target.value)}
@@ -192,6 +238,59 @@ export function MaterialDialog({ open, onClose, onSaved, existing }: Props) {
               <Input
                 value={defaultDryingTimeMin}
                 onChange={(e) => setDefaultDryingTimeMin(e.target.value)}
+                type="number"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Fill Type</label>
+              <Select value={fillType} onValueChange={(v) => v && setFillType(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {fillTypeOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Fill %</label>
+              <Input
+                value={fillPercentage}
+                onChange={(e) => setFillPercentage(e.target.value)}
+                type="number"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Fiber Length (mm)</label>
+              <Input
+                value={fiberLengthMm}
+                onChange={(e) => setFiberLengthMm(e.target.value)}
+                type="number"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium block mb-1">Shore Hardness A</label>
+              <Input
+                value={shoreHardnessA}
+                onChange={(e) => setShoreHardnessA(e.target.value)}
+                type="number"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Shore Hardness D</label>
+              <Input
+                value={shoreHardnessD}
+                onChange={(e) => setShoreHardnessD(e.target.value)}
                 type="number"
               />
             </div>
